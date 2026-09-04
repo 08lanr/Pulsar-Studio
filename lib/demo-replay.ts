@@ -16,7 +16,6 @@
 
 import type { Session } from "@/lib/auth";
 import { DataError, getData } from "@/lib/data";
-import { dataSource } from "@/lib/data-source";
 import {
   DEMO_MODEL,
   DEMO_PROMPT_VERSION,
@@ -26,12 +25,11 @@ import {
 } from "@/data/fixture/canned";
 import { EXTRA_ALTS } from "@/data/fixture/canned-extra";
 import { cannedKey } from "@/data/fixture/canned";
-import type { AdaptedLine, Job, LineAlternative, Scene, Version, WorkbenchPayload } from "@/lib/types";
+import { DEFAULT_ALTERNATIVES } from "@/lib/prompts/alternatives";
+import type { AdaptTag, AdaptedLine, Job, LineAlternative, Scene, Version, WorkbenchPayload } from "@/lib/types";
 import type { FirstPassLine } from "@/lib/data";
 
-export function demoReplayActive(): boolean {
-  return dataSource() === "fixture" && process.env.DEMO_REPLAY !== "0";
-}
+export { demoReplayActive } from "@/lib/data-source";
 
 function requireDraft(wb: WorkbenchPayload): Version {
   if (!wb.version) throw new DataError("not_found", "no version for this episode yet; ingest it first");
@@ -141,11 +139,17 @@ export type ReplayAlternativesResult = {
   available: boolean;
 };
 
-/** Canned alternatives for one line, added once (re-clicks return the existing rows). */
+/**
+ * Canned alternatives for one line. The default click adds the bank's first
+ * two takes (re-clicks return the existing rows); a `direction` click adds
+ * ONE more take - the first unused bank entry carrying that tag, else the
+ * first unused entry at all (demo mode cannot write a new one), else nothing.
+ */
 export async function replayAlternatives(
   session: Session,
   adaptedLineId: string,
-  ctx: { titleId: string; episodeNumber: number }
+  ctx: { titleId: string; episodeNumber: number },
+  opts: { direction?: AdaptTag | null } = {}
 ): Promise<ReplayAlternativesResult> {
   const data = getData();
   const wb = await data.getWorkbench(session, ctx.titleId, ctx.episodeNumber);
@@ -181,15 +185,26 @@ export async function replayAlternatives(
     }
   }
   if (!bank.length) return { alternatives: [], all: existing, available: existing.length > 0 };
-  // The bank is one batch: once its texts are on the line, re-clicks add nothing.
   const have = new Set(existing.map((a) => a.text_en));
   const fresh = bank.filter((alt) => !have.has(alt.text_en));
-  if (!fresh.length) return { alternatives: [], all: existing, available: true };
+  if (!fresh.length) return { alternatives: [], all: existing, available: false };
+
+  let pick: typeof fresh;
+  if (opts.direction) {
+    const direction = opts.direction;
+    const along = fresh.find((alt) => (alt.tags ?? []).includes(direction));
+    pick = [along ?? fresh[0]];
+  } else {
+    // The first click is one batch of two; once those texts are on the line,
+    // re-clicks add nothing (directions pull from what is left).
+    if (existing.length) return { alternatives: [], all: existing, available: true };
+    pick = fresh.slice(0, DEFAULT_ALTERNATIVES);
+  }
 
   const added = await data.addAlternatives(
     session,
     adapted.id,
-    fresh.map((alt) => ({
+    pick.map((alt) => ({
       text_en: alt.text_en,
       back_translation_zh: alt.back_translation_zh,
       rationale_zh: alt.rationale_zh,

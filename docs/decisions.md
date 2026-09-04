@@ -4,6 +4,149 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-09-04 · Demo readiness: five fixes before a producer sees it alone
+
+Decided by the founders (Ruobin): "fix these things for the demo", from the
+repo review's must-fix list.
+
+- **Overlaps are fixable from the sheet.** QC still treats an overlap as an
+  error, but the QC row now offers 修正时间 and 「AI 修复全部」 handles overlaps
+  first: the previous cue's end is trimmed to a two-frame gap (never below a
+  300 ms cue; if that is not enough the current cue's start moves too), in
+  one batched `POST …/timing/cues`. No producer is blocked on a real SRT any
+  more; the full timing desk still lives after finalize.
+- **Pulsar's spend never reaches a producer.** First-pass, rewrite and
+  alternatives return the job row (usage, cost, prompt input) to staff
+  sessions only.
+- **Demo replay cannot spend money.** `demoReplayActive()` moved to
+  `lib/data-source.ts` and `runJob` — the single choke point for every model
+  call — refuses while it is on, with a producer-readable message. Rewrite,
+  pack and clips were previously unguarded; `tests/demo-guard.test.ts` pins it.
+- **One word for finalize: 定稿 / Finalize.** The button, the confirm step,
+  the title-page progress card, the version pill and the done banner all say
+  it. The title-page step strip says 审阅修改, not 逐场确认; the sheet header
+  says 双语剧本 and "click a timestamp to jump and edit", not "review or
+  comment". Engineering copy (API keys, DEMO_REPLAY, "demo mode" as an
+  excuse) is gone from producer strings. The producer home uses producer
+  words for status (待确认, not 制片方审核中).
+- **The header cannot contradict the QC card.** With every line adapted but
+  errors remaining, the command strip reads 「还有 N 处必须修复」 in a warning
+  tone; 「可以定稿了」 appears only when preflight is clean.
+
+## 2026-09-04 · Training the translator: a knowledge layer in authority order
+
+Decided by the founders (Ruobin): "improve translation right now, and improve
+it over time as we translate more scripts, using online sources." The Tatoeba
+seed (below) was the first attempt; a probe against the founder's own 24 lines
+showed bigram-Dice retrieval returning unrelated textbook sentences ("We're
+going to paint the wall" for 咱们准备开始汇报) in the wrong register, so the
+approach was reshaped rather than removed.
+
+- **One knowledge layer, `lib/memory`, gathered per scene (or per line) and
+  rendered as prompt blocks in this authority order:**
+  1. *Approved memory* — producer-approved lines from immutable snapshots
+     (house truth). Lines the producer wrote or corrected by hand rank higher
+     and are labelled `producer-edited`; they are the strongest signal of the
+     voice the producer wants. This is the corpus that compounds.
+  2. *House exemplars* — the Pulsar-authored demo bank (`data/fixture/canned*.ts`)
+     is now also the house-style corpus: literal → studio line → key phrase →
+     why, so the model sees the MOVE, not just a target sentence.
+  3. *Register guide* — `lib/memory/idioms.ts`, an authored table of set
+     phrases, forms of address and genre beats (久仰, 辛苦了, X总, 丫头, 撤单,
+     白月光 …) with how American series say them and when. Exact containment,
+     so it never misfires.
+  4. *Glosses* — CC-CEDICT (CC BY-SA 4.0) filtered to idioms, marked usages
+     and 4+ character set phrases (`npm run memory:import:cedict`). Meaning
+     only; the prompt says so.
+  5. *Reference pairs* — Tatoeba, now near-exact matches only (≥ 0.55) and at
+     most three; lowest authority.
+- **Retrieval is IDF-weighted bigram cosine** (`lib/memory/rank.ts`) for every
+  corpus: shared function characters no longer make a match.
+- **Knowledge blocks sit AFTER the cached system blocks** (bible, rules), so
+  the two cache breakpoints have stable prefixes again. The Tatoeba and CEDICT
+  files load lazily; routes that never write a line do not carry them.
+- **Idempotency keys are stable** (`first_pass:version:scene:PROMPT_VERSION`);
+  what was retrieved is recorded on the job as counts plus a fingerprint. A
+  memory that grew since the last click must not silently regenerate a scene
+  the producer already edited. `PROMPT_VERSION` is `v4`.
+- **Alternatives and rewrites get the per-line knowledge too** (approved,
+  house, register guide, glosses; no Tatoeba).
+- **Approved-memory scope:** Studio-wide, as the seed-memory entry already
+  decided; CLAUDE.md is aligned. A producer's rows never appear in another
+  producer's route response — they only inform the prompt.
+- Tests: `tests/memory.test.ts`, `tests/reference-memory.test.ts` (pins the
+  probe lines to zero Tatoeba hits), `tests/translation-memory.test.ts`.
+
+## 2026-09-04 · Tags become the dial: two takes, then "take it another direction"
+
+Decided by the founders (Ruobin), in session, after a review noted the tone
+tags (更精炼 / 更口语 / 更情感化 …) were the product's clearest evidence of
+*how* it helps and yet rendered as passive grey chips nobody looked at.
+
+- **Alternatives are TWO, not three**, and each leans into a different
+  direction: the first tag on a take names it and is rendered filled at the
+  top of the card, so the two read as "a more emotional one, a more direct
+  one" rather than an anonymous list. The prompt (`lib/prompts/alternatives.ts`)
+  enforces the count and the spread; the bank serves its first two.
+- **The dial appears after alternatives, not before.** The default panel stays
+  quiet (applied tags, edit box, one button). Once the producer opens
+  备选说法 and neither take fits, a row 「都不合适？换个方向再写一版」 lists
+  the tags nobody has tried on this line — not on the current take, not on any
+  alternative — and tapping one requests **one more take that commits to that
+  tag** (`POST …/alternatives` with `{ direction }`; new idempotency batch,
+  suffixed with the tag; the `check` refuses a take missing it).
+- **A tapped direction lands in the edit box like picking an alternative
+  does** — it is written as an alternative row, auto-picked, and nothing
+  commits until 保存本句. The confirm contract is unchanged.
+- **Demo mode:** a direction pulls the first unused bank entry carrying that
+  tag, else the first unused entry at all, else answers `available: false`
+  and the UI says so. `tests/alternatives.test.ts` pins the prompt shapes
+  and the replay behaviour.
+
+## 2026-09-04 · Licensed seed memory
+
+Translation retrieval no longer starts empty while the Studio approval corpus
+is young.
+
+- **Tatoeba seeds the corpus.** A refreshable, attributed Mandarin-English
+  subset comes from Tatoeba's official API. Both sides must be approved,
+  non-orphaned, directly linked, and owned by self-identified native speakers;
+  only Simplified Chinese and subtitle-sized pairs are kept.
+- **Authority is explicit.** Studio-approved memory remains house truth and
+  ranks separately. Tatoeba examples are lower-trust vocabulary and idiom
+  hints only; the prompt warns that community data can be wrong and forbids
+  importing its names, story facts, relationships, or character voice.
+- **License provenance stays attached.** Every pair retains both sentence IDs,
+  contributor usernames, and per-sentence licenses. The corpus is generated
+  with `npm run memory:import:tatoeba` and documented in `data/reference`.
+- **No live production dependency.** Translation jobs retrieve locally from
+  the bundled snapshot; they do not wait on Tatoeba or send studio scripts to
+  Tatoeba.
+
+## 2026-09-04 · Approved-script memory + provider-neutral LLM gateway
+
+Translation quality now compounds from producer decisions instead of starting
+from a generic prompt on every title.
+
+- **Approved snapshots are the translation memory.** The first pass derives
+  Chinese/English pairs from immutable `approved` version snapshots, ranks a
+  small relevant set for each scene, and includes them as style and character-
+  voice evidence. Retrieval spans Studio's approved corpus across producers;
+  it remains server-only, same-title matches rank higher, and the prompt
+  explicitly forbids importing old plot facts.
+- **No duplicate memory table yet.** The approval snapshot remains the source
+  of truth. A dedicated glossary/import surface can be added for historical
+  scripts and exact terminology without copying current approved rows.
+- **Provider-neutral calls.** `LLM_PROVIDER=anthropic|openai` selects one
+  structured-output gateway. Both paths use the existing Zod contract,
+  semantic validation, one repair attempt, retry taxonomy, usage accounting,
+  and `studio.jobs.provider`. Fixture replay remains deterministic and never
+  calls either API.
+- **OpenAI path.** The OpenAI provider uses the Responses API with strict
+  structured output; `OPENAI_API_KEY` is separate from a ChatGPT subscription.
+  The default strong/fast models remain overrideable with
+  `LLM_MODEL_STRONG` / `LLM_MODEL_FAST`.
+
 ## 2026-09-04 · The timing desk: offsets, per-cue trims, honest auto-sync
 
 Built from a structured spec after the founder's footage ran ~500 ms late

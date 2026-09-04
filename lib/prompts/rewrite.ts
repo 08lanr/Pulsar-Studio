@@ -44,6 +44,8 @@ export type RewriteInput = {
   around: PromptLine[];
   instruction: RewriteInstruction;
   producer_note: string | null;
+  /** Per-line knowledge blocks (lib/memory), appended after the cached system blocks. */
+  knowledge?: LlmSystemBlock[];
 };
 
 const SYSTEM = `You are the lead adapter at Pulsar Studio, redoing one line of a Chinese vertical short drama adapted for American viewers because the editor asked.
@@ -66,7 +68,7 @@ export function buildRewrite(input: RewriteInput) {
     .filter(Boolean)
     .join("\n");
   const note = input.producer_note ? `\nPRODUCER'S NOTE on this scene: ${input.producer_note}\n` : "";
-  const system: LlmSystemBlock[] = [input.bible, { text: SYSTEM, cache: true }];
+  const system: LlmSystemBlock[] = [input.bible, { text: SYSTEM, cache: true }, ...(input.knowledge ?? [])];
   return {
     name: "rewrite",
     description: "Record the rewritten line.",

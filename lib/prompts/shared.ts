@@ -11,7 +11,7 @@ import { z } from "zod";
 import { AD_ANGLES, TAGS, type ChangeType } from "@/lib/types";
 
 /** Bumped when any prompt text or schema changes; stored on every AI-authored row. */
-export const PROMPT_VERSION = "v1";
+export const PROMPT_VERSION = "v4";
 
 /** The decisions.md example pair. Every prompt quotes it. */
 export const STYLE_ANCHOR = `STYLE ANCHOR (the product's own example; write like this)

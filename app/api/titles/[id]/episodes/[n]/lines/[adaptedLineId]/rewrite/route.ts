@@ -25,6 +25,7 @@ export async function POST(
       titleId: params.id,
       episodeNumber: n,
     });
-    return NextResponse.json({ line: r.line, job: r.job });
+    // The job row (usage, cost) is staff-only; producers get the line.
+    return NextResponse.json(g.session.kind === "staff" ? { line: r.line, job: r.job } : { line: r.line });
   });
 }

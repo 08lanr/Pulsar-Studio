@@ -11,3 +11,13 @@ export type DataSource = "fixture" | "supabase";
 export function dataSource(): DataSource {
   return process.env.DATA_SOURCE === "supabase" ? "supabase" : "fixture";
 }
+
+/**
+ * Fixture mode replays the canned bank instead of calling a model
+ * (lib/demo-replay.ts). While it is on, NO real model call may happen —
+ * lib/jobs.ts refuses at runJob — so a key in .env.local cannot spend money
+ * from a demo. DEMO_REPLAY=0 is the explicit override.
+ */
+export function demoReplayActive(): boolean {
+  return dataSource() === "fixture" && process.env.DEMO_REPLAY !== "0";
+}

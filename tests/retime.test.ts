@@ -35,14 +35,15 @@ test("retime lifts stamps from stored text and marks the episode timed", async (
 
   wb = await fixtureData.getWorkbench(producer(), title.id, 1);
   assert.equal(wb.episode.has_timecodes, true);
+  // Whole-second stamps read as frame-sampled: corrected 500ms earlier.
   assert.deepEqual(
     wb.lines.map((l) => l.start_ms),
-    [1000, 2000, 6000]
+    [500, 1500, 5500]
   );
-  assert.equal(wb.lines[0].end_ms, 2000, "end from the next line's start");
+  assert.equal(wb.lines[0].end_ms, 1500, "end from the next line's start");
   assert.equal(wb.lines[0].text_zh, "你奶奶走了之后", "the stamp leaves the text");
   assert.equal(wb.lines[2].speaker, "杨总", "the hidden speaker prefix is recovered");
-  assert.ok((wb.episode.duration_ms ?? 0) >= 8500, "episode duration follows the last cue");
+  assert.ok((wb.episode.duration_ms ?? 0) >= 8000, "episode duration follows the last cue");
 });
 
 test("retime refuses an episode with no stamps", async () => {

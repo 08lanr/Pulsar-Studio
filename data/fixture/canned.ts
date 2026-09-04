@@ -647,6 +647,19 @@ export function cannedLine(zh: string): CannedLine | null {
   return BANK[key] ?? USER_BANK[key] ?? null;
 }
 
+/**
+ * Every authored line as (source, adaptation), for lib/memory/house-style:
+ * the bank doubles as the house-style exemplar corpus. BANK keys are
+ * normalized, so the founder's-footage entries (which keep their raw zh) are
+ * preferred as the display source where both exist.
+ */
+export function cannedExemplars(): Array<{ zh: string; line: CannedLine }> {
+  const out = new Map<string, { zh: string; line: CannedLine }>();
+  for (const [key, line] of Object.entries(BANK)) out.set(key, { zh: key, line });
+  for (const u of USER_LINES) out.set(cannedKey(u.zh), { zh: u.zh, line: u.line });
+  return [...out.values()];
+}
+
 /** The bank's own alternatives for a line (the supplement in ./canned-extra
  * is merged by lib/demo-replay.ts, which also appends the literal fallback). */
 export function cannedAlternatives(zh: string): NonNullable<CannedLine["alternatives"]> {

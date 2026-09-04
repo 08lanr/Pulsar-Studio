@@ -15,7 +15,7 @@
 // heartbeat, the UI polls the row — and the idempotency keys and the
 // resume-by-job_id checks here are already shaped for it.
 //
-// No key (ANTHROPIC_API_KEY unset) means no job row: every run*() throws
+// No key for the selected provider means no job row: every run*() throws
 // LlmUnavailableError first, which routes map to 503 'llm_unavailable'.
 // State guards (no draft, frozen version, untimed episode) throw DataError
 // so routes map them like any other data failure.
@@ -24,6 +24,7 @@ import type { Session } from "@/lib/auth";
 import { DataError, getData, type FirstPassLine as FirstPassRow, type NewClip, type NewVariant } from "@/lib/data";
 import {
   LlmUnavailableError,
+  LLM_PROVIDER,
   callStructured,
   isLlmAvailable,
   titleBible,
@@ -31,6 +32,8 @@ import {
   type LlmSystemBlock,
   type LlmUsage,
 } from "@/lib/llm";
+import { gatherKnowledge } from "@/lib/memory";
+import { demoReplayActive } from "@/lib/data-source";
 import {
   PROMPT_VERSION,
   buildAlternatives,
@@ -45,6 +48,7 @@ import {
   type RewriteInstruction,
 } from "@/lib/prompts";
 import type {
+  AdaptTag,
   AdaptedLine,
   Character,
   Clip,
@@ -84,8 +88,23 @@ export type RunJobResult<T> = {
   skipped: boolean;
 };
 
-export async function runJob<T>(session: Session, spec: RunJobSpec<T>): Promise<RunJobResult<T>> {
+/**
+ * The one gate in front of every real model call. Demo replay must never
+ * reach a model: fixture mode with a key in .env.local is the normal dev
+ * setup, and a rewrite or pack click would otherwise spend real money.
+ * Routes with a canned answer never get here (lib/demo-replay.ts writes
+ * through the data layer directly). Checked before the key so the producer
+ * reads "demo mode", never an environment-variable name.
+ */
+export function assertModelCallsAllowed(): void {
+  if (demoReplayActive()) {
+    throw new LlmUnavailableError("AI passes are off in demo mode: the demo replays the bundled sample script.");
+  }
   if (!isLlmAvailable()) throw new LlmUnavailableError();
+}
+
+export async function runJob<T>(session: Session, spec: RunJobSpec<T>): Promise<RunJobResult<T>> {
+  assertModelCallsAllowed();
   const data = getData();
   const job = await data.recordJob(session, {
     kind: spec.kind,
@@ -95,7 +114,7 @@ export async function runJob<T>(session: Session, spec: RunJobSpec<T>): Promise<
     target_type: spec.target_type,
     target_id: spec.target_id,
     idempotency_key: spec.idempotency_key,
-    provider: "anthropic",
+    provider: LLM_PROVIDER,
     model: spec.model ?? null,
     input: spec.input ?? null,
   });
@@ -224,7 +243,7 @@ export type UnderstandTitleResult = {
  * overwrites text a person typed.
  */
 export async function runUnderstandTitle(session: Session, titleId: string): Promise<UnderstandTitleResult> {
-  if (!isLlmAvailable()) throw new LlmUnavailableError();
+  assertModelCallsAllowed();
   const data = getData();
   const detail = await data.getTitle(session, titleId);
 
@@ -362,13 +381,28 @@ export type FirstPassResult = {
  * written back (the data layer keeps authored_by = 'editor' rows). Pass
  * `sceneId` to run a single scene.
  */
+/**
+ * Knowledge for a single-line pass (alternatives, rewrite): the approved
+ * corpus, house exemplars, register guide and glosses for that line, no
+ * Tatoeba (one line rarely earns a near-exact hit and the prompt stays short).
+ */
+async function lineKnowledge(session: Session, wb: WorkbenchPayload, line: Line) {
+  const approvedMemory = await getData().listApprovedTranslationMemory(session, wb.title.id);
+  return gatherKnowledge([{ text_zh: line.text_zh, speaker: line.speaker }], {
+    approvedMemory,
+    titleId: wb.title.id,
+    reference: false,
+    limits: { approved: 6, house: 3, idioms: 6, glosses: 6 },
+  });
+}
+
 export async function runFirstPass(
   session: Session,
   titleId: string,
   episodeNumber: number,
   opts: { sceneId?: string } = {}
 ): Promise<FirstPassResult> {
-  if (!isLlmAvailable()) throw new LlmUnavailableError();
+  assertModelCallsAllowed();
   const data = getData();
   const wb = await data.getWorkbench(session, titleId, episodeNumber);
   const version = requireDraft(wb);
@@ -381,6 +415,7 @@ export async function runFirstPass(
   let previousContextZh: string | null = null;
   let previousTail: { speaker: string | null; text_zh: string; text_en: string | null }[] = [];
   const adaptedBefore = adaptedByLineId(wb);
+  const approvedMemory = await data.listApprovedTranslationMemory(session, titleId);
 
   for (const raw of ordered) {
     let scene = raw;
@@ -393,6 +428,10 @@ export async function runFirstPass(
       if (!ctx.skipped) cost += ctx.job.cost_cents ?? 0;
     }
 
+    const knowledge = await gatherKnowledge(
+      lines.map((line) => ({ text_zh: line.text_zh, speaker: line.speaker })),
+      { approvedMemory, titleId: wb.title.id }
+    );
     const prompt = buildFirstPass({
       bible,
       episode_number: wb.episode.number,
@@ -400,6 +439,7 @@ export async function runFirstPass(
       lines: lines.map((l) => toPromptLine(l)),
       previous_tail: previousTail,
       has_timecodes: wb.episode.has_timecodes,
+      knowledge: knowledge.blocks,
     });
     const r = await runJob(session, {
       kind: "first_pass",
@@ -408,9 +448,17 @@ export async function runFirstPass(
       version_id: version.id,
       target_type: "scene",
       target_id: scene.id,
+      // Stable per version+scene+prompt: a memory that grew since the last
+      // click is recorded below but must not silently regenerate the scene.
       idempotency_key: `first_pass:${version.id}:${scene.id}:${PROMPT_VERSION}`,
       model: prompt.model,
-      input: { prompt_version: PROMPT_VERSION, scene_number: scene.number, line_count: lines.length },
+      input: {
+        prompt_version: PROMPT_VERSION,
+        scene_number: scene.number,
+        line_count: lines.length,
+        knowledge: knowledge.counts,
+        knowledge_fingerprint: knowledge.fingerprint,
+      },
       run: async () => {
         const c = await callStructured(prompt);
         return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model };
@@ -479,13 +527,23 @@ export type AlternativesResult = {
   skipped: boolean;
 };
 
-/** 2-3 alternatives for one line, as a new batch keyed on the line and the batch number. */
+export type AlternativesOptions = {
+  /** "Take it another direction": one more take that leans into this tag. */
+  direction?: AdaptTag | null;
+};
+
+/**
+ * Alternatives for one line, as a new batch keyed on the line and the batch
+ * number: two takes in different directions by default, or ONE take along the
+ * tag the producer tapped.
+ */
 export async function runAlternatives(
   session: Session,
   adaptedLineId: string,
-  ctx: LineContext
+  ctx: LineContext,
+  opts: AlternativesOptions = {}
 ): Promise<AlternativesResult> {
-  if (!isLlmAvailable()) throw new LlmUnavailableError();
+  assertModelCallsAllowed();
   const data = getData();
   const wb = await data.getWorkbench(session, ctx.titleId, ctx.episodeNumber);
   const version = requireDraft(wb);
@@ -506,8 +564,11 @@ export async function runAlternatives(
     around: linesAround(wb, scene.id, line.seq),
     existing_en: existing.map((a) => a.text_en),
     producer_note: producerNote(wb, scene.id),
+    direction: opts.direction ?? null,
+    knowledge: (await lineKnowledge(session, wb, line)).blocks,
   });
   const batch = nextBatch(existing);
+  const directionKey = opts.direction ? `:${opts.direction}` : "";
   const r = await runJob(session, {
     kind: "alternatives",
     title_id: wb.title.id,
@@ -515,9 +576,9 @@ export async function runAlternatives(
     version_id: version.id,
     target_type: "adapted_line",
     target_id: adapted.id,
-    idempotency_key: `alternatives:${adapted.id}:${PROMPT_VERSION}:${batch}`,
+    idempotency_key: `alternatives:${adapted.id}:${PROMPT_VERSION}:${batch}${directionKey}`,
     model: prompt.model,
-    input: { prompt_version: PROMPT_VERSION, batch, seq: line.seq },
+    input: { prompt_version: PROMPT_VERSION, batch, seq: line.seq, direction: opts.direction ?? null },
     run: async () => {
       const c = await callStructured(prompt);
       return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model };
@@ -560,7 +621,7 @@ export async function runRewrite(
   instruction: RewriteInstruction,
   ctx: LineContext
 ): Promise<RewriteResult> {
-  if (!isLlmAvailable()) throw new LlmUnavailableError();
+  assertModelCallsAllowed();
   const data = getData();
   const wb = await data.getWorkbench(session, ctx.titleId, ctx.episodeNumber);
   const version = requireDraft(wb);
@@ -582,6 +643,7 @@ export async function runRewrite(
     around: linesAround(wb, scene.id, line.seq),
     instruction: trimmed,
     producer_note: producerNote(wb, scene.id),
+    knowledge: (await lineKnowledge(session, wb, line)).blocks,
   });
   const r = await runJob(session, {
     kind: "rewrite",
@@ -648,7 +710,7 @@ const PACK_KINDS: { key: "titles" | "hooks" | "descriptions" | "thumbnail_concep
  * a new batch: the key carries the batch number.
  */
 export async function runCreativePack(session: Session, titleId: string): Promise<CreativePackResult> {
-  if (!isLlmAvailable()) throw new LlmUnavailableError();
+  assertModelCallsAllowed();
   const data = getData();
   const detail = await data.getTitle(session, titleId);
   const existing = await data.listVariants(session, titleId);
@@ -745,7 +807,7 @@ export async function runFindClips(
   episodeNumber: number,
   opts: { force?: boolean } = {}
 ): Promise<FindClipsResult> {
-  if (!isLlmAvailable()) throw new LlmUnavailableError();
+  assertModelCallsAllowed();
   const data = getData();
   const wb = await data.getWorkbench(session, titleId, episodeNumber);
   if (!wb.episode.has_timecodes) throw new DataError("invalid", "clips need a timed episode (subtitle file with timecodes)");

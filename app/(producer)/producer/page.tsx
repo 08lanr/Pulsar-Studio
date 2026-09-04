@@ -11,6 +11,18 @@ import { IconPlus } from "@/components/producer/icons";
 
 export const dynamic = "force-dynamic";
 
+// Statuses a producer reads about their own title, in their own words
+// ("待确认", not "制片方审核中"); anything else falls back to the admin label.
+const PRODUCER_STATUS = new Set<TitleStatus>(["candidate", "selected", "ingesting", "adapting", "in_review", "approved"]);
+
+/** The title row's status does not advance when a producer generates, so a
+ * title with adapted lines still says "uploaded" — read the progress instead. */
+function producerStatusKey(status: TitleStatus, percentAdapted: number): string {
+  const early = status === "candidate" || status === "selected" || status === "ingesting";
+  if (early && percentAdapted > 0) return "pw.titleStatus.adapting";
+  return PRODUCER_STATUS.has(status) ? `pw.titleStatus.${status}` : `admin.titleStatus.${status}`;
+}
+
 const STATUS_PILL: Partial<Record<TitleStatus, string>> = {
   in_review: "pill-warning",
   approved: "pill-success",
@@ -39,7 +51,7 @@ export default async function ProducerHome() {
           <a className="poster" key={title.id} href={`/producer/titles/${title.id}`}>
             <div className="poster-cover">
               <span className={`pill ${STATUS_PILL[title.status] ?? "pill-neutral"}`}>
-                {t(locale, `admin.titleStatus.${title.status}`)}
+                {t(locale, producerStatusKey(title.status, title.percent_adapted))}
               </span>
               <span className="poster-cover-name bilingual" lang="zh-CN">
                 {title.name_zh}

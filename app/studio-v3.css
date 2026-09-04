@@ -432,6 +432,17 @@
   top: calc(var(--v3-topbar-h) + 12px);
   max-height: calc(100vh - var(--v3-topbar-h) - 24px);
   border-left: 1px solid var(--v3-line);
+  /* The v3 skin's overflow:hidden (rounded corners) was eating the rail's
+     scroll - long alternative lists pushed the save button off-screen. */
+  overflow-y: auto;
+}
+.producer-main .workspace-top .rail-player,
+.producer-main .workspace-top .rail-qc {
+  border: 1px solid var(--v3-line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--v3-paper);
+  box-shadow: var(--v3-shadow);
 }
 .producer-main .review-script-head {
   min-height: 52px;

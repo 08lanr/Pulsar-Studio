@@ -15,7 +15,9 @@ import type { Session } from "@/lib/auth";
 import { DataError, getData } from "@/lib/data";
 import { mediaUrl, resolveUploadPath, storagePath } from "@/lib/data/storage";
 import { dataSource } from "@/lib/data-source";
-import { toSrt } from "@/lib/export";
+import { toCues } from "@/lib/export/subtitles";
+import { srtTime } from "@/lib/export/time";
+import { mergeShortCues, type MergeableCue } from "@/lib/subtitle-timing";
 import type { SnapshotScene } from "@/lib/types";
 
 export type SubtitleVideoResult = { video_url: string; lines: number };
@@ -27,8 +29,14 @@ export type SubtitleStyle = {
   layout: "en" | "en_zh";
   font: "sans" | "serif";
   size: "s" | "m" | "l";
+  position: "bottom" | "top";
+  /** Pair short neighboring cues into one two-row cue (English layout only). */
+  merge: boolean;
 };
-export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = { layout: "en", font: "sans", size: "m" };
+export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = { layout: "en", font: "sans", size: "m", position: "bottom", merge: false };
+
+// libass numpad alignment: 2 = bottom-center, 8 = top-center.
+const ALIGNMENTS: Record<SubtitleStyle["position"], number> = { bottom: 2, top: 8 };
 
 // Bilingual burns need a font with CJK glyphs; the Latin-only faces would
 // draw tofu for the Chinese line.
@@ -43,17 +51,20 @@ const SIZES: Record<SubtitleStyle["size"], { fontSize: number; marginV: number }
 };
 
 /** The SRT for a layout; exported for the studio preview tests. */
-export function styledSrt(scenes: SnapshotScene[], layout: SubtitleStyle["layout"]): string {
+export function styledSrt(scenes: SnapshotScene[], layout: SubtitleStyle["layout"], merge = false): string {
   const lines = scenes.flatMap((sc) => sc.adapted_lines);
   const sources = scenes.flatMap((sc) => sc.lines);
-  if (layout === "en") return toSrt(lines, sources);
   const byId = new Map(sources.map((src) => [src.id, src]));
-  const bilingual = lines.map((l) => {
-    const zh = l.line_id ? byId.get(l.line_id)?.text_zh : null;
-    return { ...l, text_en: l.text_en && zh ? `${l.text_en}
-${zh}` : l.text_en };
-  });
-  return toSrt(bilingual, sources);
+  const withText =
+    layout === "en"
+      ? lines
+      : lines.map((l) => {
+          const zh = l.line_id ? byId.get(l.line_id)?.text_zh : null;
+          return { ...l, text_en: l.text_en && zh ? `${l.text_en}\n${zh}` : l.text_en };
+        });
+  let cues: MergeableCue[] = toCues(withText, sources);
+  if (merge && layout === "en") cues = mergeShortCues(cues);
+  return cues.map((c, i) => `${i + 1}\n${srtTime(c.start_ms)} --> ${srtTime(c.end_ms)}\n${c.text}\n`).join("\n");
 }
 
 /** ffmpeg's subtitles= filter parses its argument, so Windows paths need the drive colon escaped. */
@@ -77,7 +88,7 @@ export async function renderSubtitledVideo(
   if (!source) throw new DataError("invalid", "this episode has no video — upload one first");
   if (!wb.episode.has_timecodes) throw new DataError("invalid", "subtitles need a timed episode");
 
-  const srt = styledSrt(snap.snapshot.scenes, style.layout);
+  const srt = styledSrt(snap.snapshot.scenes, style.layout, style.merge && style.layout === "en");
   if (!srt.trim()) throw new DataError("invalid", "no adapted lines to burn — generate the adaptation first");
 
   const srtFile = path.join(tmpdir(), `studio-subs-${wb.episode.id}.srt`);
@@ -92,7 +103,7 @@ export async function renderSubtitledVideo(
   // size from the producer's picks in the subtitle studio.
   const face = FONTS[style.font][style.layout];
   const dims = SIZES[style.size];
-  const forceStyle = `FontName=${face},FontSize=${dims.fontSize},PrimaryColour=&H00FFFFFF,OutlineColour=&H66000000,BorderStyle=1,Outline=1.2,Shadow=0.6,MarginV=${dims.marginV}`;
+  const forceStyle = `FontName=${face},FontSize=${dims.fontSize},Alignment=${ALIGNMENTS[style.position]},PrimaryColour=&H00FFFFFF,OutlineColour=&H66000000,BorderStyle=1,Outline=1.2,Shadow=0.6,MarginV=${dims.marginV}`;
   const vf = `subtitles='${ffPath(srtFile)}':force_style='${forceStyle}'`;
 
   await new Promise<void>((resolve, reject) => {

@@ -411,6 +411,36 @@ export type LineAlternative = {
   created_at: string;
 };
 
+/** One reusable bilingual pair derived from an immutable approved snapshot. */
+export type TranslationMemoryExample = {
+  version_id: string;
+  approved_at: string | null;
+  title_id: string;
+  title_name_zh: string;
+  episode_number: number;
+  scene_number: number;
+  speaker: string | null;
+  character_name_en: string | null;
+  text_zh: string;
+  text_en: string;
+  rationale_en: string | null;
+  tags: AdaptTag[];
+  authored_by: AuthorKind;
+};
+
+/** A licensed seed pair from Tatoeba. It is reference material, never house style. */
+export type ReferenceTranslationMemoryExample = {
+  source: "tatoeba";
+  source_sentence_id: number;
+  translation_sentence_id: number;
+  source_owner: string;
+  translation_owner: string;
+  source_license: "CC BY 2.0 FR" | "CC0 1.0";
+  translation_license: "CC BY 2.0 FR" | "CC0 1.0";
+  text_zh: string;
+  text_en: string;
+};
+
 /** Primary key (version_id, scene_id): the only partner write, through decide_scene(). */
 export type SceneDecision = {
   version_id: string;
@@ -750,7 +780,7 @@ export type WorkbenchPayload = {
   decisions: SceneDecision[];
   /** /api/media/... URL for episodes.video_path, else null (the no-video state). */
   video_url: string | null;
-  /** false when ANTHROPIC_API_KEY is unset: AI buttons render the unavailable state. */
+  /** False when the selected LLM provider's API key is unset. */
   ai_available: boolean;
 };
 

@@ -75,6 +75,7 @@ export function liftStamp(text: string): { ms: number; rest: string } | null {
   return { ms: ((h * 60 + min) * 60 + sec) * 1000 + fms, rest };
 }
 
+export const SAMPLE_LATENCY_MS = 500;
 export const MAX_DERIVED_CUE_MS = 7000;
 export const LAST_CUE_MS = 2500;
 
@@ -82,6 +83,15 @@ function timeStampedLines(lines: IngestLine[], warnings: string[]): boolean {
   const stamps = lines.map((l) => liftStamp(l.text_zh));
   const stamped = stamps.filter(Boolean).length;
   if (stamped < 2 || stamped / lines.length < 0.6) return false;
+  // Frame-sampled extraction rounds starts UP to the sampling grid, so
+  // whole-second stamps run ~0.5s late against the audio; correct here so
+  // the studio starts in sync instead of needing a manual offset.
+  const onSecond = stamps.filter((st) => st && st.ms % 1000 === 0).length;
+  const latency = onSecond / stamped >= 0.6 ? SAMPLE_LATENCY_MS : 0;
+  if (latency) {
+    for (const st of stamps) if (st) st.ms = Math.max(0, st.ms - latency);
+    warnings.push(`whole-second stamps read as frame-sampled; all cues shifted ${latency}ms earlier to match the audio`);
+  }
   for (let i = 0; i < lines.length; i++) {
     const stamp = stamps[i];
     if (!stamp) continue;

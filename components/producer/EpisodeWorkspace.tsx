@@ -20,9 +20,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { postJson } from "@/lib/api-client";
 import { patchJson, unwrap, type ApiEnvelope } from "@/components/workbench/util";
-import type { AdaptedLine, Line, LineAlternative, WorkbenchPayload } from "@/lib/types";
+import type { AdaptTag, AdaptedLine, Line, LineAlternative, WorkbenchPayload } from "@/lib/types";
 import { runQc, type QcIssue } from "@/lib/qc";
-import { TAG_LABELS } from "@/lib/types";
+import { TAGS, TAG_LABELS } from "@/lib/types";
 import { useT } from "@/components/locale";
 import { IconCheck } from "./icons";
 
@@ -148,21 +148,117 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
     setDraft(byLine.get(line.id)?.text_en ?? "");
   }
 
-  const fixableErrors = qc.errors.filter((i) => i.code === "reading_speed" || i.code === "line_too_long" || i.code === "too_many_lines").length;
+  // Text issues are fixed by a rewrite; overlaps by trimming the previous
+  // cue (the one timing repair a producer should never be blocked on — the
+  // full timing desk only unlocks after finalize, see decisions 2026-09-04).
+  const FIXABLE = new Set(["reading_speed", "line_too_long", "too_many_lines"]);
+  const TIMING_FIXABLE = new Set(["overlap"]);
+  const canFix = (code: string) => FIXABLE.has(code) || TIMING_FIXABLE.has(code);
+  const fixableErrors = new Set(qc.errors.filter((i) => canFix(i.code)).map((i) => i.line_id)).size;
+  const fixableWarnings = new Set(qc.warnings.filter((i) => canFix(i.code)).map((i) => i.line_id)).size;
+  const [qcFixStep, setQcFixStep] = useState<{ i: number; n: number; pass: number } | null>(null);
 
-  async function qcAutoFix() {
-    setBusy("qcfix");
+  /** Same 17 cps budget the prompts carry (lib/prompts/shared.ts charBudget). */
+  const charBudgetFor = (startMs: number, endMs: number) => Math.max(10, Math.floor(((endMs - startMs) / 1000) * 17));
+  const qcCharNames = () => new Map(payload.characters.map((c) => [c.id, c.name_en]));
+
+  /** One rewrite call fitting the line to its window; harder wording on retry.
+   * Returns the updated row set (state is updated live along the way). */
+  async function rewriteLineToBudget(rows: AdaptedLine[], lineId: string, harder: boolean): Promise<AdaptedLine[]> {
+    const line = lines.find((l) => l.id === lineId);
+    const a = rows.find((x) => x.line_id === lineId);
+    if (!line || !a || line.start_ms == null || line.end_ms == null) return rows;
+    const budget = charBudgetFor(line.start_ms, line.end_ms);
+    const extra = harder ? " This is a HARD limit - cut words if needed; shorter always beats longer." : "";
+    const instruction = `shorten to fit its ${((line.end_ms - line.start_ms) / 1000).toFixed(1)}s window: at most ${budget} characters excluding spaces, on a single line, keeping the meaning and tone.${extra}`;
+    const r = unwrap(await postJson<{ line: AdaptedLine } & ApiEnvelope>(`${base}/lines/${a.id}/rewrite`, { instruction }));
+    const next = rows.map((x) => (x.id === a.id ? r.line : x));
+    setAdapted(next);
+    if (selectedLineId === lineId) setDraft(r.line.text_en ?? "");
+    return next;
+  }
+
+  const lineStillFlagged = (rows: AdaptedLine[], lineId: string) => {
+    const rep = runQc({ lines, adapted: rows, characterNames: qcCharNames() });
+    return [...rep.errors, ...rep.warnings].some((x) => x.line_id === lineId && FIXABLE.has(x.code));
+  };
+
+  /**
+   * Overlaps: trim the PREVIOUS cue's end to a 2-frame gap before this cue
+   * (never below a 300 ms cue); when that is not enough, nudge this cue's
+   * start too. One batched write through the timing API; the page refreshes
+   * with the new stamps and QC re-runs. Returns how many cues were touched.
+   */
+  async function fixOverlaps(issues: QcIssue[]): Promise<number> {
+    const byId = new Map(lines.map((l) => [l.id, l]));
+    const updates = new Map<string, { line_id: string; start_ms: number; end_ms: number }>();
+    for (const issue of issues) {
+      if (issue.code !== "overlap" || !issue.detail) continue;
+      const cur = byId.get(issue.line_id);
+      const prev = byId.get(issue.detail);
+      if (!cur || !prev || cur.start_ms == null || prev.start_ms == null || prev.end_ms == null || cur.end_ms == null) continue;
+      const prevEnd = Math.max(prev.start_ms + 300, cur.start_ms - 80);
+      updates.set(prev.id, { line_id: prev.id, start_ms: prev.start_ms, end_ms: prevEnd });
+      if (prevEnd > cur.start_ms) {
+        updates.set(cur.id, { line_id: cur.id, start_ms: prevEnd + 80, end_ms: Math.max(cur.end_ms, prevEnd + 80 + 300) });
+      }
+    }
+    if (!updates.size) return 0;
+    unwrap(await postJson<ApiEnvelope>(`${base}/timing/cues`, { updates: [...updates.values()] }));
+    router.refresh();
+    return updates.size;
+  }
+
+  /** Fix exactly ONE issue's line — the row-level button. Two attempts max. */
+  async function qcFixOne(issue: QcIssue) {
+    setBusy(`fix:${issue.line_id}`);
     setError(null);
     setNotice(null);
     try {
-      const r = unwrap(
-        await postJson<{ fixed: number; remaining_errors: number } & ApiEnvelope>(`${base}/qc-fix`, {})
-      );
-      setNotice(tt("qc.fix.done", { n: r.fixed, m: r.remaining_errors }));
-      router.refresh();
+      if (TIMING_FIXABLE.has(issue.code)) {
+        const n = await fixOverlaps([issue]);
+        setNotice(tt("qc.fix.timingDone", { n }));
+        return;
+      }
+      let rows = await rewriteLineToBudget(adapted, issue.line_id, false);
+      if (lineStillFlagged(rows, issue.line_id)) rows = await rewriteLineToBudget(rows, issue.line_id, true);
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      setBusy(null);
+    }
+  }
+
+  // The bulk fix walks the flagged lines FROM THE CLIENT: each rewrite lands
+  // in state immediately (the card updates live, no refresh), progress is
+  // real, and lines the model leaves over-budget get a second, harsher pass.
+  // Timing issues stay human work (the subtitle studio's timing desk).
+  async function qcAutoFix(scope: "errors" | "warnings" = "errors") {
+    setBusy("qcfix");
+    setError(null);
+    setNotice(null);
+    let rows = adapted;
+    let attempted = 0;
+    try {
+      attempted += await fixOverlaps(qc.errors.filter((i) => TIMING_FIXABLE.has(i.code)));
+      for (let pass = 1; pass <= 2; pass++) {
+        const report = runQc({ lines, adapted: rows, characterNames: qcCharNames() });
+        const pool = scope === "warnings" ? [...report.errors, ...report.warnings] : report.errors;
+        const targets = [...new Map(pool.filter((i) => FIXABLE.has(i.code)).map((i) => [i.line_id, i])).values()];
+        if (!targets.length) break;
+        for (let i = 0; i < targets.length; i++) {
+          setQcFixStep({ i: i + 1, n: targets.length, pass });
+          rows = await rewriteLineToBudget(rows, targets[i].line_id, pass > 1);
+          attempted += 1;
+        }
+      }
+      const after = runQc({ lines, adapted: rows, characterNames: qcCharNames() });
+      const left = scope === "warnings" ? after.errors.length + after.warnings.length : after.errors.length;
+      setNotice(left ? tt("qc.fix.done", { n: attempted, m: left }) : tt("qc.fix.allclear", { n: attempted }));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setQcFixStep(null);
       setBusy(null);
     }
   }
@@ -213,9 +309,9 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
     setShowAlts(true);
     if ((altsByLine.get(a.id) ?? []).length) return;
     setBusy(`alts:${a.id}`);
-    // One call writes all three; the 1/3 → 2/3 → 3/3 tick paces the wait.
+    // One call writes both takes; the 1/2 → 2/2 tick paces the wait.
     setAltStep(1);
-    const ticker = setInterval(() => setAltStep((n) => Math.min(n + 1, 3)), 2800);
+    const ticker = setInterval(() => setAltStep((n) => Math.min(n + 1, 2)), 2800);
     try {
       const r = unwrap(
         await postJson<{ alternatives: LineAlternative[]; available: boolean } & ApiEnvelope>(`${base}/lines/${a.id}/alternatives`, {})
@@ -230,10 +326,40 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
     }
   }
 
+  // "Take it another direction": one more take that leans into the tapped
+  // tag. It lands in the edit box exactly like picking an alternative does -
+  // nothing commits until 保存本句.
+  async function takeDirection(a: AdaptedLine, direction: AdaptTag) {
+    setBusy(`dir:${a.id}:${direction}`);
+    try {
+      const r = unwrap(
+        await postJson<{ alternatives: LineAlternative[]; added: LineAlternative[]; available: boolean } & ApiEnvelope>(
+          `${base}/lines/${a.id}/alternatives`,
+          { direction }
+        )
+      );
+      setAlts((rows) => [...rows.filter((x) => x.adapted_line_id !== a.id), ...r.alternatives]);
+      const fresh = r.added[0];
+      if (fresh) {
+        pickAlternative(fresh);
+        setNotice(tt("pw.alts.picked"));
+      } else {
+        setNotice(tt("pw.alts.dir.none"));
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   function pickAlternative(alt: LineAlternative) {
     setDraft(alt.text_en);
     setPickedAltId(alt.id);
-    setNotice(null);
+    // Collapse straight to the edit box + save button: picking IS the
+    // decision; no second "hide alternatives" click.
+    setShowAlts(false);
+    setNotice(tt("pw.alts.picked"));
   }
 
   async function confirmChange(a: AdaptedLine) {
@@ -261,12 +387,15 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
     }
   }
 
+  const subtitlesHref = `/producer/titles/${payload.title.id}/episodes/${payload.episode.number}/subtitles`;
+
   async function finalize() {
     setBusy("finalize");
     setError(null);
     try {
       unwrap(await postJson<ApiEnvelope>(`${base}/finalize`, {}));
-      router.refresh();
+      // Stage one is done - carry the producer straight into timing & delivery.
+      router.push(subtitlesHref);
     } catch (e) {
       setError((e as Error).message);
       setBusy(null);
@@ -280,7 +409,7 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
     setError(null);
     try {
       unwrap(await postJson<ApiEnvelope>(`/api/producer/versions/${version.id}/approve`, {}));
-      router.refresh();
+      router.push(subtitlesHref);
     } catch (e) {
       setError((e as Error).message);
       setBusy(null);
@@ -367,11 +496,21 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
     ? { tone: "done", title: tt("v3.done.next"), body: tt("v3.done.body") }
     : inReview
       ? { tone: "ready", title: tt("pw.cmd.review.title"), body: tt("pw.cmd.review.body") }
-      : allAdapted
-        ? { tone: "ready", title: tt("pw.cmd.ready.title"), body: tt("pw.cmd2.ready.body") }
-        : { tone: "next", title: tt("pw.cmd2.lines.title", { n: lines.length - adaptedCount }), body: tt("pw.cmd2.lines.body") };
+      : allAdapted && qc.errors.length > 0
+        ? { tone: "blocked", title: tt("pw.cmd.blocked.title", { n: qc.errors.length }), body: tt("pw.cmd.blocked.body") }
+        : allAdapted
+          ? { tone: "ready", title: tt("pw.cmd.ready.title"), body: tt("pw.cmd2.ready.body") }
+          : { tone: "next", title: tt("pw.cmd2.lines.title", { n: lines.length - adaptedCount }), body: tt("pw.cmd2.lines.body") };
 
   const selectedAlternatives = selectedAdapted ? altsByLine.get(selectedAdapted.id) ?? [] : [];
+  // Directions nobody has tried on this line yet: not on the current take,
+  // not on any alternative already offered.
+  const takenTags = new Set<AdaptTag>([
+    ...(selectedAdapted?.tags ?? []),
+    ...selectedAlternatives.flatMap((alt) => alt.tags ?? []),
+  ]);
+  const openDirections = TAGS.filter((tag) => !takenTags.has(tag));
+  const directionBusy = busy?.startsWith(`dir:${selectedAdapted?.id ?? ""}:`) ? (busy.split(":")[2] as AdaptTag) : null;
 
   return (
     <div className="creative-review-shell">
@@ -409,6 +548,11 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
               </button>
             </>
           )}
+          {finalized && (
+            <a className="btn btn-sm btn-primary" href={subtitlesHref}>
+              {tt("v3.goSubtitles")}
+            </a>
+          )}
           {finalized && !readOnly && (
             <button type="button" className="btn btn-sm btn-outline" disabled={busy === "fork"} onClick={editMyself}>
               {busy === "fork" ? <span className="spinner" /> : null} {tt("v3.revise.cta")}
@@ -440,6 +584,169 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
           {error}
         </div>
       )}
+
+      {/* Player and delivery preflight share the top band, level with each
+          other; the edit panel keeps the whole right rail to itself below. */}
+      <div className="workspace-top">
+        <div className="rail-player">
+          <div className="review-viewer">
+            <div className="review-viewer-frame">
+              {payload.video_url ? (
+                <video
+                  ref={videoRef}
+                  controls
+                  preload="metadata"
+                  src={payload.video_url}
+                  onTimeUpdate={(event) => setCurrentMs(Math.round(event.currentTarget.currentTime * 1000))}
+                />
+              ) : (
+                <div className="review-script-frame">
+                  <span>{tt("reviewStudio.noVideo")}</span>
+                  <time>{timecode(currentMs)}</time>
+                  <p lang="zh-CN">{selectedLine?.text_zh}</p>
+                  <strong>{selectedAdapted?.text_en || tt("review.lineCut")}</strong>
+                </div>
+              )}
+            </div>
+            <div className="review-timeline" aria-label={tt("reviewStudio.timeline")}>
+              <div className="review-timeline-track">
+                {lines
+                  .filter((line) => line.start_ms != null)
+                  .map((line) => {
+                    const marked = byLine.get(line.id)?.is_major ?? false;
+                    return (
+                      <button
+                        type="button"
+                        key={line.id}
+                        className={marked ? "review-marker has-feedback" : "review-marker"}
+                        style={{ left: `${Math.max(0, Math.min(100, ((line.start_ms ?? 0) / durationMs) * 100))}%` }}
+                        aria-label={`${marked ? tt("pw.line.major") : tt("reviewStudio.lineMarker")} ${timecode(line.start_ms)}`}
+                        onClick={() => selectLine(line)}
+                      />
+                    );
+                  })}
+                <span className="review-playhead" style={{ left: `${Math.max(0, Math.min(100, (currentMs / durationMs) * 100))}%` }} />
+              </div>
+              <div className="review-timeline-meta">
+                <b>{timecode(currentMs)}</b>
+                <span>{timecode(durationMs)}</span>
+              </div>
+            </div>
+          </div>
+          {!readOnly && (
+            <div className="rail-media-actions">
+              <label className="btn btn-sm btn-ghost">
+                {busy === "video" ? (
+                  <>
+                    <span className="spinner" /> {tt("pw.video.uploading")}
+                  </>
+                ) : payload.video_url ? (
+                  tt("pw.video.replace")
+                ) : (
+                  tt("pw.video.attach")
+                )}
+                <input
+                  type="file"
+                  accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm"
+                  hidden
+                  disabled={busy === "video"}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void attachVideo(f);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+              <span className="spacer" />
+              <a className="btn btn-sm btn-outline" href={`/api/titles/${payload.title.id}/export?format=script&episode=${payload.episode.number}`}>
+                {tt("pw.export.script")}
+              </a>
+            </div>
+          )}
+        </div>
+
+        {hasAdaptation && (
+          <section
+            className={`rail-qc ${qc.errors.length ? "has-errors" : qc.warnings.length ? "has-warnings" : "is-clean"}`}
+            aria-live="polite"
+          >
+            <div className="rail-qc-head">
+              <span>{tt("qc.title")}</span>
+              <b>
+                {qc.errors.length
+                  ? tt("qc.errors", { n: qc.errors.length })
+                  : qc.warnings.length
+                    ? tt("qc.warnings", { n: qc.warnings.length })
+                    : tt("qc.pass", { n: qc.lines })}
+              </b>
+            </div>
+            {editable && (
+              <div className="rail-qc-fix">
+                <button
+                  type="button"
+                  className={`btn btn-sm ${fixableErrors > 0 ? "btn-primary" : "btn-outline"} btn-block`}
+                  disabled={busy !== null || (fixableErrors === 0 && fixableWarnings === 0)}
+                  onClick={() => qcAutoFix(fixableErrors > 0 ? "errors" : "warnings")}
+                >
+                  {busy === "qcfix" ? (
+                    <>
+                      <span className="spinner" />{" "}
+                      {qcFixStep ? tt("qc.fix.progress", { i: qcFixStep.i, n: qcFixStep.n, p: qcFixStep.pass }) : tt("qc.fix.busy")}
+                    </>
+                  ) : fixableErrors > 0 ? (
+                    <>
+                      {tt("qc.fix.all")} <b className="qc-badge">{fixableErrors}</b>
+                    </>
+                  ) : fixableWarnings > 0 ? (
+                    <>
+                      {tt("qc.fix.polishAll")} <b className="qc-badge">{fixableWarnings}</b>
+                    </>
+                  ) : (
+                    tt("qc.fix.none")
+                  )}
+                </button>
+              </div>
+            )}
+            {(qc.errors.length > 0 || qc.warnings.length > 0) && (
+              <div className="rail-qc-list">
+                {[...qc.errors, ...qc.warnings].map((issue, i) => (
+                  <div
+                    key={`${issue.line_id}:${issue.code}:${i}`}
+                    className={`rail-qc-row is-${issue.severity} ${issue.line_id === selectedLine?.id ? "is-active" : ""}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => jumpToIssue(issue)}
+                    onKeyDown={(e) => e.key === "Enter" && jumpToIssue(issue)}
+                  >
+                    <i aria-hidden="true" />
+                    <time>{timecode(issue.start_ms, issue.seq)}</time>
+                    <span>{qcLabel(issue)}</span>
+                    {editable && canFix(issue.code) && (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-ghost rail-qc-row-fix"
+                        disabled={busy !== null}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void qcFixOne(issue);
+                        }}
+                      >
+                        {busy === `fix:${issue.line_id}` ? (
+                          <span className="spinner" />
+                        ) : TIMING_FIXABLE.has(issue.code) ? (
+                          tt("qc.fix.timingRow")
+                        ) : (
+                          tt("qc.fix.row")
+                        )}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+      </div>
 
       <div className="review-work-grid">
         {/* The script: one continuous, scrolling sheet. */}
@@ -504,132 +811,8 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
           </section>
         </main>
 
-        {/* The rail stays on screen while the sheet scrolls: player + edit panel. */}
+        {/* The rail stays on screen while the sheet scrolls: the edit panel only. */}
         <aside className="review-feedback-panel">
-          <div className="rail-player">
-            <div className="review-viewer">
-              <div className="review-viewer-frame">
-                {payload.video_url ? (
-                  <video
-                    ref={videoRef}
-                    controls
-                    preload="metadata"
-                    src={payload.video_url}
-                    onTimeUpdate={(event) => setCurrentMs(Math.round(event.currentTarget.currentTime * 1000))}
-                  />
-                ) : (
-                  <div className="review-script-frame">
-                    <span>{tt("reviewStudio.noVideo")}</span>
-                    <time>{timecode(currentMs)}</time>
-                    <p lang="zh-CN">{selectedLine?.text_zh}</p>
-                    <strong>{selectedAdapted?.text_en || tt("review.lineCut")}</strong>
-                  </div>
-                )}
-              </div>
-              <div className="review-timeline" aria-label={tt("reviewStudio.timeline")}>
-                <div className="review-timeline-track">
-                  {lines
-                    .filter((line) => line.start_ms != null)
-                    .map((line) => {
-                      const marked = byLine.get(line.id)?.is_major ?? false;
-                      return (
-                        <button
-                          type="button"
-                          key={line.id}
-                          className={marked ? "review-marker has-feedback" : "review-marker"}
-                          style={{ left: `${Math.max(0, Math.min(100, ((line.start_ms ?? 0) / durationMs) * 100))}%` }}
-                          aria-label={`${marked ? tt("pw.line.major") : tt("reviewStudio.lineMarker")} ${timecode(line.start_ms)}`}
-                          onClick={() => selectLine(line)}
-                        />
-                      );
-                    })}
-                  <span className="review-playhead" style={{ left: `${Math.max(0, Math.min(100, (currentMs / durationMs) * 100))}%` }} />
-                </div>
-                <div className="review-timeline-meta">
-                  <b>{timecode(currentMs)}</b>
-                  <span>{timecode(durationMs)}</span>
-                </div>
-              </div>
-            </div>
-            {!readOnly && (
-              <div className="rail-media-actions">
-                <label className="btn btn-sm btn-ghost">
-                  {busy === "video" ? (
-                    <>
-                      <span className="spinner" /> {tt("pw.video.uploading")}
-                    </>
-                  ) : payload.video_url ? (
-                    tt("pw.video.replace")
-                  ) : (
-                    tt("pw.video.attach")
-                  )}
-                  <input
-                    type="file"
-                    accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm"
-                    hidden
-                    disabled={busy === "video"}
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) void attachVideo(f);
-                      e.target.value = "";
-                    }}
-                  />
-                </label>
-                <span className="spacer" />
-                <a className="btn btn-sm btn-outline" href={`/api/titles/${payload.title.id}/export?format=script&episode=${payload.episode.number}`}>
-                  {tt("pw.export.script")}
-                </a>
-              </div>
-            )}
-          </div>
-
-          {hasAdaptation && (
-            <section
-              className={`rail-qc ${qc.errors.length ? "has-errors" : qc.warnings.length ? "has-warnings" : "is-clean"}`}
-              aria-live="polite"
-            >
-              <div className="rail-qc-head">
-                <span>{tt("qc.title")}</span>
-                <b>
-                  {qc.errors.length
-                    ? tt("qc.errors", { n: qc.errors.length })
-                    : qc.warnings.length
-                      ? tt("qc.warnings", { n: qc.warnings.length })
-                      : tt("qc.pass", { n: qc.lines })}
-                </b>
-              </div>
-              {editable && fixableErrors > 0 && (
-                <div className="rail-qc-fix">
-                  <button type="button" className="btn btn-sm btn-primary btn-block" disabled={busy === "qcfix"} onClick={qcAutoFix}>
-                    {busy === "qcfix" ? (
-                      <>
-                        <span className="spinner" /> {tt("qc.fix.busy")}
-                      </>
-                    ) : (
-                      tt("qc.fix.cta", { n: fixableErrors })
-                    )}
-                  </button>
-                </div>
-              )}
-              {(qc.errors.length > 0 || qc.warnings.length > 0) && (
-                <div className="rail-qc-list">
-                  {[...qc.errors, ...qc.warnings].map((issue, i) => (
-                    <button
-                      type="button"
-                      key={`${issue.line_id}:${issue.code}:${i}`}
-                      className={`rail-qc-row is-${issue.severity} ${issue.line_id === selectedLine?.id ? "is-active" : ""}`}
-                      onClick={() => jumpToIssue(issue)}
-                    >
-                      <i aria-hidden="true" />
-                      <time>{timecode(issue.start_ms, issue.seq)}</time>
-                      <span>{qcLabel(issue)}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
-
           <div className="review-feedback-head">
             <div>
               <span>{tt("pw.panel.title")}</span>
@@ -697,35 +880,62 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
                     )}
                   </button>
                   {showAlts && selectedAlternatives.length > 0 && (
-                    <div className="pline-alts">
-                      {selectedAlternatives.map((alt, altIdx) => (
-                        <button
-                          key={alt.id}
-                          type="button"
-                          className={`pline-alt ${pickedAltId === alt.id ? "is-picked" : ""}`}
-                          onClick={() => pickAlternative(alt)}
-                        >
-                          <span className="pline-alt-idx">
-                            {altIdx + 1} / {selectedAlternatives.length}
-                          </span>
-                          <span className="pline-alt-en bilingual" lang="en">
-                            {alt.text_en}
-                          </span>
-                          {(alt.tags?.length ?? 0) > 0 && (
-                            <span className="tags">
-                              {alt.tags.map((tag) => (
-                                <span className="tag" key={tag}>
-                                  {locale === "zh" ? TAG_LABELS[tag].zh : TAG_LABELS[tag].en}
-                                </span>
-                              ))}
+                    <>
+                      <div className="pline-alts">
+                        {selectedAlternatives.map((alt, altIdx) => (
+                          <button
+                            key={alt.id}
+                            type="button"
+                            className={`pline-alt ${pickedAltId === alt.id ? "is-picked" : ""}`}
+                            onClick={() => pickAlternative(alt)}
+                          >
+                            <span className="pline-alt-idx">
+                              {altIdx + 1} / {selectedAlternatives.length}
                             </span>
+                            {(alt.tags?.length ?? 0) > 0 && (
+                              <span className="tags pline-alt-direction">
+                                {alt.tags.map((tag, i) => (
+                                  <span className={i === 0 ? "tag tag-direction" : "tag tag-neutral"} key={tag}>
+                                    {locale === "zh" ? TAG_LABELS[tag].zh : TAG_LABELS[tag].en}
+                                  </span>
+                                ))}
+                              </span>
+                            )}
+                            <span className="pline-alt-en bilingual" lang="en">
+                              {alt.text_en}
+                            </span>
+                            <small className="bilingual" lang={locale === "zh" ? "zh-CN" : "en"}>
+                              {locale === "zh" ? alt.rationale_zh : alt.rationale_en ?? alt.rationale_zh}
+                            </small>
+                          </button>
+                        ))}
+                      </div>
+
+                      {openDirections.length > 0 && (
+                        <div className="pline-directions">
+                          <p className="pline-directions-label">{tt("pw.alts.dir.title")}</p>
+                          <div className="pline-directions-row">
+                            {openDirections.map((tag) => (
+                              <button
+                                key={tag}
+                                type="button"
+                                className={`tag-btn ${directionBusy === tag ? "is-busy" : ""}`}
+                                disabled={busy !== null}
+                                onClick={() => takeDirection(selectedAdapted, tag)}
+                              >
+                                {directionBusy === tag ? <span className="spinner" /> : null}
+                                {locale === "zh" ? TAG_LABELS[tag].zh : TAG_LABELS[tag].en}
+                              </button>
+                            ))}
+                          </div>
+                          {directionBusy && (
+                            <p className="hint">
+                              {tt("pw.alts.dir.busy", { tag: locale === "zh" ? TAG_LABELS[directionBusy].zh : TAG_LABELS[directionBusy].en })}
+                            </p>
                           )}
-                          <small className="bilingual" lang={locale === "zh" ? "zh-CN" : "en"}>
-                            {locale === "zh" ? alt.rationale_zh : alt.rationale_en ?? alt.rationale_zh}
-                          </small>
-                        </button>
-                      ))}
-                    </div>
+                        </div>
+                      )}
+                    </>
                   )}
 
                   <button type="button" className="btn btn-primary btn-block" disabled={busy === "confirm" || !dirty} onClick={() => confirmChange(selectedAdapted)}>

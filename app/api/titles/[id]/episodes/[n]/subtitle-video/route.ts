@@ -12,6 +12,8 @@ const Body = z.object({
   layout: z.enum(["en", "en_zh"]).default("en"),
   font: z.enum(["sans", "serif"]).default("sans"),
   size: z.enum(["s", "m", "l"]).default("m"),
+  position: z.enum(["bottom", "top"]).default("bottom"),
+  merge: z.boolean().default(false),
 });
 
 export const maxDuration = 300;

@@ -17,10 +17,16 @@
 // when the key is missing.
 
 import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
+import { ContentFilterFinishReasonError, LengthFinishReasonError } from "openai/error";
+import { zodTextFormat } from "openai/helpers/zod";
 import type { ZodType, ZodTypeAny } from "zod";
 import type { Character, JobUsage, Title } from "@/lib/types";
 
-export const LLM_PROVIDER = "anthropic";
+export type LlmProvider = "anthropic" | "openai";
+
+/** One switch for every pass; fixture replay remains provider-free. */
+export const LLM_PROVIDER: LlmProvider = process.env.LLM_PROVIDER?.toLowerCase() === "openai" ? "openai" : "anthropic";
 
 /**
  * Two tiers. FAST does the reading passes (title bible, scene context, clip
@@ -28,8 +34,10 @@ export const LLM_PROVIDER = "anthropic";
  * rewrites, the creative pack). Both overridable from the environment so a
  * cheaper model can be tried without a code change.
  */
-export const MODEL_FAST = process.env.LLM_MODEL_FAST || "claude-sonnet-5";
-export const MODEL_STRONG = process.env.LLM_MODEL_STRONG || "claude-opus-5";
+export const MODEL_FAST =
+  process.env.LLM_MODEL_FAST || (LLM_PROVIDER === "openai" ? "gpt-5.6-terra" : "claude-sonnet-5");
+export const MODEL_STRONG =
+  process.env.LLM_MODEL_STRONG || (LLM_PROVIDER === "openai" ? "gpt-5.6-sol" : "claude-opus-5");
 
 export type Effort = "low" | "medium" | "high" | "xhigh" | "max";
 
@@ -51,6 +59,8 @@ export const PRICES: Record<string, ModelPrice> = {
   "claude-opus-4-6": { input: 5, output: 25, cache_write: 6.25, cache_read: 0.5 },
   "claude-sonnet-4-6": { input: 3, output: 15, cache_write: 3.75, cache_read: 0.3 },
   "claude-haiku-4-5": { input: 1, output: 5, cache_write: 1.25, cache_read: 0.1 },
+  "gpt-5.6-sol": { input: 4, output: 20, cache_write: 4, cache_read: 0.4 },
+  "gpt-5.6-terra": { input: 2, output: 12, cache_write: 2, cache_read: 0.2 },
 };
 
 /** An unknown model id is priced at the dearest known tier: spend must never be under-reported. */
@@ -65,14 +75,15 @@ export function priceFor(model: string): ModelPrice {
 // ---- availability and errors --------------------------------------------------------
 
 export function isLlmAvailable(): boolean {
-  return !!process.env.ANTHROPIC_API_KEY;
+  return LLM_PROVIDER === "openai" ? !!process.env.OPENAI_API_KEY : !!process.env.ANTHROPIC_API_KEY;
 }
 
 /** No key. Routes map it to 503 with error code 'llm_unavailable'. */
 export class LlmUnavailableError extends Error {
   readonly code = "llm_unavailable" as const;
-  constructor() {
-    super("AI passes are unavailable: set ANTHROPIC_API_KEY in .env.local");
+  constructor(message?: string) {
+    const key = LLM_PROVIDER === "openai" ? "OPENAI_API_KEY" : "ANTHROPIC_API_KEY";
+    super(message ?? `AI passes are not configured on this server (missing ${key})`);
     this.name = "LlmUnavailableError";
   }
 }
@@ -102,11 +113,23 @@ function zeroUsage(): LlmUsage {
   return { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0 };
 }
 
-function addUsage(into: LlmUsage, u: Anthropic.Usage): void {
+function addAnthropicUsage(into: LlmUsage, u: Anthropic.Usage): void {
   into.input_tokens += u.input_tokens;
   into.output_tokens += u.output_tokens;
   into.cache_read_tokens += u.cache_read_input_tokens ?? 0;
   into.cache_write_tokens += u.cache_creation_input_tokens ?? 0;
+}
+
+function addOpenAiUsage(
+  into: LlmUsage,
+  u: { input_tokens: number; output_tokens: number; input_tokens_details?: { cached_tokens?: number; cache_write_tokens?: number } }
+): void {
+  const read = u.input_tokens_details?.cached_tokens ?? 0;
+  const written = u.input_tokens_details?.cache_write_tokens ?? 0;
+  into.input_tokens += Math.max(0, u.input_tokens - read - written);
+  into.output_tokens += u.output_tokens;
+  into.cache_read_tokens += read;
+  into.cache_write_tokens += written;
 }
 
 /** Whole cents, rounded up: a 0.3-cent call is a 1-cent row, never a free one. */
@@ -135,9 +158,9 @@ export function toJobUsage(u: LlmUsage): JobUsage {
 // One client per process: Next bundles lib/ separately into every route, so
 // the singleton lives on globalThis (the sibling's pattern for pacers and
 // job locks). maxRetries 0 because the backoff loop below owns retries.
-const g = globalThis as typeof globalThis & { __studioLlm?: Anthropic };
+const g = globalThis as typeof globalThis & { __studioLlm?: Anthropic; __studioOpenAi?: OpenAI };
 
-function client(): Anthropic {
+function anthropicClient(): Anthropic {
   if (!g.__studioLlm) {
     g.__studioLlm = new Anthropic({
       apiKey: process.env.ANTHROPIC_API_KEY,
@@ -152,6 +175,17 @@ function client(): Anthropic {
   return g.__studioLlm;
 }
 
+function openAiClient(): OpenAI {
+  if (!g.__studioOpenAi) {
+    g.__studioOpenAi = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+      maxRetries: 0,
+      timeout: 10 * 60 * 1000,
+    });
+  }
+  return g.__studioOpenAi;
+}
+
 const MAX_ATTEMPTS = 4;
 const BACKOFF_MS = [1000, 3000, 9000];
 
@@ -160,6 +194,10 @@ function isRetryable(e: unknown): boolean {
   if (e instanceof Anthropic.InternalServerError) return true; // 5xx and 529 overloaded
   if (e instanceof Anthropic.APIConnectionError) return true; // includes timeouts
   if (e instanceof Anthropic.APIError) return e.status === 408 || e.status === 409;
+  if (e instanceof OpenAI.RateLimitError) return true;
+  if (e instanceof OpenAI.InternalServerError) return true;
+  if (e instanceof OpenAI.APIConnectionError) return true;
+  if (e instanceof OpenAI.APIError) return e.status === 408 || e.status === 409;
   return false;
 }
 
@@ -188,6 +226,16 @@ function toLlmError(e: unknown): Error {
   if (e instanceof Anthropic.AuthenticationError) return new LlmUnavailableError();
   if (e instanceof Anthropic.APIError) {
     return new LlmError("api", `Claude API ${e.status ?? "?"}: ${e.message}`, e.status);
+  }
+  if (e instanceof OpenAI.AuthenticationError) return new LlmUnavailableError();
+  if (e instanceof OpenAI.APIError) {
+    return new LlmError("api", `OpenAI API ${e.status ?? "?"}: ${e.message}`, e.status);
+  }
+  if (e instanceof ContentFilterFinishReasonError) {
+    return new LlmError("refused", "The model declined to process this content.");
+  }
+  if (e instanceof LengthFinishReasonError) {
+    return new LlmError("truncated", "Output hit max_output_tokens before structured output completed.");
   }
   return new LlmError("api", e instanceof Error ? e.message : String(e));
 }
@@ -402,8 +450,7 @@ function parseResponse<T>(res: Anthropic.Message, call: StructuredCall<T>): Pars
  * backoff; validates with zod and, on a schema or semantic failure, sends the
  * violations back as an error tool_result and lets the model call once more.
  */
-export async function callStructured<T>(call: StructuredCall<T>): Promise<StructuredResult<T>> {
-  if (!isLlmAvailable()) throw new LlmUnavailableError();
+async function callAnthropicStructured<T>(call: StructuredCall<T>): Promise<StructuredResult<T>> {
   const model = call.model ?? MODEL_FAST;
   const tool: Anthropic.Tool = {
     name: call.name,
@@ -417,7 +464,7 @@ export async function callStructured<T>(call: StructuredCall<T>): Promise<Struct
 
   const request = () =>
     withRetries(() =>
-      client()
+      anthropicClient()
         .messages.stream({
           model,
           max_tokens: call.maxTokens,
@@ -432,7 +479,7 @@ export async function callStructured<T>(call: StructuredCall<T>): Promise<Struct
 
   try {
     let res = await request();
-    addUsage(usage, res.usage);
+    addAnthropicUsage(usage, res.usage);
     let parsed = parseResponse(res, call);
     let turns = 1;
 
@@ -452,7 +499,7 @@ export async function callStructured<T>(call: StructuredCall<T>): Promise<Struct
         ],
       });
       res = await request();
-      addUsage(usage, res.usage);
+      addAnthropicUsage(usage, res.usage);
       parsed = parseResponse(res, call);
       turns = 2;
     }
@@ -462,4 +509,56 @@ export async function callStructured<T>(call: StructuredCall<T>): Promise<Struct
   } catch (e) {
     throw toLlmError(e);
   }
+}
+
+/** OpenAI Responses API equivalent of the Claude forced-tool contract. */
+async function callOpenAiStructured<T>(call: StructuredCall<T>): Promise<StructuredResult<T>> {
+  const model = call.model ?? MODEL_FAST;
+  const usage = zeroUsage();
+  const instructions = typeof call.system === "string" ? call.system : call.system.map((b) => b.text).join("\n\n");
+  let input = call.user;
+
+  try {
+    for (let turn = 1; turn <= 2; turn++) {
+      const res = await withRetries(() =>
+        openAiClient().responses.parse({
+          model,
+          instructions,
+          input,
+          max_output_tokens: call.maxTokens,
+          reasoning: { effort: call.effort ?? "medium" },
+          text: {
+            format: zodTextFormat(call.schema, call.name, {
+              description: call.description ?? `Record the ${call.name} result.`,
+            }),
+          },
+          store: false,
+        })
+      );
+      if (res.usage) addOpenAiUsage(usage, res.usage);
+
+      const parsed = call.schema.safeParse(res.output_parsed);
+      const semantic = parsed.success && call.check ? call.check(parsed.data) : null;
+      if (parsed.success && !semantic) {
+        return { data: parsed.data, usage, cost_cents: costCents(model, usage), model, turns: turn };
+      }
+
+      const problem = parsed.success
+        ? semantic!
+        : `Schema violations:\n${parsed.error.issues
+            .slice(0, 12)
+            .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+            .join("\n")}`;
+      if (turn === 2) throw new LlmError("invalid_output", problem);
+      input = `${call.user}\n\nYOUR PREVIOUS STRUCTURED ANSWER WAS INVALID:\n${res.output_text}\n\nVALIDATION ERROR:\n${problem}\n\nReturn a corrected answer. Fix only what the error names; keep everything else identical.`;
+    }
+    throw new LlmError("invalid_output", "No structured output was returned.");
+  } catch (e) {
+    throw toLlmError(e);
+  }
+}
+
+export async function callStructured<T>(call: StructuredCall<T>): Promise<StructuredResult<T>> {
+  if (!isLlmAvailable()) throw new LlmUnavailableError();
+  return LLM_PROVIDER === "openai" ? callOpenAiStructured(call) : callAnthropicStructured(call);
 }

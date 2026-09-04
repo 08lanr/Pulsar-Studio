@@ -37,8 +37,8 @@ header says which). Producer deliverables: the clean English script report
 ## Try it offline
 
 Requires Node 20+. Fixture mode is the default and needs no Supabase project
-and no API keys; AI buttons render an "unavailable" state until
-`ANTHROPIC_API_KEY` is set.
+and no API keys; AI buttons render an "unavailable" state until the selected
+provider's key is set.
 
 ```bash
 npm install
@@ -67,7 +67,9 @@ default, `--write` to insert through the service-role client).
 
 1. `cp .env.example .env.local`; set `DATA_SOURCE=supabase`,
    `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
-   `SUPABASE_SERVICE_ROLE_KEY` (server only), `ANTHROPIC_API_KEY`.
+   `SUPABASE_SERVICE_ROLE_KEY` (server only), then choose either
+   `LLM_PROVIDER=anthropic` with `ANTHROPIC_API_KEY`, or
+   `LLM_PROVIDER=openai` with `OPENAI_API_KEY`.
 2. Apply `supabase/migrations/0001_init.sql` (schemas `core` and `studio`,
    RLS, approval functions, triggers).
 3. In the Supabase dashboard, API settings, expose the schemas `core` and
@@ -76,8 +78,11 @@ default, `--write` to insert through the service-role client).
 5. Create one auth user per producer and one per staff member; the
    `core.profiles` row decides which portal they get.
 
-Every LLM call is a `studio.jobs` row with usage and cost; the title page sums
-it. Rows carry external ids (`ttl_`, `ep_`, `sc_`, `ln_`, `ad_`, `ver_`,
+Every LLM call is a `studio.jobs` row with provider, usage and cost; the title
+page sums it. Each first pass also retrieves relevant lines from Studio's
+immutable approved snapshots, so approvals across every title become translation
+memory without a second source of truth. Rows carry external ids (`ttl_`,
+`ep_`, `sc_`, `ln_`, `ad_`, `ver_`,
 `rw_`, `alt_`, `var_`, `clip_`) that appear in exports; uuids never leave the
 repo.
 
@@ -92,7 +97,10 @@ components/        Shared UI. No CSS framework; classes only from app/globals.cs
 lib/ingest/        SRT / VTT / ASS / script-text parsers, scene splitting.
 lib/data/          Data layer (fixture and supabase behind one interface).
 lib/data/fixture.ts  The fixture title 爱在旅途 used in DATA_SOURCE=fixture.
-lib/llm/           Anthropic client, job rows, cost accounting, and the prompts:
+lib/llm.ts         Anthropic/OpenAI gateway, structured output, retries and cost accounting.
+lib/translation-memory.ts  Approved-script extraction and scene-level retrieval.
+lib/reference-memory.ts  Lower-trust retrieval from the licensed Tatoeba seed corpus.
+lib/prompts/       Prompts for:
                    understand_title, understand_scene, first_pass, alternatives,
                    rewrite, propose_variants, find_clips.
 lib/exports/       srt / vtt / csv / diff / brief / package, rendered on request.
@@ -103,5 +111,16 @@ supabase/          migrations/0001_init.sql.
 docs/              Decisions, plans, data model, deck notes.
 tests/             Node test runner specs and fixtures.
 scripts/           CLI ingest.
+data/reference/    Attributed, licensed external translation-memory seed data.
 public/fonts/      Self-hosted Outfit (Latin). No external hosts.
 ```
+
+## Third-party data
+
+The bundled Mandarin-English reference corpus contains text from
+[Tatoeba](https://tatoeba.org). Sentence text is licensed per row under
+[CC BY 2.0 FR](https://creativecommons.org/licenses/by/2.0/fr/deed.en) or
+[CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/). Contributor
+usernames and source sentence IDs are retained in
+`data/reference/tatoeba-cmn-eng.json`; filtering and attribution details are
+in `data/reference/README.md`.

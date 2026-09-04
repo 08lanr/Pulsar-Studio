@@ -37,7 +37,9 @@ Run `npm test`, `npm run typecheck`, and `npm run build` before considering an i
 
 - Every model call creates a `studio.jobs` row with an idempotency key, input/output, usage, status, and integer `cost_cents`.
 - Validate structured model output with zod before data-layer writes.
-- Without `ANTHROPIC_API_KEY`, AI actions show an unavailable state while fixture mode continues to work.
+- `LLM_PROVIDER=anthropic|openai` selects the gateway; without that provider's API key, AI actions show an unavailable state while fixture mode continues to work.
+- Producer-approved immutable snapshots are the translation-memory source of truth. First-pass prompts may retrieve examples Studio-wide, but this corpus is server-only and must never expose another producer's rows through a route or UI; never create a second mutable copy of approved lines.
+- Writing passes get their context through `lib/memory` only, in fixed authority order: approved memory → house exemplars → register guide → CC-CEDICT glosses → Tatoeba near-exact pairs. Knowledge blocks go after the cached system blocks and never into idempotency keys (decisions 2026-09-04, "Training the translator").
 - ASR is a v1.1 stub; do not silently transcribe video in V1.
 
 ## UI and localization

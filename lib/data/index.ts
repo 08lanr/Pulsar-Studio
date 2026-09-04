@@ -50,6 +50,7 @@ import type {
   TitleDetail,
   TitleStatus,
   TitleSummary,
+  TranslationMemoryExample,
   Variant,
   VariantKind,
   Version,
@@ -258,6 +259,8 @@ export interface DataLayer {
     files: IngestFiles
   ): Promise<Episode>;
   getWorkbench(session: Session, titleId: string, episodeNumber: number): Promise<WorkbenchPayload>;
+  /** Studio-wide approved bilingual pairs; server-only prompt context, never a route payload. */
+  listApprovedTranslationMemory(session: Session, titleId: string): Promise<TranslationMemoryExample[]>;
   upsertCharacters(session: Session, titleId: string, characters: NewCharacter[]): Promise<Character[]>;
   setSceneContext(
     session: Session,

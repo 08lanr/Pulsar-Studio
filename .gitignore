@@ -1,6 +1,7 @@
 node_modules/
 .next/
 .next-production/
+.next-codex/
 out/
 
 # Secrets. Backups of .env.local hold the same keys - never committable.

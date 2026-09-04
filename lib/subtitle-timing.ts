@@ -97,3 +97,47 @@ export function preciseTimecode(ms: number | null): string {
   const s = Math.floor(ms / 1000);
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}.${String(ms % 1000).padStart(3, "0")}`;
 }
+
+export type MergeableCue = { start_ms: number; end_ms: number; text: string };
+
+/** Pair two short neighboring cues into one two-row cue spanning both
+ * windows: longer reading time, less flicker. Only single-line cues merge,
+ * pairs never chain into triples, and the limits keep QC's 2-row / 42-char
+ * shape intact. */
+export function mergeShortCues(
+  cues: MergeableCue[],
+  opts: { maxGapMs?: number; maxCombinedMs?: number; maxCombinedChars?: number } = {}
+): MergeableCue[] {
+  const maxGap = opts.maxGapMs ?? 300;
+  const maxMs = opts.maxCombinedMs ?? 6000;
+  const maxChars = opts.maxCombinedChars ?? 60;
+  const out: MergeableCue[] = [];
+  for (let i = 0; i < cues.length; i++) {
+    const a = cues[i];
+    const b = cues[i + 1];
+    const fits =
+      b &&
+      !a.text.includes("\n") &&
+      !b.text.includes("\n") &&
+      b.start_ms - a.end_ms >= -50 &&
+      b.start_ms - a.end_ms <= maxGap &&
+      b.end_ms - a.start_ms <= maxMs &&
+      a.text.replace(/\s/g, "").length + b.text.replace(/\s/g, "").length <= maxChars;
+    if (fits) {
+      out.push({ start_ms: a.start_ms, end_ms: b.end_ms, text: `${a.text}\n${b.text}` });
+      i += 1; // the pair is consumed; never chain into a third row
+    } else {
+      out.push({ ...a });
+    }
+  }
+  return out;
+}
+
+/** Frame-sampled stamps betray themselves: starts rounded to whole seconds.
+ * True when enough timed cues sit exactly on second boundaries. */
+export function looksFrameSampled(startsMs: (number | null)[]): boolean {
+  const timed = startsMs.filter((v): v is number => v !== null);
+  if (timed.length < 5) return false;
+  const onSecond = timed.filter((v) => v % 1000 === 0).length;
+  return onSecond / timed.length >= 0.6;
+}

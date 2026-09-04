@@ -1,34 +1,37 @@
 "use client";
 
-// The subtitle studio — delivery stage two (2026-09-05: "first we finalize
-// the script, and then we finalize the subtitles"), now with the timing
-// desk (the founder's footage ran ~500 ms late):
+// The subtitle studio — delivery stage two, reshaped around how a producer
+// actually reads the screen (2026-09-04 feedback):
 //
-//   · Live styled preview: the player shows the current cue as an overlay,
-//     restyled instantly by the controls; the burn uses the same mapping.
-//   · GLOBAL OFFSET: nudge every cue ±100/±500 ms or type an exact signed
-//     millisecond value; the pending shift previews live and applies once
-//     through /timing/offset — repeated exports never re-apply it.
-//   · PER-CUE EDITOR: millisecond start/end for the selected cue, set-to-
-//     playhead, , / . keyboard nudges (Shift = 500 ms). Edits stay pending
-//     client-side (undo per cue or all) until saved via /timing/cues.
-//   · Playback desk: loop-current-cue, 0.5–1.5x speeds, play-from-2s-before.
-//   · Warnings: overlaps, reversed ranges, <300 ms cues, past-video cues.
-//   · AUTO-SYNC: forced alignment behind lib/align's provider interface;
-//     with none configured the button is disabled with the honest reason.
-//     Proposals (when a provider exists) render as a per-cue diff to accept
-//     or reject — the text is never touched, nothing applies silently.
-//
-// Gates: script finalized first; cues need timecodes (the stamp repair
-// offers itself when the times are trapped in the text).
+//   · The rail is an ACCORDION of three plain-named rows — 校准时间轴 /
+//     字幕样式 / 下载与交付 — collapsed on entry; open what you need.
+//   · When the stored timestamps look frame-sampled (starts rounded to
+//     whole seconds — the telltale of burned-sub extraction), a banner
+//     recommends the 0.5s-earlier shift with one button. New ingests get
+//     this correction automatically (lib/ingest); the banner catches
+//     episodes stored before it.
+//   · The overlay is positioned against the ACTUAL video image (measured
+//     contain-fit box), not the letterboxed frame, so subtitles sit
+//     centered on the picture; a 位置 control moves them bottom/top and
+//     the burn follows (libass Alignment).
+//   · 短句合并: neighboring short cues can pair into one two-row subtitle
+//     (preview + burn, English layout) — longer on screen, less flicker.
+//   · The per-line editor speaks plainly (微调单句, "start at this frame")
+//     with tooltips, and only appears meaningful once a line is picked.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getJson, postJson } from "@/lib/api-client";
 import { unwrap, type ApiEnvelope } from "@/components/workbench/util";
 import type { AdaptedLine, Line, WorkbenchPayload } from "@/lib/types";
 import type { SubtitleStyle } from "@/lib/subtitle-video";
-import { preciseTimecode, timingIssues, type TimingIssue } from "@/lib/subtitle-timing";
+import {
+  looksFrameSampled,
+  mergeShortCues,
+  preciseTimecode,
+  timingIssues,
+  type TimingIssue,
+} from "@/lib/subtitle-timing";
 import type { AlignmentProposal } from "@/lib/align";
 import { useT } from "@/components/locale";
 import { IconCheck } from "./icons";
@@ -51,6 +54,7 @@ const SPEEDS = [0.5, 0.75, 1, 1.5] as const;
 type Props = { payload: WorkbenchPayload; readOnly: boolean };
 
 type PendingCue = { start_ms: number; end_ms: number };
+type AccSection = "timing" | "style" | "deliver";
 
 const STAMP_HINT_RE = /^[\[（(]\s*\d{1,2}:\d{1,2}/;
 
@@ -60,10 +64,13 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
   const base = `/api/titles/${payload.title.id}/episodes/${payload.episode.number}`;
   const episodeHref = `/producer/titles/${payload.title.id}/episodes/${payload.episode.number}`;
   const videoRef = useRef<HTMLVideoElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
 
   const [layout, setLayout] = useState<SubtitleStyle["layout"]>("en");
   const [font, setFont] = useState<SubtitleStyle["font"]>("sans");
   const [size, setSize] = useState<SubtitleStyle["size"]>("m");
+  const [position, setPosition] = useState<SubtitleStyle["position"]>("bottom");
+  const [merge, setMerge] = useState(false);
   const [currentMs, setCurrentMs] = useState(0);
   const [videoMs, setVideoMs] = useState<number | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -72,7 +79,7 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
   const [notice, setNotice] = useState<string | null>(null);
   const [rendered, setRendered] = useState<{ video_url: string; lines: number } | null>(null);
   const [repairing, setRepairing] = useState(false);
-  const [mode, setMode] = useState<"timing" | "delivery">("timing");
+  const [open, setOpen] = useState<Record<AccSection, boolean>>({ timing: false, style: false, deliver: false });
 
   // ---- timing state ----------------------------------------------------------
   const [pending, setPending] = useState<Map<string, PendingCue>>(new Map());
@@ -84,9 +91,15 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
   const [align, setAlign] = useState<{ available: boolean; reason?: string } | null>(null);
   const [proposals, setProposals] = useState<AlignmentProposal[] | null>(null);
   const [accepted, setAccepted] = useState<Set<string>>(new Set());
+  const [suggestGone, setSuggestGone] = useState(false);
 
   const finalized = payload.version?.status === "approved";
   const timed = payload.episode.has_timecodes;
+
+  // Frame-sampled stamps (whole-second starts) mean the whole track runs
+  // ~0.5s late; recommend the shift instead of waiting to be told.
+  const suggestOffset =
+    !readOnly && !suggestGone && pendingOffset === 0 && looksFrameSampled(payload.lines.map((l) => l.start_ms));
 
   useEffect(() => {
     let alive = true;
@@ -124,9 +137,18 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
   }, [payload.lines, payload.adapted_lines]);
 
   const effectiveCues = cues.map((c) => ({ ...c, ...effective(c.line) }));
-  const current = effectiveCues.find((c) => (c.start ?? 0) <= currentMs && currentMs < (c.end ?? 0)) ?? null;
   const selected = effectiveCues.find((c) => c.line.id === selectedId) ?? null;
   const durationMs = payload.episode.duration_ms ?? Math.max(1, ...effectiveCues.map((c) => c.end ?? 0));
+
+  // What the overlay draws: per-line, or short neighbors paired (EN layout).
+  const overlayCues = useMemo(() => {
+    const base_ = effectiveCues
+      .filter((c) => c.start != null && c.end != null)
+      .map((c) => ({ start_ms: c.start!, end_ms: c.end!, text: c.adapted!.text_en!, zh: c.line.text_zh }));
+    if (!(merge && layout === "en")) return base_.map((c) => ({ ...c, lines: [c.text] }));
+    return mergeShortCues(base_).map((c) => ({ ...c, zh: null as string | null, lines: c.text.split("\n") }));
+  }, [effectiveCues, merge, layout]);
+  const currentOverlay = overlayCues.find((c) => c.start_ms <= currentMs && currentMs < c.end_ms) ?? null;
 
   const issues: TimingIssue[] = timingIssues(
     effectiveCues.map((c) => ({ start_ms: c.start, end_ms: c.end })),
@@ -139,6 +161,27 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [pending.size, readOnly]);
+
+  // ---- the video's real on-screen box (contain-fit inside the frame) ---------
+  const [videoBox, setVideoBox] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const measureVideo = useCallback(() => {
+    const v = videoRef.current;
+    const f = frameRef.current;
+    if (!v || !f || !v.videoWidth || !v.videoHeight) {
+      setVideoBox(null);
+      return;
+    }
+    const fw = f.clientWidth;
+    const fh = f.clientHeight;
+    const scale = Math.min(fw / v.videoWidth, fh / v.videoHeight);
+    const w = v.videoWidth * scale;
+    const h = v.videoHeight * scale;
+    setVideoBox({ left: (fw - w) / 2, top: (fh - h) / 2, width: w, height: h });
+  }, []);
+  useEffect(() => {
+    window.addEventListener("resize", measureVideo);
+    return () => window.removeEventListener("resize", measureVideo);
+  }, [measureVideo]);
 
   function seek(ms: number | null, { play = false }: { play?: boolean } = {}) {
     if (ms == null) return;
@@ -296,7 +339,13 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
     const ticker = setInterval(() => setRenderElapsed(Date.now() - started), 500);
     try {
       const r = unwrap(
-        await postJson<{ video_url: string; lines: number } & ApiEnvelope>(`${base}/subtitle-video`, { layout, font, size })
+        await postJson<{ video_url: string; lines: number } & ApiEnvelope>(`${base}/subtitle-video`, {
+          layout,
+          font,
+          size,
+          position,
+          merge: merge && layout === "en",
+        })
       );
       setRendered(r);
     } catch (e) {
@@ -379,22 +428,29 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
   };
 
   const storedSelected = selectedStored();
+  const timingBadge = pending.size + (pendingOffset !== 0 ? 1 : 0);
+
+  const accHead = (key: AccSection, badge?: number, warn?: number) => (
+    <button type="button" className="st-acc-head" aria-expanded={open[key]} onClick={() => setOpen((o) => ({ ...o, [key]: !o[key] }))}>
+      <span className="st-acc-titles">
+        <strong>{tt(`st.acc.${key}`)}</strong>
+        <small>{tt(`st.acc.${key}.sub`)}</small>
+      </span>
+      {badge ? <b className="qc-badge">{badge}</b> : null}
+      {warn ? <b className="qc-badge is-warn">{warn}</b> : null}
+      <i className={`st-acc-chevron ${open[key] ? "is-open" : ""}`} aria-hidden="true" />
+    </button>
+  );
 
   return (
     <div className="creative-review-shell">
       <header className="workspace-actionbar subtitle-modebar">
         <div className="workspace-state">
           <span>{tt("v3.subtitle.workspace")}</span>
-          <strong>{mode === "timing" ? tt("v3.subtitle.timingHint") : tt("v3.subtitle.deliveryHint")}</strong>
+          <strong>{tt("st.stage")}</strong>
         </div>
-        <div className="studio-mode-switch" role="tablist" aria-label={tt("v3.subtitle.workspace")}>
-          <button type="button" role="tab" aria-selected={mode === "timing"} className={mode === "timing" ? "is-active" : ""} onClick={() => setMode("timing")}>
-            {tt("v3.subtitle.timing")}
-            {(pending.size > 0 || pendingOffset !== 0) && <i>{pending.size + (pendingOffset !== 0 ? 1 : 0)}</i>}
-          </button>
-          <button type="button" role="tab" aria-selected={mode === "delivery"} className={mode === "delivery" ? "is-active" : ""} onClick={() => setMode("delivery")}>
-            {tt("v3.subtitle.delivery")}
-          </button>
+        <div className="head-actions">
+          <span className="pill status-approved">{tt("pw.epStatus.approved")}</span>
         </div>
       </header>
 
@@ -409,17 +465,40 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
         </div>
       )}
 
+      {suggestOffset && (
+        <div className="st-suggest" role="status">
+          <span>{tt("st.suggest.body")}</span>
+          <button
+            type="button"
+            className="btn btn-sm btn-primary"
+            onClick={() => {
+              setPendingOffset(-500);
+              setExactOffset("-500");
+              setOpen((o) => ({ ...o, timing: true }));
+            }}
+          >
+            {tt("st.suggest.cta")}
+          </button>
+          <button type="button" className="btn btn-sm btn-ghost" onClick={() => setSuggestGone(true)}>
+            {tt("st.suggest.dismiss")}
+          </button>
+        </div>
+      )}
+
       <div className="review-work-grid">
         <main className="review-stage-column">
           <section className="st-stage">
-            <div className="st-frame">
+            <div className="st-frame" ref={frameRef}>
               {payload.video_url ? (
                 <video
                   ref={videoRef}
                   controls
                   preload="metadata"
                   src={payload.video_url}
-                  onLoadedMetadata={(e) => setVideoMs(Math.round(e.currentTarget.duration * 1000))}
+                  onLoadedMetadata={(e) => {
+                    setVideoMs(Math.round(e.currentTarget.duration * 1000));
+                    measureVideo();
+                  }}
                   onTimeUpdate={(e) => onTimeUpdate(Math.round(e.currentTarget.currentTime * 1000))}
                 />
               ) : (
@@ -428,16 +507,27 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
                   <span>{tt("st.noVideo")}</span>
                 </div>
               )}
-              {current && (
-                <div className={`st-overlay st-overlay-${size}`} style={overlayStyle} aria-live="off">
-                  <span lang="en">{current.adapted!.text_en}</span>
-                  {layout === "en_zh" && (
-                    <span lang="zh-CN" className="st-overlay-zh">
-                      {current.line.text_zh}
-                    </span>
-                  )}
-                </div>
-              )}
+              {/* The overlay lives on the measured video image, so it sits
+                  centered on the PICTURE even when the frame letterboxes. */}
+              <div
+                className="st-video-box"
+                style={videoBox ? { left: videoBox.left, top: videoBox.top, width: videoBox.width, height: videoBox.height } : { inset: 0 }}
+              >
+                {currentOverlay && (
+                  <div className={`st-overlay st-overlay-${size} st-overlay-${position}`} style={overlayStyle} aria-live="off">
+                    {currentOverlay.lines.map((ln, i) => (
+                      <span lang="en" key={i}>
+                        {ln}
+                      </span>
+                    ))}
+                    {layout === "en_zh" && currentOverlay.zh && (
+                      <span lang="zh-CN" className="st-overlay-zh">
+                        {currentOverlay.zh}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
             {/* Playback desk: speed, loop, run-up, clock. */}
             <div className="st-playdesk">
@@ -453,6 +543,7 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
                 type="button"
                 className={`btn btn-sm ${loopCue ? "btn-primary" : "btn-ghost"}`}
                 disabled={!selected}
+                title={tt("st.t.loop.tip")}
                 onClick={() => setLoopCue((v) => !v)}
               >
                 {tt("st.t.loop")}
@@ -461,6 +552,7 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
                 type="button"
                 className="btn btn-sm btn-ghost"
                 disabled={!selected || selected.start == null}
+                title={tt("st.t.before.tip")}
                 onClick={() => selected && seek(Math.max(0, (selected.start ?? 0) - 2000), { play: true })}
               >
                 {tt("st.t.before")}
@@ -503,314 +595,342 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
           </section>
         </main>
 
-        <aside className="review-feedback-panel">
-          {/* Keep timing and delivery as separate work modes so the rail has one clear purpose. */}
-          {mode === "timing" && <section className="pline-panel">
-            <div className="review-feedback-head">
-              <div>
-                <span>{tt("st.t.panel")}</span>
-                <strong>{tt("st.t.panelHint")}</strong>
-              </div>
-            </div>
-
-            <div className="st-control">
-              <span className="label">{tt("st.t.offset")}</span>
-              <div className="st-seg">
-                {[-500, -100, 100, 500].map((d) => (
-                  <button type="button" key={d} disabled={readOnly} onClick={() => setPendingOffset((v) => v + d)}>
-                    {d > 0 ? `+${d}` : d}
-                  </button>
-                ))}
-              </div>
-              <div className="st-offset-row">
-                <input
-                  className="input st-ms-input"
-                  type="number"
-                  step={1}
-                  placeholder={tt("st.t.exact")}
-                  value={exactOffset}
-                  disabled={readOnly}
-                  onChange={(e) => {
-                    setExactOffset(e.target.value);
-                    const v = Number(e.target.value);
-                    if (Number.isInteger(v)) setPendingOffset(v);
-                    else if (e.target.value === "") setPendingOffset(0);
-                  }}
-                />
-                <span className={`st-offset-pending ${pendingOffset ? "is-live" : ""}`}>
-                  {pendingOffset
-                    ? tt("st.t.offsetPending", { v: pendingOffset > 0 ? `+${pendingOffset}` : pendingOffset })
-                    : tt("st.t.offsetNone")}
-                </span>
-              </div>
-              <p className="hint">{tt("st.t.offsetHint")}</p>
-              {!readOnly && (
-                <button
-                  type="button"
-                  className="btn btn-sm btn-primary btn-block"
-                  disabled={!pendingOffset || busy === "offset"}
-                  onClick={applyOffset}
-                >
-                  {busy === "offset" ? <span className="spinner" /> : null} {tt("st.t.offsetApply")}
-                </button>
-              )}
-            </div>
-
-            <div className="st-control">
-              <span className="label">{tt("st.t.cue")}</span>
-              {selected && storedSelected ? (
-                <>
-                  <div className="st-cue-times">
-                    <label>
-                      <span>{tt("st.t.start")}</span>
-                      <input
-                        className="input st-ms-input"
-                        type="number"
-                        min={0}
-                        step={1}
-                        value={storedSelected.start}
-                        disabled={readOnly}
-                        onChange={(e) => {
-                          const v = Number(e.target.value);
-                          if (Number.isInteger(v)) stagePending(selected.line.id, v, storedSelected.end);
-                        }}
-                      />
-                    </label>
-                    <label>
-                      <span>{tt("st.t.end")}</span>
-                      <input
-                        className="input st-ms-input"
-                        type="number"
-                        min={0}
-                        step={1}
-                        value={storedSelected.end}
-                        disabled={readOnly}
-                        onChange={(e) => {
-                          const v = Number(e.target.value);
-                          if (Number.isInteger(v)) stagePending(selected.line.id, storedSelected.start, v);
-                        }}
-                      />
-                    </label>
+        <aside className="review-feedback-panel st-accordion">
+          {/* ---- 校准时间轴 -------------------------------------------------- */}
+          <section className={`st-acc ${open.timing ? "is-open" : ""}`}>
+            {accHead("timing", timingBadge, issues.length)}
+            {open.timing && (
+              <div className="st-acc-body">
+                <div className="st-control">
+                  <span className="label" title={tt("st.t.offset.tip")}>
+                    {tt("st.t.offset")}
+                  </span>
+                  <div className="st-seg">
+                    {[-500, -100, 100, 500].map((d) => (
+                      <button type="button" key={d} disabled={readOnly} onClick={() => setPendingOffset((v) => v + d)}>
+                        {d > 0 ? `+${d}` : d}
+                      </button>
+                    ))}
                   </div>
-                  <p className="hint">
-                    {preciseTimecode(selected.start)} → {preciseTimecode(selected.end)} ·{" "}
-                    {tt("st.t.dur", { t: `${(selected.end ?? 0) - (selected.start ?? 0)}ms` })}
-                  </p>
+                  <div className="st-offset-row">
+                    <input
+                      className="input st-ms-input"
+                      type="number"
+                      step={1}
+                      placeholder={tt("st.t.exact")}
+                      value={exactOffset}
+                      disabled={readOnly}
+                      onChange={(e) => {
+                        setExactOffset(e.target.value);
+                        const v = Number(e.target.value);
+                        if (Number.isInteger(v)) setPendingOffset(v);
+                        else if (e.target.value === "") setPendingOffset(0);
+                      }}
+                    />
+                    <span className={`st-offset-pending ${pendingOffset ? "is-live" : ""}`}>
+                      {pendingOffset
+                        ? tt("st.t.offsetPending", { v: pendingOffset > 0 ? `+${pendingOffset}` : pendingOffset })
+                        : tt("st.t.offsetNone")}
+                    </span>
+                  </div>
+                  <p className="hint">{tt("st.t.offsetHint")}</p>
                   {!readOnly && (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-primary btn-block"
+                      disabled={!pendingOffset || busy === "offset"}
+                      onClick={applyOffset}
+                    >
+                      {busy === "offset" ? <span className="spinner" /> : null} {tt("st.t.offsetApply")}
+                    </button>
+                  )}
+                </div>
+
+                <div className="st-control">
+                  <span className="label" title={tt("st.t.cue.tip")}>
+                    {tt("st.t.cue2")}
+                  </span>
+                  {selected && storedSelected ? (
                     <>
-                      <div className="st-btnrow">
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-ghost"
-                          onClick={() => stagePending(selected.line.id, currentMs, Math.max(currentMs + 100, storedSelected.end))}
-                        >
-                          {tt("st.t.setStart")}
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-ghost"
-                          onClick={() => stagePending(selected.line.id, storedSelected.start, Math.max(storedSelected.start + 100, currentMs))}
-                        >
-                          {tt("st.t.setEnd")}
-                        </button>
+                      <p className="hint st-cue-which">
+                        {tt("st.t.cueSel", { n: selected.line.seq })} · <span lang="en">{selected.adapted?.text_en}</span>
+                      </p>
+                      <div className="st-cue-times">
+                        <label>
+                          <span>{tt("st.t.start")}</span>
+                          <input
+                            className="input st-ms-input"
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={storedSelected.start}
+                            disabled={readOnly}
+                            onChange={(e) => {
+                              const v = Number(e.target.value);
+                              if (Number.isInteger(v)) stagePending(selected.line.id, v, storedSelected.end);
+                            }}
+                          />
+                        </label>
+                        <label>
+                          <span>{tt("st.t.end")}</span>
+                          <input
+                            className="input st-ms-input"
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={storedSelected.end}
+                            disabled={readOnly}
+                            onChange={(e) => {
+                              const v = Number(e.target.value);
+                              if (Number.isInteger(v)) stagePending(selected.line.id, storedSelected.start, v);
+                            }}
+                          />
+                        </label>
                       </div>
-                      <div className="st-btnrow">
+                      <p className="hint">
+                        {preciseTimecode(selected.start)} → {preciseTimecode(selected.end)} ·{" "}
+                        {tt("st.t.dur", { t: `${(selected.end ?? 0) - (selected.start ?? 0)}ms` })}
+                      </p>
+                      {!readOnly && (
+                        <>
+                          <div className="st-btnrow">
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-ghost"
+                              title={tt("st.t.setStart.tip")}
+                              onClick={() => stagePending(selected.line.id, currentMs, Math.max(currentMs + 100, storedSelected.end))}
+                            >
+                              {tt("st.t.setStart")}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-ghost"
+                              title={tt("st.t.setEnd.tip")}
+                              onClick={() => stagePending(selected.line.id, storedSelected.start, Math.max(storedSelected.start + 100, currentMs))}
+                            >
+                              {tt("st.t.setEnd")}
+                            </button>
+                          </div>
+                          <div className="st-btnrow">
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-ghost"
+                              disabled={!pending.has(selected.line.id)}
+                              onClick={() =>
+                                setPending((m) => {
+                                  const next = new Map(m);
+                                  next.delete(selected.line.id);
+                                  return next;
+                                })
+                              }
+                            >
+                              {tt("st.t.resetCue")}
+                            </button>
+                            <button type="button" className="btn btn-sm btn-ghost" disabled={!pending.size} onClick={() => setPending(new Map())}>
+                              {tt("st.t.resetAll")}
+                            </button>
+                          </div>
+                          <p className="hint">{tt("st.t.keys")}</p>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <p className="hint">{tt("st.t.pickCue")}</p>
+                  )}
+                </div>
+
+                {issues.length > 0 && (
+                  <div className="st-warnings" role="alert">
+                    {issues.slice(0, 6).map((i, k) => (
+                      <button
+                        type="button"
+                        key={`${i.code}:${i.index}:${k}`}
+                        onClick={() => selectCue(effectiveCues[i.index].line.id, effectiveCues[i.index].start)}
+                      >
+                        {warnLabel(i)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {!readOnly && (
+                  <button type="button" className="btn btn-primary btn-block" disabled={!pending.size || busy === "cues"} onClick={saveCues}>
+                    {busy === "cues" ? <span className="spinner" /> : <IconCheck />} {tt("st.t.save", { n: pending.size })}
+                  </button>
+                )}
+
+                {!readOnly && (
+                  <div className="st-control">
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-block"
+                      disabled={!align?.available || busy === "autosync"}
+                      title={align && !align.available ? align.reason : undefined}
+                      onClick={autoSync}
+                    >
+                      {busy === "autosync" ? <span className="spinner" /> : null} {tt("st.t.autosync")}
+                    </button>
+                    {align && !align.available && <p className="hint">{tt("st.t.autosyncOff", { reason: align.reason ?? "" })}</p>}
+                  </div>
+                )}
+
+                {proposals && proposals.length > 0 && (
+                  <div className="st-proposals">
+                    <div className="st-proposals-head">
+                      <b>{tt("st.t.proposals", { n: proposals.length })}</b>
+                      <button type="button" className="btn btn-sm btn-ghost" onClick={() => setAccepted(new Set(proposals.map((p) => p.line_id)))}>
+                        {tt("st.t.acceptAll")}
+                      </button>
+                    </div>
+                    {proposals.map((p) => (
+                      <div key={p.line_id} className={`st-proposal ${accepted.has(p.line_id) ? "is-accepted" : ""}`}>
+                        <span className="st-proposal-diff">
+                          {preciseTimecode(p.old_start_ms)} → <b>{preciseTimecode(p.new_start_ms)}</b>
+                          <small>{tt("st.t.conf", { v: Math.round(p.confidence * 100) })}</small>
+                        </span>
                         <button
                           type="button"
                           className="btn btn-sm btn-ghost"
-                          disabled={!pending.has(selected.line.id)}
                           onClick={() =>
-                            setPending((m) => {
-                              const next = new Map(m);
-                              next.delete(selected.line.id);
+                            setAccepted((s) => {
+                              const next = new Set(s);
+                              if (next.has(p.line_id)) next.delete(p.line_id);
+                              else next.add(p.line_id);
                               return next;
                             })
                           }
                         >
-                          {tt("st.t.resetCue")}
-                        </button>
-                        <button type="button" className="btn btn-sm btn-ghost" disabled={!pending.size} onClick={() => setPending(new Map())}>
-                          {tt("st.t.resetAll")}
+                          {accepted.has(p.line_id) ? tt("st.t.reject") : tt("st.t.accept")}
                         </button>
                       </div>
-                      <p className="hint">{tt("st.t.keys")}</p>
-                    </>
-                  )}
-                </>
-              ) : (
-                <p className="hint">{tt("st.t.pickCue")}</p>
-              )}
-            </div>
-
-            {issues.length > 0 && (
-              <div className="st-warnings" role="alert">
-                {issues.slice(0, 6).map((i, k) => (
-                  <button
-                    type="button"
-                    key={`${i.code}:${i.index}:${k}`}
-                    onClick={() => selectCue(effectiveCues[i.index].line.id, effectiveCues[i.index].start)}
-                  >
-                    {warnLabel(i)}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {!readOnly && (
-              <button type="button" className="btn btn-primary btn-block" disabled={!pending.size || busy === "cues"} onClick={saveCues}>
-                {busy === "cues" ? <span className="spinner" /> : <IconCheck />} {tt("st.t.save", { n: pending.size })}
-              </button>
-            )}
-
-            {!readOnly && (
-              <div className="st-control">
-                <button
-                  type="button"
-                  className="btn btn-outline btn-block"
-                  disabled={!align?.available || busy === "autosync"}
-                  title={align && !align.available ? align.reason : undefined}
-                  onClick={autoSync}
-                >
-                  {busy === "autosync" ? <span className="spinner" /> : null} {tt("st.t.autosync")}
-                </button>
-                {align && !align.available && <p className="hint">{tt("st.t.autosyncOff", { reason: align.reason ?? "" })}</p>}
-              </div>
-            )}
-
-            {proposals && proposals.length > 0 && (
-              <div className="st-proposals">
-                <div className="st-proposals-head">
-                  <b>{tt("st.t.proposals", { n: proposals.length })}</b>
-                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => setAccepted(new Set(proposals.map((p) => p.line_id)))}>
-                    {tt("st.t.acceptAll")}
-                  </button>
-                </div>
-                {proposals.map((p) => (
-                  <div key={p.line_id} className={`st-proposal ${accepted.has(p.line_id) ? "is-accepted" : ""}`}>
-                    <span className="st-proposal-diff">
-                      {preciseTimecode(p.old_start_ms)} → <b>{preciseTimecode(p.new_start_ms)}</b>
-                      <small>{tt("st.t.conf", { v: Math.round(p.confidence * 100) })}</small>
-                    </span>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-ghost"
-                      onClick={() =>
-                        setAccepted((s) => {
-                          const next = new Set(s);
-                          if (next.has(p.line_id)) next.delete(p.line_id);
-                          else next.add(p.line_id);
-                          return next;
-                        })
-                      }
-                    >
-                      {accepted.has(p.line_id) ? tt("st.t.reject") : tt("st.t.accept")}
+                    ))}
+                    <button type="button" className="btn btn-sm btn-primary btn-block" disabled={!accepted.size} onClick={stageAcceptedProposals}>
+                      {tt("st.t.applyProposals")}
                     </button>
                   </div>
-                ))}
-                <button type="button" className="btn btn-sm btn-primary btn-block" disabled={!accepted.size} onClick={stageAcceptedProposals}>
-                  {tt("st.t.applyProposals")}
-                </button>
+                )}
               </div>
             )}
-          </section>}
+          </section>
 
-          {/* Style controls: every change restyles the overlay immediately. */}
-          {mode === "delivery" && <section className="pline-panel">
-            <div className="review-feedback-head">
-              <div>
-                <span>{tt("st.style")}</span>
-                <strong>{tt("st.style.hint")}</strong>
+          {/* ---- 字幕样式 ---------------------------------------------------- */}
+          <section className={`st-acc ${open.style ? "is-open" : ""}`}>
+            {accHead("style")}
+            {open.style && (
+              <div className="st-acc-body">
+                <div className="st-control">
+                  <span className="label">{tt("st.layout")}</span>
+                  <div className="st-seg">
+                    <button type="button" className={layout === "en" ? "on" : ""} onClick={() => setLayout("en")}>
+                      {tt("st.layout.en")}
+                    </button>
+                    <button type="button" className={layout === "en_zh" ? "on" : ""} onClick={() => setLayout("en_zh")}>
+                      {tt("st.layout.enzh")}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="st-control">
+                  <span className="label">{tt("st.font")}</span>
+                  <div className="st-seg">
+                    <button type="button" className={font === "sans" ? "on" : ""} onClick={() => setFont("sans")}>
+                      {tt("st.font.sans")}
+                    </button>
+                    <button type="button" className={font === "serif" ? "on" : ""} onClick={() => setFont("serif")}>
+                      {tt("st.font.serif")}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="st-control">
+                  <span className="label">{tt("st.size")}</span>
+                  <div className="st-seg">
+                    {(["s", "m", "l"] as const).map((k) => (
+                      <button type="button" key={k} className={size === k ? "on" : ""} onClick={() => setSize(k)}>
+                        {tt(`st.size.${k}`)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="st-control">
+                  <span className="label">{tt("st.pos")}</span>
+                  <div className="st-seg">
+                    <button type="button" className={position === "bottom" ? "on" : ""} onClick={() => setPosition("bottom")}>
+                      {tt("st.pos.bottom")}
+                    </button>
+                    <button type="button" className={position === "top" ? "on" : ""} onClick={() => setPosition("top")}>
+                      {tt("st.pos.top")}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="st-control">
+                  <span className="label">{tt("st.merge")}</span>
+                  <div className="st-seg">
+                    <button type="button" className={!merge ? "on" : ""} onClick={() => setMerge(false)}>
+                      {tt("st.off")}
+                    </button>
+                    <button type="button" className={merge ? "on" : ""} disabled={layout !== "en"} onClick={() => setMerge(true)}>
+                      {tt("st.on")}
+                    </button>
+                  </div>
+                  <p className="hint">{tt("st.merge.hint")}</p>
+                </div>
               </div>
-            </div>
+            )}
+          </section>
 
-            <div className="st-control">
-              <span className="label">{tt("st.layout")}</span>
-              <div className="st-seg">
-                <button type="button" className={layout === "en" ? "on" : ""} onClick={() => setLayout("en")}>
-                  {tt("st.layout.en")}
-                </button>
-                <button type="button" className={layout === "en_zh" ? "on" : ""} onClick={() => setLayout("en_zh")}>
-                  {tt("st.layout.enzh")}
-                </button>
-              </div>
-            </div>
-
-            <div className="st-control">
-              <span className="label">{tt("st.font")}</span>
-              <div className="st-seg">
-                <button type="button" className={font === "sans" ? "on" : ""} onClick={() => setFont("sans")}>
-                  {tt("st.font.sans")}
-                </button>
-                <button type="button" className={font === "serif" ? "on" : ""} onClick={() => setFont("serif")}>
-                  {tt("st.font.serif")}
-                </button>
-              </div>
-            </div>
-
-            <div className="st-control">
-              <span className="label">{tt("st.size")}</span>
-              <div className="st-seg">
-                {(["s", "m", "l"] as const).map((k) => (
-                  <button type="button" key={k} className={size === k ? "on" : ""} onClick={() => setSize(k)}>
-                    {tt(`st.size.${k}`)}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </section>}
-
-          {/* Deliverables: the burn with the chosen style, and the files. */}
-          {mode === "delivery" && <section className="pline-panel">
-            <div className="review-feedback-head">
-              <div>
-                <span>{tt("st.deliver")}</span>
-                <strong>{tt("st.deliver.hint")}</strong>
-              </div>
-            </div>
-
-            {payload.video_url ? (
-              !readOnly && (
-                <>
-                  <button type="button" className="btn btn-approve btn-block" disabled={busy === "render"} onClick={renderVideo}>
-                    {busy === "render" ? <span className="spinner" /> : <IconCheck />}
-                    {busy === "render" ? tt("st.render.busy", { t: timecode(renderElapsed) }) : tt("st.render.cta")}
-                  </button>
-                  {busy === "render" && (
+          {/* ---- 下载与交付 -------------------------------------------------- */}
+          <section className={`st-acc ${open.deliver ? "is-open" : ""}`}>
+            {accHead("deliver")}
+            {open.deliver && (
+              <div className="st-acc-body">
+                {payload.video_url ? (
+                  !readOnly && (
                     <>
-                      <div className="genbar" aria-hidden="true">
-                        <i style={{ width: `${Math.round(renderFrac * 100)}%` }} />
-                      </div>
-                      <p className="genbar-meta">
-                        {renderElapsed > renderEstMs
-                          ? tt("pw.gen.overrun")
-                          : tt("pw.gen.remaining", { t: timecode(renderEstMs - renderElapsed) })}
-                      </p>
+                      <button type="button" className="btn btn-approve btn-block" disabled={busy === "render"} onClick={renderVideo}>
+                        {busy === "render" ? <span className="spinner" /> : <IconCheck />}
+                        {busy === "render" ? tt("st.render.busy", { t: timecode(renderElapsed) }) : tt("st.render.cta")}
+                      </button>
+                      {busy === "render" && (
+                        <>
+                          <div className="genbar" aria-hidden="true">
+                            <i style={{ width: `${Math.round(renderFrac * 100)}%` }} />
+                          </div>
+                          <p className="genbar-meta">
+                            {renderElapsed > renderEstMs
+                              ? tt("pw.gen.overrun")
+                              : tt("pw.gen.remaining", { t: timecode(renderEstMs - renderElapsed) })}
+                          </p>
+                        </>
+                      )}
+                      {rendered && (
+                        <a className="btn btn-primary btn-block" href={rendered.video_url} download>
+                          {tt("st.render.download", { n: rendered.lines })}
+                        </a>
+                      )}
                     </>
-                  )}
-                  {rendered && (
-                    <a className="btn btn-primary btn-block" href={rendered.video_url} download>
-                      {tt("st.render.download", { n: rendered.lines })}
-                    </a>
-                  )}
-                </>
-              )
-            ) : (
-              <p className="hint">{tt("st.render.noVideo")}</p>
-            )}
+                  )
+                ) : (
+                  <p className="hint">{tt("st.render.noVideo")}</p>
+                )}
 
-            <a className="btn btn-outline btn-block" href={`/api/titles/${payload.title.id}/export?format=srt&episode=${payload.episode.number}`}>
-              {tt("st.dl.srt")}
-            </a>
-            <a className="btn btn-outline btn-block" href={`/api/titles/${payload.title.id}/export?format=vtt&episode=${payload.episode.number}`}>
-              {tt("st.dl.vtt")}
-            </a>
-            <a
-              className="btn btn-ghost btn-block"
-              href={`/api/titles/${payload.title.id}/export?format=script&episode=${payload.episode.number}`}
-            >
-              {tt("pw.export.script")}
-            </a>
-          </section>}
+                <a className="btn btn-outline btn-block" href={`/api/titles/${payload.title.id}/export?format=srt&episode=${payload.episode.number}`}>
+                  {tt("st.dl.srt")}
+                </a>
+                <a className="btn btn-outline btn-block" href={`/api/titles/${payload.title.id}/export?format=vtt&episode=${payload.episode.number}`}>
+                  {tt("st.dl.vtt")}
+                </a>
+                <a
+                  className="btn btn-ghost btn-block"
+                  href={`/api/titles/${payload.title.id}/export?format=script&episode=${payload.episode.number}`}
+                >
+                  {tt("pw.export.script")}
+                </a>
+              </div>
+            )}
+          </section>
         </aside>
       </div>
     </div>

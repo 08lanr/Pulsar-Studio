@@ -287,6 +287,11 @@
 .review-command-waiting { border-left-color: var(--warning); }
 .review-command-ready,
 .review-command-done { border-left-color: var(--success); }
+.review-command-next { border-left-color: var(--brand); }
+/* Every line adapted but preflight still has errors: the header says so
+   instead of "ready" beside a red QC card (demo fix, 2026-09-04). */
+.review-command-blocked { border-left-color: var(--warning); }
+.review-command-blocked > div:first-child strong { color: var(--warning); }
 .review-command-metrics { display: flex; align-items: center; gap: 14px; white-space: nowrap; }
 .review-command-metrics b { color: var(--text); font-weight: 600; }
 .review-command-metrics .has-changes { color: var(--warning); }
@@ -1485,6 +1490,70 @@ button.stage {
 .tag-warning {
   background: var(--warning-bg);
   color: var(--warning);
+}
+/* The direction an alternative leans into: its first tag, filled, so the
+   two takes read as "here's a more emotional one, here's a more direct one". */
+.tag-direction {
+  background: var(--brand);
+  color: #fff;
+}
+.pline-alt-direction {
+  margin-bottom: 2px;
+}
+
+/* "Take it another direction": the tags nobody has tried on this line yet,
+   as tap-to-rewrite pills under the alternatives (decisions.md 2026-09-04).
+   Shown only after 查看备选说法, so the default panel stays quiet. */
+.pline-directions {
+  border-top: 1px solid var(--border);
+  margin-top: 10px;
+  padding-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+.pline-directions-label {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--text-muted);
+}
+.pline-directions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tag-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 11px;
+  font: inherit;
+  font-size: var(--t-small);
+  font-weight: var(--w-medium);
+  line-height: 1.4;
+  border: 1px solid var(--border-strong, var(--border));
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tag-btn:hover:not(:disabled) {
+  border-color: var(--brand);
+  color: var(--accent-text);
+  background: var(--brand-tint);
+}
+.tag-btn:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.tag-btn.is-busy {
+  opacity: 1;
+  border-color: var(--brand);
+  color: var(--accent-text);
+}
+.tag-btn .spinner {
+  width: 10px;
+  height: 10px;
 }
 
 /* Pipeline stage: a dot and a label. The three stages reuse the pill dot
@@ -4347,3 +4416,105 @@ mark.key-phrase {
 .st-proposal.is-accepted { opacity: 1; border-color: var(--border); }
 .st-proposal-diff { font-variant-numeric: tabular-nums; }
 .st-proposal-diff small { margin-left: 8px; color: var(--text-faint); }
+
+/* Player + delivery preflight share the band above the work grid. */
+.workspace-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+.workspace-top .rail-qc-list { max-height: 240px; }
+.workspace-top .review-viewer-frame video { max-height: 300px; }
+@media (max-width: 900px) {
+  .workspace-top { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* The QC bulk button carries its count as a badge; each row can fix itself. */
+.qc-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: 6px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.28);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.btn-outline .qc-badge {
+  background: var(--brand-tint);
+  color: var(--accent-text);
+}
+.rail-qc-row { cursor: pointer; }
+.rail-qc-row-fix {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 2px 9px;
+  font-size: 11.5px;
+  color: var(--accent-text);
+}
+
+/* ---- subtitle studio v2: accordion rail, measured overlay, suggestion --- */
+
+.st-video-box { position: absolute; pointer-events: none; }
+.st-overlay { position: absolute; left: 6%; right: 6%; }
+.st-overlay-bottom { bottom: 6%; }
+.st-overlay-top { top: 6%; }
+
+.st-suggest {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--brand);
+  border-radius: 10px;
+  background: var(--brand-tint);
+  font-size: 13px;
+}
+.st-suggest > span { flex: 1 1 auto; min-width: 0; }
+
+.st-accordion { display: flex; flex-direction: column; gap: 0; }
+.st-acc { border-bottom: 1px solid var(--border-light); }
+.st-acc:last-child { border-bottom: 0; }
+.st-acc-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 13px 16px;
+  border: 0;
+  background: none;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.st-acc-head:hover { background: var(--surface-2); }
+.st-acc-titles { flex: 1 1 auto; min-width: 0; display: grid; gap: 1px; }
+.st-acc-titles strong { font-size: 13.5px; font-weight: 600; }
+.st-acc-titles small { font-size: 11.5px; color: var(--text-faint); }
+.st-acc-head .qc-badge { background: var(--brand-tint); color: var(--accent-text); }
+.st-acc-head .qc-badge.is-warn { background: var(--warning-bg); color: var(--warning); }
+.st-acc-chevron {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-right: 1.5px solid var(--text-faint);
+  border-bottom: 1.5px solid var(--text-faint);
+  transform: rotate(45deg);
+  transition: transform 0.15s ease;
+}
+.st-acc-chevron.is-open { transform: rotate(225deg); }
+.st-acc-body {
+  display: grid;
+  gap: 14px;
+  padding: 4px 16px 16px;
+}
+.st-cue-which {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

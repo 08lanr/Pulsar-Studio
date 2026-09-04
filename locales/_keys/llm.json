@@ -1,5 +1,5 @@
 {
-  "llm.unavailable": { "en": "AI passes are unavailable — set ANTHROPIC_API_KEY", "zh": "AI 功能不可用——请设置 ANTHROPIC_API_KEY" },
+  "llm.unavailable": { "en": "AI passes are not available in this workspace", "zh": "此工作区暂未开启 AI 功能" },
   "llm.refused": { "en": "The model declined this content", "zh": "模型拒绝处理这段内容" },
   "llm.invalidOutput": { "en": "The model's answer did not match the expected shape; try again", "zh": "模型返回的结果格式不符，请重试" },
   "llm.truncated": { "en": "The model's answer was cut off; try a smaller scene", "zh": "模型返回被截断，请尝试更小的场景" },

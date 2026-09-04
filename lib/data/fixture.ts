@@ -17,9 +17,11 @@
 
 import { randomBytes, randomUUID } from "node:crypto";
 import { canReadTitle, type Session } from "@/lib/auth";
-import { LAST_CUE_MS, liftStamp, MAX_DERIVED_CUE_MS, type IngestResult } from "@/lib/ingest";
+import { LAST_CUE_MS, liftStamp, MAX_DERIVED_CUE_MS, SAMPLE_LATENCY_MS, type IngestResult } from "@/lib/ingest";
 import { applyGlobalOffset, assertValidCue } from "@/lib/subtitle-timing";
 import { splitSpeaker } from "@/lib/ingest/text";
+import { isLlmAvailable } from "@/lib/llm";
+import { examplesFromApprovedVersions } from "@/lib/translation-memory";
 import { cloneFixtureDb, type FixtureDb } from "@/data/fixture";
 import { buildVersionSnapshot, snapshotSha256 } from "@/data/fixture/snapshot";
 import type {
@@ -678,8 +680,15 @@ export const fixtureData: DataLayer = {
           )
         : [],
       video_url: mediaUrl(episode.video_path),
-      ai_available: !!process.env.ANTHROPIC_API_KEY,
+      ai_available: isLlmAvailable(),
     });
+  },
+
+  async listApprovedTranslationMemory(session, titleId) {
+    const { db } = store();
+    readableTitle(db, session, titleId);
+    const approved = db.versions.filter((version) => version.status === "approved" && version.snapshot);
+    return clone(examplesFromApprovedVersions(approved));
   },
 
   async upsertCharacters(session, titleId, characters) {
@@ -898,6 +907,11 @@ export const fixtureData: DataLayer = {
     const stamped = stamps.filter(Boolean).length;
     if (stamped < 2 || stamped / Math.max(1, lines.length) < 0.6) {
       throw invalid("no per-line [hh:mm:ss] stamps found in this episode's text");
+    }
+    // Same frame-sampling correction the ingest applies (lib/ingest).
+    const onSecond = stamps.filter((st) => st && st.ms % 1000 === 0).length;
+    if (onSecond / stamped >= 0.6) {
+      for (const st of stamps) if (st) st.ms = Math.max(0, st.ms - SAMPLE_LATENCY_MS);
     }
     let timed = 0;
     for (let i = 0; i < lines.length; i++) {

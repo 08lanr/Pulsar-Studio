@@ -8,6 +8,7 @@
 import { z } from "zod";
 import type { Scene } from "@/lib/types";
 import { MODEL_STRONG, type LlmSystemBlock } from "@/lib/llm";
+
 import {
   ADAPTATION_RULES,
   AdaptTagSchema,
@@ -55,6 +56,13 @@ export type FirstPassInput = {
   previous_tail: { speaker: string | null; text_zh: string; text_en: string | null }[];
   /** Lines the editor already rewrote by hand; the model adapts them anyway (for continuity) but they are not written back. */
   has_timecodes: boolean;
+  /**
+   * What the pass knows beyond source and bible (lib/memory: approved
+   * memory, house exemplars, register guide, glosses, reference pairs), in
+   * authority order. Varies per scene, so it is appended AFTER the cached
+   * system blocks and never marked for caching.
+   */
+  knowledge: LlmSystemBlock[];
 };
 
 const SYSTEM = `You are the lead adapter at Pulsar Studio. You turn the dialogue of a Chinese vertical short drama into the lines American viewers will hear and read, scene by scene, and you explain every choice to the producer (制片方) in Chinese and to the U.S. editor in English.
@@ -84,7 +92,9 @@ export function buildFirstPass(input: FirstPassInput) {
   const windowNote = input.has_timecodes
     ? "Each line shows its on-screen window and a HARD budget: text_en must stay within the given character count (letters and punctuation, spaces excluded) so it reads at ≤17 chars/sec. Cutting a beat to fit is better than overrunning — never exceed the budget."
     : "This script has no timecodes: treat every line as a normal spoken beat and keep lengths natural.";
-  const system: LlmSystemBlock[] = [input.bible, { text: SYSTEM, cache: true }];
+  // Cache breakpoints cover everything BEFORE them: bible, then rules. The
+  // per-scene knowledge goes after both so neither prefix changes per call.
+  const system: LlmSystemBlock[] = [input.bible, { text: SYSTEM, cache: true }, ...input.knowledge];
   const expected = input.lines.map((l) => l.seq);
   return {
     name: "first_pass",

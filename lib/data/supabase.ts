@@ -20,7 +20,7 @@
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import type { Session } from "@/lib/auth";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { buildVersionSnapshot } from "@/data/fixture/snapshot";
 import type {
   AdaptedLine,
@@ -43,6 +43,8 @@ import type {
   VersionSnapshot,
 } from "@/lib/types";
 import { applyGlobalOffset, assertValidCue } from "@/lib/subtitle-timing";
+import { isLlmAvailable } from "@/lib/llm";
+import { examplesFromApprovedVersions } from "@/lib/translation-memory";
 import { DataError, conflict, invalid, notFound } from "./errors";
 import type { DataLayer, ExportSnapshot } from "./index";
 import { mediaUrl } from "./storage";
@@ -433,8 +435,32 @@ export const supabaseData: DataLayer = {
       alternatives,
       decisions,
       video_url: mediaUrl(episode.video_path),
-      ai_available: !!process.env.ANTHROPIC_API_KEY,
+      ai_available: isLlmAvailable(),
     };
+  },
+
+  async listApprovedTranslationMemory(_session, titleId) {
+    // Authorize the caller against the target title under RLS first. The
+    // corpus query then uses the service role so a producer can benefit from
+    // Studio-wide approved work without receiving another producer's rows in
+    // any route response.
+    const userClient = db();
+    await one<Pick<Title, "id">>(
+      core(userClient).from("titles").select("id").eq("id", titleId).maybeSingle(),
+      "title",
+      titleId
+    );
+    const serviceClient = createServiceSupabase();
+    const approved = await many<Pick<Version, "id" | "status" | "approved_at" | "snapshot">>(
+      studio(serviceClient)
+        .from("versions")
+        .select("id, status, approved_at, snapshot")
+        .eq("status", "approved")
+        .not("snapshot", "is", null)
+        .order("approved_at", { ascending: false })
+        .limit(50)
+    );
+    return examplesFromApprovedVersions(approved);
   },
 
   async upsertCharacters(_session, titleId, characters) {

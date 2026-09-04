@@ -2,10 +2,11 @@
 
 The subtitle studio's 从音频自动对轴 action estimates each cue's true
 start/end from the episode's own audio while keeping the written Chinese
-text untouched. It is provider-based (`lib/align.ts`) and **no provider is
-implemented yet**: the button renders in a disabled state with this
-document as the pointer, and the API returns `{ available: false }`.
-Alignments are never fabricated.
+text untouched. It is provider-based (`lib/align.ts`); the first real provider is
+**local-whisper** (`scripts/align_cues.py`): faster-whisper on CPU
+transcribes the episode's own audio with word timestamps and matches each
+cue's characters to the transcript — the known text is FITTED to the
+audio, never re-written. Unmatched cues are omitted, not guessed.
 
 ## Contract
 
