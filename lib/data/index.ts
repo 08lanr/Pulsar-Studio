@@ -241,6 +241,24 @@ export type PromoCreativeReviewInput = {
   rejection_note?: string | null;
 };
 
+/** Staff answer to a producer's change request: a new creative version. */
+export type RevisePromoCreativeInput = {
+  hypothesis?: string | null;
+  hook: string;
+  caption: string;
+  ad_description: string;
+  source_start_ms?: number | null;
+  source_end_ms?: number | null;
+  revision_note?: string | null;
+};
+
+/** Staff record Grow's launch progress on a submitted campaign. */
+export type AdvancePromoCampaignInput = {
+  status: Extract<PromoCampaign["status"], "launching" | "live" | "failed">;
+  grow_campaign_id?: string | null;
+  note?: string | null;
+};
+
 export type ApproveOptions = {
   /** 'producer' = the partner in their portal (SQL in_app); 'on_behalf' = staff admin with evidence. */
   mode: "producer" | "on_behalf";
@@ -376,8 +394,13 @@ export interface DataLayer {
   createPromoCampaign(session: Session, input: CreatePromoCampaignInput): Promise<PromoCampaign>;
   generatePromoDrafts(session: Session, campaignId: string): Promise<PromoCreative[]>;
   reviewPromoCreative(session: Session, creativeId: string, input: PromoCreativeReviewInput): Promise<PromoCreative>;
+  /** Producer keeps every creative still waiting for a decision. */
+  approveAllPromoCreatives(session: Session, campaignId: string): Promise<PromoCampaignDetail>;
   approvePromoCampaign(session: Session, campaignId: string): Promise<PromoCampaignDetail>;
   submitPromoCampaignMock(session: Session, campaignId: string): Promise<PromoCampaignDetail>;
+  // Pulsar's Promote desk (staff only): answer change requests, track launch.
+  revisePromoCreative(session: Session, creativeId: string, input: RevisePromoCreativeInput): Promise<PromoCreative>;
+  advancePromoCampaign(session: Session, campaignId: string, input: AdvancePromoCampaignInput): Promise<PromoCampaignDetail>;
 
   // exports and audit
   getExportSnapshot(session: Session, titleId: string, episodeNumber: number): Promise<ExportSnapshot>;

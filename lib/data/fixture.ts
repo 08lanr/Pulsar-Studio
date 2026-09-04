@@ -1720,13 +1720,18 @@ export const fixtureData: DataLayer = {
         })
         .map((campaign): PromoCampaignSummary => {
           const title = findTitle(db, campaign.title_id);
+          const producer = db.producers.find((p) => p.id === campaign.producer_id);
           const creatives = db.promo_creatives.filter((c) => c.campaign_id === campaign.id && c.status !== "superseded");
           return {
             ...campaign,
             title_name_zh: title.name_zh,
             title_name_en: title.name_en,
+            producer_name_zh: producer?.name_zh ?? "",
+            producer_name_en: producer?.name_en ?? null,
             creative_count: creatives.length,
             approved_count: creatives.filter((c) => c.status === "approved").length,
+            pending_count: creatives.filter((c) => c.status === "ready").length,
+            change_count: creatives.filter((c) => c.status === "rejected").length,
           };
         })
         .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
@@ -1781,14 +1786,15 @@ export const fixtureData: DataLayer = {
       return clone(db.promo_creatives.filter((c) => c.campaign_id === campaign.id && c.status !== "superseded"));
     }
     const title = findTitle(db, campaign.title_id);
-    const kinds: PromoCreative["kind"][] = ["direct_clip", "ugc_story", "direct_clip", "ugc_reaction", "direct_clip", "ugc_story"];
+    // Five concepts per round (decision 2026-09-04): one testable set at a
+    // time; further rounds follow once results come back.
+    const kinds: PromoCreative["kind"][] = ["direct_clip", "ugc_story", "direct_clip", "ugc_reaction", "direct_clip"];
     const hypotheses = [
       "Open on the reversal before revealing how the characters got there.",
       "Frame the central conflict like a viewer telling a friend what they just watched.",
       "Lead with the highest-stakes confrontation and stop before the answer.",
       "Use a disbelief reaction to make the plot twist feel socially shareable.",
       "Build escalating cuts around the relationship power shift.",
-      "Set up the protagonist's impossible choice in first-person language.",
     ];
     const at = now();
     const rows = kinds.map((kind, index): PromoCreative => {
@@ -1805,7 +1811,7 @@ export const fixtureData: DataLayer = {
         ad_description: `Watch ${title.name_en || title.name_zh} and see what happens next.`,
         render_path: null, render_sha256: null, duration_ms: end - start, width: 1080, height: 1920,
         render_settings: { schema: 1, format: "9:16", source: "concept_preview", captions: true },
-        rejection_note: null, created_at: at, updated_at: at,
+        rejection_note: null, revision_note: null, created_at: at, updated_at: at,
       };
     });
     db.promo_creatives.push(...rows);
@@ -1827,6 +1833,24 @@ export const fixtureData: DataLayer = {
     creative.rejection_note = input.status === "rejected" ? input.rejection_note?.trim() || null : null;
     creative.updated_at = now();
     return clone(creative);
+  },
+
+  async approveAllPromoCreatives(session, campaignId) {
+    const { db } = store();
+    const campaign = readablePromoCampaign(db, session, campaignId);
+    const title = requireTitleEditor(db, session, campaign.title_id);
+    if (campaign.status !== "review") throw conflict("creative review is closed");
+    const at = now();
+    let kept = 0;
+    for (const creative of db.promo_creatives) {
+      if (creative.campaign_id === campaign.id && creative.status === "ready") {
+        creative.status = "approved";
+        creative.updated_at = at;
+        kept += 1;
+      }
+    }
+    audit(store(), session, "approve_all_promo_creatives", "promote.campaigns", campaign.id, title.id, null, { kept });
+    return promoDetail(db, campaign);
   },
 
   async approvePromoCampaign(session, campaignId) {
@@ -1870,6 +1894,67 @@ export const fixtureData: DataLayer = {
     campaign.grow_campaign_id = growId;
     campaign.updated_at = handoff.attempted_at;
     audit(store(), session, "submit_promo_campaign", "promote.handoffs", handoff.id, title.id, null, { status: "accepted", grow_campaign_id: growId });
+    return promoDetail(db, campaign);
+  },
+
+  // ---- Pulsar's Promote desk (staff) ----
+
+  async revisePromoCreative(session, creativeId, input) {
+    const { db } = store();
+    if (session.kind !== "staff") throw forbidden("Pulsar staff only");
+    const parent = db.promo_creatives.find((c) => c.id === creativeId);
+    if (!parent) throw notFound("promotion creative", creativeId);
+    const campaign = readablePromoCampaign(db, session, parent.campaign_id);
+    if (campaign.status !== "review") throw conflict("approved promotion is frozen; revisions need a new round");
+    if (parent.status !== "rejected" && parent.status !== "ready") throw conflict("only a creative awaiting review or change can be revised");
+    if (blank(input.hook) || blank(input.caption) || blank(input.ad_description)) throw invalid("hook, caption and description are required");
+    const start = input.source_start_ms ?? parent.source_start_ms;
+    const end = input.source_end_ms ?? parent.source_end_ms;
+    if (start !== null && end !== null && end <= start) throw invalid("source end must come after source start");
+    const at = now();
+    const revision: PromoCreative = {
+      ...parent,
+      id: randomUUID(),
+      external_id: extId("pc"),
+      parent_creative_id: parent.id,
+      version: parent.version + 1,
+      status: "ready",
+      hypothesis: blank(input.hypothesis) ? parent.hypothesis : input.hypothesis!.trim(),
+      hook: input.hook.trim(),
+      caption: input.caption.trim(),
+      ad_description: input.ad_description.trim(),
+      source_start_ms: start,
+      source_end_ms: end,
+      duration_ms: start !== null && end !== null ? end - start : parent.duration_ms,
+      render_path: null,
+      render_sha256: null,
+      rejection_note: null,
+      revision_note: input.revision_note?.trim() || null,
+      created_at: at,
+      updated_at: at,
+    };
+    parent.status = "superseded";
+    parent.updated_at = at;
+    db.promo_creatives.push(revision);
+    audit(store(), session, "revise_promo_creative", "promote.creatives", revision.id, campaign.title_id, { parent: parent.external_id, note: parent.rejection_note }, { version: revision.version });
+    return clone(revision);
+  },
+
+  async advancePromoCampaign(session, campaignId, input) {
+    const { db } = store();
+    if (session.kind !== "staff") throw forbidden("Pulsar staff only");
+    const campaign = readablePromoCampaign(db, session, campaignId);
+    const allowed: Record<string, PromoCampaign["status"][]> = {
+      submitted: ["launching", "live", "failed"],
+      launching: ["live", "failed"],
+      failed: ["launching"],
+    };
+    if (!allowed[campaign.status]?.includes(input.status)) throw conflict(`a ${campaign.status} campaign cannot move to ${input.status}`);
+    const before = { status: campaign.status, grow_campaign_id: campaign.grow_campaign_id };
+    campaign.status = input.status;
+    if (input.grow_campaign_id !== undefined) campaign.grow_campaign_id = input.grow_campaign_id?.trim() || null;
+    campaign.updated_at = now();
+    audit(store(), session, "advance_promo_campaign", "promote.campaigns", campaign.id, campaign.title_id, before, { status: campaign.status, grow_campaign_id: campaign.grow_campaign_id }, input.note?.trim() || null);
     return promoDetail(db, campaign);
   },
 

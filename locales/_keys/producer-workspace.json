@@ -1,26 +1,92 @@
 {
-  "v3.breadcrumbs": { "en": "Breadcrumbs", "zh": "页面路径" },
-  "v3.complete": { "en": "Complete", "zh": "已完成" },
-  "v3.episode.stages": { "en": "Episode stages", "zh": "单集阶段" },
-  "v3.episode.workspace": { "en": "Episode workspace", "zh": "单集工作台" },
-  "v3.nav.episode": { "en": "Episode studio", "zh": "单集工作室" },
-  "v3.nav.library": { "en": "Drama library", "zh": "剧集库" },
-  "v3.nav.newTitle": { "en": "New drama", "zh": "上传新剧" },
-  "v3.nav.title": { "en": "Title workspace", "zh": "剧集工作台" },
-  "v3.primaryNav": { "en": "Primary navigation", "zh": "主导航" },
-  "v3.role.producer": { "en": "Producer", "zh": "制片方" },
-  "v3.stage.script": { "en": "Script adaptation", "zh": "台词改编" },
-  "v3.stage.timingDelivery": { "en": "Timing & delivery", "zh": "对轴与交付" },
-  "v3.version.draft": { "en": "Working draft", "zh": "工作草稿" },
-  "v3.version.final": { "en": "Finalized", "zh": "已定稿" },
-  "v3.workspace": { "en": "Producer workspace", "zh": "制片方工作台" },
-  "v3.line.save": { "en": "Save line", "zh": "保存本句" },
-  "v3.line.saved": { "en": "Line saved", "zh": "本句已保存" },
-  "v3.finalize.cta": { "en": "Finalize", "zh": "定稿" },
-  "v3.finalize.go": { "en": "Confirm finalize", "zh": "确认定稿" },
-  "v3.finalize.submitted": { "en": "Finalize as submitted", "zh": "按提交版本定稿" },
-  "v3.revise.cta": { "en": "Create a new draft", "zh": "创建新修订稿" },
-  "v3.revise.help": { "en": "The approved version stays archived. Your edits continue in a new version.", "zh": "已批准版本会保留存档，新的修改将在新版本中继续。" },
+  "v3.breadcrumbs": {
+    "en": "Breadcrumbs",
+    "zh": "页面路径"
+  },
+  "v3.complete": {
+    "en": "Complete",
+    "zh": "已完成"
+  },
+  "v3.episode.stages": {
+    "en": "Episode stages",
+    "zh": "单集阶段"
+  },
+  "v3.episode.workspace": {
+    "en": "Episode workspace",
+    "zh": "单集工作台"
+  },
+  "v3.nav.episode": {
+    "en": "Episode studio",
+    "zh": "单集工作室"
+  },
+  "v3.nav.library": {
+    "en": "Drama library",
+    "zh": "剧集库"
+  },
+  "v3.nav.newTitle": {
+    "en": "New drama",
+    "zh": "上传新剧"
+  },
+  "v3.nav.title": {
+    "en": "Title workspace",
+    "zh": "剧集工作台"
+  },
+  "v3.primaryNav": {
+    "en": "Primary navigation",
+    "zh": "主导航"
+  },
+  "v3.role.producer": {
+    "en": "Producer",
+    "zh": "制片方"
+  },
+  "v3.stage.script": {
+    "en": "Script adaptation",
+    "zh": "台词改编"
+  },
+  "v3.stage.timingDelivery": {
+    "en": "Timing & delivery",
+    "zh": "对轴与交付"
+  },
+  "v3.version.draft": {
+    "en": "Working draft",
+    "zh": "工作草稿"
+  },
+  "v3.version.final": {
+    "en": "Finalized",
+    "zh": "已定稿"
+  },
+  "v3.workspace": {
+    "en": "Producer workspace",
+    "zh": "制片方工作台"
+  },
+  "v3.line.save": {
+    "en": "Save line",
+    "zh": "保存本句"
+  },
+  "v3.line.saved": {
+    "en": "Line saved",
+    "zh": "本句已保存"
+  },
+  "v3.finalize.cta": {
+    "en": "Finalize",
+    "zh": "定稿"
+  },
+  "v3.finalize.go": {
+    "en": "Confirm finalize",
+    "zh": "确认定稿"
+  },
+  "v3.finalize.submitted": {
+    "en": "Finalize as submitted",
+    "zh": "按提交版本定稿"
+  },
+  "v3.revise.cta": {
+    "en": "Create a new draft",
+    "zh": "创建新修订稿"
+  },
+  "v3.revise.help": {
+    "en": "The approved version stays archived. Your edits continue in a new version.",
+    "zh": "已批准版本会保留存档，新的修改将在新版本中继续。"
+  },
   "pw.alts.cta": {
     "en": "Try another way",
     "zh": "换个说法"
@@ -937,18 +1003,54 @@
     "zh": "预览字幕样式并导出最终文件",
     "en": "Preview subtitle styling and export final files"
   },
-  "v3.library.kicker": { "zh": "本地化项目", "en": "Localization projects" },
-  "v3.title.workspace": { "zh": "剧集工作区", "en": "Series workspace" },
-  "v3.title.overview": { "zh": "项目概览", "en": "Project overview" },
-  "v3.title.progress": { "zh": "已定稿", "en": "Finalized" },
-  "v3.title.approvedCount": { "zh": "{done} / {total} 集", "en": "{done} of {total} episodes" },
-  "v3.title.inProgress": { "zh": "处理中", "en": "In progress" },
-  "v3.title.episodes": { "zh": "剧集", "en": "Episodes" },
-  "v3.title.actionHint": { "zh": "每集只显示下一项操作", "en": "Each episode shows its next action" },
-  "v3.title.addEpisodes": { "zh": "添加剧集", "en": "Add episodes" },
-  "v3.title.addEpisodesHint": { "zh": "上传新的字幕或视频文件", "en": "Upload new subtitle or video files" },
-  "v3.done.next": { "zh": "下一步：时间轴与交付", "en": "Next: timing and delivery" },
-  "v3.done.body": { "zh": "台词已定稿。需要更改可创建新修订稿；要继续，请打开上方的对轴与交付。", "en": "The script is finalized. Create a new draft to revise it, or continue in Timing & delivery above." },
+  "v3.library.kicker": {
+    "zh": "本地化项目",
+    "en": "Localization projects"
+  },
+  "v3.title.workspace": {
+    "zh": "剧集工作区",
+    "en": "Series workspace"
+  },
+  "v3.title.overview": {
+    "zh": "项目概览",
+    "en": "Project overview"
+  },
+  "v3.title.progress": {
+    "zh": "已定稿",
+    "en": "Finalized"
+  },
+  "v3.title.approvedCount": {
+    "zh": "{done} / {total} 集",
+    "en": "{done} of {total} episodes"
+  },
+  "v3.title.inProgress": {
+    "zh": "处理中",
+    "en": "In progress"
+  },
+  "v3.title.episodes": {
+    "zh": "剧集",
+    "en": "Episodes"
+  },
+  "v3.title.actionHint": {
+    "zh": "每集只显示下一项操作",
+    "en": "Each episode shows its next action"
+  },
+  "v3.title.addEpisodes": {
+    "zh": "添加剧集",
+    "en": "Add episodes"
+  },
+  "v3.title.addEpisodesHint": {
+    "zh": "上传新的字幕或视频文件",
+    "en": "Upload new subtitle or video files"
+  },
+  "v3.done.next": {
+    "zh": "下一步：时间轴与交付",
+    "en": "Next: timing and delivery"
+  },
+  "v3.done.body": {
+    "zh": "台词已定稿。需要更改可创建新修订稿；要继续，请打开上方的对轴与交付。",
+    "en": "The script is finalized. Create a new draft to revise it, or continue in Timing & delivery above."
+  },
   "qc.fix.progress": {
     "zh": "修复中 {i}/{n}（第 {p} 轮）",
     "en": "Fixing {i}/{n} (pass {p})"
@@ -1128,5 +1230,25 @@
   "pw.titleStatus.approved": {
     "zh": "已定稿",
     "en": "Finalized"
+  },
+  "v3.nav.studio": {
+    "en": "Studio",
+    "zh": "工作室"
+  },
+  "v3.dramaLibrary.kicker": {
+    "en": "All titles",
+    "zh": "全部剧目"
+  },
+  "v3.dramaLibrary.sub": {
+    "en": "Every title you have in contact with Pulsar. Connect with Stage, our streaming platform, to see how they perform.",
+    "zh": "您与 Pulsar 接洽中的全部剧目。连接我们的播出平台 Stage，即可查看播出表现。"
+  },
+  "v3.dramaLibrary.emptyTitle": {
+    "en": "No titles here yet",
+    "zh": "暂无剧目"
+  },
+  "v3.dramaLibrary.emptyHint": {
+    "en": "Once connected with Stage, this page lists your titles with us and their viewing metrics.",
+    "zh": "连接 Stage 后，此页将展示您与我们合作中的剧目及其播出数据。"
   }
 }

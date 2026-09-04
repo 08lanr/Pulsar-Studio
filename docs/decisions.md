@@ -4,6 +4,38 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-09-04 · Pulsar's Promote desk: the staff side of every producer action
+
+Decided by the founders (Ruobin): "after a producer does anything — request
+change, send for approval — the admin portal doesn't do anything, and that is
+the important part we want from Grow." Also: five concepts per round, an
+approve-all, and the producer information architecture.
+
+- **Every producer action has a staff next step.** The admin portal gains a
+  Promote desk (`/promote`): campaigns queued as *Needs Pulsar* (change
+  requests to answer, launches to run), *Waiting on producer*, *Launched*.
+- **A change request is answered with a revision, never an edit.** Staff
+  `revisePromoCreative` writes a new `pc_` row (`parent_creative_id`,
+  `version + 1`, status `ready`, a `revision_note` the producer sees) and marks
+  the parent `superseded`. Only while the campaign is in `review`; approved
+  rounds stay frozen (0003's guard). Producers cannot call it.
+- **Launch is recorded by staff on the desk.** `advancePromoCampaign` moves
+  `submitted → launching → live`, `submitted|launching → failed`,
+  `failed → launching`, with the Grow campaign id and an audit note. Until
+  Grow's read-back lands, this is the source of launch status inside Studio.
+- **Five concepts per round, not six.** Copy says so explicitly: Pulsar keeps
+  launching new rounds; it tests five concepts at a time.
+- **Keep all.** Producers can approve every still-pending creative in one
+  click; existing change requests are never swept up by it.
+- **Producer IA.** Sidebar: a primary *New drama* action; *Studio* (Adapt, where
+  localization happens); *Promote*; *Drama library* (placeholder for the title
+  list that will connect to Stage — wording only, no Stage integration). The
+  site title is *Pulsar Mini Dramas*. Promote's brief starts by picking a drama
+  from cards; the chosen drama is locked into the brief.
+- **Admin localization is oversight only.** Staff watch where a producer is;
+  they do not upload scripts or adapt from the admin side. Removing the admin
+  upload/adapt affordances is pending, not done.
+
 ## 2026-09-04 · Promote is a sibling product; Grow owns launch
 
 Decided by the founders (Ruobin): Pulsar Studio now has two producer-facing

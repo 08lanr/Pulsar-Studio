@@ -5,7 +5,7 @@ import { LocaleProvider } from "@/components/locale";
 import { LOCALE_COOKIE, parseLocale } from "@/lib/i18n";
 
 export const metadata = {
-  title: "Pulsar Studio",
+  title: "Pulsar Mini Dramas",
   description: "Adapt Chinese short dramas for American viewers and produce the ad creatives.",
 };
 

@@ -4,7 +4,7 @@ This is the working contract for repository changes. Product scope and vocabular
 
 ## Current product boundary
 
-- Studio contains two producer products over one drama library: Adapt and Promote. Promote owns creative generation/review/approval; the sibling Grow repository owns TikTok launch and metrics. Do not add Stage.
+- Studio contains two producer products over one drama library: Adapt (shown to producers as "Studio") and Promote. Promote owns creative generation/review/approval; the sibling Grow repository owns TikTok launch and metrics. Staff answer producer change requests and record launch progress on the admin Promote desk (`/promote`). Do not integrate Stage; the producer "Drama library" page is a wording-only placeholder for it.
 - Two portals share one Next.js app: staff routes under `app/(admin)` and producer routes under `app/(producer)` with `/producer` URLs.
 - **Producer-first, subtitles-not-dubbing (2026-09-03/04 pivots, see `docs/decisions.md`):** the work happens in the partner portal — a producer uploads subtitles per episode, presses generate, edits lines on one continuous script sheet (no scene confirms anywhere in the producer flow), and finalizes. Deliverables are the clean English script report and the burned-subtitle video; there is no dubbing. The admin portal is oversight. The portal follows the UI grammar of the consoles producers already use (`docs/ui-research.md`); its look stays on our tokens.
 - The legacy creative pack remains Pulsar-internal. Producer-facing Promote has its own `promote.*` records and does not expose or depend on that pack. Adapt still accepts optional video with SRT, VTT, ASS/SSA, or plain text; Promote requires shared episode video but never requires Adapt output.
