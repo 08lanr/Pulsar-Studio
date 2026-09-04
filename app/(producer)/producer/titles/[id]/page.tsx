@@ -68,7 +68,7 @@ export default async function ProducerTitlePage({ params }: { params: { id: stri
             </p>
           )}
         </div>
-        {canEdit && <a className="btn btn-outline" href="#add-episodes">{t(locale, "v3.title.addEpisodes")}</a>}
+        {canEdit && <div className="page-head-actions"><a className="btn btn-outline" href="#add-episodes">{t(locale, "v3.title.addEpisodes")}</a><a className="btn btn-primary" href={`/producer/promote/new?title=${detail.title.id}`}>{t(locale, "promote.titleCta")}</a></div>}
       </div>
 
       <section className="title-overview" aria-label={t(locale, "v3.title.overview")}>

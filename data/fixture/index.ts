@@ -21,6 +21,10 @@ import type {
   LineAlternative,
   Producer,
   Profile,
+  PromoApproval,
+  PromoCampaign,
+  PromoCreative,
+  PromoHandoff,
   Scene,
   SceneDecision,
   Title,
@@ -46,6 +50,10 @@ export type FixtureDb = {
   variants: Variant[];
   clips: Clip[];
   jobs: Job[];
+  promo_campaigns: PromoCampaign[];
+  promo_creatives: PromoCreative[];
+  promo_approvals: PromoApproval[];
+  promo_handoffs: PromoHandoff[];
   audit_events: AuditEvent[];
 };
 
@@ -65,6 +73,10 @@ export const fixtureDb: FixtureDb = {
   variants: [],
   clips: [],
   jobs: [],
+  promo_campaigns: [],
+  promo_creatives: [],
+  promo_approvals: [],
+  promo_handoffs: [],
   audit_events: [],
 };
 

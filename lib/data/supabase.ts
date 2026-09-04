@@ -34,6 +34,12 @@ import type {
   LineAlternative,
   Producer,
   ProducerTitleSummary,
+  PromoApproval,
+  PromoCampaign,
+  PromoCampaignDetail,
+  PromoCampaignSummary,
+  PromoCreative,
+  PromoHandoff,
   Scene,
   SceneDecision,
   Title,
@@ -64,6 +70,7 @@ type Db = SupabaseClient;
 const db = (): Db => createServerSupabase();
 const core = (c: Db) => c.schema("core");
 const studio = (c: Db) => c.schema("studio");
+const promote = (c: Db) => c.schema("promote");
 
 type Result<T> = { data: T | null; error: PostgrestError | null };
 
@@ -169,6 +176,17 @@ async function snapshotOf(c: Db, v: Version): Promise<VersionSnapshot> {
     many<AdaptedLine>(studio(c).from("adapted_lines").select("*").eq("version_id", v.id).order("seq")),
   ]);
   return buildVersionSnapshot({ title, adaptation, episode, version: v, characters, scenes, lines, adapted_lines });
+}
+
+async function loadPromoDetail(c: Db, campaign: PromoCampaign): Promise<PromoCampaignDetail> {
+  const [title, episodes, creatives, approvals, handoffs] = await Promise.all([
+    one<Title>(core(c).from("titles").select("*").eq("id", campaign.title_id).maybeSingle(), "title", campaign.title_id),
+    many<Episode>(core(c).from("episodes").select("*").eq("title_id", campaign.title_id).order("number")),
+    many<PromoCreative>(promote(c).from("creatives").select("*").eq("campaign_id", campaign.id).order("created_at")),
+    many<PromoApproval>(promote(c).from("approvals").select("*").eq("campaign_id", campaign.id).order("created_at", { ascending: false }).limit(1)),
+    many<PromoHandoff>(promote(c).from("handoffs").select("*").eq("campaign_id", campaign.id).order("attempted_at", { ascending: false })),
+  ]);
+  return { campaign, title, episodes, creatives, approval: approvals[0] ?? null, handoffs };
 }
 
 // ---- the implementation ------------------------------------------------------------------------------
@@ -397,6 +415,16 @@ export const supabaseData: DataLayer = {
     if (title.status === "candidate" || title.status === "selected") {
       await core(c).from("titles").update({ status: "ingesting" }).eq("id", titleId);
     }
+    return episode;
+  },
+
+  async addVideoOnlyEpisode(_session, titleId, episodeNumber, videoPath) {
+    const c = db();
+    if (!Number.isInteger(episodeNumber) || episodeNumber < 1) throw invalid("episode_number must be a positive integer");
+    const { data: dup } = await core(c).from("episodes").select("id").eq("title_id", titleId).eq("number", episodeNumber).maybeSingle();
+    if (dup) throw conflict(`episode ${episodeNumber} already exists for this title`);
+    const episode = await one<Episode>(core(c).from("episodes").insert({ title_id: titleId, number: episodeNumber, video_path: videoPath, source_script_path: null, script_format: null, has_timecodes: false }).select("*").single(), "episode");
+    await core(c).from("titles").update({ status: "ingesting", updated_at: now() }).eq("id", titleId);
     return episode;
   },
 
@@ -1005,6 +1033,90 @@ export const supabaseData: DataLayer = {
       can_approve: (own && session.producerRole === "approver") || admin,
       video_url: mediaUrl(episode.video_path),
     });
+  },
+
+  // ---- Promote ----
+
+  async listPromoCampaigns(_session) {
+    const c = db();
+    const campaigns = await many<PromoCampaign>(promote(c).from("campaigns").select("*").order("updated_at", { ascending: false }));
+    const out: PromoCampaignSummary[] = [];
+    for (const campaign of campaigns) {
+      const [title, creatives] = await Promise.all([
+        one<Title>(core(c).from("titles").select("*").eq("id", campaign.title_id).maybeSingle(), "title", campaign.title_id),
+        many<Pick<PromoCreative, "status">>(promote(c).from("creatives").select("status").eq("campaign_id", campaign.id).neq("status", "superseded")),
+      ]);
+      out.push({ ...campaign, title_name_zh: title.name_zh, title_name_en: title.name_en, creative_count: creatives.length, approved_count: creatives.filter((x) => x.status === "approved").length });
+    }
+    return out;
+  },
+
+  async getPromoCampaign(_session, campaignId) {
+    const c = db();
+    const campaign = await one<PromoCampaign>(promote(c).from("campaigns").select("*").eq("id", campaignId).maybeSingle(), "promotion campaign", campaignId);
+    return loadPromoDetail(c, campaign);
+  },
+
+  async createPromoCampaign(session, input) {
+    const c = db();
+    if (blank(input.name) || blank(input.target_market)) throw invalid("campaign name and target market are required");
+    if (input.destination_url) {
+      try { new URL(input.destination_url); } catch { throw invalid("destination URL is invalid"); }
+    }
+    const title = await one<Title>(core(c).from("titles").select("*").eq("id", input.title_id).maybeSingle(), "title", input.title_id);
+    return one<PromoCampaign>(
+      promote(c).from("campaigns").insert({ title_id: title.id, producer_id: title.producer_id, name: input.name.trim(), target_market: input.target_market.trim(), destination_url: input.destination_url?.trim() || null, objective: input.objective, spoiler_level: input.spoiler_level, creative_direction: input.creative_direction?.trim() || null, exclusions: input.exclusions?.trim() || null, created_by: session.userId }).select("*").single(),
+      "promotion campaign"
+    );
+  },
+
+  async generatePromoDrafts(_session, campaignId) {
+    const c = db();
+    const campaign = await one<PromoCampaign>(promote(c).from("campaigns").select("*").eq("id", campaignId).maybeSingle(), "promotion campaign", campaignId);
+    const existing = await many<PromoCreative>(promote(c).from("creatives").select("*").eq("campaign_id", campaign.id).neq("status", "superseded"));
+    if (existing.length) return existing;
+    const [title, episodes] = await Promise.all([
+      one<Title>(core(c).from("titles").select("*").eq("id", campaign.title_id).maybeSingle(), "title", campaign.title_id),
+      many<Episode>(core(c).from("episodes").select("*").eq("title_id", campaign.title_id).not("video_path", "is", null).order("number")),
+    ]);
+    if (!episodes.length) throw invalid("upload at least one drama episode video before generating creatives");
+    const kinds: PromoCreative["kind"][] = ["direct_clip", "ugc_story", "direct_clip", "ugc_reaction", "direct_clip", "ugc_story"];
+    const hypotheses = ["Open on the reversal before revealing how the characters got there.", "Frame the central conflict like a viewer telling a friend what they just watched.", "Lead with the highest-stakes confrontation and stop before the answer.", "Use a disbelief reaction to make the plot twist feel socially shareable.", "Build escalating cuts around the relationship power shift.", "Set up the protagonist's impossible choice in first-person language."];
+    const payload = kinds.map((kind, index) => {
+      const episode = episodes[index % episodes.length];
+      const available = Math.max(15_000, episode.duration_ms ?? 45_000);
+      const start = Math.min(index * 4_000, Math.max(0, available - 15_000));
+      const end = Math.min(available, start + (kind === "direct_clip" ? 18_000 : 24_000));
+      return { campaign_id: campaign.id, title_id: campaign.title_id, kind, status: "ready", hypothesis: hypotheses[index], source_episode_id: episode.id, source_start_ms: start, source_end_ms: end, hook: kind === "direct_clip" ? "Wait for the moment everything changes." : "I thought this was a love story—then this happened.", caption: `${title.name_en || title.name_zh}: one choice changes everything.`, ad_description: `Watch ${title.name_en || title.name_zh} and see what happens next.`, duration_ms: end - start, width: 1080, height: 1920, render_settings: { schema: 1, format: "9:16", source: "concept_preview", captions: true } };
+    });
+    const rows = await many<PromoCreative>(promote(c).from("creatives").insert(payload).select("*"));
+    await one<PromoCampaign>(promote(c).from("campaigns").update({ status: "review", updated_at: now() }).eq("id", campaign.id).select("*").maybeSingle(), "promotion campaign", campaign.id);
+    return rows;
+  },
+
+  async reviewPromoCreative(_session, creativeId, input) {
+    if (input.status === "rejected" && blank(input.rejection_note)) throw invalid("tell us what to change when rejecting a creative");
+    return one<PromoCreative>(promote(db()).from("creatives").update({ status: input.status, rejection_note: input.status === "rejected" ? input.rejection_note?.trim() || null : null, updated_at: now() }).eq("id", creativeId).select("*").maybeSingle(), "promotion creative", creativeId);
+  },
+
+  async approvePromoCampaign(_session, campaignId) {
+    const c = db();
+    const { error } = await promote(c).rpc("approve_campaign", { p_campaign_id: campaignId });
+    if (error) throw mapError(error);
+    const campaign = await one<PromoCampaign>(promote(c).from("campaigns").select("*").eq("id", campaignId).maybeSingle(), "promotion campaign", campaignId);
+    return loadPromoDetail(c, campaign);
+  },
+
+  async submitPromoCampaignMock(_session, campaignId) {
+    const c = db();
+    const detail = await loadPromoDetail(c, await one<PromoCampaign>(promote(c).from("campaigns").select("*").eq("id", campaignId).maybeSingle(), "promotion campaign", campaignId));
+    if (detail.campaign.status === "submitted") return detail;
+    if (detail.campaign.status !== "approved" || !detail.approval) throw conflict("approve the campaign before launch submission");
+    const idempotency_key = `studio:${detail.campaign.external_id}:${detail.approval.manifest_sha256}`;
+    const growId = `cmp_mock_${detail.campaign.external_id.slice(3)}`;
+    await one<PromoHandoff>(promote(c).from("handoffs").insert({ campaign_id: campaignId, idempotency_key, request_sha256: detail.approval.manifest_sha256, status: "accepted", grow_campaign_id: growId, response: { mock: true, grow_campaign_id: growId } }).select("*").single(), "promotion handoff");
+    const campaign = await one<PromoCampaign>(promote(c).from("campaigns").update({ status: "submitted", grow_campaign_id: growId, updated_at: now() }).eq("id", campaignId).select("*").maybeSingle(), "promotion campaign", campaignId);
+    return loadPromoDetail(c, campaign);
   },
 
   // ---- exports and audit ----

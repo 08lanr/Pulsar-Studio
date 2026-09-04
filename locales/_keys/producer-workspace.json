@@ -4,8 +4,8 @@
   "v3.episode.stages": { "en": "Episode stages", "zh": "单集阶段" },
   "v3.episode.workspace": { "en": "Episode workspace", "zh": "单集工作台" },
   "v3.nav.episode": { "en": "Episode studio", "zh": "单集工作室" },
-  "v3.nav.library": { "en": "Title library", "zh": "剧集库" },
-  "v3.nav.newTitle": { "en": "New title", "zh": "新建剧集" },
+  "v3.nav.library": { "en": "Drama library", "zh": "剧集库" },
+  "v3.nav.newTitle": { "en": "New drama", "zh": "上传新剧" },
   "v3.nav.title": { "en": "Title workspace", "zh": "剧集工作台" },
   "v3.primaryNav": { "en": "Primary navigation", "zh": "主导航" },
   "v3.role.producer": { "en": "Producer", "zh": "制片方" },
@@ -13,7 +13,7 @@
   "v3.stage.timingDelivery": { "en": "Timing & delivery", "zh": "对轴与交付" },
   "v3.version.draft": { "en": "Working draft", "zh": "工作草稿" },
   "v3.version.final": { "en": "Finalized", "zh": "已定稿" },
-  "v3.workspace": { "en": "Localization workspace", "zh": "本地化工作区" },
+  "v3.workspace": { "en": "Producer workspace", "zh": "制片方工作台" },
   "v3.line.save": { "en": "Save line", "zh": "保存本句" },
   "v3.line.saved": { "en": "Line saved", "zh": "本句已保存" },
   "v3.finalize.cta": { "en": "Finalize", "zh": "定稿" },
@@ -554,8 +554,8 @@
     "en": "Name spelling drifts ({detail})"
   },
   "pw.upload.hint3": {
-    "zh": "每集一个字幕文件（必需）；视频可选，用于播放预览和导出带字幕视频。填写集数生成清单，或直接把所有文件拖进来，按文件名自动归位。",
-    "en": "One subtitle file per episode (required); video is optional — it powers the preview and the subtitled-video export. Set the episode count to lay out the list, or just drop all your files in and they sort themselves by filename."
+    "zh": "每集可先上传视频、字幕/剧本，或两者一起上传。推广可直接使用视频；改编可稍后补字幕。文件会按名称自动归到对应集数。",
+    "en": "Upload video, subtitles/script, or both for each episode. Promote can start from video; Adapt can add text later. Files sort into episodes by filename."
   },
   "pw.upload.pick": {
     "zh": "把所有文件拖到这里，或点击选择",
@@ -586,8 +586,8 @@
     "en": "Ep"
   },
   "pw.slots.sub": {
-    "zh": "字幕 / 剧本（必需）",
-    "en": "Subtitles / script (required)"
+    "zh": "字幕 / 剧本（可稍后补）",
+    "en": "Subtitles / script (can add later)"
   },
   "pw.slots.missingSub": {
     "zh": "这一集还缺字幕文件",

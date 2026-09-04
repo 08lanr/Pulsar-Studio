@@ -2,12 +2,12 @@
 
 This is the working contract for repository changes. Product scope and vocabulary live in `PRODUCT.md`; newer entries at the top of `docs/decisions.md` override older prose.
 
-## V1 boundary
+## Current product boundary
 
-- Studio only. Do not add Reach or Stage dependencies, navigation, tables, or statuses.
+- Studio contains two producer products over one drama library: Adapt and Promote. Promote owns creative generation/review/approval; the sibling Grow repository owns TikTok launch and metrics. Do not add Stage.
 - Two portals share one Next.js app: staff routes under `app/(admin)` and producer routes under `app/(producer)` with `/producer` URLs.
 - **Producer-first, subtitles-not-dubbing (2026-09-03/04 pivots, see `docs/decisions.md`):** the work happens in the partner portal — a producer uploads subtitles per episode, presses generate, edits lines on one continuous script sheet (no scene confirms anywhere in the producer flow), and finalizes. Deliverables are the clean English script report and the burned-subtitle video; there is no dubbing. The admin portal is oversight. The portal follows the UI grammar of the consoles producers already use (`docs/ui-research.md`); its look stays on our tokens.
-- The creative pack is the paid-social brief and is Pulsar-internal (producers cannot list variants/clips or export brief/package). Video is optional; SRT, VTT, ASS/SSA, and plain-text scripts must work.
+- The legacy creative pack remains Pulsar-internal. Producer-facing Promote has its own `promote.*` records and does not expose or depend on that pack. Adapt still accepts optional video with SRT, VTT, ASS/SSA, or plain text; Promote requires shared episode video but never requires Adapt output.
 - **Demo replay:** in fixture mode, first-pass and alternatives replay `data/fixture/canned.ts` through `lib/demo-replay.ts` — deterministic, zero spend, no key. Never wire fixture mode to real model calls (`DEMO_REPLAY=0` is the explicit override). `docs/demo/aizailvtu-demo-ep1.srt` must keep matching the bank.
 
 ## Required checks
@@ -32,6 +32,7 @@ Run `npm test`, `npm run typecheck`, and `npm run build` before considering an i
 - Finalize gates on content readiness only (every line adapted, non-cut lines non-empty, changed lines carry rationale) — NO scene-confirm requirement, in fixture and SQL alike. The finalize route additionally runs `lib/qc.ts` (`runQc`): QC errors return 409 and block; warnings ship visibly.
 - Changes after submission fork a new draft; frozen versions are never edited in place.
 - Staff approval on behalf is admin-only and requires an evidence note and audit channel.
+- Promote approval follows the same principle with a separate invariant: it freezes exact `pc_` creative versions, media hashes, and copy in a hashed manifest. Handoffs are append-only and idempotent.
 
 ## LLM and cost invariants
 

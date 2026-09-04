@@ -12,7 +12,7 @@ import { postForm, postJson } from "@/lib/api-client";
 import { unwrap, type ApiEnvelope } from "@/components/workbench/util";
 import { useT } from "@/components/locale";
 import type { Title } from "@/lib/types";
-import EpisodeSlots, { emptySlot, hasDuplicateNumbers, hasVideoOnlyRow, type EpisodeSlot } from "./EpisodeSlots";
+import EpisodeSlots, { emptySlot, hasDuplicateNumbers, type EpisodeSlot } from "./EpisodeSlots";
 
 export default function NewTitleForm() {
   const { tt } = useT();
@@ -27,7 +27,7 @@ export default function NewTitleForm() {
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const blocked = hasDuplicateNumbers(slots) || hasVideoOnlyRow(slots);
+  const blocked = hasDuplicateNumbers(slots);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -47,11 +47,11 @@ export default function NewTitleForm() {
       );
       const title = created.title!;
       for (const slot of slots) {
-        if (!slot.subtitle) continue;
+        if (!slot.subtitle && !slot.video) continue;
         setProgress(tt("pw.new.uploadingEp", { n: slot.number }));
         const form = new FormData();
         form.set("episode_number", String(slot.number));
-        form.set("subtitles", slot.subtitle);
+        if (slot.subtitle) form.set("subtitles", slot.subtitle);
         if (slot.video) form.set("video", slot.video);
         const r = await postForm<ApiEnvelope>(`/api/titles/${title.id}/ingest`, form);
         if (r.error) throw new Error(`${tt("pw.upload.episodeN")} ${slot.number}: ${r.error}`);

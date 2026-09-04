@@ -4,6 +4,32 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-09-04 · Promote is a sibling product; Grow owns launch
+
+Decided by the founders (Ruobin): Pulsar Studio now has two producer-facing
+products over one drama library. **Adapt** localizes a title. **Promote** turns
+the uploaded episode masters into paid-social creatives, asks the producer to
+approve the exact outputs, and hands those outputs to Pulsar Grow. Grow remains
+the system of record from launch onward, including TikTok review and metrics.
+
+- `core.titles`, `core.episodes`, and their private source media are shared.
+  Promote never requires an adaptation, approved subtitle version, or creative
+  pack. A better script may improve future selection, but cannot be a gate.
+- Promote owns campaign intent, concepts, immutable creative revisions,
+  producer approval manifests, and append-only handoff attempts in a separate
+  `promote` schema. It uses external `pb_` and `pc_` ids across the boundary.
+- Only approved, rendered outputs cross to Grow. A producer-facing button says
+  “Submit to Pulsar for launch”; “handoff to Grow” stays implementation detail.
+- A producer approves exact versions. Approval hashes a frozen manifest. Any
+  later media or copy change creates a new creative version and new approval;
+  it never mutates the approved row.
+- The producer navigation exposes Promote as a first-class product and keeps
+  the title page as a shortcut, not another adaptation pipeline step.
+- The initial vertical slice includes the campaign brief, six hypothesis-led
+  direct/creator-style concepts, review, frozen approval, and an idempotent mock
+  submission. Actual MP4 rendering, production UGC composition, Grow service
+  authentication, launch status, and metrics readback replace the seams next.
+
 ## 2026-09-04 · Demo readiness: five fixes before a producer sees it alone
 
 Decided by the founders (Ruobin): "fix these things for the demo", from the

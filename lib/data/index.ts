@@ -40,6 +40,11 @@ import type {
   Json,
   LineAlternative,
   Producer,
+  PromoCampaign,
+  PromoCampaignDetail,
+  PromoCampaignSummary,
+  PromoCreative,
+  PromoCreativeStatus,
   ProducerReviewPayload,
   ProducerTitleSummary,
   Scene,
@@ -220,6 +225,22 @@ export type JobResult = {
   error?: string | null;
 };
 
+export type CreatePromoCampaignInput = {
+  title_id: string;
+  name: string;
+  target_market: string;
+  destination_url?: string | null;
+  objective: PromoCampaign["objective"];
+  spoiler_level: PromoCampaign["spoiler_level"];
+  creative_direction?: string | null;
+  exclusions?: string | null;
+};
+
+export type PromoCreativeReviewInput = {
+  status: Extract<PromoCreativeStatus, "approved" | "rejected">;
+  rejection_note?: string | null;
+};
+
 export type ApproveOptions = {
   /** 'producer' = the partner in their portal (SQL in_app); 'on_behalf' = staff admin with evidence. */
   mode: "producer" | "on_behalf";
@@ -258,6 +279,8 @@ export interface DataLayer {
     ingest: IngestResult,
     files: IngestFiles
   ): Promise<Episode>;
+  /** Promote intake: register a shared episode master before any subtitle/script exists. */
+  addVideoOnlyEpisode(session: Session, titleId: string, episodeNumber: number, videoPath: string): Promise<Episode>;
   getWorkbench(session: Session, titleId: string, episodeNumber: number): Promise<WorkbenchPayload>;
   /** Studio-wide approved bilingual pairs; server-only prompt context, never a route payload. */
   listApprovedTranslationMemory(session: Session, titleId: string): Promise<TranslationMemoryExample[]>;
@@ -346,6 +369,15 @@ export interface DataLayer {
   // partner portal
   getProducerTitles(session: Session): Promise<ProducerTitleSummary[]>;
   getProducerReview(session: Session, titleId: string, episodeNumber: number): Promise<ProducerReviewPayload>;
+
+  // Promote (producer-facing sibling product; shares only core titles/episodes)
+  listPromoCampaigns(session: Session): Promise<PromoCampaignSummary[]>;
+  getPromoCampaign(session: Session, campaignId: string): Promise<PromoCampaignDetail>;
+  createPromoCampaign(session: Session, input: CreatePromoCampaignInput): Promise<PromoCampaign>;
+  generatePromoDrafts(session: Session, campaignId: string): Promise<PromoCreative[]>;
+  reviewPromoCreative(session: Session, creativeId: string, input: PromoCreativeReviewInput): Promise<PromoCreative>;
+  approvePromoCampaign(session: Session, campaignId: string): Promise<PromoCampaignDetail>;
+  submitPromoCampaignMock(session: Session, campaignId: string): Promise<PromoCampaignDetail>;
 
   // exports and audit
   getExportSnapshot(session: Session, titleId: string, episodeNumber: number): Promise<ExportSnapshot>;

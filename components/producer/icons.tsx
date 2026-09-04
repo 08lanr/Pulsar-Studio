@@ -72,6 +72,14 @@ export function IconPlus(p: IconProps) {
   );
 }
 
+export function IconPromote(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M2.5 9V6.5l8-3v8l-8-2.5zM10.5 6h1.2a1.8 1.8 0 0 1 0 3.5h-1.2M4 9.5l1 3h2" />
+    </Svg>
+  );
+}
+
 export function IconScript(p: IconProps) {
   return (
     <Svg {...p}>

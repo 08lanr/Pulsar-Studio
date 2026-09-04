@@ -79,6 +79,24 @@ export type VariantStatus = "candidate" | "dismissed";
 
 export type ClipStatus = "suggested" | "shortlisted" | "dismissed";
 
+// ---- Promote enums -----------------------------------------------------------
+
+/** Promote is a sibling product to adaptation. Its rows never depend on an
+ * adaptation or subtitle version; both products only share core titles and episodes. */
+export type PromoCampaignStatus =
+  | "draft"
+  | "generating"
+  | "review"
+  | "approved"
+  | "submitted"
+  | "launching"
+  | "live"
+  | "failed";
+export type PromoCreativeKind = "direct_clip" | "ugc_story" | "ugc_reaction";
+export type PromoCreativeStatus = "draft" | "ready" | "approved" | "rejected" | "not_selected" | "superseded";
+export type PromoObjective = "installs" | "subscriptions" | "views";
+export type PromoSpoilerLevel = "low" | "medium" | "high";
+
 /**
  * Identifiers are the lib/llm module names verbatim. 'parse_subtitles' is the
  * cost-0 bookkeeping row per ingest. 'transcribe_episode' is the v1.1 ASR job:
@@ -543,6 +561,94 @@ export type Job = {
   started_at: string | null;
   finished_at: string | null;
   created_at: string;
+};
+
+// ---- promote.* rows ----------------------------------------------------------
+
+export type PromoCampaign = {
+  id: string;
+  external_id: string;
+  title_id: string;
+  producer_id: string;
+  name: string;
+  target_market: string;
+  destination_url: string | null;
+  objective: PromoObjective;
+  spoiler_level: PromoSpoilerLevel;
+  creative_direction: string | null;
+  exclusions: string | null;
+  status: PromoCampaignStatus;
+  grow_campaign_id: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Every revision is a new row. Approved rows are immutable and the parent is
+ * retained so review can show exactly what changed. */
+export type PromoCreative = {
+  id: string;
+  external_id: string;
+  campaign_id: string;
+  title_id: string;
+  parent_creative_id: string | null;
+  version: number;
+  kind: PromoCreativeKind;
+  status: PromoCreativeStatus;
+  hypothesis: string;
+  source_episode_id: string | null;
+  source_start_ms: number | null;
+  source_end_ms: number | null;
+  hook: string;
+  caption: string;
+  ad_description: string;
+  render_path: string | null;
+  render_sha256: string | null;
+  duration_ms: number | null;
+  width: number | null;
+  height: number | null;
+  render_settings: Json;
+  rejection_note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PromoApproval = {
+  id: string;
+  campaign_id: string;
+  producer_id: string;
+  approved_by: string;
+  manifest: Json;
+  manifest_sha256: string;
+  created_at: string;
+};
+
+export type PromoHandoff = {
+  id: string;
+  campaign_id: string;
+  idempotency_key: string;
+  request_sha256: string;
+  status: "pending" | "accepted" | "failed" | "unknown";
+  grow_campaign_id: string | null;
+  response: Json | null;
+  error: string | null;
+  attempted_at: string;
+};
+
+export type PromoCampaignSummary = PromoCampaign & {
+  title_name_zh: string;
+  title_name_en: string | null;
+  creative_count: number;
+  approved_count: number;
+};
+
+export type PromoCampaignDetail = {
+  campaign: PromoCampaign;
+  title: Title;
+  episodes: Episode[];
+  creatives: PromoCreative[];
+  approval: PromoApproval | null;
+  handoffs: PromoHandoff[];
 };
 
 // ---- the frozen snapshot ----------------------------------------------------------

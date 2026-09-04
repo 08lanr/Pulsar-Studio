@@ -1,8 +1,8 @@
 # Pulsar Studio — Product
 
-*Adapts finished Chinese mini dramas for American viewers and produces the
-paid-social creative brief for them. The producer keeps the IP and approves
-every version in its own portal.*
+*One producer platform over a shared mini-drama library: Adapt localizes a
+finished Chinese drama; Promote creates, approves, launches, and measures its
+paid-social ads through Pulsar Grow.*
 
 > **Status (2026-09-04):** the V2 pivot — *subtitles, not dubbing* — reshaped
 > the producer flow after much of this file was written. Where this file
@@ -11,6 +11,11 @@ every version in its own portal.*
 > [docs/decisions.md](docs/decisions.md) override it: the producer edits
 > everything themselves on one continuous script sheet and finalizes in one
 > click; deliverables are the clean English script and the subtitled video.
+
+> **Promote addition (2026-09-04):** Promote is a separate producer product,
+> not a sixth adaptation step and not the staff creative pack. It shares only
+> `core.titles`, `core.episodes`, and source media with Adapt. See the newest
+> decision for the Studio/Grow ownership boundary and phased implementation.
 
 Business context for anyone touching this repo. Engineering conventions and
 invariants are in [CLAUDE.md](CLAUDE.md); the week-by-week plan in

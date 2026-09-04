@@ -4,15 +4,14 @@
 // card). Built after the founder's "what am I supposed to upload?" feedback:
 //
 //   · A count field lays out one explicit row per episode, each with two
-//     labeled slots — subtitles (REQUIRED) and video (optional) — so the
+//     labeled slots — subtitles/script and video; either may arrive first — so the
 //     expectation is visible before any file is touched.
 //   · One drop zone takes everything at once, subtitles and videos mixed,
 //     and sorts files into episodes by filename (第1集.srt + 第1集.mp4 land
 //     on the same row; see lib/ingest/episode-number).
 //   · Files can also be dragged onto a SPECIFIC row: they land on that
 //     episode regardless of filename, routed to the right slot by extension.
-//   · A row holding only a video is flagged (subtitles are what we adapt);
-//     parents block submit on that and on duplicate numbers.
+//   · Video-only rows are valid for Promote. Adapt can attach text later.
 
 import { useState, type Dispatch, type SetStateAction } from "react";
 import { guessEpisodeNumber } from "@/lib/ingest/episode-number";
@@ -43,9 +42,9 @@ export function hasDuplicateNumbers(slots: EpisodeSlot[]): boolean {
   return false;
 }
 
-/** A row that can never upload: a video with no subtitles to burn into it. */
+/** Kept for callers compiled against the earlier picker; video-only is now valid. */
 export function hasVideoOnlyRow(slots: EpisodeSlot[]): boolean {
-  return slots.some((s) => s.video && !s.subtitle && s.status !== "ok");
+  return false;
 }
 
 /** Sort dropped files into slots: by filename number first, then the first
@@ -166,7 +165,6 @@ export default function EpisodeSlots({ slots, setSlots, startNumber, busy }: Pro
         <div className="bulk-rows">
           {slots.map((slot, i) => {
             const dupe = slots.some((x, j) => j !== i && x.number === slot.number) && slot.status !== "ok";
-            const videoOnly = !!slot.video && !slot.subtitle && slot.status !== "ok";
             const locked = slot.status === "ok" || busy;
             return (
               <div
@@ -198,7 +196,7 @@ export default function EpisodeSlots({ slots, setSlots, startNumber, busy }: Pro
                   onChange={(e) => update(i, { number: Number(e.target.value) })}
                 />
                 <span className="bulk-eplabel">{tt("pw.slots.epSuffix")}</span>
-                <label className={`bulk-slot ${slot.subtitle ? "is-filled" : videoOnly ? "is-missing" : "is-empty"}`}>
+                <label className={`bulk-slot ${slot.subtitle ? "is-filled" : "is-empty"}`}>
                   {slot.subtitle ? slot.subtitle.name : tt("pw.slots.sub")}
                   <input
                     type="file"
@@ -227,7 +225,6 @@ export default function EpisodeSlots({ slots, setSlots, startNumber, busy }: Pro
                 )}
                 {slot.status === "error" && <span className="err">{slot.message}</span>}
                 {dupe && <span className="err">{tt("pw.upload.dupe")}</span>}
-                {videoOnly && <span className="err">{tt("pw.slots.missingSub")}</span>}
                 {!locked && (
                   <button
                     type="button"

@@ -510,6 +510,56 @@
 .producer-main .st-seg button { min-height: 30px; border-radius: 5px; }
 .producer-main .st-seg button.on { background: var(--v3-paper); color: var(--v3-ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
 
+/* ---------- Promote ---------- */
+
+.page-head-actions { display: flex; gap: 8px; align-items: center; }
+.promo-empty { min-height: 360px; display: grid; place-items: center; align-content: center; gap: 10px; text-align: center; padding: 44px; background: var(--v3-paper); border: 1px dashed var(--v3-line-strong); border-radius: 12px; }
+.promo-empty h3, .promo-empty p { margin: 0; }
+.promo-empty p { max-width: 540px; color: var(--v3-muted); font-size: 13px; line-height: 1.6; }
+.promo-empty-mark { width: 52px; height: 52px; display: grid; place-items: center; margin-bottom: 6px; border-radius: 16px; color: var(--v3-accent); background: var(--v3-accent-soft); font-size: 17px; }
+.promo-campaign-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
+.promo-campaign-card { display: grid; min-height: 210px; padding: 20px; color: var(--v3-ink); text-decoration: none; background: var(--v3-paper); border: 1px solid var(--v3-line); border-radius: 11px; box-shadow: var(--v3-shadow); transition: transform .15s ease, border-color .15s ease; }
+.promo-campaign-card:hover { transform: translateY(-2px); border-color: var(--v3-line-strong); }
+.promo-campaign-card header, .promo-campaign-card footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.promo-campaign-card header > span:last-child, .promo-campaign-card footer { color: var(--v3-muted); font-size: 11px; }
+.promo-campaign-card h3 { margin: 30px 0 3px; font-size: 18px; }
+.promo-campaign-card p { margin: 0; color: var(--v3-muted); font-size: 13px; }
+.promo-campaign-card footer { align-self: end; padding-top: 16px; border-top: 1px solid var(--v3-line); }
+.promo-campaign-card footer strong { color: var(--v3-ink); font-weight: 600; }
+.promo-brief { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; align-items: start; }
+.promo-brief-main, .promo-brief-side { padding: 24px; }
+.promo-brief-main { display: grid; gap: 18px; }
+.promo-brief-side { position: sticky; top: 76px; display: grid; gap: 12px; }
+.promo-brief-side h3, .promo-brief-side p { margin: 0; }
+.promo-brief-side > p { color: var(--v3-muted); font-size: 12.5px; line-height: 1.55; }
+.promo-choice-grid { display: grid; gap: 7px; margin: 5px 0; }
+.promo-choice-grid button { display: grid; gap: 2px; width: 100%; padding: 11px 12px; text-align: left; color: var(--v3-ink); background: var(--v3-panel); border: 1px solid var(--v3-line); border-radius: 8px; cursor: pointer; }
+.promo-choice-grid button.is-selected { background: var(--v3-accent-soft); border-color: var(--v3-accent); box-shadow: inset 3px 0 var(--v3-accent); }
+.promo-choice-grid strong { font-size: 12.5px; }.promo-choice-grid span { color: var(--v3-muted); font-size: 11px; }
+.promo-output-note { display: grid; gap: 4px; margin-top: 8px; padding: 13px; background: var(--v3-panel); border-radius: 8px; font-size: 12px; }
+.promo-output-note span { color: var(--v3-muted); line-height: 1.5; }.promo-wide { width: 100%; justify-content: center; }
+.promo-launch-steps { display: grid; grid-template-columns: repeat(5, 1fr); margin: 2px 0 20px; padding: 14px 18px; background: var(--v3-paper); border: 1px solid var(--v3-line); border-radius: 10px; }
+.promo-launch-steps div { position: relative; display: flex; align-items: center; gap: 8px; color: var(--v3-faint); font-size: 11px; }
+.promo-launch-steps div:not(:last-child)::after { content: ""; height: 1px; flex: 1; margin-right: 10px; background: var(--v3-line); }
+.promo-launch-steps i { width: 22px; height: 22px; display: grid; place-items: center; flex: none; border: 1px solid var(--v3-line-strong); border-radius: 50%; font-style: normal; font-size: 10px; }
+.promo-launch-steps .is-done { color: var(--v3-ink); }.promo-launch-steps .is-done i { color: #fff; border-color: var(--v3-accent); background: var(--v3-accent); }
+.promo-generate { min-height: 260px; display: grid; place-items: center; align-content: center; gap: 20px; text-align: center; padding: 40px; }
+.promo-generate h3 { margin: 5px 0; }.promo-generate p { max-width: 610px; margin: 0; color: var(--v3-muted); font-size: 13px; line-height: 1.6; }
+.promo-review-summary { position: sticky; top: 56px; z-index: 20; display: grid; grid-template-columns: repeat(3, 110px) 1fr; gap: 16px; align-items: center; margin-bottom: 14px; padding: 12px 16px; background: color-mix(in srgb, var(--v3-paper) 94%, transparent); border: 1px solid var(--v3-line); border-radius: 10px; backdrop-filter: blur(12px); }
+.promo-review-summary > div:not(.promo-summary-action) { display: grid; }.promo-review-summary strong { font-size: 17px; }.promo-review-summary span { color: var(--v3-muted); font-size: 10.5px; }.promo-summary-action { justify-self: end; }
+.promo-cockpit { display: grid; gap: 14px; }
+.promo-creative { display: grid; grid-template-columns: 190px minmax(0, 1fr); min-height: 330px; overflow: hidden; background: var(--v3-paper); border: 1px solid var(--v3-line); border-radius: 11px; box-shadow: var(--v3-shadow); }
+.promo-creative.approved { border-color: color-mix(in srgb, #39a66d 45%, var(--v3-line)); }.promo-creative.rejected { opacity: .72; }
+.promo-phone { position: relative; min-height: 338px; overflow: hidden; background: #171717; }
+.promo-phone video { width: 100%; height: 100%; position: absolute; inset: 0; object-fit: cover; }.promo-placeholder { height: 100%; display: grid; place-items: center; padding: 30px; color: #fff; text-align: center; background: linear-gradient(155deg,#372f78,#16151c 70%); }
+.promo-hook { position: absolute; left: 14px; right: 14px; top: 24px; padding: 8px 9px; color: white; background: rgba(0,0,0,.66); border-radius: 6px; font-size: 12px; line-height: 1.35; font-weight: 600; text-align: center; }
+.promo-index { position: absolute; right: 10px; bottom: 10px; padding: 4px 6px; color: #fff; background: rgba(0,0,0,.6); border-radius: 4px; font: 600 9px ui-monospace,monospace; }
+.promo-creative-copy { display: grid; align-content: start; gap: 15px; padding: 20px 22px; }
+.promo-creative-copy header { display: flex; justify-content: space-between; gap: 18px; }.promo-creative-copy h3 { max-width: 680px; margin: 4px 0 0; font-size: 15px; line-height: 1.4; }.promo-format { color: var(--v3-accent-strong); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.promo-source, .promo-copy-block { display: grid; grid-template-columns: 110px 1fr; gap: 12px; }.promo-source span, .promo-copy-block span { color: var(--v3-faint); font-size: 10.5px; }.promo-source strong, .promo-copy-block p { margin: 0; font-size: 12px; font-weight: 500; line-height: 1.5; }
+.promo-review-actions { display: grid; grid-template-columns: auto minmax(150px, 1fr) auto; gap: 8px; padding-top: 14px; border-top: 1px solid var(--v3-line); }
+.promo-review-actions .input { min-height: 34px; }
+
 @media (max-width: 1180px) {
   .producer-sidebar { display: none; }
   .producer-topbar { margin-left: 0; }
@@ -524,6 +574,7 @@
   .producer-main .review-work-grid { display: flex; flex-direction: column; }
   .producer-main .review-work-grid .review-feedback-panel { position: static; max-height: none; width: 100%; order: -1; }
   .producer-main .review-stage-column { width: 100%; }
+  .promo-brief { grid-template-columns: 1fr; }.promo-brief-side { position: static; }.promo-creative { grid-template-columns: 150px minmax(0, 1fr); }.promo-launch-steps span { display: none; }
   .episode-stagebar { padding-left: 10px; }
   .episode-identity { min-width: 170px; }
   .episode-tabs a { min-width: 0; padding: 0 12px; }
@@ -556,4 +607,5 @@
   .episode-row { grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; padding: 12px; }
   .episode-row > .btn { grid-column: 2 / -1; justify-self: stretch; }
   .episode-progress { width: 100%; }
+  .page-head-actions { flex-wrap: wrap; }.promo-review-summary { position: static; grid-template-columns: repeat(3, 1fr); }.promo-summary-action { grid-column: 1 / -1; justify-self: stretch; }.promo-summary-action .btn { width: 100%; justify-content: center; }.promo-creative { grid-template-columns: 1fr; }.promo-phone { min-height: 480px; }.promo-review-actions { grid-template-columns: 1fr; }.promo-source, .promo-copy-block { grid-template-columns: 1fr; gap: 3px; }
 }

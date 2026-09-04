@@ -9,7 +9,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { postForm } from "@/lib/api-client";
 import { useT } from "@/components/locale";
-import EpisodeSlots, { emptySlot, hasDuplicateNumbers, hasVideoOnlyRow, type EpisodeSlot } from "./EpisodeSlots";
+import EpisodeSlots, { emptySlot, hasDuplicateNumbers, type EpisodeSlot } from "./EpisodeSlots";
 
 export default function UploadEpisodes({ titleId, nextNumber }: { titleId: string; nextNumber: number }) {
   const { tt } = useT();
@@ -26,11 +26,11 @@ export default function UploadEpisodes({ titleId, nextNumber }: { titleId: strin
     let anyOk = false;
     for (let i = 0; i < slots.length; i++) {
       const slot = slots[i];
-      if (!slot.subtitle || slot.status === "ok") continue;
+      if ((!slot.subtitle && !slot.video) || slot.status === "ok") continue;
       update(i, { status: "busy", message: undefined });
       const form = new FormData();
       form.set("episode_number", String(slot.number));
-      form.set("subtitles", slot.subtitle);
+      if (slot.subtitle) form.set("subtitles", slot.subtitle);
       if (slot.video) form.set("video", slot.video);
       try {
         const r = await postForm<{ episode?: unknown; warnings?: string[]; error?: string }>(
@@ -51,8 +51,8 @@ export default function UploadEpisodes({ titleId, nextNumber }: { titleId: strin
     if (anyOk) router.refresh();
   }
 
-  const pending = slots.filter((s) => s.subtitle && s.status !== "ok").length;
-  const blocked = hasDuplicateNumbers(slots.filter((s) => s.status !== "ok")) || hasVideoOnlyRow(slots);
+  const pending = slots.filter((s) => (s.subtitle || s.video) && s.status !== "ok").length;
+  const blocked = hasDuplicateNumbers(slots.filter((s) => s.status !== "ok"));
 
   return (
     <div className="field-group">

@@ -15,7 +15,7 @@
 // submit needs every scene staff-approved, in-app approval needs every scene
 // partner-approved, on-behalf needs a staff admin and an evidence note.
 
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { canReadTitle, type Session } from "@/lib/auth";
 import { LAST_CUE_MS, liftStamp, MAX_DERIVED_CUE_MS, SAMPLE_LATENCY_MS, type IngestResult } from "@/lib/ingest";
 import { applyGlobalOffset, assertValidCue } from "@/lib/subtitle-timing";
@@ -38,6 +38,12 @@ import type {
   LineAlternative,
   Producer,
   ProducerTitleSummary,
+  PromoApproval,
+  PromoCampaign,
+  PromoCampaignDetail,
+  PromoCampaignSummary,
+  PromoCreative,
+  PromoHandoff,
   Scene,
   SceneDecision,
   Title,
@@ -164,6 +170,25 @@ function requireTitleEditor(db: FixtureDb, session: Session, titleId: string): T
     return t;
   }
   throw forbidden("editing needs the reviewer role on this title");
+}
+
+function readablePromoCampaign(db: FixtureDb, session: Session, campaignId: string): PromoCampaign {
+  const campaign = db.promo_campaigns.find((x) => x.id === campaignId);
+  if (!campaign) throw notFound("promotion campaign", campaignId);
+  readableTitle(db, session, campaign.title_id);
+  return campaign;
+}
+
+function promoDetail(db: FixtureDb, campaign: PromoCampaign): PromoCampaignDetail {
+  const title = findTitle(db, campaign.title_id);
+  return {
+    campaign: clone(campaign),
+    title: clone(title),
+    episodes: clone(db.episodes.filter((e) => e.title_id === title.id).sort((a, b) => a.number - b.number)),
+    creatives: clone(db.promo_creatives.filter((c) => c.campaign_id === campaign.id).sort((a, b) => a.created_at.localeCompare(b.created_at))),
+    approval: clone(db.promo_approvals.find((a) => a.campaign_id === campaign.id) ?? null),
+    handoffs: clone(db.promo_handoffs.filter((h) => h.campaign_id === campaign.id).sort((a, b) => b.attempted_at.localeCompare(a.attempted_at))),
+  };
 }
 
 function blank(s: string | null | undefined): boolean {
@@ -648,6 +673,19 @@ export const fixtureData: DataLayer = {
       lines: lines.length,
       scenes: scenes.length,
     });
+    return clone(episode);
+  },
+
+  async addVideoOnlyEpisode(session, titleId, episodeNumber, videoPath) {
+    const s = store();
+    const title = requireTitleEditor(s.db, session, titleId);
+    if (!Number.isInteger(episodeNumber) || episodeNumber < 1) throw invalid("episode_number must be a positive integer");
+    if (s.db.episodes.some((e) => e.title_id === titleId && e.number === episodeNumber)) throw conflict(`episode ${episodeNumber} already exists for this title`);
+    const episode: Episode = { id: randomUUID(), external_id: extId("ep"), title_id: titleId, number: episodeNumber, name_zh: null, name_en: null, duration_ms: null, source_script_path: null, script_format: null, has_timecodes: false, video_path: videoPath, created_at: now() };
+    s.db.episodes.push(episode);
+    title.status = "ingesting";
+    title.updated_at = now();
+    audit(s, session, "add_video_only_episode", "core.episodes", episode.id, title.id, null, { number: episodeNumber, video_path: videoPath });
     return clone(episode);
   },
 
@@ -1668,6 +1706,171 @@ export const fixtureData: DataLayer = {
         video_url: mediaUrl(episode.video_path),
       })
     );
+  },
+
+  // ---- Promote ----
+
+  async listPromoCampaigns(session) {
+    const { db } = store();
+    return clone(
+      db.promo_campaigns
+        .filter((campaign) => {
+          const title = db.titles.find((t) => t.id === campaign.title_id);
+          return !!title && canReadTitle(session, title.producer_id);
+        })
+        .map((campaign): PromoCampaignSummary => {
+          const title = findTitle(db, campaign.title_id);
+          const creatives = db.promo_creatives.filter((c) => c.campaign_id === campaign.id && c.status !== "superseded");
+          return {
+            ...campaign,
+            title_name_zh: title.name_zh,
+            title_name_en: title.name_en,
+            creative_count: creatives.length,
+            approved_count: creatives.filter((c) => c.status === "approved").length,
+          };
+        })
+        .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+    );
+  },
+
+  async getPromoCampaign(session, campaignId) {
+    const { db } = store();
+    return promoDetail(db, readablePromoCampaign(db, session, campaignId));
+  },
+
+  async createPromoCampaign(session, input) {
+    const { db } = store();
+    const title = requireTitleEditor(db, session, input.title_id);
+    if (blank(input.name)) throw invalid("campaign name is required");
+    if (blank(input.target_market)) throw invalid("target market is required");
+    if (input.destination_url) {
+      try { new URL(input.destination_url); } catch { throw invalid("destination URL is invalid"); }
+    }
+    const at = now();
+    const campaign: PromoCampaign = {
+      id: randomUUID(),
+      external_id: extId("pb"),
+      title_id: title.id,
+      producer_id: title.producer_id,
+      name: input.name.trim(),
+      target_market: input.target_market.trim(),
+      destination_url: input.destination_url?.trim() || null,
+      objective: input.objective,
+      spoiler_level: input.spoiler_level,
+      creative_direction: input.creative_direction?.trim() || null,
+      exclusions: input.exclusions?.trim() || null,
+      status: "draft",
+      grow_campaign_id: null,
+      created_by: session.userId,
+      created_at: at,
+      updated_at: at,
+    };
+    db.promo_campaigns.push(campaign);
+    audit(store(), session, "create_promo_campaign", "promote.campaigns", campaign.id, title.id, null, campaign);
+    return clone(campaign);
+  },
+
+  async generatePromoDrafts(session, campaignId) {
+    const { db } = store();
+    const campaign = readablePromoCampaign(db, session, campaignId);
+    requireTitleEditor(db, session, campaign.title_id);
+    if (campaign.status !== "draft" && campaign.status !== "review") throw conflict("this campaign is already approved");
+    const episodes = db.episodes.filter((e) => e.title_id === campaign.title_id && e.video_path).sort((a, b) => a.number - b.number);
+    if (!episodes.length) throw invalid("upload at least one drama episode video before generating creatives");
+    if (db.promo_creatives.some((c) => c.campaign_id === campaign.id && c.status !== "superseded")) {
+      return clone(db.promo_creatives.filter((c) => c.campaign_id === campaign.id && c.status !== "superseded"));
+    }
+    const title = findTitle(db, campaign.title_id);
+    const kinds: PromoCreative["kind"][] = ["direct_clip", "ugc_story", "direct_clip", "ugc_reaction", "direct_clip", "ugc_story"];
+    const hypotheses = [
+      "Open on the reversal before revealing how the characters got there.",
+      "Frame the central conflict like a viewer telling a friend what they just watched.",
+      "Lead with the highest-stakes confrontation and stop before the answer.",
+      "Use a disbelief reaction to make the plot twist feel socially shareable.",
+      "Build escalating cuts around the relationship power shift.",
+      "Set up the protagonist's impossible choice in first-person language.",
+    ];
+    const at = now();
+    const rows = kinds.map((kind, index): PromoCreative => {
+      const episode = episodes[index % episodes.length];
+      const available = Math.max(15_000, episode.duration_ms ?? 45_000);
+      const start = Math.min(index * 4_000, Math.max(0, available - 15_000));
+      const end = Math.min(available, start + (kind === "direct_clip" ? 18_000 : 24_000));
+      return {
+        id: randomUUID(), external_id: extId("pc"), campaign_id: campaign.id, title_id: title.id,
+        parent_creative_id: null, version: 1, kind, status: "ready", hypothesis: hypotheses[index],
+        source_episode_id: episode.id, source_start_ms: start, source_end_ms: end,
+        hook: kind === "direct_clip" ? "Wait for the moment everything changes." : "I thought this was a love story—then this happened.",
+        caption: `${title.name_en || title.name_zh}: one choice changes everything.`,
+        ad_description: `Watch ${title.name_en || title.name_zh} and see what happens next.`,
+        render_path: null, render_sha256: null, duration_ms: end - start, width: 1080, height: 1920,
+        render_settings: { schema: 1, format: "9:16", source: "concept_preview", captions: true },
+        rejection_note: null, created_at: at, updated_at: at,
+      };
+    });
+    db.promo_creatives.push(...rows);
+    campaign.status = "review";
+    campaign.updated_at = at;
+    audit(store(), session, "generate_promo_drafts", "promote.campaigns", campaign.id, title.id, null, { creative_count: rows.length });
+    return clone(rows);
+  },
+
+  async reviewPromoCreative(session, creativeId, input) {
+    const { db } = store();
+    const creative = db.promo_creatives.find((c) => c.id === creativeId);
+    if (!creative) throw notFound("promotion creative", creativeId);
+    const campaign = readablePromoCampaign(db, session, creative.campaign_id);
+    requireTitleEditor(db, session, campaign.title_id);
+    if (campaign.status !== "review") throw conflict("creative review is closed");
+    if (input.status === "rejected" && blank(input.rejection_note)) throw invalid("tell us what to change when rejecting a creative");
+    creative.status = input.status;
+    creative.rejection_note = input.status === "rejected" ? input.rejection_note?.trim() || null : null;
+    creative.updated_at = now();
+    return clone(creative);
+  },
+
+  async approvePromoCampaign(session, campaignId) {
+    const { db } = store();
+    const campaign = readablePromoCampaign(db, session, campaignId);
+    const title = requireTitleEditor(db, session, campaign.title_id);
+    if (!isProducerApprover(session, title)) throw forbidden("submitting creatives needs the approver role");
+    if (campaign.status !== "review") throw conflict("campaign is not ready for approval");
+    const creatives = db.promo_creatives.filter((c) => c.campaign_id === campaign.id && c.status === "approved");
+    if (!creatives.length) throw invalid("approve at least one creative first");
+    if (creatives.some((c) => !c.render_sha256 && c.render_path)) throw invalid("every rendered creative needs a checksum");
+    const manifest = { schema: 1, campaign_external_id: campaign.external_id, creatives: creatives.map((c) => ({ external_id: c.external_id, version: c.version, render_path: c.render_path, render_sha256: c.render_sha256, hook: c.hook, caption: c.caption, ad_description: c.ad_description })) };
+    const manifest_sha256 = createHash("sha256").update(JSON.stringify(manifest)).digest("hex");
+    const approval: PromoApproval = { id: randomUUID(), campaign_id: campaign.id, producer_id: campaign.producer_id, approved_by: session.userId, manifest, manifest_sha256, created_at: now() };
+    db.promo_approvals.push(approval);
+    for (const creative of db.promo_creatives) {
+      if (creative.campaign_id === campaign.id && creative.status !== "approved" && creative.status !== "superseded") {
+        creative.status = "not_selected";
+        creative.updated_at = approval.created_at;
+      }
+    }
+    campaign.status = "approved";
+    campaign.updated_at = approval.created_at;
+    audit(store(), session, "approve_promo_campaign", "promote.campaigns", campaign.id, title.id, { status: "review" }, { status: "approved", manifest_sha256 });
+    return promoDetail(db, campaign);
+  },
+
+  async submitPromoCampaignMock(session, campaignId) {
+    const { db } = store();
+    const campaign = readablePromoCampaign(db, session, campaignId);
+    const title = requireTitleEditor(db, session, campaign.title_id);
+    if (!isProducerApprover(session, title)) throw forbidden("launch submission needs the approver role");
+    const approval = db.promo_approvals.find((a) => a.campaign_id === campaign.id);
+    if (campaign.status === "submitted") return promoDetail(db, campaign);
+    if (campaign.status !== "approved" || !approval) throw conflict("approve the campaign before launch submission");
+    const idempotency_key = `studio:${campaign.external_id}:${approval.manifest_sha256}`;
+    const growId = `cmp_mock_${campaign.external_id.slice(3)}`;
+    const handoff: PromoHandoff = { id: randomUUID(), campaign_id: campaign.id, idempotency_key, request_sha256: approval.manifest_sha256, status: "accepted", grow_campaign_id: growId, response: { mock: true, grow_campaign_id: growId }, error: null, attempted_at: now() };
+    db.promo_handoffs.push(handoff);
+    campaign.status = "submitted";
+    campaign.grow_campaign_id = growId;
+    campaign.updated_at = handoff.attempted_at;
+    audit(store(), session, "submit_promo_campaign", "promote.handoffs", handoff.id, title.id, null, { status: "accepted", grow_campaign_id: growId });
+    return promoDetail(db, campaign);
   },
 
   // ---- exports and audit ----
