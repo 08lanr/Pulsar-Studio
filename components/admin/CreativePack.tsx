@@ -1,0 +1,19 @@
+"use client";
+
+import { useState } from "react";
+import { postJson } from "@/lib/api-client";
+import type { Clip, ClipStatus, Variant } from "@/lib/types";
+import { clockRange } from "./format";
+
+export default function CreativePack({ titleId, initialVariants, initialClips, aiAvailable }: { titleId: string; initialVariants: Variant[]; initialClips: Clip[]; aiAvailable: boolean }) {
+  const [variants,setVariants]=useState(initialVariants); const [clips,setClips]=useState(initialClips); const [busy,setBusy]=useState(false); const [error,setError]=useState<string|null>(null);
+  async function generate(){setBusy(true);setError(null);const r=await postJson<{variants?:Variant[];error?:string}>(`/api/titles/${titleId}/pack/generate`,{});setBusy(false);if(r.variants)setVariants(r.variants);else setError(r.error||"Could not generate the pack");}
+  async function find(){setBusy(true);setError(null);const r=await postJson<{clips?:Clip[];error?:string}>(`/api/titles/${titleId}/clips/find`,{});setBusy(false);if(r.clips)setClips(r.clips);else setError(r.error||"Could not find clips");}
+  async function select(id:string){const r=await postJson<{variant?:Variant;error?:string}>(`/api/titles/${titleId}/pack/select`,{variant_id:id});if(!r.variant){setError(r.error||"Could not select variant");return;}setVariants(v=>v.map(x=>x.kind===r.variant!.kind?{...x,selected:x.id===r.variant!.id}:x));}
+  async function clipStatus(id:string,status:ClipStatus){const r=await postJson<{clip?:Clip;error?:string}>(`/api/titles/${titleId}/clips/${id}/status`,{status});if(!r.clip){setError(r.error||"Could not update clip");return;}setClips(v=>v.map(x=>x.id===id?r.clip!:x));}
+  const kinds=[...new Set(variants.map(v=>v.kind))];
+  return <>{error&&<div className="note note-warn">{error}</div>}<div className="title-actions"><button className="btn btn-primary" onClick={()=>void generate()} disabled={busy||!aiAvailable}>{busy?<span className="spinner"/>:null}Generate creative pack</button><button className="btn" onClick={()=>void find()} disabled={busy||!aiAvailable}>Find clips</button>{!aiAvailable&&<span className="hint">AI unavailable — set ANTHROPIC_API_KEY.</span>}</div>
+    {kinds.map(kind=><section className="card" key={kind}><h3 className="field-group-title">{kind.replaceAll("_"," ")}</h3><div className="group">{variants.filter(v=>v.kind===kind&&v.status!=="dismissed").map(v=><div className="def-row" key={v.id}><div><strong>{v.text_en}</strong>{v.text_zh&&<p className="hint bilingual-zh" lang="zh-CN">{v.text_zh}</p>}{v.rationale_en&&<p className="hint">{v.rationale_en}</p>}</div>{(kind==="title"||kind==="hook")&&<button className={v.selected?"btn btn-sm btn-primary":"btn btn-sm btn-outline"} disabled={v.selected} onClick={()=>void select(v.id)}>{v.selected?"Selected":"Select"}</button>}</div>)}</div></section>)}
+    <section className="card"><div className="page-head"><div><h3>Clip finder</h3><p className="page-sub">Ranked paid-social moments from timed episodes.</p></div></div><div className="gtable gtable-flush" style={{"--cols":"60px 110px minmax(180px,1fr) minmax(180px,1fr) 180px"} as React.CSSProperties}>{clips.filter(c=>c.status!=="dismissed").sort((a,b)=>a.rank-b.rank).map(c=><div className="gt-row" key={c.id}><span>#{c.rank}</span><span>{clockRange(c.start_ms,c.end_ms)}</span><span><strong>{c.hook_en}</strong>{c.opening_text_en&&<small className="gt-muted">{c.opening_text_en}</small>}</span><span>{c.why_en}<small className="gt-muted bilingual-zh" lang="zh-CN">{c.why_zh}</small></span><span className="filter-row"><button className={c.status==="shortlisted"?"btn btn-sm btn-primary":"btn btn-sm btn-outline"} onClick={()=>void clipStatus(c.id,c.status==="shortlisted"?"suggested":"shortlisted")}>{c.status==="shortlisted"?"Shortlisted":"Shortlist"}</button><button className="btn btn-sm btn-ghost" onClick={()=>void clipStatus(c.id,"dismissed")}>Dismiss</button></span></div>)}</div></section>
+  </>;
+}

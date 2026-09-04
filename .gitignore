@@ -1,0 +1,34 @@
+node_modules/
+.next/
+out/
+
+# Secrets. Backups of .env.local hold the same keys - never committable.
+.env.local
+.env.local.*
+.env*.bak
+
+# Next.js auto-generated types + TypeScript incremental cache
+next-env.d.ts
+*.tsbuildinfo
+
+# Local runtime state (uploads, scratch renders). Supabase is the source of truth.
+.data/
+.uploads/
+tmp/
+output/
+
+# Supabase CLI local state
+supabase/.branches
+supabase/.temp
+
+# Claude Code machine-specific settings (keep launch.json, ignore local prefs)
+.claude/settings.local.json
+.venv-dub/
+
+# Local tooling and generated media - never committed.
+.codex-tools/
+video_output/
+
+# Editor local history and stray server logs.
+.history/
+.server-out.log

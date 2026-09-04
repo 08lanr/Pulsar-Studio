@@ -1,0 +1,9 @@
+{
+  "ingest.format.srt": { "en": "SRT subtitle file", "zh": "SRT 字幕文件" },
+  "ingest.format.vtt": { "en": "WebVTT subtitle file", "zh": "WebVTT 字幕文件" },
+  "ingest.format.ass": { "en": "ASS / SSA subtitle file", "zh": "ASS / SSA 字幕文件" },
+  "ingest.format.txt": { "en": "Script document", "zh": "剧本文件" },
+  "ingest.noTimecodes": { "en": "No timecodes: script-only view, no player or VTT export", "zh": "无时间码：仅剧本视图，无播放器和 VTT 导出" },
+  "ingest.warnings": { "en": "{n} warnings", "zh": "{n} 条警告" },
+  "ingest.summary": { "en": "{lines} lines in {scenes} scenes", "zh": "{lines} 句台词，{scenes} 个场景" }
+}

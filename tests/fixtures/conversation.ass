@@ -1,0 +1,23 @@
+[Script Info]
+Title: 测试对话
+ScriptType: v4.00+
+PlayResX: 1080
+PlayResY: 1920
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour
+Style: Default,Noto Sans CJK SC,48,&H00FFFFFF
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:01.00,0:00:02.50,Default,张伟,0,0,0,,你怎么还没走？
+Dialogue: 0,0:00:02.60,0:00:04.00,Default,李娜,0,0,0,,我在等你。
+Dialogue: 0,0:00:04.10,0:00:06.00,Default,张伟,0,0,0,,{\i1}等我干什么？{\i0}
+Dialogue: 0,0:00:06.10,0:00:07.80,Default,李娜,0,0,0,,{\an8}这不是你的东西吗？
+Comment: 0,0:00:07.80,0:00:07.90,Default,,0,0,0,,导演备注，不是台词
+Dialogue: 0,0:00:07.90,0:00:09.50,Default,,0,0,0,,……你从哪儿找到的？
+Dialogue: 0,0:00:13.60,0:00:15.00,Default,李娜,0,0,0,,三年前，你在医院。
+Dialogue: 0,0:00:15.10,0:00:17.00,Default,张伟,0,0,0,,我不记得了。
+Dialogue: 0,0:00:17.10,0:00:19.00,Default,李娜,0,0,0,,你当然不记得，\N你那时候昏迷着。
+Dialogue: 0,0:00:19.10,0:00:20.50,Default,张伟,0,0,0,,{\pos(540,1700)}所以是你救了我？
+Dialogue: 0,0:00:20.60,0:00:22.00,Default,李娜,0,0,0,,不是我，是他。

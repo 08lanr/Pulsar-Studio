@@ -1,0 +1,82 @@
+{
+  "tag.tighter": {
+    "en": "Tighter",
+    "zh": "更精炼"
+  },
+  "tag.more_emotional": {
+    "en": "More emotional",
+    "zh": "更情感化"
+  },
+  "tag.more_direct": {
+    "en": "More direct",
+    "zh": "更直接"
+  },
+  "tag.softened": {
+    "en": "Softened",
+    "zh": "更缓和"
+  },
+  "tag.cultural_swap": {
+    "en": "Cultural swap",
+    "zh": "文化替换"
+  },
+  "tag.pacing": {
+    "en": "Pacing",
+    "zh": "节奏调整"
+  },
+  "tag.clarity": {
+    "en": "Clarity",
+    "zh": "更清晰"
+  },
+  "tag.humor": {
+    "en": "Humor",
+    "zh": "增加幽默"
+  },
+  "tag.idiom": {
+    "en": "Idiom",
+    "zh": "地道表达"
+  },
+  "angle.betrayal": {
+    "en": "Betrayal",
+    "zh": "背叛"
+  },
+  "angle.revenge": {
+    "en": "Revenge",
+    "zh": "复仇"
+  },
+  "angle.secret_identity": {
+    "en": "Secret identity",
+    "zh": "隐藏身份"
+  },
+  "angle.romance": {
+    "en": "Romance",
+    "zh": "爱情"
+  },
+  "angle.cliffhanger": {
+    "en": "Cliffhanger",
+    "zh": "悬念"
+  },
+  "angle.class_gap": {
+    "en": "Class gap",
+    "zh": "阶层差距"
+  },
+  "angle.forced_proximity": {
+    "en": "Forced proximity",
+    "zh": "被迫同行"
+  },
+  "angle.second_chance": {
+    "en": "Second chance",
+    "zh": "重新开始"
+  },
+  "angle.power_play": {
+    "en": "Power play",
+    "zh": "权力博弈"
+  },
+  "angle.slow_burn": {
+    "en": "Slow burn",
+    "zh": "细水长流"
+  },
+  "tag.more_casual": {
+    "en": "More casual",
+    "zh": "更口语"
+  }
+}
