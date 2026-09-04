@@ -2,6 +2,7 @@ import { portalSession, producerLocale } from "@/components/producer/server";
 import { getData } from "@/lib/data";
 import { t } from "@/lib/i18n";
 import type { TitleStatus } from "@/lib/types";
+import { IconPlus } from "@/components/producer/icons";
 
 // /producer — 作品管理. The pattern every Chinese creator console leads with
 // (docs/ui-research.md): a poster grid of the producer's works, one status
@@ -26,9 +27,11 @@ export default async function ProducerHome() {
     <>
       <div className="page-head">
         <div>
+          <span className="page-kicker">{t(locale, "v3.library.kicker")}</span>
           <h2>{t(locale, "pw.home.title")}</h2>
           <p className="page-sub">{t(locale, "pw.home.sub")}</p>
         </div>
+        <a className="btn btn-primary" href="/producer/titles/new"><IconPlus /> {t(locale, "pw.home.new")}</a>
       </div>
 
       <div className="poster-grid">
@@ -58,12 +61,6 @@ export default async function ProducerHome() {
             </div>
           </a>
         ))}
-        <a className="poster poster-new" href="/producer/titles/new">
-          <span aria-hidden style={{ fontSize: 28, lineHeight: 1 }}>
-            +
-          </span>
-          <span>{t(locale, "pw.home.new")}</span>
-        </a>
       </div>
     </>
   );

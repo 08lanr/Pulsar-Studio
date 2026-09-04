@@ -101,3 +101,29 @@ Do not reintroduce retired workflow concepts from stale docs or CSS comments.
 Record material design decisions and unfinished work in this file before the
 context ends.
 
+## 2026-09-04 implementation pass
+
+Implemented and browser-verified:
+
+- A persistent route-aware producer shell with active navigation, compact top bar, breadcrumbs, and consistent full-width gutters.
+- A title dashboard that replaces the overflowing five-step decoration with project status, the current next step, and one action per episode.
+- Episode stage navigation for Script adaptation and Timing & delivery.
+- A wider bilingual script workspace with a sticky media/editing rail and monospaced timecodes.
+- Clear action language: `Save line`, `Approve and lock`, and `Create a new draft` backed by the existing fork route.
+- An approved state that remains immutable while putting revision recovery at the top of the page.
+- Separate Timing and Style & delivery modes that keep the player and cue sheet visible while changing only the inspector.
+- One delivery surface for render, SRT, VTT, and script exports.
+- Browser leave protection for unsaved line edits and staged per-cue timing edits.
+- A visual layer in `app/studio-v3.css`: graphite production shell, violet selection accent, tighter radii, restrained elevation, wider geometry, and responsive rules.
+
+Verification completed: ESLint, TypeScript, all 61 tests, and the production build pass. The build emitted non-fatal webpack cache snapshot warnings before compiling successfully.
+
+Remaining limitations / next pass:
+
+- Redesign and browser-check login, new-title creation, and the expanded batch-upload state.
+- Reduce rationale density in long scripts; the full explanation is still repeated under every line.
+- Add a dedicated version-history surface, not just the current version number and fork action.
+- Improve timing issue discovery with cue-level warning markers and a filterable issue list.
+- Add render retry/failure UI and verify the completed render state.
+- Align the admin portal with this system and remove obsolete creative-pack/scene language.
+- Complete explicit 1440, 1024, and 390 viewport verification; the current in-app browser runtime did not expose a viewport-resize method during this pass.

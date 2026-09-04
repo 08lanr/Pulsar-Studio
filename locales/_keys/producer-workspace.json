@@ -138,8 +138,8 @@
     "zh": "已改编 {pct}%"
   },
   "pw.home.sub": {
-    "en": "Upload a script, generate the U.S. adaptation, confirm scene by scene, export.",
-    "zh": "上传剧本，一键生成美式改编，逐场确认后定稿导出。"
+    "en": "Localize subtitles, refine the English adaptation, and deliver timed files.",
+    "zh": "上传字幕，生成自然的英文改编，校准时间轴并交付。"
   },
   "pw.home.title": {
     "en": "My titles",
@@ -920,5 +920,37 @@
   "st.t.applyProposals": {
     "zh": "把接受的调整加入待保存",
     "en": "Stage accepted changes"
-  }
+  },
+  "v3.subtitle.workspace": {
+    "zh": "字幕工作区",
+    "en": "Subtitle workspace"
+  },
+  "v3.subtitle.timing": {
+    "zh": "时间轴",
+    "en": "Timing"
+  },
+  "v3.subtitle.delivery": {
+    "zh": "样式与交付",
+    "en": "Style & delivery"
+  },
+  "v3.subtitle.timingHint": {
+    "zh": "调整字幕出现时间并解决时间轴问题",
+    "en": "Adjust cue timing and resolve timeline issues"
+  },
+  "v3.subtitle.deliveryHint": {
+    "zh": "预览字幕样式并导出最终文件",
+    "en": "Preview subtitle styling and export final files"
+  },
+  "v3.library.kicker": { "zh": "本地化项目", "en": "Localization projects" },
+  "v3.title.workspace": { "zh": "剧集工作区", "en": "Series workspace" },
+  "v3.title.overview": { "zh": "项目概览", "en": "Project overview" },
+  "v3.title.progress": { "zh": "语言已批准", "en": "Language approved" },
+  "v3.title.approvedCount": { "zh": "{done} / {total} 集", "en": "{done} of {total} episodes" },
+  "v3.title.inProgress": { "zh": "处理中", "en": "In progress" },
+  "v3.title.episodes": { "zh": "剧集", "en": "Episodes" },
+  "v3.title.actionHint": { "zh": "每集只显示下一项操作", "en": "Each episode shows its next action" },
+  "v3.title.addEpisodes": { "zh": "添加剧集", "en": "Add episodes" },
+  "v3.title.addEpisodesHint": { "zh": "上传新的字幕或视频文件", "en": "Upload new subtitle or video files" },
+  "v3.done.next": { "zh": "下一步：时间轴与交付", "en": "Next: timing and delivery" },
+  "v3.done.body": { "zh": "语言版本已锁定。需要更改可创建新修订稿；要继续，请打开上方的时间轴与交付。", "en": "Language is locked. Create a new draft to revise it, or continue in Timing & delivery above." }
 }

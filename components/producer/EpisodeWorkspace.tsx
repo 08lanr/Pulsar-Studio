@@ -16,7 +16,7 @@
 //   · Finalize sits in the header. The deliverables are the clean English
 //     script report and, when a video is attached, the subtitled video.
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { postJson } from "@/lib/api-client";
 import { patchJson, unwrap, type ApiEnvelope } from "@/components/workbench/util";
@@ -24,7 +24,7 @@ import type { AdaptedLine, Line, LineAlternative, WorkbenchPayload } from "@/lib
 import { runQc, type QcIssue } from "@/lib/qc";
 import { TAG_LABELS } from "@/lib/types";
 import { useT } from "@/components/locale";
-import { IconArrowLeft, IconCheck } from "./icons";
+import { IconCheck } from "./icons";
 
 const GEN_STEPS = ["pw.gen.step1", "pw.gen.step2", "pw.gen.step3", "pw.gen.step4"] as const;
 
@@ -103,6 +103,13 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
   const [pickedAltId, setPickedAltId] = useState<string | null>(null);
   const [showAlts, setShowAlts] = useState(false);
   const dirty = !!selectedAdapted && draft !== (selectedAdapted.text_en ?? "");
+
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
 
   const adaptedCount = lines.filter((l) => byLine.has(l.id)).length;
   const editedCount = adapted.filter((a) => a.authored_by === "editor").length;
@@ -322,19 +329,6 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
   if (!hasAdaptation && !readOnly) {
     return (
       <div className="creative-review-shell">
-        <header className="review-studio-head">
-          <a className="title-back" href={`/producer/titles/${payload.title.id}`}>
-            <IconArrowLeft /> {tt("review.back")}
-          </a>
-          <div className="review-studio-title">
-            <div>
-              <span>{payload.title.name_zh}</span>
-              <strong>{payload.title.name_en}</strong>
-            </div>
-            <small>{tt("review.episode", { n: payload.episode.number })}</small>
-          </div>
-          <span className="pill pill-neutral">{tt("pw.epStatus.ingested")}</span>
-        </header>
         <div className="card genbox">
           <h3>{tt("pw.gen.title")}</h3>
           <p>{tt("pw.gen.body")}</p>
@@ -370,7 +364,7 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
   // ---- command strip ---------------------------------------------------------
 
   const workflow = finalized
-    ? { tone: "done", title: tt("pw.cmd.done.title"), body: tt("pw.cmd2.done.body") }
+    ? { tone: "done", title: tt("v3.done.next"), body: tt("v3.done.body") }
     : inReview
       ? { tone: "ready", title: tt("pw.cmd.review.title"), body: tt("pw.cmd.review.body") }
       : allAdapted
@@ -381,19 +375,10 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
 
   return (
     <div className="creative-review-shell">
-      <header className="review-studio-head">
-        <a className="title-back" href={`/producer/titles/${payload.title.id}`}>
-          <IconArrowLeft /> {tt("review.back")}
-        </a>
-        <div className="review-studio-title">
-          <div>
-            <span>{payload.title.name_zh}</span>
-            <strong>{payload.title.name_en}</strong>
-          </div>
-          <small>
-            {tt("review.episode", { n: payload.episode.number })}
-            {version ? <> · {tt("reviewStudio.version", { n: version.number })}</> : null}
-          </small>
+      <header className="workspace-actionbar">
+        <div className="workspace-state">
+          <span>{tt("reviewStudio.version", { n: version?.number ?? 1 })}</span>
+          <strong>{workflow.title}</strong>
         </div>
         <div className="head-actions">
           <span className={finalized ? "pill status-approved" : inReview ? "pill status-review" : "pill status-adapting"}>
@@ -424,6 +409,11 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
               </button>
             </>
           )}
+          {finalized && !readOnly && (
+            <button type="button" className="btn btn-sm btn-outline" disabled={busy === "fork"} onClick={editMyself}>
+              {busy === "fork" ? <span className="spinner" /> : null} {tt("v3.revise.cta")}
+            </button>
+          )}
         </div>
       </header>
 
@@ -437,7 +427,6 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
           <span>{tt("pw.count.lines", { x: adaptedCount, n: lines.length })}</span>
           <span>{tt("pw.count.edited", { n: editedCount })}</span>
           <span className={majorCount ? "has-changes" : ""}>{tt("pw.count.major", { n: majorCount })}</span>
-          {finalized && version?.snapshot_sha256 ? <span>{version.snapshot_sha256.slice(0, 12)}</span> : null}
         </div>
       </section>
 
@@ -590,11 +579,6 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
                 <a className="btn btn-sm btn-outline" href={`/api/titles/${payload.title.id}/export?format=script&episode=${payload.episode.number}`}>
                   {tt("pw.export.script")}
                 </a>
-                {finalized && (
-                  <a className="btn btn-sm btn-outline" href={`/producer/titles/${payload.title.id}/episodes/${payload.episode.number}/subtitles`}>
-                    {tt("st.stage")}
-                  </a>
-                )}
               </div>
             )}
           </div>
@@ -757,18 +741,6 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
             </section>
           ) : (
             <p className="hint">{tt("pw.line.pending")}</p>
-          )}
-
-          {finalized && (
-            <section className="review-final-approval is-ready">
-              <span>{tt("v3.version.final")}</span>
-              <p>{tt("v3.revise.help")}</p>
-              {!readOnly && (
-                <button type="button" className="btn btn-outline btn-block" disabled={busy === "fork"} onClick={editMyself}>
-                  {busy === "fork" ? <span className="spinner" /> : null} {tt("v3.revise.cta")}
-                </button>
-              )}
-            </section>
           )}
 
           {readOnly && !finalized && <div className="note note-info">{tt("review.previewDisabled")}</div>}

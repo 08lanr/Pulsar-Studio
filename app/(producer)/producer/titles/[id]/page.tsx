@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import UploadEpisodes from "@/components/producer/UploadEpisodes";
-import { IconArrowLeft, IconCheck } from "@/components/producer/icons";
 import { isStaffPreview, portalSession, producerLocale } from "@/components/producer/server";
 import { getData, isDataError } from "@/lib/data";
 import { t } from "@/lib/i18n";
@@ -46,14 +45,20 @@ export default async function ProducerTitlePage({ params }: { params: { id: stri
   const steps = ["pw.steps.upload", "pw.steps.generate", "pw.steps.confirm", "pw.steps.final", "pw.steps.subs"];
   const nextNumber = episodes.reduce((m, e) => Math.max(m, e.number), 0) + 1;
   const canEdit = !isStaffPreview(session);
+  const approvedCount = episodes.filter((e) => e.status === "approved").length;
+  const activeCount = episodes.filter((e) => e.status === "adapting" || e.status === "in_review").length;
 
   return (
     <>
-      <div className="page-head">
+      <nav className="studio-crumbs" aria-label={t(locale, "v3.breadcrumbs")}>
+        <a href="/producer">{t(locale, "v3.nav.library")}</a>
+        <span aria-hidden>›</span>
+        <span>{detail.title.name_en || detail.title.name_zh}</span>
+      </nav>
+
+      <div className="page-head title-console-head">
         <div>
-          <a className="title-back" href="/producer">
-            <IconArrowLeft size={14} /> {t(locale, "portal.back.titles")}
-          </a>
+          <span className="page-kicker">{t(locale, "v3.title.workspace")}</span>
           <h2 className="bilingual" lang="zh-CN">
             {detail.title.name_zh}
           </h2>
@@ -63,27 +68,38 @@ export default async function ProducerTitlePage({ params }: { params: { id: stri
             </p>
           )}
         </div>
+        {canEdit && <a className="btn btn-outline" href="#add-episodes">{t(locale, "v3.title.addEpisodes")}</a>}
       </div>
 
-      <div className="card">
-        <div className="flowsteps" aria-label={t(locale, "pw.steps.label")}>
-          {steps.map((key, i) => (
-            <span key={key} className={`flowstep ${i + 1 < step ? "done" : i + 1 === step ? "active" : ""}`}>
-              <span className="flowstep-dot">{i + 1 < step ? <IconCheck size={12} /> : i + 1}</span>
-              {t(locale, key)}
-            </span>
-          ))}
+      <section className="title-overview" aria-label={t(locale, "v3.title.overview")}>
+        <div>
+          <span>{t(locale, "v3.title.progress")}</span>
+          <strong>{t(locale, "v3.title.approvedCount", { done: approvedCount, total: episodes.length })}</strong>
         </div>
-      </div>
+        <div>
+          <span>{t(locale, "v3.title.inProgress")}</span>
+          <strong>{activeCount}</strong>
+        </div>
+        <div className="title-next-step">
+          <span>{t(locale, "review.nextStep")}</span>
+          <strong>{t(locale, steps[Math.max(0, Math.min(steps.length - 1, step - 1))])}</strong>
+        </div>
+      </section>
 
-      <div className="card gtable-flush">
+      <section className="episode-list" aria-label={t(locale, "v3.title.episodes")}>
+        <header className="episode-list-head">
+          <div><span>{t(locale, "v3.title.episodes")}</span><strong>{episodes.length}</strong></div>
+          <span>{t(locale, "v3.title.actionHint")}</span>
+        </header>
         {episodes.length === 0 && <p className="hint">{t(locale, "pw.title.noEpisodes")}</p>}
         {episodes.map((e) => (
-          <div className="gt-row" key={e.id} style={{ ["--cols" as never]: "80px 1fr auto auto" }}>
-            <span>{t(locale, "portal.episode", { n: e.number })}</span>
-            <span className="gt-muted">
-              {t(locale, "pw.title.lines", { done: e.lines_adapted, total: e.lines_total })}
-            </span>
+          <article className="episode-row" key={e.id}>
+            <span className="episode-row-number">{String(e.number).padStart(2, "0")}</span>
+            <div className="episode-row-name">
+              <strong>{e.name_en || e.name_zh || t(locale, "portal.episode", { n: e.number })}</strong>
+              <span>{t(locale, "pw.title.lines", { done: e.lines_adapted, total: e.lines_total })}</span>
+              <div className="episode-progress" aria-hidden><i style={{ width: `${e.lines_total ? Math.round((e.lines_adapted / e.lines_total) * 100) : 0}%` }} /></div>
+            </div>
             <span className={`pill ${STATUS_PILL[e.status]}`}>{t(locale, `pw.epStatus.${e.status}`)}</span>
             <a
               className={`btn btn-sm ${e.status === "ingested" || e.status === "adapting" ? "btn-primary" : "btn-outline"}`}
@@ -91,14 +107,15 @@ export default async function ProducerTitlePage({ params }: { params: { id: stri
             >
               {t(locale, actionKey(e))}
             </a>
-          </div>
+          </article>
         ))}
-      </div>
+      </section>
 
       {canEdit && (
-        <div className="card">
-          <UploadEpisodes titleId={detail.title.id} nextNumber={nextNumber} />
-        </div>
+        <details className="add-episodes-panel" id="add-episodes">
+          <summary>{t(locale, "v3.title.addEpisodes")}<span>{t(locale, "v3.title.addEpisodesHint")}</span></summary>
+          <div className="add-episodes-content"><UploadEpisodes titleId={detail.title.id} nextNumber={nextNumber} /></div>
+        </details>
       )}
     </>
   );

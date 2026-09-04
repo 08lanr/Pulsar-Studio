@@ -49,7 +49,6 @@
   --v3-line-strong: #3a4049;
   --v3-accent: #7c6ff3;
   --v3-accent-strong: #958aff;
-  --v-v3-accent-soft: #24213d;
   --v3-accent-soft: #24213d;
   --v3-sidebar: #090b0d;
   --v3-sidebar-text: #f4f3ec;
@@ -251,11 +250,63 @@
 .episode-tabs a.is-locked { opacity: .45; }
 .episode-tabs i { color: var(--success); font-style: normal; }
 
+.workspace-actionbar {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 12px;
+  padding: 10px 4px 10px 14px;
+  border-bottom: 1px solid var(--v3-line);
+}
+.workspace-state { min-width: 0; display: grid; gap: 3px; }
+.workspace-state span { color: var(--v3-faint); font-size: 10px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; }
+.workspace-state strong { overflow: hidden; color: var(--v3-ink); font-size: 13px; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-actionbar .head-actions { margin-left: auto; }
+.subtitle-modebar { padding-right: 0; }
+.studio-mode-switch {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px;
+  border: 1px solid var(--v3-line);
+  border-radius: 9px;
+  background: var(--v3-panel);
+}
+.studio-mode-switch button {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--v3-muted);
+  background: transparent;
+  font: 550 12px/1 inherit;
+  cursor: pointer;
+}
+.studio-mode-switch button.is-active { color: var(--v3-ink); background: var(--v3-paper); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.studio-mode-switch i {
+  min-width: 17px; height: 17px; display: grid; place-items: center;
+  border-radius: 9px; color: white; background: var(--v3-accent);
+  font: 650 9px/1 ui-monospace, monospace;
+}
+
 /* ---------- producer index and forms ---------- */
 
 .producer-main > .page-head { align-items: center; margin-bottom: 24px; }
 .producer-main > .page-head h2 { font-size: clamp(27px, 3vw, 38px); letter-spacing: -.035em; }
 .producer-main > .page-head .page-sub { max-width: 620px; color: var(--v3-muted); }
+.page-kicker {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--v3-accent-strong);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
 .producer-main .poster-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
 .producer-main .poster {
   min-height: 290px;
@@ -274,6 +325,63 @@
   background: var(--v3-paper);
   box-shadow: var(--v3-shadow);
 }
+
+/* ---------- title console ---------- */
+
+.title-console-head { align-items: end; }
+.title-overview {
+  display: grid;
+  grid-template-columns: minmax(180px, .8fr) minmax(130px, .5fr) minmax(260px, 1.4fr);
+  margin-bottom: 14px;
+  border: 1px solid var(--v3-line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--v3-paper);
+  box-shadow: var(--v3-shadow);
+}
+.title-overview > div { min-height: 84px; display: grid; align-content: center; gap: 6px; padding: 16px 20px; border-right: 1px solid var(--v3-line); }
+.title-overview > div:last-child { border-right: 0; }
+.title-overview span,
+.episode-list-head > span { color: var(--v3-faint); font-size: 10px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; }
+.title-overview strong { color: var(--v3-ink); font-size: 18px; font-weight: 580; letter-spacing: -.02em; }
+.title-overview .title-next-step { position: relative; padding-left: 30px; background: var(--v3-accent-soft); }
+.title-next-step::before { content: ""; position: absolute; left: 17px; width: 4px; height: 4px; border-radius: 50%; background: var(--v3-accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--v3-accent) 16%, transparent); }
+.title-overview .title-next-step strong { font-size: 14px; }
+
+.episode-list {
+  border: 1px solid var(--v3-line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--v3-paper);
+  box-shadow: var(--v3-shadow);
+}
+.episode-list-head { min-height: 52px; display: flex; align-items: center; gap: 12px; padding: 0 18px; border-bottom: 1px solid var(--v3-line); background: var(--v3-panel); }
+.episode-list-head div { display: flex; align-items: baseline; gap: 8px; }
+.episode-list-head div span { color: var(--v3-ink); font-size: 13px; font-weight: 600; }
+.episode-list-head div strong { color: var(--v3-faint); font-size: 11px; }
+.episode-list-head > span { margin-left: auto; }
+.episode-row {
+  min-height: 74px;
+  display: grid;
+  grid-template-columns: 42px minmax(220px, 1fr) auto auto;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--v3-line);
+}
+.episode-row:last-child { border-bottom: 0; }
+.episode-row:hover { background: color-mix(in srgb, var(--v3-panel) 68%, transparent); }
+.episode-row-number { color: var(--v3-accent-strong); font: 650 11px/1 ui-monospace, "Cascadia Code", monospace; }
+.episode-row-name { min-width: 0; display: grid; gap: 5px; }
+.episode-row-name strong { overflow: hidden; color: var(--v3-ink); font-size: 13px; font-weight: 580; text-overflow: ellipsis; white-space: nowrap; }
+.episode-row-name > span { color: var(--v3-muted); font-size: 11px; }
+.episode-progress { width: min(240px, 65%); height: 2px; overflow: hidden; border-radius: 2px; background: var(--v3-line); }
+.episode-progress i { display: block; height: 100%; background: var(--v3-accent); }
+
+.add-episodes-panel { margin-top: 14px; border: 1px solid var(--v3-line); border-radius: 10px; background: var(--v3-paper); box-shadow: var(--v3-shadow); }
+.add-episodes-panel > summary { min-height: 58px; display: flex; align-items: center; gap: 10px; padding: 0 18px; color: var(--v3-ink); font-size: 13px; font-weight: 600; cursor: pointer; }
+.add-episodes-panel > summary span { color: var(--v3-muted); font-size: 11px; font-weight: 400; }
+.add-episodes-content { padding: 18px; border-top: 1px solid var(--v3-line); }
 
 /* ---------- episode studios ---------- */
 
@@ -431,5 +539,10 @@
   .producer-main .review-script-row > div:last-of-type { grid-column: 2; }
   .producer-main .review-script-why { grid-column: 2; margin-left: 0; }
   .producer-main .st-frame { min-height: 300px; }
+  .title-overview { grid-template-columns: 1fr 1fr; }
+  .title-overview .title-next-step { grid-column: 1 / -1; }
+  .episode-list-head > span { display: none; }
+  .episode-row { grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; padding: 12px; }
+  .episode-row > .btn { grid-column: 2 / -1; justify-self: stretch; }
+  .episode-progress { width: 100%; }
 }
-

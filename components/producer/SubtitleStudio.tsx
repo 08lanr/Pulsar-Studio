@@ -31,7 +31,7 @@ import type { SubtitleStyle } from "@/lib/subtitle-video";
 import { preciseTimecode, timingIssues, type TimingIssue } from "@/lib/subtitle-timing";
 import type { AlignmentProposal } from "@/lib/align";
 import { useT } from "@/components/locale";
-import { IconArrowLeft, IconCheck } from "./icons";
+import { IconCheck } from "./icons";
 
 function timecode(ms: number | null) {
   if (ms == null) return "—";
@@ -72,6 +72,7 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
   const [notice, setNotice] = useState<string | null>(null);
   const [rendered, setRendered] = useState<{ video_url: string; lines: number } | null>(null);
   const [repairing, setRepairing] = useState(false);
+  const [mode, setMode] = useState<"timing" | "delivery">("timing");
 
   // ---- timing state ----------------------------------------------------------
   const [pending, setPending] = useState<Map<string, PendingCue>>(new Map());
@@ -131,6 +132,13 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
     effectiveCues.map((c) => ({ start_ms: c.start, end_ms: c.end })),
     videoMs
   );
+
+  useEffect(() => {
+    if (pending.size === 0 || readOnly) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [pending.size, readOnly]);
 
   function seek(ms: number | null, { play = false }: { play?: boolean } = {}) {
     if (ms == null) return;
@@ -323,34 +331,11 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
   const renderFrac = Math.min(renderElapsed / renderEstMs, 0.95);
   const stampsInText = payload.lines.some((l) => STAMP_HINT_RE.test(l.text_zh));
 
-  const header = (
-    <header className="review-studio-head">
-      <a className="title-back" href={episodeHref}>
-        <IconArrowLeft /> {tt("st.back")}
-      </a>
-      <div className="review-studio-title">
-        <div>
-          <span>{payload.title.name_zh}</span>
-          <strong>{payload.title.name_en}</strong>
-        </div>
-        <small>
-          {tt("review.episode", { n: payload.episode.number })} · {tt("st.stage")}
-        </small>
-      </div>
-      <div className="head-actions">
-        <span className={finalized ? "pill status-approved" : "pill status-review"}>
-          {finalized ? tt("pw.epStatus.approved") : tt("st.notFinal.pill")}
-        </span>
-      </div>
-    </header>
-  );
-
   // ---- gates -----------------------------------------------------------------
 
   if (!finalized) {
     return (
       <div className="creative-review-shell">
-        {header}
         <div className="card genbox">
           <h3>{tt("st.notFinal.title")}</h3>
           <p>{tt("st.notFinal.body")}</p>
@@ -365,7 +350,6 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
   if (!timed || cues.length === 0) {
     return (
       <div className="creative-review-shell">
-        {header}
         {error && (
           <div className="note note-warn" role="alert">
             {error}
@@ -398,7 +382,21 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
 
   return (
     <div className="creative-review-shell">
-      {header}
+      <header className="workspace-actionbar subtitle-modebar">
+        <div className="workspace-state">
+          <span>{tt("v3.subtitle.workspace")}</span>
+          <strong>{mode === "timing" ? tt("v3.subtitle.timingHint") : tt("v3.subtitle.deliveryHint")}</strong>
+        </div>
+        <div className="studio-mode-switch" role="tablist" aria-label={tt("v3.subtitle.workspace")}>
+          <button type="button" role="tab" aria-selected={mode === "timing"} className={mode === "timing" ? "is-active" : ""} onClick={() => setMode("timing")}>
+            {tt("v3.subtitle.timing")}
+            {(pending.size > 0 || pendingOffset !== 0) && <i>{pending.size + (pendingOffset !== 0 ? 1 : 0)}</i>}
+          </button>
+          <button type="button" role="tab" aria-selected={mode === "delivery"} className={mode === "delivery" ? "is-active" : ""} onClick={() => setMode("delivery")}>
+            {tt("v3.subtitle.delivery")}
+          </button>
+        </div>
+      </header>
 
       {notice && (
         <div className="note note-success" role="status">
@@ -506,8 +504,8 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
         </main>
 
         <aside className="review-feedback-panel">
-          {/* The timing desk: global offset, the selected cue, warnings, auto-sync. */}
-          <section className="pline-panel">
+          {/* Keep timing and delivery as separate work modes so the rail has one clear purpose. */}
+          {mode === "timing" && <section className="pline-panel">
             <div className="review-feedback-head">
               <div>
                 <span>{tt("st.t.panel")}</span>
@@ -714,10 +712,10 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
                 </button>
               </div>
             )}
-          </section>
+          </section>}
 
           {/* Style controls: every change restyles the overlay immediately. */}
-          <section className="pline-panel">
+          {mode === "delivery" && <section className="pline-panel">
             <div className="review-feedback-head">
               <div>
                 <span>{tt("st.style")}</span>
@@ -759,10 +757,10 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
                 ))}
               </div>
             </div>
-          </section>
+          </section>}
 
           {/* Deliverables: the burn with the chosen style, and the files. */}
-          <section className="pline-panel">
+          {mode === "delivery" && <section className="pline-panel">
             <div className="review-feedback-head">
               <div>
                 <span>{tt("st.deliver")}</span>
@@ -812,7 +810,7 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
             >
               {tt("pw.export.script")}
             </a>
-          </section>
+          </section>}
         </aside>
       </div>
     </div>
