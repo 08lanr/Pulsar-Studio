@@ -235,6 +235,10 @@
     "en": "This line has not been adapted yet.",
     "zh": "此句尚未改编。"
   },
+  "pw.line.blank": {
+    "en": "(English not written yet)",
+    "zh": "（英文待填写）"
+  },
   "pw.new.creating": {
     "en": "Creating the title…",
     "zh": "正在创建剧集…"
@@ -476,8 +480,8 @@
     "en": "Updated — the script on the left reflects it."
   },
   "pw.confirm.hint": {
-    "zh": "修改或选中备选后，点击“确认修改”生效。",
-    "en": "Edit the line or pick an alternative, then confirm to apply."
+    "zh": "修改或选中备选后，点击“保存本句”生效。",
+    "en": "Edit the line or pick an alternative, then Save line to apply."
   },
   "pw.confirm.clean": {
     "zh": "可直接修改上方英文，或查看备选说法。",
@@ -787,6 +791,10 @@
     "zh": "渲染中… {t}",
     "en": "Rendering… {t}"
   },
+  "st.render.failed": {
+    "zh": "视频渲染失败：{detail}",
+    "en": "Video render failed: {detail}"
+  },
   "st.render.note": {
     "zh": "一分钟 720p 视频约需 20–40 秒。",
     "en": "About 20–40s for a minute of 720p."
@@ -956,8 +964,8 @@
     "en": "Auto-sync from audio"
   },
   "st.t.autosyncOff": {
-    "zh": "暂不可用：{reason}",
-    "en": "Unavailable: {reason}"
+    "zh": "暂不可用——请联系 Pulsar 为您的工作区开通自动对轴。",
+    "en": "Not available yet — contact Pulsar to enable auto-sync for your workspace."
   },
   "st.t.proposals": {
     "zh": "建议调整 {n} 处",
@@ -1198,6 +1206,18 @@
   "pw.cmd.blocked.body": {
     "zh": "交付预检发现问题。用右侧的「修复」或「AI 修复全部」处理，完成后即可定稿。",
     "en": "Preflight found blocking issues. Use Fix or Fix all with AI in the panel, then finalize."
+  },
+  "pw.cmd.explain.title": {
+    "zh": "还有 {n} 句缺少改编说明",
+    "en": "{n} line(s) missing their adaptation notes"
+  },
+  "pw.cmd.explain.body": {
+    "zh": "这些 AI 改写还没有中文说明或回译，暂时无法定稿。点击对应台词，改用备选说法或手动修改一次即可。",
+    "en": "These AI rewrites lack their Chinese rationale or back-translation, so finalize is held. Open each line and pick an alternative or edit it once by hand."
+  },
+  "pw.err.aiOff": {
+    "zh": "演示模式下无法使用 AI 改写。请联系 Pulsar 为您的工作区开启 AI 改编。",
+    "en": "AI rewriting is not available in demo mode. Contact Pulsar to enable AI adaptation for your workspace."
   },
   "qc.fix.timingDone": {
     "zh": "已修正 {n} 处时间重叠。",

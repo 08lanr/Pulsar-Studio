@@ -22,7 +22,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getJson, postJson } from "@/lib/api-client";
-import { unwrap, type ApiEnvelope } from "@/components/workbench/util";
+import { ApiError, unwrap, type ApiEnvelope } from "@/components/workbench/util";
 import type { AdaptedLine, Line, WorkbenchPayload } from "@/lib/types";
 import type { SubtitleStyle } from "@/lib/subtitle-video";
 import {
@@ -61,6 +61,10 @@ const STAMP_HINT_RE = /^[\[（(]\s*\d{1,2}:\d{1,2}/;
 export default function SubtitleStudio({ payload, readOnly }: Props) {
   const { tt } = useT();
   const router = useRouter();
+  // Server errors are English (they also serve staff and the logs); map the
+  // codes a producer can hit here to portal words.
+  const errText = (e: unknown) =>
+    e instanceof ApiError && e.code === "llm_unavailable" ? tt("pw.err.aiOff") : (e as Error).message;
   const base = `/api/titles/${payload.title.id}/episodes/${payload.episode.number}`;
   const episodeHref = `/producer/titles/${payload.title.id}/episodes/${payload.episode.number}`;
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -277,7 +281,7 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
       setExactOffset("");
       afterRepair(r, "st.t.offsetDone");
     } catch (e) {
-      setError((e as Error).message);
+      setError(errText(e));
     } finally {
       setBusy(null);
     }
@@ -297,7 +301,7 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
       setPending(new Map());
       afterRepair(r, "st.t.saved");
     } catch (e) {
-      setError((e as Error).message);
+      setError(errText(e));
     } finally {
       setBusy(null);
     }
@@ -316,7 +320,7 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
       setProposals(r.proposals ?? []);
       setAccepted(new Set((r.proposals ?? []).map((p) => p.line_id)));
     } catch (e) {
-      setError((e as Error).message);
+      setError(errText(e));
     } finally {
       setBusy(null);
     }
@@ -349,7 +353,9 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
       );
       setRendered(r);
     } catch (e) {
-      setError((e as Error).message);
+      // The render's failure detail (an ffmpeg line, a timeout) is technical
+      // by nature — frame it in portal words and keep the detail visible.
+      setError(tt("st.render.failed", { detail: errText(e) }));
     } finally {
       clearInterval(ticker);
       setBusy(null);
@@ -369,7 +375,7 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
       }
       router.refresh();
     } catch (e) {
-      setError((e as Error).message);
+      setError(errText(e));
     } finally {
       setRepairing(false);
     }
@@ -770,7 +776,13 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
                     >
                       {busy === "autosync" ? <span className="spinner" /> : null} {tt("st.t.autosync")}
                     </button>
-                    {align && !align.available && <p className="hint">{tt("st.t.autosyncOff", { reason: align.reason ?? "" })}</p>}
+                    {/* The reason is developer-facing (env vars, provider docs);
+                        producers get portal words, the detail stays on hover. */}
+                    {align && !align.available && (
+                      <p className="hint" title={align.reason || undefined}>
+                        {tt("st.t.autosyncOff")}
+                      </p>
+                    )}
                   </div>
                 )}
 

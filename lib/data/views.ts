@@ -62,6 +62,41 @@ export function deriveEpisodeStatus(version: Version | null, linesAdapted: numbe
   return linesAdapted > 0 ? "adapting" : "ingested";
 }
 
+// ---- line readiness --------------------------------------------------------------------
+
+export type ReadinessRow = Pick<
+  AdaptedLine,
+  "text_en" | "change_type" | "rationale_zh" | "back_translation_zh" | "authored_by"
+>;
+
+/**
+ * Why one adapted row cannot ship yet, or null when it can — THE finalize
+ * readiness rule, shared by the data layers (finalizeVersion, both backends),
+ * the episode summaries, and the producer studio's banner so the button and
+ * the gate can never disagree (decisions 2026-09-04, "an editor-authored
+ * line is its own explanation"):
+ *   empty        a non-cut line with no English text
+ *   unexplained  an AI-authored change without the Chinese rationale (and,
+ *                unless it is a cut, the back-translation) the producer
+ *                reviews. Lines a person typed or edited (authored_by
+ *                'editor') are exempt — the producer portal's editor sends
+ *                text only, and nobody owes an explanation to themselves.
+ * The staff submit path stays strict on purpose: staff changes are explained
+ * TO the producer, so submit_version (SQL) still requires rationale on every
+ * changed line regardless of author.
+ */
+export function adaptedLineIssue(row: ReadinessRow): "empty" | "unexplained" | null {
+  if (row.change_type !== "cut" && !row.text_en?.trim()) return "empty";
+  if (
+    row.authored_by !== "editor" &&
+    row.change_type !== "keep" &&
+    (!row.rationale_zh?.trim() || (row.change_type !== "cut" && !row.back_translation_zh?.trim()))
+  ) {
+    return "unexplained";
+  }
+  return null;
+}
+
 // ---- episode / title summaries ---------------------------------------------------------------
 
 export type EpisodeRows = {
@@ -71,10 +106,7 @@ export type EpisodeRows = {
   /** Every version of the episode (any status). */
   versions: Version[];
   /** Adapted lines of any version of the episode (filtered to the current one here). */
-  adapted_lines: Pick<
-    AdaptedLine,
-    "version_id" | "scene_id" | "line_id" | "text_en" | "change_type" | "rationale_zh" | "back_translation_zh"
-  >[];
+  adapted_lines: (Pick<AdaptedLine, "version_id" | "scene_id" | "line_id"> & ReadinessRow)[];
   decisions?: Pick<SceneDecision, "version_id" | "scene_id" | "decision">[];
 };
 
@@ -85,11 +117,7 @@ export function buildEpisodeSummary(r: EpisodeRows): EpisodeSummary {
   const adaptedLineIds = new Set(adapted.map((a) => a.line_id).filter((id): id is string => id !== null));
   const readyLineIds = new Set(
     adapted
-      .filter((line) =>
-        (line.change_type === "cut" || !!line.text_en?.trim()) &&
-        (line.change_type === "keep" || !!line.rationale_zh?.trim()) &&
-        (line.change_type === "keep" || line.change_type === "cut" || !!line.back_translation_zh?.trim())
-      )
+      .filter((line) => adaptedLineIssue(line) === null)
       .map((line) => line.line_id)
       .filter((id): id is string => id !== null)
   );

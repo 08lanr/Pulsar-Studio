@@ -138,10 +138,15 @@ async function loadTitleRows(c: Db, title: Title) {
     many<Scene>(studio(c).from("scenes").select("*").eq("title_id", title.id).order("number")),
     many<Line>(studio(c).from("lines").select("*").eq("title_id", title.id).order("seq")),
     many<Version>(studio(c).from("versions").select("*").eq("title_id", title.id).order("number")),
-    many<Pick<AdaptedLine, "version_id" | "scene_id" | "line_id" | "text_en" | "change_type" | "rationale_zh" | "back_translation_zh">>(
+    many<
+      Pick<
+        AdaptedLine,
+        "version_id" | "scene_id" | "line_id" | "text_en" | "change_type" | "rationale_zh" | "back_translation_zh" | "authored_by"
+      >
+    >(
       studio(c)
         .from("adapted_lines")
-        .select("version_id, scene_id, line_id, text_en, change_type, rationale_zh, back_translation_zh")
+        .select("version_id, scene_id, line_id, text_en, change_type, rationale_zh, back_translation_zh, authored_by")
         .eq("title_id", title.id)
     ),
     many<Pick<SceneDecision, "version_id" | "scene_id" | "decision">>(

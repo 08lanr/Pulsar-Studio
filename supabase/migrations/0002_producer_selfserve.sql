@@ -150,6 +150,7 @@ declare
   v_snapshot jsonb;
   v_sha text;
   v_prev uuid;
+  v_missing int;
 begin
   select * into v from studio.versions where id = p_version_id;
   if not found then raise exception 'version % not found', p_version_id using errcode = 'P0002'; end if;
@@ -172,13 +173,60 @@ begin
   -- click finalizes the whole episode; scene sign-off rows below are written
   -- automatically as the approval record.
 
-  -- The same readiness gate submit_version applies (0001): every source line
-  -- adapted, non-cut lines non-empty, changed lines carry rationale_zh and
-  -- back_translation_zh.
-  perform studio.assert_version_ready(p_version_id);
+  if not exists (select 1 from studio.scenes s where s.episode_id = v.episode_id) then
+    raise exception 'finalize_version: the episode has no scenes';
+  end if;
 
-  v_snapshot := studio.build_version_snapshot(p_version_id);
-  v_sha := encode(digest(v_snapshot::text, 'sha256'), 'hex');
+  -- Readiness, the finalize flavour (mirrors lib/data/views.ts
+  -- adaptedLineIssue and lib/data/fixture.ts sceneReadinessIssue with
+  -- forFinalize): every source line adapted; non-cut lines non-empty;
+  -- AI-authored changes carry rationale_zh (and back_translation_zh unless
+  -- cut). A line a person wrote or edited (authored_by = 'editor') is its
+  -- own explanation — the producer portal's editor sends text only, and this
+  -- is the producer approving their own words (decisions 2026-09-04).
+  -- submit_version (0001), the staff path, stays strict for every author:
+  -- staff changes are explained TO the producer.
+  select count(*) into v_missing
+  from studio.lines l
+  join studio.scenes s on s.id = l.scene_id
+  where s.episode_id = v.episode_id
+    and l.merged_into_id is null
+    and not exists (
+      select 1 from studio.adapted_lines r
+      where r.version_id = p_version_id and r.line_id = l.id
+    );
+  if v_missing > 0 then
+    raise exception 'finalize_version: not ready — % source line(s) still need an English adaptation', v_missing;
+  end if;
+
+  select count(*) into v_missing
+  from studio.adapted_lines r
+  join studio.scenes s on s.id = r.scene_id
+  where r.version_id = p_version_id
+    and s.episode_id = v.episode_id
+    and r.change_type <> 'cut'
+    and nullif(btrim(r.text_en), '') is null;
+  if v_missing > 0 then
+    raise exception 'finalize_version: not ready — % adapted line(s) are empty', v_missing;
+  end if;
+
+  select count(*) into v_missing
+  from studio.adapted_lines r
+  where r.version_id = p_version_id
+    and r.authored_by <> 'editor'
+    and r.change_type <> 'keep'
+    and (
+      nullif(btrim(r.rationale_zh), '') is null
+      or (r.change_type <> 'cut' and nullif(btrim(r.back_translation_zh), '') is null)
+    );
+  if v_missing > 0 then
+    raise exception 'finalize_version: not ready — % AI-changed line(s) lack rationale_zh or back_translation_zh', v_missing;
+  end if;
+
+  -- The same snapshot builder and canonical-json sha submit_version uses
+  -- (0001), so an app-side canonicalJson() hash check verifies either path.
+  v_snapshot := studio.build_snapshot(p_version_id);
+  v_sha := encode(sha256(convert_to(core.canonical_json(v_snapshot), 'UTF8')), 'hex');
 
   insert into studio.scene_decisions
     (version_id, scene_id, title_id, decision, decided_by, decided_at, decided_kind)
@@ -217,9 +265,8 @@ grant execute on function studio.finalize_version(uuid) to authenticated;
 grant execute on function core.can_edit_title(uuid) to authenticated;
 grant execute on function core.is_producer_editor() to authenticated;
 
--- NOTE: 0001 names its snapshot builder / readiness assertion as part of
--- submit_version. If they are inlined there rather than the helpers
--- studio.build_version_snapshot(uuid) / studio.assert_version_ready(uuid),
--- extract them when applying this file — the fixture layer
--- (lib/data/fixture.ts finalizeVersion) is the reference behaviour either
--- way, and no Supabase project has been provisioned yet.
+-- NOTE: no Supabase project has been provisioned yet, so this file is edited
+-- in place rather than patched by a later migration. The fixture layer
+-- (lib/data/fixture.ts finalizeVersion) is the reference behaviour; the
+-- readiness checks above are inlined because 0001 inlines its own inside
+-- submit_version rather than exposing a helper.

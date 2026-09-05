@@ -61,6 +61,7 @@ import type {
 } from "./index";
 import { mediaUrl } from "./storage";
 import {
+  adaptedLineIssue,
   buildEpisodeSummary,
   buildProducerEpisodeSummary,
   buildProducerReview,
@@ -274,8 +275,16 @@ function requireDraft(db: FixtureDb, versionId: string): Version {
 /** A scene can be marked ready only when its current draft has a usable
  * adaptation for every source line. This is deliberately enforced below
  * the UI: a stale tab or direct API call must not be able to submit an empty
- * frozen snapshot to a producer. */
-function sceneReadinessIssue(db: FixtureDb, scene: Scene): string | null {
+ * frozen snapshot to a producer.
+ *
+ * Two strictnesses, matching the SQL functions they mirror:
+ *   default      the staff path (set_scene_status / submit_version): every
+ *                changed line explains itself to the producer, whoever wrote
+ *                it.
+ *   forFinalize  the producer's own gate (finalize_version): the shared
+ *                adaptedLineIssue rule — editor-authored lines are their own
+ *                explanation (decisions 2026-09-04). */
+function sceneReadinessIssue(db: FixtureDb, scene: Scene, opts: { forFinalize?: boolean } = {}): string | null {
   const draft = episodeVersions(db, scene.episode_id).find((v) => v.status === "draft");
   if (!draft) return "no editable draft exists for this episode";
   const source = db.lines.filter((l) => l.scene_id === scene.id && l.merged_into_id === null);
@@ -289,12 +298,15 @@ function sceneReadinessIssue(db: FixtureDb, scene: Scene): string | null {
     return row?.change_type !== "cut" && blank(row?.text_en);
   }).length;
   if (empty) return `${empty} adapted line(s) are empty`;
-  const unexplained = adapted.filter(
-    (row) =>
-      row.change_type !== "keep" &&
-      (blank(row.rationale_zh) || (row.change_type !== "cut" && blank(row.back_translation_zh)))
+  const unexplained = adapted.filter((row) =>
+    opts.forFinalize
+      ? adaptedLineIssue(row) === "unexplained"
+      : row.change_type !== "keep" &&
+        (blank(row.rationale_zh) || (row.change_type !== "cut" && blank(row.back_translation_zh)))
   ).length;
-  return unexplained ? `${unexplained} changed line(s) need a Chinese rationale and back-translation` : null;
+  return unexplained
+    ? `${unexplained} ${opts.forFinalize ? "AI-changed" : "changed"} line(s) need a Chinese rationale and back-translation`
+    : null;
 }
 
 function episodeSummaryOf(db: FixtureDb, episode: Episode) {
@@ -1304,10 +1316,13 @@ export const fixtureData: DataLayer = {
     if (!scenes.length) throw invalid("the episode has no scenes");
     // V2 (2026-09-04, subtitles-not-dubbing rework): no per-scene confirm
     // step — the per-line confirm is the review. Content readiness is still
-    // the gate: every line adapted, non-cut lines non-empty, changed lines
-    // carrying their Chinese rationale.
+    // the gate: every line adapted, non-cut lines non-empty, AI-changed lines
+    // carrying their Chinese rationale and back-translation. Lines the
+    // producer (or any human editor) wrote themselves are exempt from the
+    // explanation rule — the portal's editor sends text only, and this is
+    // the producer approving their own words (views.ts adaptedLineIssue).
     for (const sc of scenes) {
-      const issue = sceneReadinessIssue(db, sc);
+      const issue = sceneReadinessIssue(db, sc, { forFinalize: true });
       if (issue) throw invalid(`lines ${sc.number > 1 ? `around ${timecodeHint(sc.start_ms)}` : "at the start"} are not ready: ${issue}`);
     }
 

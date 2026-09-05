@@ -4,6 +4,32 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-09-04 · Finalize readiness: an editor-authored line is its own explanation
+
+Found testing the manual-draft path: the finalize gate required `rationale_zh`
+and `back_translation_zh` on every non-keep line, but the producer editor
+sends text only — an episode whose lines were hand-written could show a green
+“可以定稿了” banner while `finalize_version` refused, in English. Decided:
+
+- **The finalize rule** (`lib/data/views.ts` `adaptedLineIssue`; fixture
+  `finalizeVersion`; SQL `studio.finalize_version`): every source line
+  adapted, non-cut lines non-empty, and AI-authored changes carry
+  `rationale_zh` (plus `back_translation_zh` unless cut). Rows with
+  `authored_by = 'editor'` are exempt — finalize is the producer approving
+  words a person wrote; nobody owes an explanation to themselves.
+- **The staff path stays strict.** `submit_version` and `set_scene_status`
+  still require the rationale on every changed line regardless of author:
+  staff changes are explained TO the producer.
+- **One rule, three readers.** The same predicate feeds the episode
+  summaries and the studio's banner/finalize button, so the UI can never say
+  ready while the server would refuse; when AI takes are missing their notes
+  the banner counts them in portal words.
+- **Portal words for unavailable states.** Producer-facing refusals map by
+  error code (`llm_unavailable`) instead of printing server English; the
+  burn failure and the auto-sync unavailable state are localized (the
+  technical reason stays on hover); a blank manual-draft row reads
+  “（英文待填写）”, no longer “（该句已删去）”.
+
 ## 2026-09-04 · Pulsar's Promote desk: the staff side of every producer action
 
 Decided by the founders (Ruobin): "after a producer does anything — request
