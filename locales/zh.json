@@ -573,7 +573,7 @@
   "pw.alts.hide": "收起备选",
   "pw.confirm.cta": "确认修改",
   "pw.confirm.done": "已更新，左侧剧本已同步。",
-  "pw.confirm.hint": "修改或选中备选后，点击“确认修改”生效。",
+  "pw.confirm.hint": "修改或选中备选后，点击“保存本句”生效。",
   "pw.confirm.clean": "可直接修改上方英文，或查看备选说法。",
   "pw.upload.video": "视频（可选）",
   "pw.video.attach": "上传视频",
@@ -693,7 +693,7 @@
   "st.t.before": "提前 2 秒播放",
   "st.t.speed": "速度",
   "st.t.autosync": "从音频自动对轴",
-  "st.t.autosyncOff": "暂不可用：{reason}",
+  "st.t.autosyncOff": "暂不可用——请联系 Pulsar 为您的工作区开通自动对轴。",
   "st.t.proposals": "建议调整 {n} 处",
   "st.t.acceptAll": "全部接受",
   "st.t.accept": "接受",
@@ -950,5 +950,10 @@
   "promote.workspace.approveAll": "全部保留（{n} 条）",
   "promote.workspace.revised": "Pulsar 已修改 · 第 {v} 版",
   "promote.workspace.revisionNote": "修改说明",
-  "promote.workspace.changeSent": "Pulsar 正在处理这条修改"
+  "promote.workspace.changeSent": "Pulsar 正在处理这条修改",
+  "pw.line.blank": "（英文待填写）",
+  "st.render.failed": "视频渲染失败：{detail}",
+  "pw.cmd.explain.title": "还有 {n} 句缺少改编说明",
+  "pw.cmd.explain.body": "这些 AI 改写还没有中文说明或回译，暂时无法定稿。点击对应台词，改用备选说法或手动修改一次即可。",
+  "pw.err.aiOff": "演示模式下无法使用 AI 改写。请联系 Pulsar 为您的工作区开启 AI 改编。"
 }

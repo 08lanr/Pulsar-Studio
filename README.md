@@ -36,7 +36,9 @@ header says which). Producer deliverables: the clean English script report
 
 ## Try it offline
 
-Requires Node 20+. Fixture mode is the default and needs no Supabase project
+Requires Node 20+ — and ffmpeg on PATH for the burned-subtitle video
+(`winget install ffmpeg` / `brew install ffmpeg`); every other deliverable
+works without it. Fixture mode is the default and needs no Supabase project
 and no API keys; AI buttons render an "unavailable" state until the selected
 provider's key is set.
 
@@ -46,8 +48,16 @@ cp .env.example .env.local
 npm run dev                  # http://localhost:3200
 ```
 
-Open `/login`. "Continue as staff" lands on `/titles` with the fixture title
-爱在旅途; "Continue as producer" lands on `/producer` as its approver.
+Open `/login`. The fixture seed is empty: "Continue as producer" lands on
+`/producer` with a blank workspace (the flow starts at 上传新剧), "Continue
+as staff" on `/titles`. To watch the one-click adaptation work offline,
+upload `docs/demo/aizailvtu-demo-ep1.srt` as an episode — fixture mode
+replays the canned bank for exactly that script (`lib/demo-replay.ts`) and
+translates nothing else; any other script gets a polite "not in the demo
+corpus" refusal. The offline path for new material: staff open the episode
+in the admin workbench and press **Start manual draft**, then the producer
+types the English line by line — that path finalizes and exports exactly
+like the AI one. Real model calls need `DEMO_REPLAY=0` plus a provider key.
 Uploaded video in fixture mode is written to `.uploads/` (gitignored) and
 served by `GET /api/media/[...path]`.
 

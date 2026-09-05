@@ -573,7 +573,7 @@
   "pw.alts.hide": "Hide alternatives",
   "pw.confirm.cta": "Confirm changes",
   "pw.confirm.done": "Updated — the script on the left reflects it.",
-  "pw.confirm.hint": "Edit the line or pick an alternative, then confirm to apply.",
+  "pw.confirm.hint": "Edit the line or pick an alternative, then Save line to apply.",
   "pw.confirm.clean": "Edit the English above, or view the alternatives.",
   "pw.upload.video": "Video (optional)",
   "pw.video.attach": "Upload video",
@@ -693,7 +693,7 @@
   "st.t.before": "Play from 2s before",
   "st.t.speed": "Speed",
   "st.t.autosync": "Auto-sync from audio",
-  "st.t.autosyncOff": "Unavailable: {reason}",
+  "st.t.autosyncOff": "Not available yet — contact Pulsar to enable auto-sync for your workspace.",
   "st.t.proposals": "{n} proposed change(s)",
   "st.t.acceptAll": "Accept all",
   "st.t.accept": "Accept",
@@ -950,5 +950,10 @@
   "promote.workspace.approveAll": "Keep all {n}",
   "promote.workspace.revised": "Revised by Pulsar · v{v}",
   "promote.workspace.revisionNote": "What changed",
-  "promote.workspace.changeSent": "Pulsar is working on this change"
+  "promote.workspace.changeSent": "Pulsar is working on this change",
+  "pw.line.blank": "(English not written yet)",
+  "st.render.failed": "Video render failed: {detail}",
+  "pw.cmd.explain.title": "{n} line(s) missing their adaptation notes",
+  "pw.cmd.explain.body": "These AI rewrites lack their Chinese rationale or back-translation, so finalize is held. Open each line and pick an alternative or edit it once by hand.",
+  "pw.err.aiOff": "AI rewriting is not available in demo mode. Contact Pulsar to enable AI adaptation for your workspace."
 }
