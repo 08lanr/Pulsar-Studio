@@ -6,16 +6,14 @@ import { t } from "@/lib/i18n";
 import type { Assessment, Band, Component, Fact } from "@/lib/research/assessment";
 import { ASSESSMENT_VERSION } from "@/lib/research/assessment";
 import type { ExperimentStage } from "@/lib/research/workspace";
+import { WORKFLOW_STEPS, workflowStepForStage, type WorkflowStep } from "@/lib/research/workflow";
 import { EvidenceTag } from "./ui";
 
 export function ScoreDial({ score, band, locale, size = "lg" }: { score: number; band: Band; locale: Locale; size?: "lg" | "sm" }) {
-  const deg = Math.round((score / 100) * 360);
   return (
-    <div className={`ws-dial ws-dial-${size} band-${band}`} style={{ ["--deg" as string]: `${deg}deg` }} role="img" aria-label={`${t(locale, "ws.score.label")} ${score} ${t(locale, "ws.score.of")}`}>
-      <div className="ws-dial-inner">
-        <b>{score}</b>
-        {size === "lg" && <small>{t(locale, "ws.score.of")}</small>}
-      </div>
+    <div className={`ps-score ps-score-${size} band-${band}`}>
+      <span className="sr-only">{t(locale, "ws.score.label")}: </span>
+      <b>{score}</b><small>{t(locale, "ws.score.of")}</small>
     </div>
   );
 }
@@ -39,7 +37,7 @@ export function ComponentCard({ c, locale }: { c: Component; locale: Locale }) {
   return (
     <section className="ws-component">
       <header>
-        <h4>{t(locale, `ws.component.${c.key}`)}</h4>
+        <h3>{t(locale, `ws.component.${c.key}`)}</h3>
         <span className="ws-component-pts">{t(locale, "ws.assess.pointsOf", { points: c.points, max: c.max })}</span>
       </header>
       <div className="ws-component-track"><span style={{ width: `${Math.round((c.points / c.max) * 100)}%` }} /></div>
@@ -63,16 +61,18 @@ export function ComponentBars({ a, locale }: { a: Assessment; locale: Locale }) 
   );
 }
 
-const STAGES: ExperimentStage[] = ["brief", "concepts", "batch", "budget", "submitted", "results", "decide"];
+export function WorkflowBadge({ step, locale }: { step: WorkflowStep; locale: Locale }) {
+  return <span className={`wf-badge wf-step-${step}`}><span aria-hidden="true">{WORKFLOW_STEPS.indexOf(step) + 1}</span>{t(locale, `workflow.step.${step}`)}</span>;
+}
 
-export function StageStrip({ stage, locale }: { stage: ExperimentStage; locale: Locale }) {
-  const idx = STAGES.indexOf(stage);
+export function StageStrip({ stage, locale, step }: { stage: ExperimentStage; locale: Locale; step?: WorkflowStep }) {
+  const idx = WORKFLOW_STEPS.indexOf(step ?? workflowStepForStage[stage]);
   return (
     <ol className="ws-stages" aria-label={t(locale, "ws.exp.col.stage")}>
-      {STAGES.map((s, i) => (
-        <li key={s} className={i < idx ? "is-done" : i === idx ? "is-current" : ""}>
-          <i>{i < idx ? "✓" : i + 1}</i>
-          <span>{t(locale, `ws.exp.stage.${s}`)}</span>
+      {WORKFLOW_STEPS.map((s, i) => (
+        <li key={s} aria-current={i === idx ? "step" : undefined} className={i < idx ? "is-done" : i === idx ? "is-current" : ""}>
+          <i aria-hidden="true">{i + 1}</i>
+          <span>{t(locale, `workflow.step.${s}`)}</span>
         </li>
       ))}
     </ol>

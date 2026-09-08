@@ -8,6 +8,6 @@ export const dynamic = 'force-dynamic';
 export default async function SimulationPage() {
   await portalSession('/producer/simulation');
   const locale = producerLocale();
-  return <><div className="page-head"><div><span className="page-kicker">{t(locale, 'sim.nav')}</span><h2>{t(locale, 'sim.title')}</h2></div></div>
+  return <><div className="page-head"><div><h1>{t(locale, 'sim.title')}</h1></div></div>
     <CompanyNav active="simulation" locale={locale}/><ProducerSimulation locale={locale}/></>;
 }

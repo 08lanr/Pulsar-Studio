@@ -1,0 +1,40 @@
+{
+  "engine": {
+    "name": "axe-core",
+    "version": "4.13.0"
+  },
+  "url": "http://localhost:3210/producer/explore/tropes",
+  "checkedAt": "2026-09-08T06:26:24.140Z",
+  "viewport": {
+    "width": 1425,
+    "height": 760
+  },
+  "violationCount": 0,
+  "affectedNodeCount": 0,
+  "passedRuleCount": 39,
+  "incompleteRuleCount": 1,
+  "violations": [],
+  "needsManualReview": [
+    {
+      "id": "color-contrast",
+      "impact": "serious",
+      "targets": [
+        [
+          "a[href=\"/producer/explore/titles?\"]"
+        ],
+        [
+          "a[href=\"/producer/explore/tropes?\"]"
+        ],
+        [
+          "a[href=\"/producer/explore/platforms?\"]"
+        ],
+        [
+          "a[href=\"/producer/explore/companies?\"]"
+        ],
+        [
+          ".tab:nth-child(5)"
+        ]
+      ]
+    }
+  ]
+}

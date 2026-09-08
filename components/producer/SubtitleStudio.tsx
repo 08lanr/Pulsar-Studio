@@ -392,7 +392,7 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
     return (
       <div className="creative-review-shell">
         <div className="card genbox">
-          <h3>{tt("st.notFinal.title")}</h3>
+          <h2>{tt("st.notFinal.title")}</h2>
           <p>{tt("st.notFinal.body")}</p>
           <a className="btn btn-primary" href={episodeHref}>
             {tt("st.notFinal.cta")}
@@ -411,7 +411,7 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
           </div>
         )}
         <div className="card genbox">
-          <h3>{tt("st.untimed.title")}</h3>
+          <h2>{tt("st.untimed.title")}</h2>
           <p>{stampsInText ? tt("st.retime.body") : tt("st.untimed.body")}</p>
           {stampsInText && !readOnly && (
             <button type="button" className="btn btn-primary" disabled={repairing} onClick={repairTimecodes}>
@@ -492,7 +492,7 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
       )}
 
       <div className="review-work-grid">
-        <main className="review-stage-column">
+        <div className="review-stage-column">
           <section className="st-stage">
             <div className="st-frame" ref={frameRef}>
               {payload.video_url ? (
@@ -599,7 +599,7 @@ export default function SubtitleStudio({ payload, readOnly }: Props) {
               ))}
             </div>
           </section>
-        </main>
+        </div>
 
         <aside className="review-feedback-panel st-accordion">
           {/* ---- 校准时间轴 -------------------------------------------------- */}

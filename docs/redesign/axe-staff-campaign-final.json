@@ -1,0 +1,49 @@
+{
+  "engine": {
+    "name": "axe-core",
+    "version": "4.13.0"
+  },
+  "url": "http://localhost:3210/promote/12485c50-f066-4158-9c76-f5f1dedc22d6",
+  "checkedAt": "2026-09-08T06:46:57.844Z",
+  "viewport": {
+    "width": 1425,
+    "height": 760
+  },
+  "violationCount": 0,
+  "affectedNodeCount": 0,
+  "passedRuleCount": 39,
+  "incompleteRuleCount": 2,
+  "violations": [],
+  "needsManualReview": [
+    {
+      "id": "aria-valid-attr-value",
+      "impact": "critical",
+      "targets": [
+        [
+          ".m-menu-btn"
+        ]
+      ]
+    },
+    {
+      "id": "video-caption",
+      "impact": "critical",
+      "targets": [
+        [
+          ".approved:nth-child(2) > .pd-creative-media > video"
+        ],
+        [
+          ".approved:nth-child(3) > .pd-creative-media > video"
+        ],
+        [
+          ".not_selected:nth-child(4) > .pd-creative-media > video"
+        ],
+        [
+          ".not_selected:nth-child(5) > .pd-creative-media > video"
+        ],
+        [
+          ".not_selected:nth-child(6) > .pd-creative-media > video"
+        ]
+      ]
+    }
+  ]
+}

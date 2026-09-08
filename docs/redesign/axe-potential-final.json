@@ -1,0 +1,100 @@
+{
+  "engine": {
+    "name": "axe-core",
+    "version": "4.13.0"
+  },
+  "url": "http://localhost:3210/producer/titles/00000030-0000-4000-8000-000000000001/potential",
+  "checkedAt": "2026-09-08T06:25:10.011Z",
+  "viewport": {
+    "width": 1425,
+    "height": 760
+  },
+  "violationCount": 0,
+  "affectedNodeCount": 0,
+  "passedRuleCount": 42,
+  "incompleteRuleCount": 1,
+  "violations": [],
+  "needsManualReview": [
+    {
+      "id": "color-contrast",
+      "impact": "serious",
+      "targets": [
+        [
+          ".ws-component:nth-child(1) > .ws-facts > .is-ok:nth-child(1) > .ws-fact-mark[aria-hidden=\"true\"]"
+        ],
+        [
+          ".ws-component:nth-child(1) > .ws-facts > .is-ok:nth-child(2) > .ws-fact-mark[aria-hidden=\"true\"]"
+        ],
+        [
+          ".ws-component:nth-child(1) > .ws-facts > .is-ok:nth-child(3) > .ws-fact-mark[aria-hidden=\"true\"]"
+        ],
+        [
+          ".ws-component:nth-child(3) > .ws-facts > .is-ok:nth-child(1) > .ws-fact-mark[aria-hidden=\"true\"]"
+        ],
+        [
+          ".ws-component:nth-child(3) > .ws-facts > .is-ok:nth-child(2) > .ws-fact-mark[aria-hidden=\"true\"]"
+        ],
+        [
+          ".ws-component:nth-child(3) > .ws-facts > .is-ok:nth-child(3) > .ws-fact-mark[aria-hidden=\"true\"]"
+        ],
+        [
+          ".is-ok:nth-child(4) > .ws-fact-mark[aria-hidden=\"true\"]"
+        ],
+        [
+          ".is-bad > .ws-fact-mark[aria-hidden=\"true\"]"
+        ],
+        [
+          ".ws-component:nth-child(4) > .ws-facts > .is-ok:nth-child(1) > .ws-fact-mark[aria-hidden=\"true\"]"
+        ],
+        [
+          ".ws-component:nth-child(4) > .ws-facts > .is-ok:nth-child(2) > .ws-fact-mark[aria-hidden=\"true\"]"
+        ],
+        [
+          ".ws-component:nth-child(4) > .ws-facts > .is-ok:nth-child(3) > .ws-fact-mark[aria-hidden=\"true\"]"
+        ],
+        [
+          ".ws-component:nth-child(5) > .ws-facts > .is-ok:nth-child(1) > .ws-fact-mark[aria-hidden=\"true\"]"
+        ],
+        [
+          ".ws-component:nth-child(5) > .ws-facts > .is-ok:nth-child(2) > .ws-fact-mark[aria-hidden=\"true\"]"
+        ],
+        [
+          "li:nth-child(1) > span:nth-child(5) > .ws-stages[aria-label=\"Stage\"] > .is-done:nth-child(1) > i"
+        ],
+        [
+          "li:nth-child(1) > span:nth-child(5) > .ws-stages[aria-label=\"Stage\"] > .is-done:nth-child(2) > i"
+        ],
+        [
+          "li:nth-child(1) > span:nth-child(5) > .ws-stages[aria-label=\"Stage\"] > .is-done:nth-child(3) > i"
+        ],
+        [
+          "li:nth-child(1) > span:nth-child(5) > .ws-stages[aria-label=\"Stage\"] > .is-done:nth-child(4) > i"
+        ],
+        [
+          "li:nth-child(1) > span:nth-child(5) > .ws-stages[aria-label=\"Stage\"] > .is-done:nth-child(5) > i"
+        ],
+        [
+          "li:nth-child(1) > span:nth-child(5) > .ws-stages[aria-label=\"Stage\"] > .is-done:nth-child(6) > i"
+        ],
+        [
+          "li:nth-child(2) > span:nth-child(5) > .ws-stages[aria-label=\"Stage\"] > .is-done:nth-child(1) > i"
+        ],
+        [
+          "li:nth-child(2) > span:nth-child(5) > .ws-stages[aria-label=\"Stage\"] > .is-done:nth-child(2) > i"
+        ],
+        [
+          "li:nth-child(2) > span:nth-child(5) > .ws-stages[aria-label=\"Stage\"] > .is-done:nth-child(3) > i"
+        ],
+        [
+          "li:nth-child(2) > span:nth-child(5) > .ws-stages[aria-label=\"Stage\"] > .is-done:nth-child(4) > i"
+        ],
+        [
+          "li:nth-child(2) > span:nth-child(5) > .ws-stages[aria-label=\"Stage\"] > .is-done:nth-child(5) > i"
+        ],
+        [
+          "li:nth-child(2) > span:nth-child(5) > .ws-stages[aria-label=\"Stage\"] > .is-done:nth-child(6) > i"
+        ]
+      ]
+    }
+  ]
+}

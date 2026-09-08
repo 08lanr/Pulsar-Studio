@@ -1,0 +1,28 @@
+{
+  "engine": {
+    "name": "axe-core",
+    "version": "4.13.0"
+  },
+  "url": "http://localhost:3210/titles",
+  "checkedAt": "2026-09-08T06:46:33.753Z",
+  "viewport": {
+    "width": 1425,
+    "height": 760
+  },
+  "violationCount": 0,
+  "affectedNodeCount": 0,
+  "passedRuleCount": 36,
+  "incompleteRuleCount": 1,
+  "violations": [],
+  "needsManualReview": [
+    {
+      "id": "aria-valid-attr-value",
+      "impact": "critical",
+      "targets": [
+        [
+          ".m-menu-btn"
+        ]
+      ]
+    }
+  ]
+}

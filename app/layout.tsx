@@ -1,12 +1,17 @@
 import "./globals.css";
 import "./studio-v3.css";
+import "./redesign.css";
+import "./redesign-catalog.css";
+import "./redesign-editors.css";
+import "./workflow.css";
+import "./workflow-campaign.css";
 import { cookies } from "next/headers";
 import { LocaleProvider } from "@/components/locale";
 import { LOCALE_COOKIE, parseLocale } from "@/lib/i18n";
 
 export const metadata = {
-  title: "Pulsar Mini Dramas",
-  description: "Adapt Chinese short dramas for American viewers and produce the ad creatives.",
+  title: "Pulsar Studio",
+  description: "A US launch workspace for short-drama catalogs, market evidence, and experiments.",
 };
 
 export const viewport = {

@@ -41,10 +41,10 @@ export default async function PromoteDesk() {
   const queues: { key: Queue; rows: PromoCampaignSummary[] }[] = (["action", "producer", "done"] as Queue[]).map((key) => ({ key, rows: campaigns.filter((c) => queueOf(c) === key) }));
 
   return <>
-    <div className="page-head"><div><h2>{t(locale, "admin.promote.title")}</h2><p className="page-sub">{t(locale, "admin.promote.sub")}</p></div></div>
+    <div className="page-head"><div><h1>{t(locale, "admin.promote.title")}</h1><p className="page-sub">{t(locale, "admin.promote.sub")}</p></div></div>
     {!campaigns.length && <div className="empty"><p>{t(locale, "admin.promote.empty")}</p></div>}
     {queues.filter((q) => q.rows.length).map((q) => <section className="pd-queue" key={q.key}>
-      <h3 className="section-title">{t(locale, `admin.promote.queue.${q.key}`)} <span className="pd-count">{q.rows.length}</span></h3>
+      <h2 className="section-title">{t(locale, `admin.promote.queue.${q.key}`)} <span className="pd-count">{q.rows.length}</span></h2>
       <div className="gtable" style={{ "--cols": "minmax(220px,2fr) minmax(140px,1fr) 150px 110px minmax(180px,1.4fr) 120px" } as React.CSSProperties}>
         <div className="gt-head"><span>{t(locale, "admin.promote.col.campaign")}</span><span>{t(locale, "admin.promote.col.producer")}</span><span>{t(locale, "admin.promote.col.status")}</span><span>{t(locale, "admin.promote.col.creatives")}</span><span>{t(locale, "admin.promote.col.next")}</span><span>{t(locale, "admin.promote.col.updated")}</span></div>
         {q.rows.map((c) => <Link key={c.id} className="gt-row clickable" href={`/promote/${c.id}`}>

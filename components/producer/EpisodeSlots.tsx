@@ -142,18 +142,20 @@ export default function EpisodeSlots({ slots, setSlots, startNumber, busy }: Pro
         onDrop={(e) => {
           e.preventDefault();
           setDragging(false);
-          setSlots((prev) => assignFiles(prev, e.dataTransfer.files, startNumber));
+          const files = Array.from(e.dataTransfer.files);
+          setSlots((prev) => assignFiles(prev, files, startNumber));
         }}
       >
         <input
           type="file"
           multiple
-          hidden
+          className="sr-only"
           accept=".srt,.vtt,.ass,.ssa,.txt,video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm"
           disabled={busy}
           onChange={(e) => {
-            const files = e.target.files;
-            if (files) setSlots((prev) => assignFiles(prev, files, startNumber));
+            // FileList is live: copy before clearing the picker or deferring work.
+            const files = Array.from(e.target.files ?? []);
+            if (files.length) setSlots((prev) => assignFiles(prev, files, startNumber));
             e.target.value = "";
           }}
         />
@@ -200,7 +202,7 @@ export default function EpisodeSlots({ slots, setSlots, startNumber, busy }: Pro
                   {slot.subtitle ? slot.subtitle.name : tt("pw.slots.sub")}
                   <input
                     type="file"
-                    hidden
+                    className="sr-only"
                     accept=".srt,.vtt,.ass,.ssa,.txt"
                     disabled={locked}
                     onChange={(e) => update(i, { subtitle: e.target.files?.[0] ?? null })}
@@ -210,7 +212,7 @@ export default function EpisodeSlots({ slots, setSlots, startNumber, busy }: Pro
                   {slot.video ? slot.video.name : tt("pw.upload.video")}
                   <input
                     type="file"
-                    hidden
+                    className="sr-only"
                     accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm"
                     disabled={locked}
                     onChange={(e) => update(i, { video: e.target.files?.[0] ?? null })}

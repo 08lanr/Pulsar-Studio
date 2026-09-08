@@ -1,0 +1,18 @@
+{
+  "engine": {
+    "name": "axe-core",
+    "version": "4.13.0"
+  },
+  "url": "http://localhost:3210/producer/titles/641df82c-020f-4001-bf54-2f9b18154a5a",
+  "checkedAt": "2026-09-08T06:51:23.996Z",
+  "viewport": {
+    "width": 1425,
+    "height": 760
+  },
+  "violationCount": 0,
+  "affectedNodeCount": 0,
+  "passedRuleCount": 37,
+  "incompleteRuleCount": 0,
+  "violations": [],
+  "needsManualReview": []
+}

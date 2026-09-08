@@ -15,7 +15,7 @@ export default async function ProducerNewTitle({ searchParams }: { searchParams:
     <>
       <div className="page-head">
         <div>
-          <h2>{t(locale, "pw.new.title")}</h2>
+          <h1>{t(locale, "pw.new.title")}</h1>
           <p className="page-sub">{t(locale, "pw.new.sub")}</p>
         </div>
       </div>

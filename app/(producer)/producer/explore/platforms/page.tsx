@@ -52,7 +52,7 @@ export default async function ExplorePlatforms({searchParams}:{searchParams:Quer
             <section className="rs-panel" key={f.platform}>
               <div className="rs-panel-head">
                 <div>
-                  <h3>{platformName(f.platform)}</h3>
+                  <h2>{platformName(f.platform)}</h2>
                   <p>{run.source_urls[0]} · {t(locale, "research.title.collectionLocale")}: {run.collection.locale} · {t(locale, "research.title.audienceGeo")}: {t(locale, "research.geo.unknown")}</p>
                 </div>
                 <span className="rs-panel-aside"><StateBadge status={st.status} locale={locale} /></span>

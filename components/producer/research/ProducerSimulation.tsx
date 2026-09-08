@@ -27,12 +27,12 @@ export default function ProducerSimulation({ locale }: { locale: Locale }) {
   }
   return <div className="producer-simulation">
     <p className="note note-info">{copy('notice')}</p>
-    <section className="rs-panel"><h3>{copy('brief')}</h3><p>{copy('mission')}</p></section>
-    <section className="rs-panel"><h3>{copy('profile')}</h3><p>{copy('identity')}</p>
-      {['audience', 'resources', 'slate'].map(key => <div key={key}><h4>{copy(key)}</h4><p>{copy(`${key}Body`)}</p></div>)}
+    <section className="rs-panel"><h2>{copy('brief')}</h2><p>{copy('mission')}</p></section>
+    <section className="rs-panel"><h2>{copy('profile')}</h2><p>{copy('identity')}</p>
+      {['audience', 'resources', 'slate'].map(key => <div key={key}><h3>{copy(key)}</h3><p>{copy(`${key}Body`)}</p></div>)}
     </section>
-    <section className="rs-panel"><h3>{copy('workflow')}</h3><p>{copy('workflowBody')}</p></section>
-    <h3>{copy('concepts')}</h3>
+    <section className="rs-panel"><h2>{copy('workflow')}</h2><p>{copy('workflowBody')}</p></section>
+    <h2>{copy('concepts')}</h2>
     <div className="simulation-slate">{concepts.map(({ id, search }) => <article className="rs-panel" key={id}>
       <h3>{copy(`${id}.name`)}</h3><p>{copy(`${id}.premise`)}</p>
       {['fit', 'risk', 'test'].map(key => <div key={key}><h4>{copy(key)}</h4><p>{copy(`${id}.${key}`)}</p></div>)}
@@ -40,12 +40,12 @@ export default function ProducerSimulation({ locale }: { locale: Locale }) {
       <a href={`/producer/explore/titles?q=${encodeURIComponent(search)}`} target="_blank" rel="noreferrer">{copy('market')} ↗</a>
       <button className={`btn ${selected === id ? 'btn-primary' : ''}`} aria-pressed={selected === id} onClick={() => setSelected(id)}>{copy(selected === id ? 'selected' : 'choose')}</button>
     </article>)}</div>
-    <section className="rs-panel" aria-labelledby="simulation-decision"><h3 id="simulation-decision">{copy('decision')}</h3>
-      {selected ? <><h4>{copy(`${selected}.name`)}</h4><label htmlFor="simulation-notes">{copy('reason')}</label>
+    <section className="rs-panel" aria-labelledby="simulation-decision"><h2 id="simulation-decision">{copy('decision')}</h2>
+      {selected ? <><h3>{copy(`${selected}.name`)}</h3><label htmlFor="simulation-notes">{copy('reason')}</label>
         <textarea id="simulation-notes" rows={5} value={notes[selected] || ''} placeholder={copy('placeholder')} onChange={event => setNotes({ ...notes, [selected]: event.target.value })}/>
         <button className="btn btn-primary" onClick={download}>{copy('download')}</button></> : <p>{copy('empty')}</p>}
       <p className="muted">{copy('temporary')}</p>
     </section>
-    <section className="rs-panel"><h3>{copy('inference')}</h3><p>{copy('inferenceBody')}</p></section>
+    <section className="rs-panel"><h2>{copy('inference')}</h2><p>{copy('inferenceBody')}</p></section>
   </div>;
 }

@@ -528,7 +528,7 @@ export function Workbench({
             <span className="k">{tt("wb.progress.label")}</span>
             <span className="v">{tt("wb.progress.value", { n: readyLineCount, total: lines.length, pct })}</span>
           </div>
-          <div className="track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+          <div className="track" role="progressbar" aria-label={tt("wb.progress.label")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
             <span style={{ width: `${pct}%` }} />
           </div>
         </div>

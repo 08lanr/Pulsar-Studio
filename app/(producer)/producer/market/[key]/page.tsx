@@ -79,7 +79,7 @@ export default async function MarketTitlePage({ params, searchParams }: { params
               {title.platform_new ? ` · ${t(locale, "research.title.platformNew")}` : ""}
               {run.status === "stale" ? " · " : ""}{run.status === "stale" && <StateBadge status="stale" locale={locale} />}
             </span>
-            <h2 lang="en">{title.title}</h2>
+            <h1 lang="en">{title.title}</h1>
             <div className="rs-tropes">
               {title.tropes.map((x) => <TropeChip key={x.id} id={x.id} locale={locale} hot={hot.has(x.id)} mine={mine.has(x.id)} evidence={x.evidence} href={exploreHref(base,{trope:x.id,page:undefined})} />)}
             </div>
@@ -103,11 +103,11 @@ export default async function MarketTitlePage({ params, searchParams }: { params
         <div className="rs-detail">
           <div>
             <section className="rs-panel" style={{ marginBottom: 20 }}>
-              <div className="rs-panel-head"><div><h3>{t(locale, "research.title.blurb")}</h3></div></div>
+              <div className="rs-panel-head"><div><h2>{t(locale, "research.title.blurb")}</h2></div></div>
               <div className="rs-panel-body"><p lang="en" style={{ margin: 0, lineHeight: 1.6 }}>{title.blurb || "–"}</p></div>
             </section>
             <section className="rs-panel">
-              <div className="rs-panel-head"><div><h3>{t(locale, "research.title.similar")}</h3><p>{t(locale, "research.title.similarNote")}</p></div></div>
+              <div className="rs-panel-head"><div><h2>{t(locale, "research.title.similar")}</h2><p>{t(locale, "research.title.similarNote")}</p></div></div>
               <ul className="rs-list">
                 {similar.slice(0, 5).map((s) => (
                   <li key={s.title.key}>
@@ -135,7 +135,7 @@ export default async function MarketTitlePage({ params, searchParams }: { params
               </dl>
             </section>
             <section className="rs-panel">
-              <div className="rs-panel-head"><div><h3>{t(locale, "research.title.placements")}</h3></div></div>
+              <div className="rs-panel-head"><div><h2>{t(locale, "research.title.placements")}</h2></div></div>
               <ul className="rs-list">
                 {title.placements.map((p) => <li key={p.list}><span>{p.name}</span>{p.chart && <span className="ev ev-observed">{t(locale, "research.col.chartRank")}</span>}<span className="spacer" /><b>#{p.rank}</b></li>)}
               </ul>
@@ -146,7 +146,7 @@ export default async function MarketTitlePage({ params, searchParams }: { params
 
       {tab === "trends" && (
         <section className="rs-panel">
-          <div className="rs-panel-head"><div><h3>{t(locale, "research.tab.trends")}</h3><p>{t(locale, "research.market.observed", { date: snapshot.observed_at })}{market.previous ? ` · ${market.previous.observed_at}` : ""}</p></div><span className="rs-panel-aside"><StateBadge status={historyState} locale={locale} /></span></div>
+          <div className="rs-panel-head"><div><h2>{t(locale, "research.tab.trends")}</h2><p>{t(locale, "research.market.observed", { date: snapshot.observed_at })}{market.previous ? ` · ${market.previous.observed_at}` : ""}</p></div><span className="rs-panel-aside"><StateBadge status={historyState} locale={locale} /></span></div>
           {!history ? (
             <div className="rs-empty">{t(locale, "research.title.trendsEmpty", { days: market.days.length })}</div>
           ) : (
@@ -189,7 +189,7 @@ export default async function MarketTitlePage({ params, searchParams }: { params
       {tab === "overview" && (
         <div className="rs-detail">
           <section className="rs-panel">
-            <div className="rs-panel-head"><div><h3>{t(locale, "research.title.yourMatches")}</h3><p>{t(locale, "research.section.yourTitlesSub")}</p></div></div>
+            <div className="rs-panel-head"><div><h2>{t(locale, "research.title.yourMatches")}</h2><p>{t(locale, "research.section.yourTitlesSub")}</p></div></div>
             {catalog.total === 0 ? (
               <div className="rs-empty">{t(locale, "research.state.noCatalog")}</div>
             ) : comparable.length === 0 ? (
@@ -211,7 +211,7 @@ export default async function MarketTitlePage({ params, searchParams }: { params
 
       {tab === "sources" && (
         <section className="rs-panel">
-          <div className="rs-panel-head"><div><h3>{t(locale, "research.tab.sources")}</h3><p>{t(locale, "research.title.sourcesNote")} {t(locale, "research.title.identityNote")}</p></div><span className="rs-panel-aside"><a href={`/producer/sources/${title.platform}_web`}>{t(locale, "research.nav.sources")} ›</a></span></div>
+          <div className="rs-panel-head"><div><h2>{t(locale, "research.tab.sources")}</h2><p>{t(locale, "research.title.sourcesNote")} {t(locale, "research.title.identityNote")}</p></div><span className="rs-panel-aside"><a href={`/producer/sources/${title.platform}_web`}>{t(locale, "research.nav.sources")} ›</a></span></div>
           <div className="gtable gtable-flush rs-table" style={{ ["--cols" as string]: "minmax(0,1.2fr) minmax(0,1fr) 110px 120px 170px 110px" }}>
             <div className="gt-head"><span>{t(locale, "research.sources.metrics")}</span><span>{t(locale, "research.title.field")}</span><span>{t(locale, "research.title.unit")}</span><span className="gt-num">{t(locale, "research.col.views")}</span><span>{t(locale, "research.title.observedAt")}</span><span>{t(locale, "research.sources.evidence")}</span></div>
             {(["views", "saves", "rating"] as const).map((m) => {

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useT } from "./locale";
 import ThemeToggle from "./ThemeToggle";
+import { containDialogFocus } from "./dialog-focus";
 import LangToggle from "./LangToggle";
 import { IconLogout, IconMenu, IconPlus, IconProducers, IconProjects, IconSparkle } from "./icons";
 
@@ -46,6 +47,16 @@ export default function Nav({ displayName, role }: NavProps) {
   const { tt } = useT();
   const pathname = usePathname() ?? "";
   const [open, setOpen] = useState(false);
+  const dialog = useRef<HTMLDialogElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const close = () => dialog.current?.close();
+
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 1024px)");
+    const onResize = () => { if (desktop.matches) dialog.current?.close(); };
+    desktop.addEventListener("change", onResize);
+    return () => desktop.removeEventListener("change", onResize);
+  }, []);
 
   const items: NavItem[] = [
     { href: "/promote", label: tt("admin.nav.promote"), icon: <IconSparkle /> },
@@ -70,16 +81,44 @@ export default function Nav({ displayName, role }: NavProps) {
             : tt("admin.nav.projects");
 
   const initials = initialsOf(displayName);
+  const navigation = (
+    <>
+      <a className="brand" href="/titles" onClick={close}>
+        <span className="brand-mark" aria-hidden />Pulsar Studio
+      </a>
+      <a className="btn btn-primary side-cta" href="/titles/new" onClick={close}>
+        <IconPlus />{tt("admin.titles.new")}
+      </a>
+      <nav aria-label={tt("admin.nav.menu")}>
+        {items.map((item) => (
+          <a key={item.href} href={item.href}
+            className={`side-link ${pathname.startsWith(item.href) ? "active" : ""}`}
+            aria-current={pathname.startsWith(item.href) ? "page" : undefined} onClick={close}>
+            {item.icon}{item.label}
+          </a>
+        ))}
+      </nav>
+      <div className="side-foot"><div className="ident">
+        <span className="avatar">{initials}</span>
+        <div><div className="ident-name">{displayName}</div>
+          <div className="ident-role">{role === "admin" ? tt("admin.ident.admin") : tt("admin.ident.editor")}</div>
+        </div>
+      </div></div>
+    </>
+  );
 
   return (
     <>
       <header className="apphead">
         <button
+          ref={trigger}
           type="button"
           className="m-menu-btn"
           aria-label={tt("admin.nav.menu")}
           aria-expanded={open}
-          onClick={() => setOpen(!open)}
+          aria-controls="admin-navigation"
+          aria-haspopup="dialog"
+          onClick={() => { dialog.current?.showModal(); setOpen(true); }}
         >
           <IconMenu />
         </button>
@@ -87,7 +126,7 @@ export default function Nav({ displayName, role }: NavProps) {
           <span className="brand-mark" aria-hidden />
           Pulsar Studio
         </a>
-        <h1 className="apphead-title">{title}</h1>
+        <span className="apphead-title">{title}</span>
         <span className="spacer" />
         <LangToggle />
         <ThemeToggle />
@@ -100,46 +139,15 @@ export default function Nav({ displayName, role }: NavProps) {
         </form>
       </header>
 
-      {open && <button type="button" className="scrim" aria-label={tt("admin.nav.closeMenu")} onClick={() => setOpen(false)} />}
-
-      <aside className={`sidebar ${open ? "open" : ""}`}>
-        <a className="brand" href="/titles">
-          <span className="brand-mark" aria-hidden />
-          Pulsar Studio
-        </a>
-
-        <a className="btn btn-primary side-cta" href="/titles/new" onClick={() => setOpen(false)}>
-          <IconPlus />
-          {tt("admin.titles.new")}
-        </a>
-
-        <nav>
-          {items.map((item) => (
-            <a
-              key={item.href}
-              href={item.href}
-              className={`side-link ${pathname.startsWith(item.href) ? "active" : ""}`}
-              aria-current={pathname.startsWith(item.href) ? "page" : undefined}
-              onClick={() => setOpen(false)}
-            >
-              {item.icon}
-              {item.label}
-            </a>
-          ))}
-        </nav>
-
-        <div className="side-foot">
-          <div className="ident">
-            <span className="avatar">{initials}</span>
-            <div>
-              <div className="ident-name">{displayName}</div>
-              <div className="ident-role">
-                {role === "admin" ? tt("admin.ident.admin") : tt("admin.ident.editor")}
-              </div>
-            </div>
-          </div>
+      <aside className="sidebar" aria-label={tt("admin.nav.menu")}>{navigation}</aside>
+      <dialog ref={dialog} id="admin-navigation" className="admin-nav-dialog" aria-label={tt("admin.nav.menu")} onKeyDown={containDialogFocus}
+        onClose={() => { setOpen(false); trigger.current?.focus(); }}
+        onClick={(event) => { if (event.target === event.currentTarget) close(); }}>
+        <div className="admin-nav-content">
+          <button type="button" className="btn btn-outline" autoFocus onClick={close}>{tt("admin.nav.closeMenu")}</button>
+          {navigation}
         </div>
-      </aside>
+      </dialog>
     </>
   );
 }

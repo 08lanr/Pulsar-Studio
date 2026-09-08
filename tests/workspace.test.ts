@@ -6,6 +6,7 @@ import { fixtureData, resetFixtureStore } from "@/lib/data/fixture";
 import { DEMO_TITLES, demoCampaignId, demoTitleId } from "@/data/fixture/demo-catalog";
 import { assessTitle, BENCHMARK, type AssessmentInput } from "@/lib/research/assessment";
 import { experimentStage, loadWorkspace } from "@/lib/research/workspace";
+import { campaignWorkflow } from "@/lib/research/workflow";
 import { resetMarketCache } from "@/lib/research/snapshot";
 
 afterEach(() => {
@@ -138,6 +139,34 @@ test("experiment stages follow the loop", async () => {
   assert.deepEqual(stage(2), { stage: "concepts", waiting: "select" });
   assert.deepEqual(stage(4), { stage: "submitted", waiting: "submit" });
   assert.deepEqual(stage(1), { stage: "decide", waiting: "decide" });
+});
+
+test("workflow actions follow actual approval and handoff transitions", async () => {
+  resetFixtureStore("demo");
+  const id = demoCampaignId(2);
+  const flow = async () => {
+    const c = (await fixtureData.listPromoCampaigns(producer())).find(c => c.id === id)!;
+    return campaignWorkflow(c, await fixtureData.listCreativeResults(producer()));
+  };
+  assert.equal((await flow()).step, "choose");
+  const detail = await fixtureData.getPromoCampaign(producer(),id);
+  await fixtureData.reviewPromoCreative(producer(),detail.creatives[0].id,{status:"approved"});
+  assert.equal((await flow()).step,"approveAds", "choosing an ad is not final campaign approval");
+  await fixtureData.approvePromoCampaign(producer(),id);
+  assert.equal((await flow()).step,"budget");
+  await fixtureData.approveExperiment(producer(),id);
+  assert.equal((await flow()).step,"launch");
+  assert.equal((await flow()).waiting,false,"ready for a real user action");
+  await fixtureData.submitPromoCampaignMock(producer(),id);
+  assert.equal((await flow()).waiting,true,"a submitted handoff must not request another approval");
+  assert.ok((await flow()).href.endsWith("#launch-status"),"waiting links target a visible status, not a closed archive");
+  await fixtureData.simulateDemoResults(producer(),id);
+  assert.equal((await flow()).step,"results");
+  const c = (await fixtureData.listPromoCampaigns(producer())).find(c => c.id === id)!;
+  const failed = campaignWorkflow({...c,status:"failed"},[]);
+  assert.equal(failed.step,"launch");
+  assert.equal(failed.hint,"workflow.hint.failed");
+  assert.equal(failed.waiting,true,"staff must recover a failed launch");
 });
 
 // ---- accounts ----------------------------------------------------------------------

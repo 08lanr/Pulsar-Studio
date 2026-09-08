@@ -19,17 +19,20 @@ export default function AccountsForm({ accounts, canAct }: { accounts: CompanyAc
   const [editing, setEditing] = useState<Partial<CompanyAccount> | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
 
   async function save(ev: React.FormEvent) {
     ev.preventDefault();
     if (!editing || busy) return;
     setBusy(true);
     setError(null);
+    setSaved(false);
     try {
       const res = await fetch("/api/producer/company/accounts", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: editing.id, provider: editing.provider ?? "tiktok", kind: editing.kind ?? "ad_account", name: editing.name ?? "", external_ref: editing.external_ref ?? null, state: editing.state ?? "unconnected", access: editing.access ?? "none", note: editing.note ?? null }) });
       const body = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
       setEditing(null);
+      setSaved(true);
       router.refresh();
     } catch (e) {
       setError((e as Error).message);
@@ -40,7 +43,8 @@ export default function AccountsForm({ accounts, canAct }: { accounts: CompanyAc
 
   return (
     <div className="ws-accounts">
-      <div className="gtable gtable-flush rs-table" style={{ ["--cols" as string]: "90px 130px minmax(0,2fr) 110px 150px minmax(0,2fr) 70px" }}>
+      <div role="status">{saved && <p className="note note-success">{tt("redesign.accountSaved")}</p>}</div>
+      <div className="gtable gtable-flush rs-table" style={{ ["--cols" as string]: "88px 120px minmax(160px,1.6fr) 110px 140px minmax(180px,2fr) 72px" }}>
         <div className="gt-head"><span>{tt("ws.accounts.provider")}</span><span>{tt("ws.accounts.kind")}</span><span>{tt("ws.accounts.name")}</span><span>{tt("ws.accounts.state")}</span><span>{tt("ws.accounts.access")}</span><span>{tt("ws.accounts.note")}</span><span /></div>
         {accounts.length === 0 && <div className="gt-row gt-muted">{tt("ws.accounts.empty")}</div>}
         {accounts.map((a) => (
@@ -51,7 +55,7 @@ export default function AccountsForm({ accounts, canAct }: { accounts: CompanyAc
             <span><span className={`state ${a.state === "connected" ? "state-available" : a.state === "invited" ? "state-collecting_history" : a.state === "revoked" ? "state-failed" : "state-requires_connection"}`}>{tt(`ws.accounts.state.${a.state}`)}</span></span>
             <span>{tt(`ws.accounts.access.${a.access}`)}</span>
             <span className="gt-muted" style={{ whiteSpace: "normal" }}>{a.note ?? ""}</span>
-            <span>{canAct && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditing(a)}>{tt("ux.edit")}</button>}</span>
+            <span>{canAct && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditing(a)}>{tt("ws.accounts.edit")}</button>}</span>
           </div>
         ))}
       </div>

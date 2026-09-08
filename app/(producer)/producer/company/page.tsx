@@ -1,4 +1,5 @@
 import AccountsForm from "@/components/producer/research/AccountsForm";
+import CompanyNav from "@/components/producer/research/CompanyNav";
 import OnboardingForm from "@/components/producer/research/OnboardingForm";
 import ReportImport from "@/components/producer/research/ReportImport";
 import { isStaffPreview, portalSession, producerLocale } from "@/components/producer/server";
@@ -32,15 +33,12 @@ export default async function CompanyPage({ searchParams }: { searchParams: { ta
     <>
       <div className="page-head">
         <div>
-          <span className="page-kicker">{t(locale, "ws.company.kicker")}</span>
-          <h2>{name}</h2>
+          <h1>{name}</h1>
           <p className="page-sub">{t(locale, "ws.company.sub")}</p>
         </div>
         {tab === "profile" && !edit && canAct && <a className="btn btn-primary" href="/producer/company?tab=profile&edit=1">{t(locale, "ux.edit")}</a>}
       </div>
-      <nav className="tabs rs-tabs" aria-label={t(locale, "ws.company.title")}>
-        {TABS.map((x) => <a key={x} className={`tab${x === tab ? " is-active" : ""}`} aria-current={x === tab ? "page" : undefined} href={`/producer/company?tab=${x}`}>{t(locale, `ws.company.tab.${x}`)}</a>)}
-      </nav>
+      <CompanyNav active={tab} locale={locale} />
 
       {tab === "profile" && (
         <>
@@ -65,7 +63,7 @@ export default async function CompanyPage({ searchParams }: { searchParams: { ta
 
       {tab === "accounts" && (
         <section className="rs-panel">
-          <div className="rs-panel-head"><div><h3>{t(locale, "ws.company.tab.accounts")}</h3><p>{t(locale, "ws.accounts.sub")}</p></div></div>
+          <div className="rs-panel-head"><div><h2>{t(locale, "ws.company.tab.accounts")}</h2><p>{t(locale, "ws.accounts.sub")}</p></div></div>
           <AccountsForm accounts={accounts} canAct={canAct} />
           <div className="rs-panel-foot">{t(locale, "ws.accounts.steps")} <a href="https://business.tiktok.com/" target="_blank" rel="noreferrer noopener">TikTok Business Center ↗</a></div>
         </section>
@@ -74,7 +72,7 @@ export default async function CompanyPage({ searchParams }: { searchParams: { ta
       {tab === "access" && (
         <div className="rs-grid">
           <section className="rs-panel">
-            <div className="rs-panel-head"><div><h3>{t(locale, "ws.access.roles")}</h3><p>{t(locale, "ws.access.rolesSub")}</p></div></div>
+            <div className="rs-panel-head"><div><h2>{t(locale, "ws.access.roles")}</h2><p>{t(locale, "ws.access.rolesSub")}</p></div></div>
             <ul className="rs-list">
               <li><span className="state state-available">approver</span> {t(locale, "ws.access.approver")}{session.producerRole === "approver" && <span className="gt-muted"> · {t(locale, "ws.access.you")}</span>}</li>
               <li><span className="state state-collecting_history">reviewer</span> {t(locale, "ws.access.reviewer")}{session.producerRole === "reviewer" && <span className="gt-muted"> · {t(locale, "ws.access.you")}</span>}</li>
@@ -82,7 +80,7 @@ export default async function CompanyPage({ searchParams }: { searchParams: { ta
             </ul>
           </section>
           <section className="rs-panel">
-            <div className="rs-panel-head"><div><h3>{t(locale, "ws.billing")}</h3><p>{t(locale, "ws.billing.sub")}</p></div></div>
+            <div className="rs-panel-head"><div><h2>{t(locale, "ws.billing")}</h2><p>{t(locale, "ws.billing.sub")}</p></div></div>
             <div className="rs-panel-body"><StateBadge status="requires_connection" locale={locale} /> {t(locale, "ws.billing.state")}</div>
           </section>
         </div>

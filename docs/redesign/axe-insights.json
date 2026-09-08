@@ -1,0 +1,81 @@
+{
+  "engine": {
+    "name": "axe-core",
+    "version": "4.13.0"
+  },
+  "url": "http://localhost:3210/producer/insights",
+  "checkedAt": "2026-09-08T06:17:45.841Z",
+  "viewport": {
+    "width": 375,
+    "height": 760
+  },
+  "violationCount": 1,
+  "affectedNodeCount": 1,
+  "passedRuleCount": 45,
+  "incompleteRuleCount": 1,
+  "violations": [
+    {
+      "id": "heading-order",
+      "impact": "moderate",
+      "description": "Ensure the order of headings is semantically correct",
+      "help": "Heading levels should only increase by one",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/heading-order?application=axeAPI",
+      "nodes": [
+        {
+          "target": [
+            ".market-brief > section > header > div > h3"
+          ],
+          "html": "<h3>Dramas to examine</h3>",
+          "failureSummary": "Fix any of the following:\n  Heading order invalid"
+        }
+      ]
+    }
+  ],
+  "needsManualReview": [
+    {
+      "id": "color-contrast",
+      "impact": "serious",
+      "targets": [
+        [
+          ".brief-drama:nth-child(1) > .brief-counters > .brief-counter:nth-child(1) > .metric-label[aria-haspopup=\"dialog\"][type=\"button\"] > span[aria-hidden=\"true\"]"
+        ],
+        [
+          ".brief-drama:nth-child(1) > .brief-counters > .brief-counter:nth-child(2) > .metric-label[aria-haspopup=\"dialog\"][type=\"button\"] > span[aria-hidden=\"true\"]"
+        ],
+        [
+          ".brief-drama:nth-child(2) > .brief-counters > .brief-counter:nth-child(1) > .metric-label[aria-haspopup=\"dialog\"][type=\"button\"] > span[aria-hidden=\"true\"]"
+        ],
+        [
+          ".brief-drama:nth-child(2) > .brief-counters > .brief-counter:nth-child(2) > .metric-label[aria-haspopup=\"dialog\"][type=\"button\"] > span[aria-hidden=\"true\"]"
+        ],
+        [
+          ".brief-drama:nth-child(3) > .brief-counters > .brief-counter:nth-child(1) > .metric-label[aria-haspopup=\"dialog\"][type=\"button\"] > span[aria-hidden=\"true\"]"
+        ],
+        [
+          ".brief-drama:nth-child(3) > .brief-counters > .brief-counter:nth-child(2) > .metric-label[aria-haspopup=\"dialog\"][type=\"button\"] > span[aria-hidden=\"true\"]"
+        ],
+        [
+          ".brief-drama:nth-child(4) > .brief-counters > .brief-counter:nth-child(1) > .metric-label[aria-haspopup=\"dialog\"][type=\"button\"] > span[aria-hidden=\"true\"]"
+        ],
+        [
+          ".brief-drama:nth-child(4) > .brief-counters > .brief-counter:nth-child(2) > .metric-label[aria-haspopup=\"dialog\"][type=\"button\"] > span[aria-hidden=\"true\"]"
+        ],
+        [
+          ".brief-drama:nth-child(5) > .brief-counters > .brief-counter:nth-child(1) > .metric-label[aria-haspopup=\"dialog\"][type=\"button\"] > span[aria-hidden=\"true\"]"
+        ],
+        [
+          ".brief-drama:nth-child(5) > .brief-counters > .brief-counter:nth-child(2) > .metric-label[aria-haspopup=\"dialog\"][type=\"button\"] > span[aria-hidden=\"true\"]"
+        ],
+        [
+          ".brief-drama:nth-child(6) > .brief-counters > .brief-counter:nth-child(1) > .metric-label[aria-haspopup=\"dialog\"][type=\"button\"] > span[aria-hidden=\"true\"]"
+        ],
+        [
+          ".brief-drama:nth-child(6) > .brief-counters > .brief-counter:nth-child(2) > .metric-label[aria-haspopup=\"dialog\"][type=\"button\"] > span[aria-hidden=\"true\"]"
+        ],
+        [
+          "footer > .metric-label[aria-haspopup=\"dialog\"][type=\"button\"] > span[aria-hidden=\"true\"]"
+        ]
+      ]
+    }
+  ]
+}

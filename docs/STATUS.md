@@ -1,5 +1,13 @@
 # Session handoff — Pulsar Studio
 
+> **2026-09-08 (latest): What to make next landed.** US market insights now
+> has US overview + What to make next (+ Explore, Data & sources) as tabs;
+> the board ranks the story types the platforms are launching, briefs the
+> top three, lists new listings per platform with growth per day, and a
+> miniature sits on the Overview. Two real collection days exist
+> (2026-09-07, 2026-09-08). Decision at the top of `docs/decisions.md`;
+> ledger phase 8 in `docs/market-desk-plan.md`.
+
 > **2026-09-08 (late): US launch workspace landed.** Five areas, a US
 > potential score with reasons, structured experiments with demo results,
 > company & accounts, and a demo catalog seeded by default in fixture mode

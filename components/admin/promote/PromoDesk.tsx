@@ -70,7 +70,7 @@ export default function PromoDesk({ detail, media }: { detail: PromoCampaignDeta
 
     <div className="pd-grid">
       <section className="pd-main">
-        <div className="pd-section-head"><h3 className="section-title">{tt("admin.promote.creatives")}</h3><p className="page-sub">{tt("admin.promote.creatives.sub")}</p></div>
+        <div className="pd-section-head"><h2 className="section-title">{tt("admin.promote.creatives")}</h2><p className="page-sub">{tt("admin.promote.creatives.sub")}</p></div>
         {!active.length && <div className="empty"><p>{tt("admin.promote.launch.waiting")}</p></div>}
         {active.map((c, index) => {
           const ep = detail.episodes.find((e) => e.id === c.source_episode_id);
@@ -81,7 +81,7 @@ export default function PromoDesk({ detail, media }: { detail: PromoCampaignDeta
             <div className="pd-creative-media">{source ? <video src={`${source}#t=${Math.floor((c.source_start_ms ?? 0) / 1000)}`} controls preload="metadata" /> : <div className="pd-placeholder">{String(index + 1).padStart(2, "0")}</div>}</div>
             <div className="pd-creative-body">
               <header>
-                <div><span className="kicker">{tt(`promote.kind.${c.kind}`)} · {tt("admin.promote.version", { v: c.version })}{history > 0 && <> · {tt("admin.promote.history", { n: history })}</>}</span><h4>{c.hypothesis}</h4></div>
+                <div><span className="kicker">{tt(`promote.kind.${c.kind}`)} · {tt("admin.promote.version", { v: c.version })}{history > 0 && <> · {tt("admin.promote.history", { n: history })}</>}</span><h3>{c.hypothesis}</h3></div>
                 <span className={`pill ${CREATIVE_CLASS[c.status]}`}>{tt(`promote.creativeStatus.${c.status}`)}</span>
               </header>
               <dl className="pd-kv">
@@ -111,7 +111,7 @@ export default function PromoDesk({ detail, media }: { detail: PromoCampaignDeta
 
       <aside className="pd-side">
         <section className="card pd-panel">
-          <h3 className="section-title">{tt("admin.promote.launch")}</h3>
+          <h2 className="section-title">{tt("admin.promote.launch")}</h2>
           {!launchable && <p className="pd-muted">{tt("admin.promote.launch.waiting")}</p>}
           {launchable && <>
             <p className="pd-muted">{tt(`admin.promote.launch.${campaign.status as "submitted" | "launching" | "live" | "failed"}`, { n: approved })}</p>
@@ -129,7 +129,7 @@ export default function PromoDesk({ detail, media }: { detail: PromoCampaignDeta
         </section>
 
         <section className="card pd-panel">
-          <h3 className="section-title">{tt("admin.promote.brief")}</h3>
+          <h2 className="section-title">{tt("admin.promote.brief")}</h2>
           <dl className="pd-kv">
             <dt>{tt("admin.promote.brief.market")}</dt><dd>{campaign.target_market}</dd>
             <dt>{tt("admin.promote.brief.objective")}</dt><dd>{tt(`promote.objective.${campaign.objective}`)}</dd>
@@ -141,8 +141,8 @@ export default function PromoDesk({ detail, media }: { detail: PromoCampaignDeta
         </section>
 
         {(detail.approval || detail.handoffs.length > 0) && <section className="card pd-panel">
-          {detail.approval && <><h3 className="section-title">{tt("admin.promote.manifest")}</h3><p className="pd-mono pd-muted">{detail.approval.manifest_sha256.slice(0, 16)}… · {(detail.approval.manifest as { creatives?: unknown[] }).creatives?.length ?? 0}</p></>}
-          {detail.handoffs.length > 0 && <><h3 className="section-title">{tt("admin.promote.handoffs")}</h3><ul className="pd-list">{detail.handoffs.map((h) => <li key={h.id}><span className={`pill ${h.status === "accepted" ? "status-approved" : h.status === "failed" ? "pill-error" : "pill-neutral"}`}>{h.status}</span><span className="pd-mono">{h.grow_campaign_id ?? "—"}</span></li>)}</ul></>}
+          {detail.approval && <><h2 className="section-title">{tt("admin.promote.manifest")}</h2><p className="pd-mono pd-muted">{detail.approval.manifest_sha256.slice(0, 16)}… · {(detail.approval.manifest as { creatives?: unknown[] }).creatives?.length ?? 0}</p></>}
+          {detail.handoffs.length > 0 && <><h2 className="section-title">{tt("admin.promote.handoffs")}</h2><ul className="pd-list">{detail.handoffs.map((h) => <li key={h.id}><span className={`pill ${h.status === "accepted" ? "status-approved" : h.status === "failed" ? "pill-error" : "pill-neutral"}`}>{h.status}</span><span className="pd-mono">{h.grow_campaign_id ?? "—"}</span></li>)}</ul></>}
         </section>}
       </aside>
     </div>

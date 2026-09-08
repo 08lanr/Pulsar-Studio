@@ -8,16 +8,61 @@ import type { PromoCampaignDetail, PromoCreative } from "@/lib/types";
 
 function seconds(ms: number | null) { return ms === null ? "—" : `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, "0")}`; }
 
-export default function PromoWorkspace({ detail, media, canAct = true }: { detail: PromoCampaignDetail; media: Record<string, string | null>; canAct?: boolean }) {
-  const { tt } = useT(); const router = useRouter();
-  const [busy, setBusy] = useState<string | null>(null); const [error, setError] = useState<string | null>(null); const [notes, setNotes] = useState<Record<string, string>>({});
-  const active = detail.creatives.filter((x) => x.status !== "superseded"); const approved = active.filter((x) => x.status === "approved").length; const pending = active.filter((x) => x.status === "ready").length;
-  const locked = ["approved", "submitted", "launching", "live"].includes(detail.campaign.status);
-  async function act(key: string, path: string, body: Record<string, unknown> = {}) { setBusy(key); setError(null); try { await postJson(path, body); router.refresh(); } catch (e) { setError((e as Error).message); } finally { setBusy(null); } }
-  async function review(c: PromoCreative, status: "approved" | "rejected") { await act(c.id, `/api/producer/promote/creatives/${c.id}/review`, { status, rejection_note: status === "rejected" ? notes[c.id] || null : null }); }
+export default function PromoWorkspace({ detail, media, canAct = true, canApprove = false }: { detail: PromoCampaignDetail; media: Record<string, string | null>; canAct?: boolean; canApprove?: boolean }) {
+  const { tt } = useT();
+  const router = useRouter();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const active = detail.creatives.filter((x) => x.status !== "superseded");
+  const approved = active.filter((x) => x.status === "approved").length;
+  const pending = active.filter((x) => x.status === "ready").length;
+  const locked = ["approved", "submitted", "launching", "live", "failed", "generating"].includes(detail.campaign.status);
+  const budgetReady = !detail.campaign.experiment || !!detail.campaign.experiment.approved_at;
 
-  if (!active.length && !detail.episodes.some(e => e.video_path)) return <section className="rs-panel"><p>{tt("launch.planNote")}</p><a className="btn btn-primary" href={`/producer/titles/${detail.title.id}`}>{tt("ux.addMaterials")}</a></section>;
-  if (!active.length) return <section className="promo-generate card"><div><span className="page-kicker">{tt("promote.workspace.firstBatch")}</span><h3>{tt("promote.workspace.readyTitle")}</h3><p>{tt("promote.workspace.readyHint")}</p></div>{canAct && <button className="btn btn-primary" disabled={!!busy || !canAct} onClick={() => act("generate", `/api/producer/promote/${detail.campaign.id}/generate`)}>{busy ? tt("common.loading") : tt("promote.workspace.generate")}</button>}{error && <p className="err">{error}</p>}</section>;
+  async function act(key: string, path: string, body: Record<string, unknown> = {}) {
+    setBusy(key); setError(null);
+    try {
+      const response = await postJson<{ error?: string }>(path, body);
+      if (response.error) throw new Error(response.error);
+      router.refresh();
+    } catch (e) { setError((e as Error).message); }
+    finally { setBusy(null); }
+  }
+  async function review(c: PromoCreative, status: "approved" | "rejected") {
+    await act(c.id, `/api/producer/promote/creatives/${c.id}/review`, { status, rejection_note: status === "rejected" ? notes[c.id] || null : null });
+  }
 
-  return <><div className="promo-review-summary"><div><strong>{active.length}</strong><span>{tt("promote.workspace.variants")}</span></div><div><strong>{approved}</strong><span>{tt("promote.workspace.approved")}</span></div><div><strong>{active.filter((x) => x.status === "rejected").length}</strong><span>{tt("promote.workspace.changes")}</span></div><div className="promo-summary-action">{detail.campaign.status === "review" && pending > 0 && <button className="btn btn-outline" disabled={!!busy || !canAct} onClick={() => act("approve-all", `/api/producer/promote/${detail.campaign.id}/approve-all`)}>{busy === "approve-all" ? tt("common.loading") : tt("promote.workspace.approveAll", { n: pending })}</button>}{detail.campaign.status === "review" && <button className="btn btn-primary" disabled={!!busy || !canAct || approved === 0} onClick={() => act("approve-campaign", `/api/producer/promote/${detail.campaign.id}/approve`)}>{busy === "approve-campaign" ? tt("common.loading") : tt("promote.workspace.approveBatch")}</button>}{detail.campaign.status === "approved" && <button className="btn btn-primary" disabled={!!busy || !canAct} onClick={() => act("submit", `/api/producer/promote/${detail.campaign.id}/submit`)}>{busy === "submit" ? tt("common.loading") : tt("promote.workspace.submitLaunch")}</button>}{detail.campaign.status === "submitted" && <span className="pill pill-success">{tt("promote.workspace.submitted")}</span>}</div></div><p className="promo-round-note">{tt("promote.workspace.roundNote")}</p>{error && <p className="note note-warning">{error}</p>}<section className="promo-cockpit">{active.map((creative, index) => { const source = creative.source_episode_id ? media[creative.source_episode_id] : null; const ep = detail.episodes.find((x) => x.id === creative.source_episode_id); return <article className={`promo-creative ${creative.status}`} key={creative.id}><div className="promo-phone">{source ? <video src={`${source}#t=${Math.floor((creative.source_start_ms ?? 0) / 1000)}`} controls preload="metadata" /> : <div className="promo-placeholder">{detail.title.name_en || detail.title.name_zh}</div>}<div className="promo-hook">{creative.hook}</div><span className="promo-index">{String(index + 1).padStart(2, "0")}</span></div><div className="promo-creative-copy"><header><div><span className="promo-format">{tt(`promote.kind.${creative.kind}`)}{creative.version > 1 && <em className="promo-revised">{tt("promote.workspace.revised", { v: creative.version })}</em>}</span><h3>{creative.hypothesis}</h3></div><span className={`pill ${creative.status === "approved" ? "pill-success" : creative.status === "rejected" ? "pill-error" : "pill-neutral"}`}>{tt(`promote.creativeStatus.${creative.status}`)}</span></header><div className="promo-source"><span>{tt("promote.workspace.source")}</span><strong>{tt("portal.episode", { n: ep?.number ?? 0 })} · {seconds(creative.source_start_ms)}–{seconds(creative.source_end_ms)}</strong></div><div className="promo-copy-block"><span>{tt("promote.workspace.caption")}</span><p>{creative.caption}</p></div><div className="promo-copy-block"><span>{tt("promote.workspace.description")}</span><p>{creative.ad_description}</p></div>{creative.revision_note && <div className="promo-copy-block promo-revision-note"><span>{tt("promote.workspace.revisionNote")}</span><p>{creative.revision_note}</p></div>}{creative.status === "rejected" && <p className="promo-change-sent">{tt("promote.workspace.changeSent")}{creative.rejection_note ? ` — ${creative.rejection_note}` : ""}</p>}{!locked && <div className="promo-review-actions"><button className="btn btn-outline" disabled={!!busy || !canAct} onClick={() => review(creative, "approved")}>{tt("promote.workspace.keep")}</button><input className="input" value={notes[creative.id] ?? ""} placeholder={tt("promote.workspace.changeHint")} onChange={(e) => setNotes({ ...notes, [creative.id]: e.target.value })} /><button className="btn btn-ghost" disabled={!!busy || !canAct || !(notes[creative.id] ?? "").trim()} onClick={() => review(creative, "rejected")}>{tt("promote.workspace.requestChange")}</button></div>}</div></article>; })}</section></>;
+  if (detail.campaign.status === "generating") return <p role="status">{tt("workflow.hint.generating")}</p>;
+  if (detail.campaign.status === "failed" && !active.length) return <p role="alert">{tt("workflow.hint.failed")}</p>;
+  if (!active.length && !detail.episodes.some(e => e.video_path)) return <section className="fc-empty"><p>{tt("launch.planNote")}</p><a className="btn btn-primary" href={`/producer/titles/${detail.title.id}`}>{tt("ux.addMaterials")}</a></section>;
+  if (!active.length) return <section className="fc-empty"><h3>{tt("promote.workspace.readyTitle")}</h3><p>{tt("promote.workspace.readyHint")}</p>{canAct && <button className="btn btn-primary" disabled={!!busy} onClick={() => act("generate", `/api/producer/promote/${detail.campaign.id}/generate`)}>{busy ? tt("common.loading") : tt("promote.workspace.generate")}</button>}{error && <p className="err" role="alert">{error}</p>}</section>;
+
+  return <div className="fc-ad-review">
+    <div className="fc-review-toolbar">
+      <p>{tt("fc.selection", { approved, total: active.length })}{!locked && detail.campaign.experiment && <small>{tt("ws.exp.selectBatch", { n: detail.campaign.experiment.first_batch, total: active.length })}</small>}</p>
+      <div className="fc-toolbar-actions">
+        {detail.campaign.status === "review" && pending > 0 && <button className="btn btn-outline btn-sm" disabled={!!busy || !canAct} onClick={() => act("approve-all", `/api/producer/promote/${detail.campaign.id}/approve-all`)}>{busy === "approve-all" ? tt("common.loading") : tt("promote.workspace.approveAll", { n: pending })}</button>}
+        {detail.campaign.status === "review" && <button className="btn btn-approve" disabled={!!busy || !canApprove || approved === 0} onClick={() => act("approve-campaign", `/api/producer/promote/${detail.campaign.id}/approve`)}>{busy === "approve-campaign" ? tt("common.loading") : tt("promote.workspace.approveBatch")}</button>}
+        {detail.campaign.status === "approved" && <button className="btn btn-primary" disabled={!!busy || !canApprove || !budgetReady} onClick={() => act("submit", `/api/producer/promote/${detail.campaign.id}/submit`)}>{busy === "submit" ? tt("common.loading") : tt("promote.workspace.submitLaunch")}</button>}
+      </div>
+    </div>
+    {!canApprove && ["review", "approved"].includes(detail.campaign.status) && <p className="fc-review-guidance">{tt("fc.approverNeeded")}</p>}
+    {detail.campaign.status === "approved" && !budgetReady && <p className="fc-review-guidance">{tt("fc.approveBudgetFirst")} <a href="#brief">{tt("ws.exp.brief")}</a></p>}
+    {error && <p className="note note-warn" role="alert">{error}</p>}
+    <div className="fc-ad-grid">{active.map((creative, index) => {
+      const source = creative.source_episode_id ? media[creative.source_episode_id] : null;
+      const ep = detail.episodes.find((x) => x.id === creative.source_episode_id);
+      return <article className={`fc-ad ${creative.status}`} key={creative.id}>
+        <header className="fc-ad-heading"><span className="fc-ad-number">{tt("fc.adNumber", { n: index + 1 })}</span><span>{tt(`promote.kind.${creative.kind}`)}</span><span className={`pill ${creative.status === "approved" ? "pill-success" : creative.status === "rejected" ? "pill-error" : "pill-neutral"}`}>{tt(`promote.creativeStatus.${creative.status}`)}</span></header>
+        <div className="fc-ad-main">
+          <div className="fc-ad-media">{source ? <video aria-label={tt("fc.preview", { n: index + 1 })} src={`${source}#t=${Math.floor((creative.source_start_ms ?? 0) / 1000)}`} controls preload="none" /> : <div className="fc-no-preview">{tt("fc.noPreview")}</div>}</div>
+          <div className="fc-ad-message"><h3>{creative.hypothesis}</h3><blockquote>{creative.hook}</blockquote><p className="fc-ad-source">{ep ? tt("portal.episode", { n: ep.number }) : tt("fc.sourceUnknown")} · {seconds(creative.source_start_ms)}–{seconds(creative.source_end_ms)}</p>{creative.version > 1 && <span className="fc-version">{tt("promote.workspace.revised", { v: creative.version })}</span>}</div>
+        </div>
+        <details className="fc-ad-details"><summary>{tt("fc.copyDetails")}</summary><dl><dt>{tt("promote.workspace.caption")}</dt><dd>{creative.caption}</dd><dt>{tt("promote.workspace.description")}</dt><dd>{creative.ad_description}</dd>{creative.revision_note && <><dt>{tt("promote.workspace.revisionNote")}</dt><dd>{creative.revision_note}</dd></>}</dl></details>
+        {creative.status === "rejected" && <p className="fc-change-sent">{tt("promote.workspace.changeSent")}{creative.rejection_note ? ` — ${creative.rejection_note}` : ""}</p>}
+        {!locked && <footer className="fc-ad-actions"><button className={`btn btn-sm ${creative.status === "approved" ? "btn-outline" : "btn-primary"}`} disabled={!!busy || !canAct || creative.status === "approved"} onClick={() => review(creative, "approved")}>{busy === creative.id ? tt("common.loading") : creative.status === "approved" ? tt("promote.creativeStatus.approved") : tt("promote.workspace.keep")}</button><details className="fc-change-request"><summary>{tt("promote.workspace.requestChange")}</summary><label htmlFor={`change-${creative.id}`}>{tt("promote.workspace.changeHint")}</label><textarea id={`change-${creative.id}`} className="textarea" rows={2} disabled={!!busy || !canAct} value={notes[creative.id] ?? ""} onChange={(e) => setNotes({ ...notes, [creative.id]: e.target.value })}/><button className="btn btn-outline btn-sm" disabled={!!busy || !canAct || !(notes[creative.id] ?? "").trim()} onClick={() => review(creative, "rejected")}>{tt("promote.workspace.requestChange")}</button></details></footer>}
+      </article>;
+    })}</div>
+  </div>;
 }

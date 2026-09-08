@@ -3,6 +3,7 @@ import Nav from "@/components/Nav";
 import { LocaleProvider } from "@/components/locale";
 import { adminLocale } from "@/components/admin/server";
 import { getSession } from "@/lib/auth";
+import { t } from "@/lib/i18n";
 
 // The admin portal's route group: Pulsar staff only, English chrome unless
 // the locale cookie says otherwise (decision #8 — the root layout's default
@@ -19,8 +20,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const locale = adminLocale();
   return (
     <LocaleProvider locale={locale}>
+      <a className="skip-link" href="#main-content">{t(locale, "redesign.skipContent")}</a>
       <Nav displayName={session.displayName} role={session.staffRole ?? "editor"} />
-      <main className="page page-wide">{children}</main>
+      <main id="main-content" tabIndex={-1} className="page page-wide">{children}</main>
     </LocaleProvider>
   );
 }

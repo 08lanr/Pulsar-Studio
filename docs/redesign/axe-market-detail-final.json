@@ -1,0 +1,34 @@
+{
+  "engine": {
+    "name": "axe-core",
+    "version": "4.13.0"
+  },
+  "url": "http://localhost:3210/producer/market/dramabox-41000104219",
+  "checkedAt": "2026-09-08T06:38:29.185Z",
+  "viewport": {
+    "width": 1425,
+    "height": 760
+  },
+  "violationCount": 0,
+  "affectedNodeCount": 0,
+  "passedRuleCount": 39,
+  "incompleteRuleCount": 1,
+  "violations": [],
+  "needsManualReview": [
+    {
+      "id": "color-contrast",
+      "impact": "serious",
+      "targets": [
+        [
+          ".tab.is-active[aria-current=\"page\"]"
+        ],
+        [
+          ".tab:nth-child(2)"
+        ],
+        [
+          ".tab:nth-child(3)"
+        ]
+      ]
+    }
+  ]
+}

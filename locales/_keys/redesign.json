@@ -1,0 +1,9 @@
+{
+  "redesign.tasks": { "en": "Workspace tasks", "zh": "工作台任务" },
+  "redesign.catalogTitles": { "en": "catalog titles", "zh": "部剧目" },
+  "redesign.waiting": { "en": "campaigns to continue", "zh": "个待推进活动" },
+  "redesign.results": { "en": "results to review", "zh": "组待查看结果" },
+  "redesign.setup": { "en": "setup to complete", "zh": "项待完善设置" },
+  "redesign.setupComplete": { "en": "Your profile, account inventory and reports are in place.", "zh": "公司资料、账户记录和报告均已就绪。" },
+  "redesign.reviewSetup": { "en": "Review setup", "zh": "完善设置" }
+}

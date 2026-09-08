@@ -46,7 +46,7 @@ export default async function ProducerTitlePage({ params }: { params: { id: stri
   const step = allApproved ? 5 : anyConfirming ? 3 : hasScript ? 2 : 1;
   const steps = ["pw.steps.upload", "pw.steps.generate", "pw.steps.confirm", "pw.steps.final", "pw.steps.subs"];
   const nextNumber = episodes.reduce((m, e) => Math.max(m, e.number), 0) + 1;
-  const canEdit = !isStaffPreview(session);
+  const canEdit = !isStaffPreview(session) && (session.producerRole === "reviewer" || session.producerRole === "approver");
   const approvedCount = episodes.filter((e) => e.status === "approved").length;
   const activeCount = episodes.filter((e) => e.status === "adapting" || e.status === "in_review").length;
 
@@ -60,10 +60,9 @@ export default async function ProducerTitlePage({ params }: { params: { id: stri
 
       <div className="page-head title-console-head">
         <div>
-          <span className="page-kicker">{t(locale, "v3.title.workspace")}</span>
-          <h2 className="bilingual" lang="zh-CN">
+          <h1 className="bilingual" lang="zh-CN">
             {detail.title.name_zh}
-          </h2>
+          </h1>
           {(detail.title.name_en || detail.title.genre) && (
             <p className="page-sub">
               {[detail.title.name_en, detail.title.genre].filter(Boolean).join(" · ")}
@@ -73,6 +72,7 @@ export default async function ProducerTitlePage({ params }: { params: { id: stri
         {canEdit && <div className="page-head-actions"><a className="btn btn-outline" href="#add-episodes">{t(locale, "v3.title.addEpisodes")}</a><a className="btn btn-primary" href={`/producer/promote/new?title=${detail.title.id}`}>{t(locale, "promote.titleCta")}</a></div>}
       </div>
 
+      {!canEdit && <p className="note note-info">{t(locale, "ws.readOnly")}</p>}
       <section className="title-overview" aria-label={t(locale, "v3.title.overview")}>
         <div>
           <span>{t(locale, "v3.title.progress")}</span>

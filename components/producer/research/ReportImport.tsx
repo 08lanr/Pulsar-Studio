@@ -117,7 +117,7 @@ export default function ReportImport({ batches, canAct }: { batches: ReportBatch
         <section className="rs-panel">
           <div className="rs-panel-head">
             <div>
-              <h3>{filename}</h3>
+              <h2>{filename}</h2>
               <p>
                 {tt("research.reports.valid", { n: preview.valid })} · {tt("research.reports.invalid", { n: preview.invalid })} · {tt("research.reports.duplicates", { n: preview.duplicates })} · {tt("research.reports.unmatched", { n: preview.unmatched_titles })}
                 {preview.missing_columns.length > 0 && <> · <span className="ev ev-inferred">{tt("research.reports.missingColumns", { cols: preview.missing_columns.join(", ") })}</span></>}
@@ -147,7 +147,7 @@ export default function ReportImport({ batches, canAct }: { batches: ReportBatch
       )}
 
       <section className="rs-panel">
-        <div className="rs-panel-head"><div><h3>{tt("research.reports.batches")}</h3></div></div>
+        <div className="rs-panel-head"><div><h2>{tt("research.reports.batches")}</h2></div></div>
         {batches.length === 0 ? (
           <div className="rs-empty">{tt("research.reports.none")}</div>
         ) : (

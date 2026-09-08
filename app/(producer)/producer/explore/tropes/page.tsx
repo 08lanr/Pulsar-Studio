@@ -97,7 +97,7 @@ export default async function ExploreTropes({ searchParams }: { searchParams: Se
       <section className="rs-panel">
         <div className="rs-panel-head">
           <div>
-            <h3>{t(locale, "research.col.pairs")}</h3>
+            <h2>{t(locale, "research.col.pairs")}</h2>
             <p>{t(locale, "research.section.storyMixSub")}</p>
           </div>
         </div>

@@ -139,7 +139,7 @@ export default async function TitlePage({ params }: { params: { id: string } }) 
         </div>
 
         <section className="card">
-          <h3 className="field-group-title">{t(locale, "admin.title.episodes")}</h3>
+          <h2 className="field-group-title">{t(locale, "admin.title.episodes")}</h2>
           <p className="section-sub">{t(locale, "admin.title.episodesHelp")}</p>
           <div
             className="gtable gtable-flush episode-action-table"

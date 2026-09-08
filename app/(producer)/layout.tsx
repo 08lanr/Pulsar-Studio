@@ -20,7 +20,7 @@ export default async function ProducerLayout({ children }: { children: React.Rea
   return (
     <LocaleProvider locale={locale}>
       <PortalHeader company={company} />
-      <main className="producer-main">
+      <main className="producer-main" id="main-content" tabIndex={-1}>
         {isStaffPreview(session) && (
           <div className="producer-preview-note">
             <p className="note note-info">{t(locale, "portal.staffPreview")}</p>

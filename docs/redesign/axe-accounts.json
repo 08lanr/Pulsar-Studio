@@ -1,0 +1,57 @@
+{
+  "engine": {
+    "name": "axe-core",
+    "version": "4.13.0"
+  },
+  "url": "http://localhost:3210/producer/company?tab=accounts",
+  "checkedAt": "2026-09-08T06:14:56.075Z",
+  "viewport": {
+    "width": 1265,
+    "height": 760
+  },
+  "violationCount": 1,
+  "affectedNodeCount": 1,
+  "passedRuleCount": 36,
+  "incompleteRuleCount": 1,
+  "violations": [
+    {
+      "id": "heading-order",
+      "impact": "moderate",
+      "description": "Ensure the order of headings is semantically correct",
+      "help": "Heading levels should only increase by one",
+      "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/heading-order?application=axeAPI",
+      "nodes": [
+        {
+          "target": [
+            "h3"
+          ],
+          "html": "<h3>Owned accounts</h3>",
+          "failureSummary": "Fix any of the following:\n  Heading order invalid"
+        }
+      ]
+    }
+  ],
+  "needsManualReview": [
+    {
+      "id": "color-contrast",
+      "impact": "serious",
+      "targets": [
+        [
+          "a[href=\"/producer/company?tab=profile\"]"
+        ],
+        [
+          "a[href=\"/producer/company?tab=accounts\"]"
+        ],
+        [
+          "a[href=\"/producer/company?tab=access\"]"
+        ],
+        [
+          "a[href=\"/producer/company?tab=reports\"]"
+        ],
+        [
+          "a[href$=\"simulation\"]"
+        ]
+      ]
+    }
+  ]
+}

@@ -6,6 +6,40 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-09-08 (later) · What to make next: launches, not just prominence
+
+Decided by the founders (Ruobin): the workspace judged the catalog a studio
+already has, but did not say what to shoot next. Mini-drama studios clone a
+premise within days of seeing it work, so US market insights now has two
+views: **US overview** (what is prominent) and **What to make next** (what
+the platforms are launching now). A small version sits on the Overview.
+
+- **Fresh is observed, with every reason kept:** the platform's own new
+  flag, its New/Newest list (with rank), a release date within 30 days
+  (DramaBox exposes one; ReelShort does not), and first seen by Studio on
+  the latest published day (needs history). `lib/research/next.ts`
+  (`whatToMakeNext`, v1.0). Nothing is called new because we guessed.
+- **Growth needs two published days** and stays within a platform: listings
+  are grouped per platform and ranked by views added per day (same counter,
+  actual elapsed days; a decrease is an anomaly and never a mover). A
+  listing first seen today has no baseline and shows "no baseline", never 0.
+  Until the second day the board says "collecting history".
+- **Story types being launched now:** share of the fresh cohort carrying
+  each trope (multi-label, denominator shown, split by platform), lift
+  against the trope's share of every listing (≥ 10 fresh listings), median
+  growth of the fresh listings carrying it, the trope most often launched
+  with it, the producer's own titles with it, and two new examples.
+  Registry metrics `fresh_share` (inferred) and `fresh_growth` (observed).
+- **Make-now briefs** are templated from the top three story types: keep the
+  structure (trope + partner), swap the setting, the platform's median
+  episode count and paywall, one premise example (a synopsis opening, not a
+  tested hook) and the count of the studio's own titles. Labelled inferred.
+  They are a starting point for a clone brief, never a demand claim.
+- Verified against two real collections (2026-09-07 and 2026-09-08). The
+  ReelShort New shelf returned 27 rows on the second day where it had
+  returned 200; the collector stops when a page adds nothing, so the
+  snapshot carries what the platform served. Tests: `tests/research-next.test.ts`.
+
 ## 2026-09-08 · The US launch workspace: a number, a demo catalog, five areas
 
 Decided by the founders (Ruobin): "show a number", "generate a test / demo

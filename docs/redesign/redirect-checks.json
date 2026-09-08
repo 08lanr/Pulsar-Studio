@@ -1,0 +1,22 @@
+[
+  {
+    "from": "http://localhost:3210/producer/explore",
+    "heading": "Explore",
+    "url": "/producer/explore/titles"
+  },
+  {
+    "from": "http://localhost:3210/producer/accounts",
+    "heading": "Xinghai Pictures",
+    "url": "/producer/company?tab=accounts"
+  },
+  {
+    "from": "http://localhost:3210/producer/onboarding",
+    "heading": "Xinghai Pictures",
+    "url": "/producer/company?edit=1"
+  },
+  {
+    "from": "http://localhost:3210/producer/library",
+    "heading": "My catalog",
+    "url": "/producer/titles"
+  }
+]

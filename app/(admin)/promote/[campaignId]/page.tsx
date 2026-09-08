@@ -21,7 +21,7 @@ export default async function PromoteCampaign({ params }: { params: { campaignId
   const media = Object.fromEntries(detail.episodes.map((e) => [e.id, mediaUrl(e.video_path)]));
   return <>
     <nav className="studio-crumbs"><Link href="/promote">{t(locale, "admin.promote.title")}</Link><span>›</span><span>{detail.campaign.name}</span></nav>
-    <div className="page-head"><div><span className="page-kicker bilingual">{detail.title.name_en || detail.title.name_zh} · {summary?.producer_name_en || summary?.producer_name_zh || ""}</span><h2>{detail.campaign.name}</h2></div><Link className="btn btn-outline" href={`/titles/${detail.title.id}`}>{t(locale, "admin.head.title")}</Link></div>
+    <div className="page-head"><div><span className="page-kicker bilingual">{detail.title.name_en || detail.title.name_zh} · {summary?.producer_name_en || summary?.producer_name_zh || ""}</span><h1>{detail.campaign.name}</h1></div><Link className="btn btn-outline" href={`/titles/${detail.title.id}`}>{t(locale, "admin.head.title")}</Link></div>
     <PromoDesk detail={detail} media={media} />
   </>;
 }

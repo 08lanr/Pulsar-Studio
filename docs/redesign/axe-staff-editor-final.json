@@ -1,0 +1,37 @@
+{
+  "engine": {
+    "name": "axe-core",
+    "version": "4.13.0"
+  },
+  "url": "http://localhost:3210/titles/00000030-0000-4000-8000-000000000001/episodes/1",
+  "checkedAt": "2026-09-08T06:46:43.955Z",
+  "viewport": {
+    "width": 1425,
+    "height": 760
+  },
+  "violationCount": 0,
+  "affectedNodeCount": 0,
+  "passedRuleCount": 45,
+  "incompleteRuleCount": 2,
+  "violations": [],
+  "needsManualReview": [
+    {
+      "id": "aria-valid-attr-value",
+      "impact": "critical",
+      "targets": [
+        [
+          ".m-menu-btn"
+        ]
+      ]
+    },
+    {
+      "id": "video-caption",
+      "impact": "critical",
+      "targets": [
+        [
+          "video"
+        ]
+      ]
+    }
+  ]
+}

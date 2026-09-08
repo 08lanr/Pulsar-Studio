@@ -1,63 +1,63 @@
 {
   "promote.titleCta": {
-    "en": "Promote this drama",
-    "zh": "推广这部剧"
+    "en": "Create ad campaign",
+    "zh": "创建广告活动"
   },
   "promote.home.kicker": {
     "en": "Acquire viewers",
     "zh": "获取海外观众"
   },
   "promote.home.title": {
-    "en": "Promote",
-    "zh": "推广"
+    "en": "Ad campaigns",
+    "zh": "广告活动"
   },
   "promote.home.sub": {
-    "en": "Turn your drama into ads, approve the strongest ideas, and follow them through launch.",
-    "zh": "把剧集做成广告，确认最有潜力的创意，并一路查看到投放上线。"
+    "en": "Prepare ads, choose and approve them, approve the budget, launch, then review results.",
+    "zh": "准备广告，选择并批准广告，批准预算，投放，再查看结果。"
   },
   "promote.home.new": {
-    "en": "New promotion",
-    "zh": "新建推广"
+    "en": "New ad campaign",
+    "zh": "新建广告活动"
   },
   "promote.home.emptyTitle": {
     "en": "Your first campaign starts with a drama",
-    "zh": "从一部剧开始第一条推广"
+    "zh": "从一部剧开始第一个广告活动"
   },
   "promote.home.emptyHint": {
-    "en": "Choose an uploaded title. Pulsar will turn its strongest moments into direct clips and creator-style ad concepts.",
-    "zh": "选择已上传的剧集。Pulsar 会把高能片段做成直剪广告和达人风格创意。"
+    "en": "Choose an uploaded title to prepare direct-clip and creator-style ads.",
+    "zh": "选择已上传的作品，准备直剪和达人风格广告。"
   },
   "promote.home.emptyCta": {
-    "en": "Create a promotion",
-    "zh": "创建推广"
+    "en": "Create ad campaign",
+    "zh": "创建广告活动"
   },
   "promote.home.creatives": {
-    "en": "{n} creatives",
-    "zh": "{n} 条创意"
+    "en": "{n} ads",
+    "zh": "{n} 条广告"
   },
   "promote.home.approved": {
-    "en": "{n} approved",
+    "en": "{n} selected",
     "zh": "已选 {n} 条"
   },
   "promote.status.draft": {
-    "en": "Brief",
-    "zh": "填写需求"
+    "en": "Draft brief",
+    "zh": "简报草稿"
   },
   "promote.status.generating": {
     "en": "Generating",
     "zh": "生成中"
   },
   "promote.status.review": {
-    "en": "Your review",
-    "zh": "待你审阅"
+    "en": "Ads in review",
+    "zh": "广告审阅中"
   },
   "promote.status.approved": {
-    "en": "Approved",
-    "zh": "已确认"
+    "en": "Ads approved",
+    "zh": "广告已批准"
   },
   "promote.status.submitted": {
-    "en": "With Pulsar",
-    "zh": "Pulsar 处理中"
+    "en": "Submitted for launch",
+    "zh": "已提交投放"
   },
   "promote.status.launching": {
     "en": "Launching",
@@ -73,15 +73,15 @@
   },
   "promote.new.kicker": {
     "en": "Campaign brief",
-    "zh": "推广需求"
+    "zh": "广告活动简报"
   },
   "promote.new.title": {
     "en": "What should these ads accomplish?",
     "zh": "这批广告要带来什么结果？"
   },
   "promote.new.sub": {
-    "en": "Give the creative team boundaries, not a shot list. We will bring back distinct hypotheses to review.",
-    "zh": "告诉我们创作边界即可，不用自己写分镜。我们会提供方向各异的创意供你选择。"
+    "en": "Set the audience, goal and content boundaries. Then generate ads to choose from.",
+    "zh": "设置受众、目标和内容边界，再生成广告供选择。"
   },
   "promote.new.noTitles": {
     "en": "Upload a drama first",
@@ -108,12 +108,12 @@
     "zh": "缺少视频"
   },
   "promote.new.videoRequired": {
-    "en": "This title needs at least one episode video before creative generation can begin.",
-    "zh": "这部剧至少需要一集视频，才能开始生成广告创意。"
+    "en": "This title needs at least one episode video before ad generation can begin.",
+    "zh": "这部剧至少需要一集视频，才能开始生成广告。"
   },
   "promote.new.campaignName": {
     "en": "Campaign name",
-    "zh": "推广名称"
+    "zh": "广告活动名称"
   },
   "promote.new.market": {
     "en": "Launch market",
@@ -156,16 +156,16 @@
     "zh": "这会决定哪些剧情能做开头钩子，不只是文案措辞。"
   },
   "promote.new.outputTitle": {
-    "en": "First delivery",
-    "zh": "首批交付"
+    "en": "Ads to generate",
+    "zh": "待生成广告"
   },
   "promote.new.outputHint": {
-    "en": "5 concepts per round across direct drama clips and creator-style frames, each with hook, caption, description, and source timecode. We test 5 at a time; more rounds follow as results come in.",
-    "zh": "每轮 5 个方向，包含高能直剪和达人叙事；每条都有钩子、贴文文案、广告描述和来源时间码。我们每次只测试 5 个方向，后续会根据数据继续追加轮次。"
+    "en": "Generate 5 ads per round across direct clips and creator-style formats, each with a hook, caption, description and source timecode. Choose which ads to test first.",
+    "zh": "每轮生成 5 条直剪或达人风格广告，每条包含钩子、贴文文案、广告描述和来源时间码，再选择首轮测试的广告。"
   },
   "promote.new.cta": {
-    "en": "Create creative brief",
-    "zh": "创建创意需求"
+    "en": "Create campaign brief",
+    "zh": "创建广告活动简报"
   },
   "promote.objective.subscriptions": {
     "en": "Paid subscriptions",
@@ -208,40 +208,40 @@
     "zh": "审阅每条广告背后的获客假设，而不只是画面是否好看。"
   },
   "promote.workspace.firstBatch": {
-    "en": "Creative strategy",
-    "zh": "创意策略"
+    "en": "Ad strategy",
+    "zh": "广告策略"
   },
   "promote.workspace.readyTitle": {
     "en": "Your source footage is ready",
     "zh": "源视频已经就绪"
   },
   "promote.workspace.readyHint": {
-    "en": "We will build five distinct concepts from the uploaded episode videos — one testable round. Launches continue beyond this round: we test five concepts at a time and add more as results come in.",
-    "zh": "我们会从已上传的视频中制作 5 个不同方向，作为一轮测试。投放不止一轮：每次测试 5 个方向，后续根据数据继续追加。"
+    "en": "Generate five ads from the uploaded episode videos, then choose the ads for your first test. Review results before preparing another round.",
+    "zh": "根据已上传的视频生成 5 条广告，再选择首轮测试的广告。查看结果后再准备下一轮。"
   },
   "promote.workspace.generate": {
-    "en": "Generate first batch",
-    "zh": "生成首批创意"
+    "en": "Generate ads",
+    "zh": "生成广告"
   },
   "promote.workspace.variants": {
-    "en": "concepts",
-    "zh": "个创意"
+    "en": "ads",
+    "zh": "条广告"
   },
   "promote.workspace.approved": {
-    "en": "kept",
-    "zh": "已保留"
+    "en": "selected",
+    "zh": "已选择"
   },
   "promote.workspace.changes": {
     "en": "changes requested",
     "zh": "需修改"
   },
   "promote.workspace.approveBatch": {
-    "en": "Approve selected creatives",
-    "zh": "确认已选创意"
+    "en": "Approve ads",
+    "zh": "批准广告"
   },
   "promote.workspace.submitLaunch": {
-    "en": "Submit to Pulsar for launch",
-    "zh": "提交 Pulsar 准备投放"
+    "en": "Launch",
+    "zh": "投放"
   },
   "promote.workspace.submitted": {
     "en": "Pulsar is preparing launch",
@@ -260,8 +260,8 @@
     "zh": "广告描述"
   },
   "promote.workspace.keep": {
-    "en": "Keep this",
-    "zh": "保留这条"
+    "en": "Choose ad",
+    "zh": "选择广告"
   },
   "promote.workspace.changeHint": {
     "en": "What should change?",
@@ -292,8 +292,8 @@
     "zh": "待审阅"
   },
   "promote.creativeStatus.approved": {
-    "en": "Kept",
-    "zh": "已保留"
+    "en": "Selected",
+    "zh": "已选择"
   },
   "promote.creativeStatus.rejected": {
     "en": "Change requested",
@@ -308,12 +308,12 @@
     "zh": "旧版本"
   },
   "promote.step.creative": {
-    "en": "Creative review",
-    "zh": "创意审阅"
+    "en": "Choose ads",
+    "zh": "选择广告"
   },
   "promote.step.approval": {
-    "en": "Approved by you",
-    "zh": "你已确认"
+    "en": "Ads approved",
+    "zh": "广告已批准"
   },
   "promote.step.pulsar": {
     "en": "Pulsar review",
@@ -332,8 +332,8 @@
     "zh": "选择剧目"
   },
   "promote.new.pickHint": {
-    "en": "The promotion is generated from this drama's episodes.",
-    "zh": "推广素材将从该剧的剧集中生成。"
+    "en": "Ads are generated from this drama's episodes.",
+    "zh": "广告将根据该剧的剧集生成。"
   },
   "promote.new.pickReady": {
     "en": "Ready",
@@ -344,12 +344,12 @@
     "zh": "更换"
   },
   "promote.workspace.roundNote": {
-    "en": "Round 1 · we test 5 concepts at a time and keep launching new rounds",
-    "zh": "第 1 轮 · 每轮测试 5 个方向，后续持续追加投放"
+    "en": "Generate 5 ads, choose which to test, then review results before the next round.",
+    "zh": "生成 5 条广告，选择测试广告，查看结果后再开始下一轮。"
   },
   "promote.workspace.approveAll": {
-    "en": "Keep all {n}",
-    "zh": "全部保留（{n} 条）"
+    "en": "Choose all {n} ads",
+    "zh": "选择全部 {n} 条广告"
   },
   "promote.workspace.revised": {
     "en": "Revised by Pulsar · v{v}",

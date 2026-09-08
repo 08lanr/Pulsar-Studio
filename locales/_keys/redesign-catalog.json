@@ -1,0 +1,13 @@
+{
+  "redesign.catalog.search": {"en":"Search your titles", "zh":"搜索剧库作品"},
+  "redesign.catalog.materials": {"en":"Rights & materials", "zh":"版权与素材"},
+  "redesign.catalog.storyEvidence": {"en":"Story tags & score breakdown", "zh":"题材与评分明细"},
+  "redesign.catalog.chinaViews": {"en":"China views: {n} · partner-reported", "zh":"国内播放量：{n} · 合作方提供"},
+  "redesign.catalog.partialSubs": {"en":"{pct}% adapted", "zh":"已改编 {pct}%"},
+  "redesign.catalog.resultsAvailable": {"en":"Results available", "zh":"已有结果"},
+  "redesign.catalog.noResults": {"en":"No results yet", "zh":"暂无结果"},
+  "redesign.catalog.review": {"en":"Review title", "zh":"查看作品"},
+  "redesign.catalog.noMatches": {"en":"No titles match these filters", "zh":"没有符合筛选条件的作品"},
+  "redesign.catalog.resetHelp": {"en":"Clear the search and recommendation filters to see your full catalog.", "zh":"清除搜索和建议筛选，查看全部剧库作品。"},
+  "redesign.catalog.start": {"en":"Build your launch catalog", "zh":"建立你的发行剧库"}
+}

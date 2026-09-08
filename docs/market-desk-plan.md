@@ -103,3 +103,25 @@ coded (migration 0006), not exercised. Verified in the browser on port
 Not done: provider connections (TikTok/Meta), real results (Grow readback),
 scheduled market collection (founder decision), history-based market
 signal (turns on with a second crawl).
+
+## Phase 8 · What to make next (2026-09-08, later)
+
+Status: **done.** US market insights has two views (US overview, What to
+make next) plus Explore and Data & sources as tabs; the board ranks story
+types by their share of new listings with lift, growth, partner trope,
+own-catalog count and examples; make-now briefs for the top three; per
+platform "new on" tables (reasons, release / first seen, views, growth per
+day, chart, story types) and fastest-growing lists; a miniature on the
+Overview. Engine `lib/research/next.ts`, registry metrics `fresh_share` and
+`fresh_growth`, 7 tests. Verified in the browser on port 3200 against two
+real collection days.
+
+Also this session: Codex's redesign and workflow-clarity passes were
+reviewed in the browser; row grids with an `auto` action column (campaign
+queue, launch shortlist, assessment facts) were misaligning across rows and
+now use fixed columns; flush tables inside panels are inset to the panel
+padding; the results and accounts tables got proportional columns.
+
+Not done: a scheduled daily collection (founder decision on terms of
+service); the ReelShort New shelf pagination change (27 rows per page,
+page 2 repeats page 1) is recorded, not worked around.

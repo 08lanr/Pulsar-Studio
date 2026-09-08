@@ -380,8 +380,8 @@
     "zh": "推广工作台"
   },
   "admin.promote.sub": {
-    "en": "Every producer campaign, what it needs from Pulsar, and where Grow has taken it.",
-    "zh": "所有制片方的推广活动、需要 Pulsar 处理的事项，以及 Grow 的投放进度。"
+    "en": "Every producer ad campaign, what it needs from Pulsar, and its launch progress in Grow.",
+    "zh": "所有制片方的广告活动、需要 Pulsar 处理的事项，以及 Grow 的投放进度。"
   },
   "admin.promote.queue.action": {
     "en": "Needs Pulsar",
@@ -397,7 +397,7 @@
   },
   "admin.promote.col.campaign": {
     "en": "Campaign",
-    "zh": "推广活动"
+    "zh": "广告活动"
   },
   "admin.promote.col.producer": {
     "en": "Producer",
@@ -408,8 +408,8 @@
     "zh": "状态"
   },
   "admin.promote.col.creatives": {
-    "en": "Creatives",
-    "zh": "创意"
+    "en": "Ads",
+    "zh": "广告"
   },
   "admin.promote.col.next": {
     "en": "Next",
@@ -420,8 +420,8 @@
     "zh": "更新"
   },
   "admin.promote.empty": {
-    "en": "No campaigns yet. They appear here the moment a producer starts a promotion.",
-    "zh": "暂无推广活动。制片方发起推广后会显示在这里。"
+    "en": "No campaigns yet. They appear here when a producer starts an ad campaign.",
+    "zh": "暂无广告活动。制片方创建广告活动后会显示在这里。"
   },
   "admin.promote.status.draft": {
     "en": "Brief",
@@ -484,8 +484,8 @@
     "zh": "状态"
   },
   "admin.promote.stat.creatives": {
-    "en": "Kept / concepts",
-    "zh": "已保留 / 方向"
+    "en": "Selected / total ads",
+    "zh": "已选 / 全部广告"
   },
   "admin.promote.stat.changes": {
     "en": "Change requests",
@@ -496,8 +496,8 @@
     "zh": "Grow 活动"
   },
   "admin.promote.brief": {
-    "en": "Brief",
-    "zh": "需求"
+    "en": "Campaign brief",
+    "zh": "广告活动简报"
   },
   "admin.promote.brief.market": {
     "en": "Market",
@@ -528,8 +528,8 @@
     "zh": "投放"
   },
   "admin.promote.launch.submitted": {
-    "en": "The producer approved {n} creatives and submitted for launch. Create the Grow campaign, then record its progress here.",
-    "zh": "制片方已确认 {n} 条创意并提交投放。在 Grow 创建活动后，在此记录进度。"
+    "en": "The producer approved {n} ads and submitted for launch. Create the Grow campaign, then record its progress here.",
+    "zh": "制片方已批准 {n} 条广告并提交投放。在 Grow 创建活动后，在此记录进度。"
   },
   "admin.promote.launch.launching": {
     "en": "Launching on Grow. Confirm here once TikTok approves the ads.",
@@ -580,12 +580,12 @@
     "zh": "交接记录"
   },
   "admin.promote.creatives": {
-    "en": "Creatives",
-    "zh": "创意"
+    "en": "Ads",
+    "zh": "广告"
   },
   "admin.promote.creatives.sub": {
-    "en": "Answer each change request with a revised version; the producer sees it as a fresh concept to keep or change again.",
-    "zh": "对每条修改要求给出新版本；制片方会看到新版本并再次决定保留或修改。"
+    "en": "Answer each change request with a revised ad; the producer can choose it or request another change.",
+    "zh": "根据每条修改要求提供新版广告，供制片方选择或再次要求修改。"
   },
   "admin.promote.producerAsked": {
     "en": "Producer asked",

@@ -40,7 +40,7 @@ export default async function SourceEntryPage({ params }: { params: { key: strin
         <div className="page-head">
           <div>
             <span className="page-kicker">{GROUP_LABELS[metric.group][locale]}</span>
-            <h2>{locale === "zh" ? metric.name_zh : metric.name_en}</h2>
+            <h1>{locale === "zh" ? metric.name_zh : metric.name_en}</h1>
             <p className="page-sub">{locale === "zh" ? metric.question_zh : metric.question_en}</p>
           </div>
           <StateBadge status={status} locale={locale} />
@@ -62,7 +62,7 @@ export default async function SourceEntryPage({ params }: { params: { key: strin
             </dl></details>
           </section>
           <section className="rs-panel">
-            <div className="rs-panel-head"><div><h3>{t(locale, "research.sources.limits")}</h3></div></div>
+            <div className="rs-panel-head"><div><h2>{t(locale, "research.sources.limits")}</h2></div></div>
             <ul className="rs-list">
               {(locale === "zh" ? metric.limitations_zh : metric.limitations_en).map((l, i) => <li key={i}>{l}</li>)}
             </ul>
@@ -89,7 +89,7 @@ export default async function SourceEntryPage({ params }: { params: { key: strin
       <div className="page-head">
         <div>
           <span className="page-kicker">{GROUP_LABELS[s.group][locale]}</span>
-          <h2>{copy.name}</h2>
+          <h1>{copy.name}</h1>
           <p className="page-sub">{copy.description}</p>
         </div>
         <StateBadge status={status} locale={locale} />
@@ -112,11 +112,11 @@ export default async function SourceEntryPage({ params }: { params: { key: strin
           </dl>
         </section>
         <section className="rs-panel">
-          <div className="rs-panel-head"><div><h3>{t(locale, "research.sources.limits")}</h3></div></div>
+          <div className="rs-panel-head"><div><h2>{t(locale, "research.sources.limits")}</h2></div></div>
           <ul className="rs-list">{copy.limits.map((l, i) => <li key={i}>{l}</li>)}</ul>
           {dependents.length > 0 && (
             <>
-              <div className="rs-panel-head" style={{ borderTop: "1px solid var(--border-light)" }}><div><h3>{t(locale, "research.sources.usedBy")}</h3></div></div>
+              <div className="rs-panel-head" style={{ borderTop: "1px solid var(--border-light)" }}><div><h2>{t(locale, "research.sources.usedBy")}</h2></div></div>
               <ul className="rs-list">
                 {dependents.map((m) => <li key={m.key}><a href={`/producer/sources/${m.key}`}>{locale === "zh" ? m.name_zh : m.name_en}</a><span className="spacer" /><StateBadge status={statusFor(m.status_rule, ctx)} locale={locale} /></li>)}
               </ul>

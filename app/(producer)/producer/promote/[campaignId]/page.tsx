@@ -9,6 +9,7 @@ import { mediaUrl } from "@/lib/data/storage";
 import { t } from "@/lib/i18n";
 import { BENCHMARK } from "@/lib/research/assessment";
 import { experimentStage } from "@/lib/research/workspace";
+import { campaignWorkflow, workflowStepForStage } from "@/lib/research/workflow";
 
 // /producer/promote/[campaignId] — one experiment: the stage strip, the
 // structured brief with budget approval, the concept review (generate
@@ -34,10 +35,16 @@ export default async function ExperimentPage({ params }: { params: { campaignId:
   const media = Object.fromEntries(detail.episodes.map((e) => [e.id, mediaUrl(e.video_path)]));
   const canEdit = !isStaffPreview(session) && (session.producerRole === "approver" || session.producerRole === "reviewer");
   const canApprove = !isStaffPreview(session) && session.producerRole === "approver";
-  const titleName = detail.title.name_en || detail.title.name_zh;
+  const titleName = locale === "en" ? detail.title.name_en || detail.title.name_zh : detail.title.name_zh;
+  const flow = summary ? campaignWorkflow(summary, detail.results) : { step: workflowStepForStage[st.stage], hint: `workflow.hint.${workflowStepForStage[st.stage]}`, waiting: false };
+  const launched = ["submitted", "launching", "live"].includes(detail.campaign.status);
+  const panelFirst = ["prepare", "budget", "results"].includes(flow.step) || launched;
+  const experimentPanel = <div id="brief"><ExperimentPanel campaign={detail.campaign} creatives={detail.creatives} results={detail.results} canEdit={canEdit} canApprove={canApprove} fixtureMode={dataSource() === "fixture"} benchmark={BENCHMARK} titleName={titleName} briefExpanded={flow.step === "prepare" || flow.step === "budget"} /></div>;
+  const ads = detail.campaign.status === "generating" || (detail.campaign.status === "failed" && !detail.creatives.length) ? null : <section id="ads" className="fc-ads-section"><span id="concepts"/><header className="fc-section-heading"><h2>{t(locale, ["choose", "approveAds"].includes(flow.step) ? `workflow.step.${flow.step}` : "fc.ads")}</h2>{launched && <p>{t(locale, "fc.adsArchiveHint")}</p>}</header><PromoWorkspace detail={detail} media={media} canAct={canEdit} canApprove={canApprove} /></section>;
+  const adSection = launched || flow.step === "budget" ? <details className="fc-disclosure fc-archive"><summary><span>{t(locale, "fc.adsArchive")}</span><span>{detail.creatives.filter(c => c.status !== "superseded").length}</span></summary>{ads}</details> : ads;
 
   return (
-    <>
+    <div className="fc-campaign">
       <nav className="studio-crumbs" aria-label={t(locale, "v3.breadcrumbs")}>
         <a href="/producer/promote">{t(locale, "ws.nav.launch")}</a>
         <span>›</span>
@@ -45,29 +52,19 @@ export default async function ExperimentPage({ params }: { params: { campaignId:
       </nav>
       <div className="page-head">
         <div>
-          <span className="page-kicker">{t(locale, "ws.exp.forTitle", { title: titleName })} · {detail.campaign.target_market}</span>
-          <h2>{detail.campaign.name}</h2>
-          <p className="page-sub">{t(locale, "ws.exp.sub")}</p>
+          <p className="fc-campaign-context">{t(locale, "ws.exp.forTitle", { title: titleName })} · {detail.campaign.target_market}</p>
+          <h1>{detail.campaign.name}</h1>
+          {!flow.waiting && <p className="page-sub">{t(locale, flow.hint)}</p>}
         </div>
         <span className="rs-tool-row">
           <a className="btn btn-outline btn-sm" href={`/producer/titles/${detail.title.id}/potential`}>{t(locale, "ws.actions.assess")}</a>
-          <span className="state state-collecting_history">{t(locale, `ws.exp.waiting.${st.waiting}`)}</span>
         </span>
       </div>
-      <StageStrip stage={st.stage} locale={locale} />
+      <StageStrip stage={st.stage} step={flow.step} locale={locale} />
       <p className="note note-info">{t(locale, "ws.exp.mock")}</p>
 
-      <ExperimentPanel campaign={detail.campaign} creatives={detail.creatives} results={detail.results} canEdit={canEdit} canApprove={canApprove} fixtureMode={dataSource() === "fixture"} benchmark={BENCHMARK} titleName={titleName} />
-
-      <section style={{ marginTop: 20 }} id="concepts">
-        <div className="rs-panel-head" style={{ padding: "0 0 10px" }}>
-          <div>
-            <h3>{t(locale, "ws.exp.stage.concepts")}</h3>
-            <p>{detail.campaign.experiment ? t(locale, "ws.exp.selectBatch", { n: detail.campaign.experiment.first_batch, total: detail.creatives.filter((c) => c.status !== "superseded").length || 5 }) : t(locale, "promote.workspace.sub")}</p>
-          </div>
-        </div>
-        <PromoWorkspace detail={detail} media={media} canAct={canEdit} />
-      </section>
-    </>
+      {flow.waiting && <div className="fc-current-task" id="launch-status"><strong>{t(locale, `workflow.step.${flow.step}`)}</strong><span>{t(locale, flow.hint)}</span></div>}
+      {panelFirst ? <>{experimentPanel}{adSection}</> : <>{adSection}{experimentPanel}</>}
+    </div>
   );
 }

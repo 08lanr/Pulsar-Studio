@@ -19,6 +19,7 @@ type Props = {
   fixtureMode: boolean;
   benchmark: { hook_hold_rate: number; ctr: number };
   titleName: string;
+  briefExpanded?: boolean;
 };
 
 async function call<T>(url: string, method: string, body?: unknown): Promise<T> {
@@ -28,7 +29,7 @@ async function call<T>(url: string, method: string, body?: unknown): Promise<T> 
   return json;
 }
 
-export default function ExperimentPanel({ campaign, creatives, results, canEdit, canApprove, fixtureMode, benchmark, titleName }: Props) {
+export default function ExperimentPanel({ campaign, creatives, results, canEdit, canApprove, fixtureMode, benchmark, titleName, briefExpanded = true }: Props) {
   const { tt } = useT();
   const router = useRouter();
   const e = campaign.experiment;
@@ -85,12 +86,10 @@ export default function ExperimentPanel({ campaign, creatives, results, canEdit,
   const winner = scored.filter((x) => x.r.hook_hold_rate >= benchmark.hook_hold_rate && x.ctr >= benchmark.ctr).sort((a, b) => b.r.hook_hold_rate - a.r.hook_hold_rate)[0] ?? null;
   const totalSpend = results.reduce((a, r) => a + r.spend_usd, 0);
 
-  return (
-    <div className="ws-experiment">
-      <section className="rs-panel" id="experiment">
+  const briefPanel = (<section className="rs-panel" id="experiment">
         <div className="rs-panel-head">
           <div>
-            <h3>{tt("ws.exp.brief")}</h3>
+            <h2>{tt("ws.exp.brief")}</h2>
             <p>{tt("ws.exp.briefSub")}</p>
           </div>
           <span className="rs-panel-aside">
@@ -121,36 +120,33 @@ export default function ExperimentPanel({ campaign, creatives, results, canEdit,
               </button>
             )}
             {!canEdit && <span className="hint">{tt("ws.readOnly")}</span>}
-            {msg && <span role="status" className="pill pill-success">{msg}</span>}
-            {err && <span role="alert" className="err">{err}</span>}
           </div>
         </form>
-      </section>
-
-      <section className="rs-panel" id="results">
+      </section>);
+  const resultsPanel = (<section className="rs-panel" id="results">
         <div className="rs-panel-head">
           <div>
-            <h3>{tt("ws.exp.results")}</h3>
+            <h2>{tt("ws.exp.results")}</h2>
             <p>{tt("ws.exp.resultsSub")} {tt("ws.exp.benchmark", { hold: Math.round(benchmark.hook_hold_rate * 100), ctr: (benchmark.ctr * 100).toFixed(1) })}</p>
           </div>
-          {fixtureMode && locked && results.length === 0 && canEdit && (
+          {fixtureMode && ["submitted", "live"].includes(campaign.status) && results.length === 0 && canEdit && (
             <span className="rs-panel-aside"><button className="btn btn-outline btn-sm" type="button" onClick={simulate} disabled={busy !== null} title={tt("ws.exp.simulateNote")}>{busy === "simulate" ? tt("common.loading") : tt("ws.exp.simulate")}</button></span>
           )}
         </div>
         {results.length === 0 ? (
           <div className="rs-empty">{tt("ws.exp.noResults")} {fixtureMode && locked && <small className="gt-muted">{tt("ws.exp.simulateNote")}</small>}</div>
         ) : (
-          <div className="gtable gtable-flush rs-table" style={{ ["--cols" as string]: "minmax(0,2fr) 90px 90px 90px 80px 80px 90px 80px" }}>
+          <div className="gtable gtable-flush rs-table" style={{ ["--cols" as string]: "minmax(200px,2.4fr) minmax(88px,.8fr) minmax(80px,.7fr) minmax(80px,.7fr) minmax(72px,.6fr) minmax(80px,.7fr) minmax(96px,.8fr) 84px" }}>
             <div className="gt-head"><span>{tt("ws.exp.col.creative")}</span><span className="gt-num">{tt("ws.exp.col.impressions")}</span><span className="gt-num">{tt("ws.exp.col.views")}</span><span className="gt-num">{tt("ws.exp.col.hold")}</span><span className="gt-num">{tt("ws.exp.col.ctr")}</span><span className="gt-num">{tt("ws.exp.col.spend")}</span><span className="gt-num">{tt("ws.exp.col.landing")}</span><span>{tt("ws.exp.col.source")}</span></div>
             {scored.map(({ r, c, ctr }) => {
               const wins = winner?.r.id === r.id;
               return (
                 <div className={`gt-row${wins ? " is-winner" : ""}`} key={r.id}>
-                  <span style={{ minWidth: 0 }}><span className="rs-title-name">{c?.hypothesis ?? r.creative_id}</span><span className="rs-title-sub">{c ? `${c.kind} · ${c.hook}` : ""}{wins ? ` · ${tt("ws.exp.winner")}` : ""}</span></span>
+                  <span style={{ minWidth: 0 }}><span className="rs-title-name">{c?.hypothesis ?? r.creative_id}</span><span className="rs-title-sub">{c ? `${tt(`promote.kind.${c.kind}`)} · ${c.hook}` : ""}{wins ? ` · ${tt("ws.exp.winner")}` : ""}</span></span>
                   <span className="gt-num">{r.impressions.toLocaleString("en-US")}</span>
                   <span className="gt-num">{r.video_views.toLocaleString("en-US")}</span>
                   <span className={`gt-num${r.hook_hold_rate >= benchmark.hook_hold_rate ? " delta-up" : " delta-down"}`}>{Math.round(r.hook_hold_rate * 100)}%</span>
-                  <span className={`gt-num${ctr >= benchmark.ctr ? " delta-up" : " delta-down"}`}>{(ctr * 100).toFixed(2)}%</span>
+                  <span className={`gt-num${!r.impressions ? "" : ctr >= benchmark.ctr ? " delta-up" : " delta-down"}`}>{r.impressions ? `${(ctr * 100).toFixed(2)}%` : "–"}</span>
                   <span className="gt-num">${r.spend_usd.toFixed(2)}</span>
                   <span className="gt-num">{r.landing_actions ?? "–"}</span>
                   <span><span className={`state ${r.source === "demo" ? "state-unavailable" : "state-available"}`}>{tt(`ws.exp.source.${r.source}`)}</span></span>
@@ -160,13 +156,11 @@ export default function ExperimentPanel({ campaign, creatives, results, canEdit,
             <div className="rs-panel-foot">{tt("ws.exp.col.spend")}: ${totalSpend.toFixed(2)} · {results[0]?.window_start} → {results[results.length - 1]?.window_end}</div>
           </div>
         )}
-      </section>
-
-      {results.length > 0 && (
-        <section className="rs-panel" id="decide">
+      </section>);
+  const decisionPanel = results.length > 0 ? (<section className="rs-panel" id="decide">
           <div className="rs-panel-head">
             <div>
-              <h3>{tt("ws.exp.decide")}</h3>
+              <h2>{tt("ws.exp.decide")}</h2>
               <p>{tt("ws.exp.decideSub")}</p>
             </div>
           </div>
@@ -177,15 +171,23 @@ export default function ExperimentPanel({ campaign, creatives, results, canEdit,
               <p className="note note-warn">{tt("ws.exp.noWinner")}</p>
             )}
             <div className="rs-tool-row">
-              {winner && <button className="btn btn-primary" type="button" disabled={!canEdit || busy !== null} onClick={() => nextRound(Math.round((e?.budget_usd ?? 100) * 3), `Scale the winning concept: "${winner.c?.hypothesis ?? ""}". Same audience; 3× the first budget.`)}>{tt("ws.exp.scaleUp", { n: Math.round((e?.budget_usd ?? 100) * 3) })}</button>}
-              <button className="btn btn-outline" type="button" disabled={!canEdit || busy !== null} onClick={() => nextRound(e?.budget_usd ?? 100, winner ? `More variations of the winning concept: "${winner.c?.hypothesis ?? ""}". Same audience and budget.` : "New variations after a round with no concept above both benchmarks. Same audience and budget.")}>{tt("ws.exp.moreVariations")}</button>
+              {winner && <button className="btn btn-primary" type="button" disabled={!canEdit || busy !== null} onClick={() => nextRound(Math.round((e?.budget_usd ?? 100) * 3), tt("fc.roundScale", { hypothesis: winner.c?.hypothesis ?? "" }))}>{tt("ws.exp.scaleUp", { n: Math.round((e?.budget_usd ?? 100) * 3) })}</button>}
+              <button className="btn btn-outline" type="button" disabled={!canEdit || busy !== null} onClick={() => nextRound(e?.budget_usd ?? 100, winner ? tt("fc.roundMore", { hypothesis: winner.c?.hypothesis ?? "" }) : tt("fc.roundRetry"))}>{tt("ws.exp.moreVariations")}</button>
               <a className="btn btn-ghost" href="/producer/promote">{tt("ws.exp.stop")}</a>
             </div>
-            {msg && <p role="status" className="note note-success">{msg}</p>}
-            {err && <p role="alert" className="err">{err}</p>}
           </div>
-        </section>
-      )}
-    </div>
-  );
+        </section>) : null;
+
+  return <div className="ws-experiment fc-experiment">
+    {msg && <p role="status" className="note note-success">{msg}</p>}
+    {err && <p role="alert" className="err">{err}</p>}
+    {results.length > 0 && decisionPanel}
+    {(locked || results.length > 0) && resultsPanel}
+    {briefExpanded && !locked && !results.length ? briefPanel : (
+      <details className="fc-disclosure" id="brief-record">
+        <summary><span>{tt("fc.briefRecord")}</span><span>{e ? `$${e.budget_usd} · ${tt(e.approved_at ? "fc.budgetApproved" : "fc.budgetPending")}` : tt("ws.exp.brief")}</span></summary>
+        {briefPanel}
+      </details>
+    )}
+  </div>;
 }

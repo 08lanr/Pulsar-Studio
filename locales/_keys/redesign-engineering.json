@@ -1,0 +1,6 @@
+{
+  "redesign.skipContent": { "en": "Skip to main content", "zh": "跳至主要内容" },
+  "redesign.savedTitles": { "en": "Saved titles", "zh": "已收藏作品" },
+  "redesign.accountSaved": { "en": "Account details saved.", "zh": "账户资料已保存。" },
+  "redesign.scrollTable": { "en": "Scroll horizontally to view all columns.", "zh": "横向滚动可查看全部列。" }
+}

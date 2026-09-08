@@ -69,26 +69,28 @@ export default function NewTitleForm({ returnTo }: { returnTo?: "promote" } = {}
       <div className="field-group">
         <div className="field-group-title">{tt("pw.new.info")}</div>
         <div className="field field-key">
-          <label className="label">{tt("pw.new.nameZh")}</label>
-          <input className="input bilingual" lang="zh-CN" value={nameZh} required onChange={(e) => setNameZh(e.target.value)} />
+          <label className="label" htmlFor="new-title-name-zh">{tt("pw.new.nameZh")}</label>
+          <input id="new-title-name-zh" name="name_zh" className="input bilingual" lang="zh-CN" value={nameZh} required onChange={(e) => setNameZh(e.target.value)} />
         </div>
         <div className="field-row">
           <div className="field">
-            <label className="label">{tt("pw.new.nameEn")}</label>
-            <input className="input bilingual" lang="en" value={nameEn} onChange={(e) => setNameEn(e.target.value)} />
+            <label className="label" htmlFor="new-title-name-en">{tt("pw.new.nameEn")}</label>
+            <input id="new-title-name-en" name="name_en" className="input bilingual" lang="en" value={nameEn} onChange={(e) => setNameEn(e.target.value)} />
           </div>
           <div className="field">
-            <label className="label">{tt("pw.new.genre")}</label>
-            <input className="input" value={genre} placeholder={tt("pw.new.genreHint")} onChange={(e) => setGenre(e.target.value)} />
+            <label className="label" htmlFor="new-title-genre">{tt("pw.new.genre")}</label>
+            <input id="new-title-genre" name="genre" className="input" value={genre} placeholder={tt("pw.new.genreHint")} onChange={(e) => setGenre(e.target.value)} />
           </div>
         </div>
         <div className="field">
-          <label className="label">{tt("pw.new.synopsis")}</label>
-          <textarea className="textarea bilingual" lang="zh-CN" rows={3} value={synopsis} onChange={(e) => setSynopsis(e.target.value)} />
+          <label className="label" htmlFor="new-title-synopsis">{tt("pw.new.synopsis")}</label>
+          <textarea id="new-title-synopsis" name="synopsis_zh" className="textarea bilingual" lang="zh-CN" rows={3} value={synopsis} onChange={(e) => setSynopsis(e.target.value)} />
         </div>
         <div className="field">
-          <label className="label">{tt("pw.new.notes")}</label>
+          <label className="label" htmlFor="new-title-notes">{tt("pw.new.notes")}</label>
           <textarea
+            id="new-title-notes"
+            name="character_notes"
             className="textarea bilingual"
             lang="zh-CN"
             rows={3}
@@ -105,9 +107,9 @@ export default function NewTitleForm({ returnTo }: { returnTo?: "promote" } = {}
         <EpisodeSlots slots={slots} setSlots={setSlots} startNumber={1} busy={busy} />
       </div>
 
-      {error && <p className="err">{error}</p>}
+      {error && <p className="err" role="alert">{error}</p>}
       <div className="pline-actions">
-        <span className="sticky-bar-note">{progress}</span>
+        <span className="sticky-bar-note" role="status">{progress}</span>
         <span className="spacer" />
         <button className="btn btn-primary" disabled={busy || !nameZh.trim() || blocked}>
           {busy ? tt("common.loading") : tt("pw.new.cta")}

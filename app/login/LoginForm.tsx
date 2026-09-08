@@ -23,7 +23,7 @@ type LoginReply = { ok?: boolean; home?: string; sent?: boolean; error?: string 
 export default function LoginForm({ mode, next, initialError }: Props) {
   const { tt } = useT();
   return (
-    <main className="page">
+    <main className="page ps-login">
       {/* .brand is styled only inside the sidebar; out here the wordmark is a
           quiet ghost link, which is all a door needs. */}
       <div className="page-head">
@@ -35,7 +35,7 @@ export default function LoginForm({ mode, next, initialError }: Props) {
       </div>
 
       <div className="card">
-        <h2>{tt("auth.login.title")}</h2>
+        <h1>{tt("auth.login.title")}</h1>
         <p className="hint">{tt("auth.login.sub")}</p>
         {mode === "fixture" ? (
           <DevPersonas next={next} />
@@ -138,8 +138,8 @@ function SupabaseForm({ next, initialError }: Omit<Props, "mode">) {
         <p className="hint">{tt("auth.password.hint")}</p>
       </div>
 
-      {error && <p className="err">{error}</p>}
-      {sent && <p className="note note-info">{tt("auth.magic.sent")}</p>}
+      {error && <p className="err" role="alert">{error}</p>}
+      {sent && <p className="note note-info" role="status">{tt("auth.magic.sent")}</p>}
 
       <div className="field">
         <button

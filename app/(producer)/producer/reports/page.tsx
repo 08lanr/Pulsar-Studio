@@ -22,14 +22,13 @@ export default async function ReportsPage() {
   return (
     <>
       <nav className="studio-crumbs" aria-label={t(locale, "v3.breadcrumbs")}>
-        <a href="/producer/titles">{t(locale, "research.nav.titles")}</a>
+        <a href="/producer/company">{t(locale, "ws.company.title")}</a>
         <span>›</span>
         <span>{t(locale, "research.reports.title")}</span>
       </nav>
       <div className="page-head">
         <div>
-          <span className="page-kicker">{t(locale, "research.mine.kicker")}</span>
-          <h2>{t(locale, "research.reports.title")}</h2>
+          <h1>{t(locale, "research.reports.title")}</h1>
           <p className="page-sub">{t(locale, "research.reports.sub")}</p>
         </div>
         <span><EvidenceTag evidence="partner_reported" locale={locale} /> <StateBadge status={rows.length ? "available" : "requires_connection"} locale={locale} /></span>

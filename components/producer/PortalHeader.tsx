@@ -9,6 +9,9 @@ import { useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import LangToggle from "@/components/LangToggle";
+import ThemeToggle from "@/components/ThemeToggle";
+import { IconMenu } from "@/components/icons";
+import { containDialogFocus } from "@/components/dialog-focus";
 import { useT } from "@/components/locale";
 import type { Producer } from "@/lib/types";
 import { IconCompass, IconLibrary, IconLogout, IconMarket, IconPlus, IconPromote, IconSources } from "./icons";
@@ -40,7 +43,8 @@ export default function PortalHeader({ company }: { company: Pick<Producer, "nam
 
   return (
     <>
-      <aside className="producer-sidebar">
+      <a className="skip-link" href="#main-content">{tt("redesign.skipContent")}</a>
+      <aside className="producer-sidebar" aria-label={tt("ws.overview.kicker")}>
         <Link href="/producer" className="producer-brand"><span className="producer-brandmark" aria-hidden><i /></span><span>Pulsar <b>Studio</b></span></Link>
         <span className="producer-workspace-label">{tt("ws.overview.kicker")}</span>
         <nav className="producer-nav" aria-label={tt("v3.primaryNav")}>{links}</nav>
@@ -51,12 +55,13 @@ export default function PortalHeader({ company }: { company: Pick<Producer, "nam
         </div>
       </aside>
       <header className="producer-topbar">
-        <button ref={trigger} className="btn btn-outline brief-menu" aria-label={tt("ux.menu")} aria-haspopup="dialog" onClick={() => dialog.current?.showModal()}>☰</button>
+        <button ref={trigger} className="btn btn-outline brief-menu" aria-label={tt("ux.menu")} aria-haspopup="dialog" onClick={() => dialog.current?.showModal()}><IconMenu /></button>
         <span className="producer-section">{tt(active?.key ?? "ws.nav.overview")}</span>
         <span className="spacer" />
         <LangToggle />
+        <ThemeToggle />
       </header>
-      <dialog className="brief-nav-dialog" ref={dialog} aria-label={tt("v3.primaryNav")} onClose={() => trigger.current?.focus()} onClick={(e) => { if (e.target === e.currentTarget) close(); }}>
+      <dialog className="brief-nav-dialog" ref={dialog} aria-label={tt("v3.primaryNav")} onKeyDown={containDialogFocus} onClose={() => trigger.current?.focus()} onClick={(e) => { if (e.target === e.currentTarget) close(); }}>
         <div className="brief-dialog-head"><strong>Pulsar Studio</strong><button className="btn btn-outline" onClick={close} autoFocus>{tt("ux.close")}</button></div>
         <nav className="producer-nav">
           {links}

@@ -1,0 +1,21 @@
+/* Semantic editor headings keep the established compact workspace identity. */
+.producer-main .episode-identity h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: normal;
+}
+
+/* This rail stays dark in both themes; page-text tokens cannot describe it. */
+.producer-main .st-playdesk {
+  --on-media-text: #edf2f8;
+  --on-media-muted: #b3bed0;
+}
+.producer-main .st-playdesk .st-playdesk-label,
+.producer-main .st-playdesk .st-playdesk-time { color: var(--on-media-muted); }
+.producer-main .st-playdesk .st-playdesk-time b { color: var(--on-media-text); }
+
+.producer-simulation > h2,
+.producer-simulation > section > h2 { font-size: var(--t-h4); line-height: 1.4; }

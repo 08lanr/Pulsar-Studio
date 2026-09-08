@@ -1,0 +1,18 @@
+{
+  "engine": {
+    "name": "axe-core",
+    "version": "4.13.0"
+  },
+  "url": "http://localhost:3210/producer/promote",
+  "checkedAt": "2026-09-08T07:48:47.807Z",
+  "viewport": {
+    "width": 1920,
+    "height": 760
+  },
+  "violationCount": 0,
+  "affectedNodeCount": 0,
+  "passedRuleCount": 37,
+  "incompleteRuleCount": 0,
+  "violations": [],
+  "needsManualReview": []
+}

@@ -484,7 +484,7 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
     return (
       <div className="creative-review-shell">
         <div className="card genbox">
-          <h3>{tt("pw.gen.title")}</h3>
+          <h2>{tt("pw.gen.title")}</h2>
           <p>{tt("pw.gen.body")}</p>
           {generating ? (
             <div className="genprog" role="status">
@@ -779,7 +779,7 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
 
       <div className="review-work-grid">
         {/* The script: one continuous, scrolling sheet. */}
-        <main className="review-stage-column">
+        <div className="review-stage-column">
           <section className="review-script-sheet">
             <div className="review-script-head">
               <div>
@@ -838,7 +838,7 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
               })}
             </div>
           </section>
-        </main>
+        </div>
 
         {/* The rail stays on screen while the sheet scrolls: the edit panel only. */}
         <aside className="review-feedback-panel">

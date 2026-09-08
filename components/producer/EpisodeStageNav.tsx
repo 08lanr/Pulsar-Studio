@@ -29,7 +29,7 @@ export default function EpisodeStageNav({ titleId, titleName, episodeNumber, act
         <div className="episode-identity">
           <span className="episode-number">{String(episodeNumber).padStart(2, "0")}</span>
           <div>
-            <strong>{tt("v3.episode.workspace")}</strong>
+            <h1>{tt("v3.episode.workspace")}</h1>
             <small>{finalized ? tt("v3.version.final") : tt("v3.version.draft")}</small>
           </div>
         </div>

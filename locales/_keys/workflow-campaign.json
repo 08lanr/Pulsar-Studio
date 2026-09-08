@@ -1,0 +1,21 @@
+{
+  "fc.currentTask": {"en":"Current task","zh":"当前任务"},
+  "fc.ads": {"en":"Compare ads","zh":"对比广告素材"},
+  "fc.adsHint": {"en":"Review each angle and opening. Choose the ads you want in this test.","zh":"对比各条素材的创意与开场，选择本轮想测试的广告。"},
+  "fc.adsArchive": {"en":"Ads in this round","zh":"本轮广告素材"},
+  "fc.adsArchiveHint": {"en":"The ads selected for this round. Approved versions cannot change.","zh":"查看本轮广告记录。已批准版本保持冻结。"},
+  "fc.briefRecord": {"en":"Brief & budget record","zh":"测试简报与预算记录"},
+  "fc.budgetApproved": {"en":"Budget approved","zh":"预算已批准"},
+  "fc.budgetPending": {"en":"Budget awaiting approval","zh":"预算待批准"},
+  "fc.selection": {"en":"{approved} of {total} ads selected","zh":"已选择 {approved} / {total} 条广告"},
+  "fc.adNumber": {"en":"Ad {n}","zh":"广告 {n}"},
+  "fc.preview": {"en":"Source video for ad {n}","zh":"广告 {n} 的源视频"},
+  "fc.noPreview": {"en":"No video preview","zh":"暂无视频预览"},
+  "fc.sourceUnknown": {"en":"Episode not recorded","zh":"未记录集数"},
+  "fc.copyDetails": {"en":"Caption, description & revision notes","zh":"查看文案、说明与修订记录"},
+  "fc.approverNeeded": {"en":"An approver must approve the ads and submit the launch. Reviewers can choose ads and request changes.","zh":"广告审批和提交投放需要审批角色。审阅者可以选择广告或要求修改。"},
+  "fc.approveBudgetFirst": {"en":"Approve this round’s budget before submitting the launch.","zh":"提交投放前，请先批准本轮预算。"},
+  "fc.roundScale": {"en":"Scale the winning ad: “{hypothesis}”. Same audience; 3× the first budget.","zh":"加大胜出广告“{hypothesis}”的测试。受众不变，预算为首轮的 3 倍。"},
+  "fc.roundMore": {"en":"Create more ads based on the winner: “{hypothesis}”. Same audience and budget.","zh":"根据胜出广告“{hypothesis}”制作更多广告。受众和预算不变。"},
+  "fc.roundRetry": {"en":"Create new ads after a round with no ad above both benchmarks. Same audience and budget.","zh":"本轮没有广告同时超过两项基准，制作新广告继续测试。受众和预算不变。"}
+}
