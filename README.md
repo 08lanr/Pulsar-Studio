@@ -78,8 +78,9 @@ default, `--write` to insert through the service-role client).
 1. `cp .env.example .env.local`; set `DATA_SOURCE=supabase`,
    `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
    `SUPABASE_SERVICE_ROLE_KEY` (server only), then choose either
-   `LLM_PROVIDER=anthropic` with `ANTHROPIC_API_KEY`, or
-   `LLM_PROVIDER=openai` with `OPENAI_API_KEY`.
+   `LLM_PROVIDER=anthropic` with `ANTHROPIC_API_KEY`,
+   `LLM_PROVIDER=openai` with `OPENAI_API_KEY`, or
+   `LLM_PROVIDER=deepseek` with `DEEPSEEK_API_KEY`.
 2. Apply `supabase/migrations/0001_init.sql` (schemas `core` and `studio`,
    RLS, approval functions, triggers).
 3. In the Supabase dashboard, API settings, expose the schemas `core` and

@@ -23,10 +23,15 @@ import { zodTextFormat } from "openai/helpers/zod";
 import type { ZodType, ZodTypeAny } from "zod";
 import type { Character, JobUsage, Title } from "@/lib/types";
 
-export type LlmProvider = "anthropic" | "openai";
+export type LlmProvider = "anthropic" | "openai" | "deepseek";
 
 /** One switch for every pass; fixture replay remains provider-free. */
-export const LLM_PROVIDER: LlmProvider = process.env.LLM_PROVIDER?.toLowerCase() === "openai" ? "openai" : "anthropic";
+export const LLM_PROVIDER: LlmProvider = (() => {
+  const v = process.env.LLM_PROVIDER?.toLowerCase();
+  return v === "openai" || v === "deepseek" ? v : "anthropic";
+})();
+
+const KEY_VAR: Record<LlmProvider, string> = { anthropic: "ANTHROPIC_API_KEY", openai: "OPENAI_API_KEY", deepseek: "DEEPSEEK_API_KEY" };
 
 /**
  * Two tiers. FAST does the reading passes (title bible, scene context, clip
@@ -34,10 +39,13 @@ export const LLM_PROVIDER: LlmProvider = process.env.LLM_PROVIDER?.toLowerCase()
  * rewrites, the creative pack). Both overridable from the environment so a
  * cheaper model can be tried without a code change.
  */
-export const MODEL_FAST =
-  process.env.LLM_MODEL_FAST || (LLM_PROVIDER === "openai" ? "gpt-5.6-terra" : "claude-sonnet-5");
-export const MODEL_STRONG =
-  process.env.LLM_MODEL_STRONG || (LLM_PROVIDER === "openai" ? "gpt-5.6-sol" : "claude-opus-5");
+const DEFAULT_MODELS: Record<LlmProvider, { fast: string; strong: string }> = {
+  anthropic: { fast: "claude-sonnet-5", strong: "claude-opus-5" },
+  openai: { fast: "gpt-5.6-terra", strong: "gpt-5.6-sol" },
+  deepseek: { fast: "deepseek-chat", strong: "deepseek-reasoner" },
+};
+export const MODEL_FAST = process.env.LLM_MODEL_FAST || DEFAULT_MODELS[LLM_PROVIDER].fast;
+export const MODEL_STRONG = process.env.LLM_MODEL_STRONG || DEFAULT_MODELS[LLM_PROVIDER].strong;
 
 export type Effort = "low" | "medium" | "high" | "xhigh" | "max";
 
@@ -61,6 +69,11 @@ export const PRICES: Record<string, ModelPrice> = {
   "claude-haiku-4-5": { input: 1, output: 5, cache_write: 1.25, cache_read: 0.1 },
   "gpt-5.6-sol": { input: 4, output: 20, cache_write: 4, cache_read: 0.4 },
   "gpt-5.6-terra": { input: 2, output: 12, cache_write: 2, cache_read: 0.2 },
+  // DeepSeek list prices (V3.2, api-docs.deepseek.com/quick_start/pricing): cache
+  // miss $0.28, cache hit $0.028, output $0.42 per million; no cache-write surcharge.
+  // Re-check when DeepSeek changes its price table.
+  "deepseek-chat": { input: 0.28, output: 0.42, cache_write: 0.28, cache_read: 0.028 },
+  "deepseek-reasoner": { input: 0.28, output: 0.42, cache_write: 0.28, cache_read: 0.028 },
 };
 
 /** An unknown model id is priced at the dearest known tier: spend must never be under-reported. */
@@ -75,14 +88,14 @@ export function priceFor(model: string): ModelPrice {
 // ---- availability and errors --------------------------------------------------------
 
 export function isLlmAvailable(): boolean {
-  return LLM_PROVIDER === "openai" ? !!process.env.OPENAI_API_KEY : !!process.env.ANTHROPIC_API_KEY;
+  return !!process.env[KEY_VAR[LLM_PROVIDER]];
 }
 
 /** No key. Routes map it to 503 with error code 'llm_unavailable'. */
 export class LlmUnavailableError extends Error {
   readonly code = "llm_unavailable" as const;
   constructor(message?: string) {
-    const key = LLM_PROVIDER === "openai" ? "OPENAI_API_KEY" : "ANTHROPIC_API_KEY";
+    const key = KEY_VAR[LLM_PROVIDER];
     super(message ?? `AI passes are not configured on this server (missing ${key})`);
     this.name = "LlmUnavailableError";
   }
@@ -132,6 +145,17 @@ function addOpenAiUsage(
   into.cache_write_tokens += written;
 }
 
+/** Chat-completions usage (DeepSeek): prompt/completion counts, with DeepSeek's own cache-hit field first. */
+function addChatUsage(
+  into: LlmUsage,
+  u: { prompt_tokens: number; completion_tokens: number; prompt_cache_hit_tokens?: number; prompt_tokens_details?: { cached_tokens?: number | null } | null }
+): void {
+  const read = u.prompt_cache_hit_tokens ?? u.prompt_tokens_details?.cached_tokens ?? 0;
+  into.input_tokens += Math.max(0, u.prompt_tokens - read);
+  into.output_tokens += u.completion_tokens;
+  into.cache_read_tokens += read;
+}
+
 /** Whole cents, rounded up: a 0.3-cent call is a 1-cent row, never a free one. */
 export function costCents(model: string, u: LlmUsage): number {
   const p = priceFor(model);
@@ -158,7 +182,7 @@ export function toJobUsage(u: LlmUsage): JobUsage {
 // One client per process: Next bundles lib/ separately into every route, so
 // the singleton lives on globalThis (the sibling's pattern for pacers and
 // job locks). maxRetries 0 because the backoff loop below owns retries.
-const g = globalThis as typeof globalThis & { __studioLlm?: Anthropic; __studioOpenAi?: OpenAI };
+const g = globalThis as typeof globalThis & { __studioLlm?: Anthropic; __studioOpenAi?: OpenAI; __studioDeepSeek?: OpenAI };
 
 function anthropicClient(): Anthropic {
   if (!g.__studioLlm) {
@@ -184,6 +208,19 @@ function openAiClient(): OpenAI {
     });
   }
   return g.__studioOpenAi;
+}
+
+/** DeepSeek speaks the OpenAI chat-completions dialect; only the host and the key differ. */
+function deepSeekClient(): OpenAI {
+  if (!g.__studioDeepSeek) {
+    g.__studioDeepSeek = new OpenAI({
+      apiKey: process.env.DEEPSEEK_API_KEY,
+      baseURL: process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com",
+      maxRetries: 0,
+      timeout: 10 * 60 * 1000,
+    });
+  }
+  return g.__studioDeepSeek;
 }
 
 const MAX_ATTEMPTS = 4;
@@ -229,7 +266,8 @@ function toLlmError(e: unknown): Error {
   }
   if (e instanceof OpenAI.AuthenticationError) return new LlmUnavailableError();
   if (e instanceof OpenAI.APIError) {
-    return new LlmError("api", `OpenAI API ${e.status ?? "?"}: ${e.message}`, e.status);
+    const who = LLM_PROVIDER === "deepseek" ? "DeepSeek" : "OpenAI";
+    return new LlmError("api", `${who} API ${e.status ?? "?"}: ${e.message}`, e.status);
   }
   if (e instanceof ContentFilterFinishReasonError) {
     return new LlmError("refused", "The model declined to process this content.");
@@ -558,7 +596,82 @@ async function callOpenAiStructured<T>(call: StructuredCall<T>): Promise<Structu
   }
 }
 
+function schemaIssues(error: { issues: { path: (string | number)[]; message: string }[] }): string {
+  return `Schema violations:\n${error.issues
+    .slice(0, 12)
+    .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+    .join("\n")}`;
+}
+
+/**
+ * DeepSeek equivalent: chat completions in JSON mode with the schema stated
+ * in the system prompt (no server-side schema enforcement there), the same
+ * zod validation on our side, and the same single repair turn. `effort` has
+ * no counterpart; deepseek-reasoner thinks on its own terms.
+ */
+async function callDeepSeekStructured<T>(call: StructuredCall<T>): Promise<StructuredResult<T>> {
+  const model = call.model ?? MODEL_FAST;
+  const usage = zeroUsage();
+  const systemText = typeof call.system === "string" ? call.system : call.system.map((b) => b.text).join("\n\n");
+  const contract = call.description ?? `Record the ${call.name} result.`;
+  const system = `${systemText}\n\nOUTPUT CONTRACT (${call.name}): ${contract}\nRespond with exactly one JSON object and nothing else. It must validate against this JSON Schema; every listed key is required and no other key is allowed:\n${JSON.stringify(zodToJsonSchema(call.schema))}`;
+  let user = call.user;
+
+  try {
+    for (let turn = 1; turn <= 2; turn++) {
+      const res = await withRetries(() =>
+        deepSeekClient().chat.completions.create({
+          model,
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: user },
+          ],
+          max_tokens: call.maxTokens,
+          response_format: { type: "json_object" },
+          stream: false,
+        })
+      );
+      if (res.usage) addChatUsage(usage, res.usage);
+      const choice = res.choices[0];
+      if (!choice) throw new LlmError("invalid_output", "No choices in the response.");
+      if (choice.finish_reason === "length") throw new LlmError("truncated", "Output hit max_tokens before the JSON object completed.");
+      if (choice.finish_reason === "content_filter") throw new LlmError("refused", "The model declined to process this content.");
+      const text = choice.message.content ?? "";
+
+      let json: unknown;
+      let problem: string | null = null;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        const m = text.match(/\{[\s\S]*\}/);
+        try {
+          json = m ? JSON.parse(m[0]) : undefined;
+        } catch {
+          json = undefined;
+        }
+      }
+      if (json === undefined) problem = "The response was not a JSON object.";
+      else {
+        const parsed = call.schema.safeParse(json);
+        if (!parsed.success) problem = schemaIssues(parsed.error);
+        else {
+          const semantic = call.check ? call.check(parsed.data) : null;
+          if (!semantic) return { data: parsed.data, usage, cost_cents: costCents(model, usage), model, turns: turn };
+          problem = semantic;
+        }
+      }
+      if (turn === 2) throw new LlmError("invalid_output", problem);
+      user = `${call.user}\n\nYOUR PREVIOUS STRUCTURED ANSWER WAS INVALID:\n${text}\n\nVALIDATION ERROR:\n${problem}\n\nReturn a corrected JSON object. Fix only what the error names; keep everything else identical.`;
+    }
+    throw new LlmError("invalid_output", "No structured output was returned.");
+  } catch (e) {
+    throw toLlmError(e);
+  }
+}
+
 export async function callStructured<T>(call: StructuredCall<T>): Promise<StructuredResult<T>> {
   if (!isLlmAvailable()) throw new LlmUnavailableError();
-  return LLM_PROVIDER === "openai" ? callOpenAiStructured(call) : callAnthropicStructured(call);
+  if (LLM_PROVIDER === "openai") return callOpenAiStructured(call);
+  if (LLM_PROVIDER === "deepseek") return callDeepSeekStructured(call);
+  return callAnthropicStructured(call);
 }

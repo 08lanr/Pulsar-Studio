@@ -6,6 +6,10 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-09-08 (night, later) · DeepSeek as a third LLM provider
+
+Decided by the founders (Ruobin): "put a DeepSeek API key". `LLM_PROVIDER=deepseek` with `DEEPSEEK_API_KEY` selects it (`lib/llm.ts`); defaults are `deepseek-chat` for the fast tier and `deepseek-reasoner` for the strong tier, overridable with `LLM_MODEL_FAST` / `LLM_MODEL_STRONG`. DeepSeek is reached through the OpenAI SDK at `https://api.deepseek.com` (`DEEPSEEK_BASE_URL` to change) using chat completions in JSON mode: the caller's zod schema is stated in the system prompt as JSON Schema, the answer is validated by the same zod schema and semantic check on our side, and a failure gets the same single repair turn as the other providers. Every invariant holds: one `studio.jobs` row per call with integer `cost_cents` (DeepSeek's cache-hit tokens are counted as cache reads; list prices in `PRICES`, unknown models still charge at the top tier), `isLlmAvailable()` reads only the chosen provider's key, and fixture replay stays provider-free. The key goes in `.env.local`, never in the repo.
+
 ## 2026-09-08 (night) · Final UI/UX pass: nothing hangs, one shape per row, one range control
 
 Decided by the founders (Ruobin) after the redesign: "small things have fallen through the cracks" — the Ad campaigns table and its buttons, the date-range chips, and words or arrows hanging alone on a new line. Presentation only; no number, rule or route changed.
