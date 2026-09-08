@@ -37,11 +37,13 @@ export default async function ProducerTitlePage({ params }: { params: { id: stri
     throw e;
   }
   const episodes = detail.episodes;
-  const anyAdapted = episodes.some((e) => e.lines_adapted > 0 || e.status !== "ingested");
   const allApproved = episodes.length > 0 && episodes.every((e) => e.status === "approved");
   const anyConfirming = episodes.some((e) => e.status === "adapting" || e.status === "in_review");
-  // 上传剧本 → AI 改编 → 审阅修改 → 定稿 → 字幕交付
-  const step = allApproved ? 5 : anyConfirming ? 3 : anyAdapted ? 2 : episodes.length ? 1 : 0;
+  // A video-only episode still needs its script; one with lines is uploaded —
+  // the next thing to do there is the AI pass, not another upload.
+  const hasScript = episodes.some((e) => e.lines_total > 0);
+  // 上传剧本 → AI 改编 → 审阅修改 → 定稿 → 字幕交付 (step = the stage to do next)
+  const step = allApproved ? 5 : anyConfirming ? 3 : hasScript ? 2 : 1;
   const steps = ["pw.steps.upload", "pw.steps.generate", "pw.steps.confirm", "pw.steps.final", "pw.steps.subs"];
   const nextNumber = episodes.reduce((m, e) => Math.max(m, e.number), 0) + 1;
   const canEdit = !isStaffPreview(session);

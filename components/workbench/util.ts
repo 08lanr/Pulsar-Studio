@@ -37,7 +37,19 @@ export function indexByLine(adapted: AdaptedLine[]): Map<string, AdaptedLine> {
   return m;
 }
 
-export type ApiEnvelope = { error?: string; detail?: { message?: string } };
+export type ApiEnvelope = { error?: string; code?: string; detail?: { message?: string } };
+
+/** An envelope error with its server code attached, so a screen can put a
+ * localized sentence over well-known codes (e.g. 'llm_unavailable') instead
+ * of printing the server's English to a Chinese-chrome producer. */
+export class ApiError extends Error {
+  readonly code?: string;
+  constructor(message: string, code?: string) {
+    super(message);
+    this.name = "ApiError";
+    this.code = code;
+  }
+}
 
 export async function patchJson<T>(url: string, body: Record<string, unknown>): Promise<T> {
   const res = await fetch(url, {
@@ -56,7 +68,7 @@ export async function patchJson<T>(url: string, body: Record<string, unknown>): 
 export function unwrap<T extends ApiEnvelope>(data: T): T {
   if (data && typeof data === "object" && data.error) {
     const extra = data.detail?.message;
-    throw new Error(extra && extra !== data.error ? `${data.error} — ${extra}` : data.error);
+    throw new ApiError(extra && extra !== data.error ? `${data.error} — ${extra}` : data.error, data.code);
   }
   return data;
 }

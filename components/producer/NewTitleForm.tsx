@@ -14,7 +14,7 @@ import { useT } from "@/components/locale";
 import type { Title } from "@/lib/types";
 import EpisodeSlots, { emptySlot, hasDuplicateNumbers, type EpisodeSlot } from "./EpisodeSlots";
 
-export default function NewTitleForm() {
+export default function NewTitleForm({ returnTo }: { returnTo?: "promote" } = {}) {
   const { tt } = useT();
   const router = useRouter();
   const [nameZh, setNameZh] = useState("");
@@ -56,7 +56,7 @@ export default function NewTitleForm() {
         const r = await postForm<ApiEnvelope>(`/api/titles/${title.id}/ingest`, form);
         if (r.error) throw new Error(`${tt("pw.upload.episodeN")} ${slot.number}: ${r.error}`);
       }
-      router.push(`/producer/titles/${title.id}`);
+      router.push(returnTo === "promote" ? `/producer/promote/new?title=${title.id}` : `/producer/titles/${title.id}`);
     } catch (err) {
       setError((err as Error).message);
       setBusy(false);

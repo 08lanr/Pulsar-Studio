@@ -63,6 +63,7 @@ import type {
 } from "./index";
 import { mediaUrl } from "./storage";
 import {
+  adaptedLineIssue,
   buildEpisodeSummary,
   buildProducerEpisodeSummary,
   buildProducerReview,
@@ -292,8 +293,16 @@ function requireDraft(db: FixtureDb, versionId: string): Version {
 /** A scene can be marked ready only when its current draft has a usable
  * adaptation for every source line. This is deliberately enforced below
  * the UI: a stale tab or direct API call must not be able to submit an empty
- * frozen snapshot to a producer. */
-function sceneReadinessIssue(db: FixtureDb, scene: Scene): string | null {
+ * frozen snapshot to a producer.
+ *
+ * Two strictnesses, matching the SQL functions they mirror:
+ *   default      the staff path (set_scene_status / submit_version): every
+ *                changed line explains itself to the producer, whoever wrote
+ *                it.
+ *   forFinalize  the producer's own gate (finalize_version): the shared
+ *                adaptedLineIssue rule — editor-authored lines are their own
+ *                explanation (decisions 2026-09-04). */
+function sceneReadinessIssue(db: FixtureDb, scene: Scene, opts: { forFinalize?: boolean } = {}): string | null {
   const draft = episodeVersions(db, scene.episode_id).find((v) => v.status === "draft");
   if (!draft) return "no editable draft exists for this episode";
   const source = db.lines.filter((l) => l.scene_id === scene.id && l.merged_into_id === null);
@@ -307,12 +316,15 @@ function sceneReadinessIssue(db: FixtureDb, scene: Scene): string | null {
     return row?.change_type !== "cut" && blank(row?.text_en);
   }).length;
   if (empty) return `${empty} adapted line(s) are empty`;
-  const unexplained = adapted.filter(
-    (row) =>
-      row.change_type !== "keep" &&
-      (blank(row.rationale_zh) || (row.change_type !== "cut" && blank(row.back_translation_zh)))
+  const unexplained = adapted.filter((row) =>
+    opts.forFinalize
+      ? adaptedLineIssue(row) === "unexplained"
+      : row.change_type !== "keep" &&
+        (blank(row.rationale_zh) || (row.change_type !== "cut" && blank(row.back_translation_zh)))
   ).length;
-  return unexplained ? `${unexplained} changed line(s) need a Chinese rationale and back-translation` : null;
+  return unexplained
+    ? `${unexplained} ${opts.forFinalize ? "AI-changed" : "changed"} line(s) need a Chinese rationale and back-translation`
+    : null;
 }
 
 function episodeSummaryOf(db: FixtureDb, episode: Episode) {
@@ -1323,10 +1335,13 @@ export const fixtureData: DataLayer = {
     if (!scenes.length) throw invalid("the episode has no scenes");
     // V2 (2026-09-04, subtitles-not-dubbing rework): no per-scene confirm
     // step — the per-line confirm is the review. Content readiness is still
-    // the gate: every line adapted, non-cut lines non-empty, changed lines
-    // carrying their Chinese rationale.
+    // the gate: every line adapted, non-cut lines non-empty, AI-changed lines
+    // carrying their Chinese rationale and back-translation. Lines the
+    // producer (or any human editor) wrote themselves are exempt from the
+    // explanation rule — the portal's editor sends text only, and this is
+    // the producer approving their own words (views.ts adaptedLineIssue).
     for (const sc of scenes) {
-      const issue = sceneReadinessIssue(db, sc);
+      const issue = sceneReadinessIssue(db, sc, { forFinalize: true });
       if (issue) throw invalid(`lines ${sc.number > 1 ? `around ${timecodeHint(sc.start_ms)}` : "at the start"} are not ready: ${issue}`);
     }
 
@@ -1739,13 +1754,18 @@ export const fixtureData: DataLayer = {
         })
         .map((campaign): PromoCampaignSummary => {
           const title = findTitle(db, campaign.title_id);
+          const producer = db.producers.find((p) => p.id === campaign.producer_id);
           const creatives = db.promo_creatives.filter((c) => c.campaign_id === campaign.id && c.status !== "superseded");
           return {
             ...campaign,
             title_name_zh: title.name_zh,
             title_name_en: title.name_en,
+            producer_name_zh: producer?.name_zh ?? "",
+            producer_name_en: producer?.name_en ?? null,
             creative_count: creatives.length,
             approved_count: creatives.filter((c) => c.status === "approved").length,
+            pending_count: creatives.filter((c) => c.status === "ready").length,
+            change_count: creatives.filter((c) => c.status === "rejected").length,
           };
         })
         .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
@@ -1800,14 +1820,15 @@ export const fixtureData: DataLayer = {
       return clone(db.promo_creatives.filter((c) => c.campaign_id === campaign.id && c.status !== "superseded"));
     }
     const title = findTitle(db, campaign.title_id);
-    const kinds: PromoCreative["kind"][] = ["direct_clip", "ugc_story", "direct_clip", "ugc_reaction", "direct_clip", "ugc_story"];
+    // Five concepts per round (decision 2026-09-04): one testable set at a
+    // time; further rounds follow once results come back.
+    const kinds: PromoCreative["kind"][] = ["direct_clip", "ugc_story", "direct_clip", "ugc_reaction", "direct_clip"];
     const hypotheses = [
       "Open on the reversal before revealing how the characters got there.",
       "Frame the central conflict like a viewer telling a friend what they just watched.",
       "Lead with the highest-stakes confrontation and stop before the answer.",
       "Use a disbelief reaction to make the plot twist feel socially shareable.",
       "Build escalating cuts around the relationship power shift.",
-      "Set up the protagonist's impossible choice in first-person language.",
     ];
     const at = now();
     const rows = kinds.map((kind, index): PromoCreative => {
@@ -1824,7 +1845,7 @@ export const fixtureData: DataLayer = {
         ad_description: `Watch ${title.name_en || title.name_zh} and see what happens next.`,
         render_path: null, render_sha256: null, duration_ms: end - start, width: 1080, height: 1920,
         render_settings: { schema: 1, format: "9:16", source: "concept_preview", captions: true },
-        rejection_note: null, created_at: at, updated_at: at,
+        rejection_note: null, revision_note: null, created_at: at, updated_at: at,
       };
     });
     db.promo_creatives.push(...rows);
@@ -1846,6 +1867,24 @@ export const fixtureData: DataLayer = {
     creative.rejection_note = input.status === "rejected" ? input.rejection_note?.trim() || null : null;
     creative.updated_at = now();
     return clone(creative);
+  },
+
+  async approveAllPromoCreatives(session, campaignId) {
+    const { db } = store();
+    const campaign = readablePromoCampaign(db, session, campaignId);
+    const title = requireTitleEditor(db, session, campaign.title_id);
+    if (campaign.status !== "review") throw conflict("creative review is closed");
+    const at = now();
+    let kept = 0;
+    for (const creative of db.promo_creatives) {
+      if (creative.campaign_id === campaign.id && creative.status === "ready") {
+        creative.status = "approved";
+        creative.updated_at = at;
+        kept += 1;
+      }
+    }
+    audit(store(), session, "approve_all_promo_creatives", "promote.campaigns", campaign.id, title.id, null, { kept });
+    return promoDetail(db, campaign);
   },
 
   async approvePromoCampaign(session, campaignId) {
@@ -1889,6 +1928,67 @@ export const fixtureData: DataLayer = {
     campaign.grow_campaign_id = growId;
     campaign.updated_at = handoff.attempted_at;
     audit(store(), session, "submit_promo_campaign", "promote.handoffs", handoff.id, title.id, null, { status: "accepted", grow_campaign_id: growId });
+    return promoDetail(db, campaign);
+  },
+
+  // ---- Pulsar's Promote desk (staff) ----
+
+  async revisePromoCreative(session, creativeId, input) {
+    const { db } = store();
+    if (session.kind !== "staff") throw forbidden("Pulsar staff only");
+    const parent = db.promo_creatives.find((c) => c.id === creativeId);
+    if (!parent) throw notFound("promotion creative", creativeId);
+    const campaign = readablePromoCampaign(db, session, parent.campaign_id);
+    if (campaign.status !== "review") throw conflict("approved promotion is frozen; revisions need a new round");
+    if (parent.status !== "rejected" && parent.status !== "ready") throw conflict("only a creative awaiting review or change can be revised");
+    if (blank(input.hook) || blank(input.caption) || blank(input.ad_description)) throw invalid("hook, caption and description are required");
+    const start = input.source_start_ms ?? parent.source_start_ms;
+    const end = input.source_end_ms ?? parent.source_end_ms;
+    if (start !== null && end !== null && end <= start) throw invalid("source end must come after source start");
+    const at = now();
+    const revision: PromoCreative = {
+      ...parent,
+      id: randomUUID(),
+      external_id: extId("pc"),
+      parent_creative_id: parent.id,
+      version: parent.version + 1,
+      status: "ready",
+      hypothesis: blank(input.hypothesis) ? parent.hypothesis : input.hypothesis!.trim(),
+      hook: input.hook.trim(),
+      caption: input.caption.trim(),
+      ad_description: input.ad_description.trim(),
+      source_start_ms: start,
+      source_end_ms: end,
+      duration_ms: start !== null && end !== null ? end - start : parent.duration_ms,
+      render_path: null,
+      render_sha256: null,
+      rejection_note: null,
+      revision_note: input.revision_note?.trim() || null,
+      created_at: at,
+      updated_at: at,
+    };
+    parent.status = "superseded";
+    parent.updated_at = at;
+    db.promo_creatives.push(revision);
+    audit(store(), session, "revise_promo_creative", "promote.creatives", revision.id, campaign.title_id, { parent: parent.external_id, note: parent.rejection_note }, { version: revision.version });
+    return clone(revision);
+  },
+
+  async advancePromoCampaign(session, campaignId, input) {
+    const { db } = store();
+    if (session.kind !== "staff") throw forbidden("Pulsar staff only");
+    const campaign = readablePromoCampaign(db, session, campaignId);
+    const allowed: Record<string, PromoCampaign["status"][]> = {
+      submitted: ["launching", "live", "failed"],
+      launching: ["live", "failed"],
+      failed: ["launching"],
+    };
+    if (!allowed[campaign.status]?.includes(input.status)) throw conflict(`a ${campaign.status} campaign cannot move to ${input.status}`);
+    const before = { status: campaign.status, grow_campaign_id: campaign.grow_campaign_id };
+    campaign.status = input.status;
+    if (input.grow_campaign_id !== undefined) campaign.grow_campaign_id = input.grow_campaign_id?.trim() || null;
+    campaign.updated_at = now();
+    audit(store(), session, "advance_promo_campaign", "promote.campaigns", campaign.id, campaign.title_id, before, { status: campaign.status, grow_campaign_id: campaign.grow_campaign_id }, input.note?.trim() || null);
     return promoDetail(db, campaign);
   },
 

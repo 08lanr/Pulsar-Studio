@@ -32,7 +32,7 @@ Run `npm test`, `npm run typecheck`, and `npm run build` before considering an i
 - A version's visible state is `draft | in_review | approved`; `superseded` is bookkeeping only.
 - Submission creates and hashes an immutable snapshot. Producer review and exports read frozen snapshots, never mutable draft rows.
 - Two paths to `approved`, and they never blur: (1) staff `submitVersion` (freeze + `in_review`) then producer `approveVersion` (or admin on-behalf with evidence); (2) producer-approver `finalizeVersion` — one action that freezes the snapshot, writes per-scene sign-off rows automatically, and approves. Staff are refused by finalize, so every approval records which side made it.
-- Finalize gates on content readiness only (every line adapted, non-cut lines non-empty, changed lines carry rationale) — NO scene-confirm requirement, in fixture and SQL alike. The finalize route additionally runs `lib/qc.ts` (`runQc`): QC errors return 409 and block; warnings ship visibly.
+- Finalize gates on content readiness only (every line adapted, non-cut lines non-empty, AI-changed lines carry rationale and back-translation; a line a human authored or edited is its own explanation — `lib/data/views.ts` `adaptedLineIssue` is the one rule, shared by both backends, the summaries and the studio banner) — NO scene-confirm requirement, in fixture and SQL alike. The staff submit path stays strict for every author: staff changes are explained to the producer. The finalize route additionally runs `lib/qc.ts` (`runQc`): QC errors return 409 and block; warnings ship visibly.
 - Changes after submission fork a new draft; frozen versions are never edited in place.
 - Staff approval on behalf is admin-only and requires an evidence note and audit channel.
 - Promote approval follows the same principle with a separate invariant: it freezes exact `pc_` creative versions, media hashes, and copy in a hashed manifest. Handoffs are append-only and idempotent.
@@ -59,3 +59,5 @@ Run `npm test`, `npm run typecheck`, and `npm run build` before considering an i
 - API routes follow: same-origin guard, role check, zod validation, data-layer/job call, JSON response. Use the shared handler and API guard.
 - Foreign producer resources behave as not found; never leak their existence.
 - Render exports on request from approved, then in-review, then draft state, and identify the source in the header. Do not store generated exports or create export jobs.
+
+Staff handle producer promotion change requests and record Grow launch progress on the admin Promote desk (`/promote`).

@@ -5,13 +5,13 @@ import { usePathname } from "next/navigation";
 import { useT } from "./locale";
 import ThemeToggle from "./ThemeToggle";
 import LangToggle from "./LangToggle";
-import { IconLogout, IconMenu, IconPlus, IconProducers, IconProjects } from "./icons";
+import { IconLogout, IconMenu, IconPlus, IconProducers, IconProjects, IconSparkle } from "./icons";
 
 // The admin portal's app shell: the fixed sidebar (brand, the one primary
 // CTA, the two nav rows, the identity block) and the sticky header (page
 // title, language, theme, sign out). Ported from the sibling's Nav — the
-// shape, not the merchant content: Studio has two areas, Projects and
-// Producers, so there is no product sectioning.
+// shape, not the merchant content: Studio has three areas — the Promote
+// desk, Titles and Producers — so there is no product sectioning.
 //
 // Who is signed in arrives as props from the server layout (it already
 // resolved the session), so the shell renders complete on the first paint
@@ -48,13 +48,16 @@ export default function Nav({ displayName, role }: NavProps) {
   const [open, setOpen] = useState(false);
 
   const items: NavItem[] = [
+    { href: "/promote", label: tt("admin.nav.promote"), icon: <IconSparkle /> },
     { href: "/titles", label: tt("admin.nav.projects"), icon: <IconProjects /> },
     { href: "/producers", label: tt("admin.nav.producers"), icon: <IconProducers /> },
   ];
 
   // The header names the screen; derived from the path so no page threads a
   // prop through. Deeper routes are matched first.
-  const title = pathname.startsWith("/producers")
+  const title = pathname.startsWith("/promote")
+    ? tt("admin.head.promote")
+    : pathname.startsWith("/producers")
     ? tt("admin.nav.producers")
     : pathname === "/titles/new"
       ? tt("admin.head.newTitle")

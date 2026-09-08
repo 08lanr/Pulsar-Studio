@@ -613,6 +613,8 @@ export type PromoCreative = {
   height: number | null;
   render_settings: Json;
   rejection_note: string | null;
+  /** Staff's note on a revision: what changed in this version versus its parent. */
+  revision_note: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -642,8 +644,14 @@ export type PromoHandoff = {
 export type PromoCampaignSummary = PromoCampaign & {
   title_name_zh: string;
   title_name_en: string | null;
+  producer_name_zh: string;
+  producer_name_en: string | null;
   creative_count: number;
   approved_count: number;
+  /** Creatives still waiting for the producer's keep/change decision. */
+  pending_count: number;
+  /** Producer change requests with no revision yet — Pulsar's queue. */
+  change_count: number;
 };
 
 export type PromoCampaignDetail = {

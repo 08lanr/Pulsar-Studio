@@ -24,6 +24,7 @@ export default function NewPromoForm({ titles, initialTitleId, readOnly = false 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const selected = titles.find((x) => x.id === titleId);
+  const locked = Boolean(initialTitleId && titles.some((x) => x.id === initialTitleId));
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -38,16 +39,23 @@ export default function NewPromoForm({ titles, initialTitleId, readOnly = false 
     } catch (e) { setError((e as Error).message); setBusy(false); }
   }
 
-  if (!titles.length) return <div className="promo-empty"><h3>{tt("promote.new.noTitles")}</h3><p>{tt("promote.new.noTitlesHint")}</p><a className="btn btn-primary" href="/producer/titles/new">{tt("v3.nav.newTitle")}</a></div>;
+  if (!titles.length) return <div className="promo-empty"><h3>{tt("promote.new.noTitles")}</h3><p>{tt("promote.new.noTitlesHint")}</p><a className="btn btn-primary" href="/producer/titles/new?from=promote">{tt("v3.nav.newTitle")}</a></div>;
 
   return (
     <form className="promo-brief" onSubmit={submit}>
       <section className="promo-brief-main card">
         <div className="field-group-title">{tt("promote.new.source")}</div>
         <div className="field"><label className="label">{tt("promote.new.drama")}</label>
-          <select className="input" value={titleId} onChange={(e) => { setTitleId(e.target.value); const title = titles.find((x) => x.id === e.target.value); if (title) setName(`${title.name} — TikTok launch`); }}>
-            {titles.map((title) => <option key={title.id} value={title.id} disabled={!title.hasVideo}>{title.name} · {title.episodeCount} {tt("promote.new.episodes")}{!title.hasVideo ? ` · ${tt("promote.new.noVideo")}` : ""}</option>)}
-          </select>
+          {locked && selected ? (
+            <div className="promo-locked-title">
+              <div><strong className="bilingual">{selected.name}</strong><span>{selected.episodeCount} {tt("promote.new.episodes")}{!selected.hasVideo ? ` · ${tt("promote.new.noVideo")}` : ""}</span></div>
+              <a href="/producer/promote/new">{tt("promote.new.change")}</a>
+            </div>
+          ) : (
+            <select className="input" value={titleId} onChange={(e) => { setTitleId(e.target.value); const title = titles.find((x) => x.id === e.target.value); if (title) setName(`${title.name} — TikTok launch`); }}>
+              {titles.map((title) => <option key={title.id} value={title.id} disabled={!title.hasVideo}>{title.name} · {title.episodeCount} {tt("promote.new.episodes")}{!title.hasVideo ? ` · ${tt("promote.new.noVideo")}` : ""}</option>)}
+            </select>
+          )}
         </div>
         {selected && !selected.hasVideo && <p className="note note-warning">{tt("promote.new.videoRequired")}</p>}
         <div className="field"><label className="label">{tt("promote.new.campaignName")}</label><input className="input" value={name} onChange={(e) => setName(e.target.value)} required /></div>

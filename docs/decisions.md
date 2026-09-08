@@ -1,5 +1,7 @@
 # Decisions log
 
+Integration note (2026-09-07): the Promote desk migration is `0006_promote_desk.sql`, after the market desk migrations `0004_research.sql` and `0005_watchlist_reports.sql`, to keep migration versions unique. Its column addition remains idempotent.
+
 Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
@@ -119,6 +121,63 @@ importance, and the platform (the money pit) feeds the second one later.
   rows), `getResearchProfile` / `saveResearchProfile` (own company only).
   Both modes read the same committed snapshot; `research.title_observations`
   is the crawl's landing table for history and is not read yet.
+## 2026-09-04 · Finalize readiness: an editor-authored line is its own explanation
+
+Found testing the manual-draft path: the finalize gate required `rationale_zh`
+and `back_translation_zh` on every non-keep line, but the producer editor
+sends text only — an episode whose lines were hand-written could show a green
+“可以定稿了” banner while `finalize_version` refused, in English. Decided:
+
+- **The finalize rule** (`lib/data/views.ts` `adaptedLineIssue`; fixture
+  `finalizeVersion`; SQL `studio.finalize_version`): every source line
+  adapted, non-cut lines non-empty, and AI-authored changes carry
+  `rationale_zh` (plus `back_translation_zh` unless cut). Rows with
+  `authored_by = 'editor'` are exempt — finalize is the producer approving
+  words a person wrote; nobody owes an explanation to themselves.
+- **The staff path stays strict.** `submit_version` and `set_scene_status`
+  still require the rationale on every changed line regardless of author:
+  staff changes are explained TO the producer.
+- **One rule, three readers.** The same predicate feeds the episode
+  summaries and the studio's banner/finalize button, so the UI can never say
+  ready while the server would refuse; when AI takes are missing their notes
+  the banner counts them in portal words.
+- **Portal words for unavailable states.** Producer-facing refusals map by
+  error code (`llm_unavailable`) instead of printing server English; the
+  burn failure and the auto-sync unavailable state are localized (the
+  technical reason stays on hover); a blank manual-draft row reads
+  “（英文待填写）”, no longer “（该句已删去）”.
+
+## 2026-09-04 · Pulsar's Promote desk: the staff side of every producer action
+
+Decided by the founders (Ruobin): "after a producer does anything — request
+change, send for approval — the admin portal doesn't do anything, and that is
+the important part we want from Grow." Also: five concepts per round, an
+approve-all, and the producer information architecture.
+
+- **Every producer action has a staff next step.** The admin portal gains a
+  Promote desk (`/promote`): campaigns queued as *Needs Pulsar* (change
+  requests to answer, launches to run), *Waiting on producer*, *Launched*.
+- **A change request is answered with a revision, never an edit.** Staff
+  `revisePromoCreative` writes a new `pc_` row (`parent_creative_id`,
+  `version + 1`, status `ready`, a `revision_note` the producer sees) and marks
+  the parent `superseded`. Only while the campaign is in `review`; approved
+  rounds stay frozen (0003's guard). Producers cannot call it.
+- **Launch is recorded by staff on the desk.** `advancePromoCampaign` moves
+  `submitted → launching → live`, `submitted|launching → failed`,
+  `failed → launching`, with the Grow campaign id and an audit note. Until
+  Grow's read-back lands, this is the source of launch status inside Studio.
+- **Five concepts per round, not six.** Copy says so explicitly: Pulsar keeps
+  launching new rounds; it tests five concepts at a time.
+- **Keep all.** Producers can approve every still-pending creative in one
+  click; existing change requests are never swept up by it.
+- **Producer IA.** Sidebar: a primary *New drama* action; *Studio* (Adapt, where
+  localization happens); *Promote*; *Drama library* (placeholder for the title
+  list that will connect to Stage — wording only, no Stage integration). The
+  site title is *Pulsar Mini Dramas*. Promote's brief starts by picking a drama
+  from cards; the chosen drama is locked into the brief.
+- **Admin localization is oversight only.** Staff watch where a producer is;
+  they do not upload scripts or adapt from the admin side. Removing the admin
+  upload/adapt affordances is pending, not done.
 
 ## 2026-09-04 · Promote is a sibling product; Grow owns launch
 

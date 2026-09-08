@@ -78,6 +78,59 @@ test("finalize refuses an episode whose lines are not ready", async () => {
   );
 });
 
+test("hand-authored lines finalize without rationale or back-translation", async () => {
+  // The offline path (decisions 2026-09-04, "an editor-authored line is its
+  // own explanation"): manual draft writes blank keep rows, the person types
+  // the English — the editor sends text only, so finalize must not demand an
+  // explanation the portal has no field for.
+  const t = await seedMinute();
+  let wb = await fixtureData.getWorkbench(producer(), t.id, 1);
+  for (const scene of wb.scenes) {
+    const missing = wb.lines.filter((l) => l.scene_id === scene.id && !l.merged_into_id);
+    await fixtureData.writeFirstPass(
+      producer(),
+      wb.version!.id,
+      scene.id,
+      missing.map((line) => ({
+        line_id: line.id,
+        literal_en: null,
+        text_en: "",
+        back_translation_zh: null,
+        change_type: "keep" as const,
+        is_major: false,
+        rationale_en: null,
+        rationale_zh: null,
+        tags: [],
+        model: "manual",
+        prompt_version: "manual-v1",
+      }))
+    );
+  }
+  wb = await fixtureData.getWorkbench(producer(), t.id, 1);
+  for (const a of wb.adapted_lines) {
+    await fixtureData.updateAdaptedLine(producer(), a.id, { text_en: "A hand-written read.", change_type: "rewrite" });
+  }
+  const finalized = await fixtureData.finalizeVersion(producer(), wb.version!.id);
+  assert.equal(finalized.status, "approved", "editor-authored lines are their own explanation");
+});
+
+test("an AI change without its rationale still blocks finalize", async () => {
+  const t = await seedMinute({ adapt: true });
+  const wb = await fixtureData.getWorkbench(producer(), t.id, 1);
+  const changed = wb.adapted_lines.find((a) => a.change_type !== "keep" && a.change_type !== "cut")!;
+  await fixtureData.updateAdaptedLine(
+    producer(),
+    changed.id,
+    { rationale_zh: null, back_translation_zh: null },
+    { authored_by: "ai" }
+  );
+  await assert.rejects(
+    fixtureData.finalizeVersion(producer(), wb.version!.id),
+    (e: unknown) => e instanceof Error && /not ready.*AI-changed/.test(e.message),
+    "the strict rule still holds for model-written changes"
+  );
+});
+
 test("staff cannot finalize on the producer's behalf", async () => {
   const t = await seedMinute({ adapt: true });
   const wb = await fixtureData.getWorkbench(staff(), t.id, 1);

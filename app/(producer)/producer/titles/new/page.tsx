@@ -8,7 +8,7 @@ import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
-export default async function ProducerNewTitle() {
+export default async function ProducerNewTitle({ searchParams }: { searchParams: { from?: string } }) {
   await portalSession("/producer/titles/new");
   const locale = producerLocale();
   return (
@@ -19,7 +19,7 @@ export default async function ProducerNewTitle() {
           <p className="page-sub">{t(locale, "pw.new.sub")}</p>
         </div>
       </div>
-      <NewTitleForm />
+      <NewTitleForm returnTo={searchParams.from === "promote" ? "promote" : undefined} />
     </>
   );
 }

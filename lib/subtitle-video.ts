@@ -116,7 +116,15 @@ export async function renderSubtitledVideo(
     }, 5 * 60 * 1000);
     p.on("error", (e) => {
       clearTimeout(timer);
-      reject(new DataError("invalid", `could not run ffmpeg: ${e.message}`));
+      const missing = (e as NodeJS.ErrnoException).code === "ENOENT";
+      reject(
+        new DataError(
+          "invalid",
+          missing
+            ? "ffmpeg is not installed on this machine — the subtitled-video render needs it (winget install ffmpeg / brew install ffmpeg), then retry"
+            : `could not run ffmpeg: ${e.message}`
+        )
+      );
     });
     p.on("close", (code) => {
       clearTimeout(timer);

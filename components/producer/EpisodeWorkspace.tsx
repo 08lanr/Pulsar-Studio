@@ -19,7 +19,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { postJson } from "@/lib/api-client";
-import { patchJson, unwrap, type ApiEnvelope } from "@/components/workbench/util";
+import { ApiError, patchJson, unwrap, type ApiEnvelope } from "@/components/workbench/util";
+import { adaptedLineIssue } from "@/lib/data/views";
 import type { AdaptTag, AdaptedLine, Line, LineAlternative, WorkbenchPayload } from "@/lib/types";
 import { runQc, type QcIssue } from "@/lib/qc";
 import { TAGS, TAG_LABELS } from "@/lib/types";
@@ -58,6 +59,21 @@ type Props = { payload: WorkbenchPayload; readOnly: boolean };
 export default function EpisodeWorkspace({ payload, readOnly }: Props) {
   const { tt, locale } = useT();
   const router = useRouter();
+  // Server errors are English (they also serve staff and the logs); their
+  // codes are the localization hook. Map the ones a producer can hit here.
+  const errText = (e: unknown) =>
+    e instanceof ApiError && e.code === "llm_unavailable" ? tt("pw.err.aiOff") : (e as Error).message;
+  // Only a deliberate cut reads as “line cut”; a row that simply has no
+  // English yet (a manual draft awaiting its translation) says so instead of
+  // alarming the producer that their line was deleted.
+  const adaptedText = (a: AdaptedLine | null | undefined) =>
+    !a
+      ? tt("pw.line.pending")
+      : a.text_en?.trim()
+        ? a.text_en
+        : a.change_type === "cut"
+          ? tt("review.lineCut")
+          : tt("pw.line.blank");
   const base = `/api/titles/${payload.title.id}/episodes/${payload.episode.number}`;
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -115,6 +131,15 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
   const editedCount = adapted.filter((a) => a.authored_by === "editor").length;
   const majorCount = adapted.filter((a) => a.is_major).length;
   const allAdapted = lines.length > 0 && adaptedCount === lines.length;
+  // The finalize gate's own rule (views.ts adaptedLineIssue), mirrored here so
+  // the banner and the button can never say ready while the server would
+  // refuse. Rare — the first pass always writes rationale + back-translation —
+  // but an AI take can arrive without them (e.g. an alternative that carries
+  // no back-translation); hand-editing such a line clears it.
+  const unexplainedCount = lines.filter((l) => {
+    const a = byLine.get(l.id);
+    return !!a && adaptedLineIssue(a) === "unexplained";
+  }).length;
   const hasAdaptation = adapted.length > 0;
   const durationMs = payload.episode.duration_ms ?? Math.max(1, ...lines.map((l) => l.end_ms ?? 0));
 
@@ -223,7 +248,7 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
       let rows = await rewriteLineToBudget(adapted, issue.line_id, false);
       if (lineStillFlagged(rows, issue.line_id)) rows = await rewriteLineToBudget(rows, issue.line_id, true);
     } catch (e) {
-      setError((e as Error).message);
+      setError(errText(e));
     } finally {
       setBusy(null);
     }
@@ -256,7 +281,7 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
       const left = scope === "warnings" ? after.errors.length + after.warnings.length : after.errors.length;
       setNotice(left ? tt("qc.fix.done", { n: attempted, m: left }) : tt("qc.fix.allclear", { n: attempted }));
     } catch (e) {
-      setError((e as Error).message);
+      setError(errText(e));
     } finally {
       setQcFixStep(null);
       setBusy(null);
@@ -292,7 +317,7 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
       if (r.unmatched) setError(tt("pw.gen.unmatched", { n: r.unmatched }));
       router.refresh();
     } catch (e) {
-      setError((e as Error).message);
+      setError(errText(e));
       setGenerating(false);
     } finally {
       clearInterval(ticker);
@@ -319,7 +344,7 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
       setAlts((rows) => [...rows.filter((x) => x.adapted_line_id !== a.id), ...r.alternatives]);
       if (!r.alternatives.length) setNotice(tt("pw.alts.none"));
     } catch (e) {
-      setError((e as Error).message);
+      setError(errText(e));
     } finally {
       clearInterval(ticker);
       setBusy(null);
@@ -347,7 +372,7 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
         setNotice(tt("pw.alts.dir.none"));
       }
     } catch (e) {
-      setError((e as Error).message);
+      setError(errText(e));
     } finally {
       setBusy(null);
     }
@@ -381,7 +406,7 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
       setShowAlts(false);
       setNotice(tt("v3.line.saved"));
     } catch (e) {
-      setError((e as Error).message);
+      setError(errText(e));
     } finally {
       setBusy(null);
     }
@@ -397,7 +422,7 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
       // Stage one is done - carry the producer straight into timing & delivery.
       router.push(subtitlesHref);
     } catch (e) {
-      setError((e as Error).message);
+      setError(errText(e));
       setBusy(null);
       setArmed(false);
     }
@@ -411,7 +436,7 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
       unwrap(await postJson<ApiEnvelope>(`/api/producer/versions/${version.id}/approve`, {}));
       router.push(subtitlesHref);
     } catch (e) {
-      setError((e as Error).message);
+      setError(errText(e));
       setBusy(null);
     }
   }
@@ -423,7 +448,7 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
       unwrap(await postJson<ApiEnvelope>(`${base}/fork`, {}));
       router.refresh();
     } catch (e) {
-      setError((e as Error).message);
+      setError(errText(e));
       setBusy(null);
     }
   }
@@ -439,7 +464,7 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
       setNotice(tt("pw.video.attached"));
       router.refresh();
     } catch (e) {
-      setError((e as Error).message);
+      setError(errText(e));
     } finally {
       setBusy(null);
     }
@@ -498,9 +523,11 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
       ? { tone: "ready", title: tt("pw.cmd.review.title"), body: tt("pw.cmd.review.body") }
       : allAdapted && qc.errors.length > 0
         ? { tone: "blocked", title: tt("pw.cmd.blocked.title", { n: qc.errors.length }), body: tt("pw.cmd.blocked.body") }
-        : allAdapted
-          ? { tone: "ready", title: tt("pw.cmd.ready.title"), body: tt("pw.cmd2.ready.body") }
-          : { tone: "next", title: tt("pw.cmd2.lines.title", { n: lines.length - adaptedCount }), body: tt("pw.cmd2.lines.body") };
+        : allAdapted && unexplainedCount > 0
+          ? { tone: "blocked", title: tt("pw.cmd.explain.title", { n: unexplainedCount }), body: tt("pw.cmd.explain.body") }
+          : allAdapted
+            ? { tone: "ready", title: tt("pw.cmd.ready.title"), body: tt("pw.cmd2.ready.body") }
+            : { tone: "next", title: tt("pw.cmd2.lines.title", { n: lines.length - adaptedCount }), body: tt("pw.cmd2.lines.body") };
 
   const selectedAlternatives = selectedAdapted ? altsByLine.get(selectedAdapted.id) ?? [] : [];
   // Directions nobody has tried on this line yet: not on the current take,
@@ -533,13 +560,15 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
               <button
                 type="button"
                 className="btn btn-sm btn-approve"
-                disabled={busy === "finalize" || !allAdapted || qc.errors.length > 0}
+                disabled={busy === "finalize" || !allAdapted || qc.errors.length > 0 || unexplainedCount > 0}
                 title={
                   !allAdapted
                     ? tt("pw.finalize.blocked2")
                     : qc.errors.length
                       ? tt("qc.errors", { n: qc.errors.length })
-                      : undefined
+                      : unexplainedCount
+                        ? tt("pw.cmd.explain.title", { n: unexplainedCount })
+                        : undefined
                 }
                 onClick={() => (armed ? finalize() : setArmed(true))}
               >
@@ -604,7 +633,7 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
                   <span>{tt("reviewStudio.noVideo")}</span>
                   <time>{timecode(currentMs)}</time>
                   <p lang="zh-CN">{selectedLine?.text_zh}</p>
-                  <strong>{selectedAdapted?.text_en || tt("review.lineCut")}</strong>
+                  <strong>{adaptedText(selectedAdapted)}</strong>
                 </div>
               )}
             </div>
@@ -793,7 +822,7 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
                         {line.speaker}
                         {a?.authored_by === "editor" ? ` · ${tt("pw.line.edited")}` : ""}
                       </small>
-                      <p>{a ? (a.text_en ? highlightPhrase(a.text_en, a.key_phrase_en) : tt("review.lineCut")) : tt("pw.line.pending")}</p>
+                      <p>{a?.text_en ? highlightPhrase(a.text_en, a.key_phrase_en) : adaptedText(a)}</p>
                     </div>
                     {why && (
                       <span className="review-script-why">
@@ -945,7 +974,7 @@ export default function EpisodeWorkspace({ payload, readOnly }: Props) {
                 </>
               ) : (
                 <div className="pline-en bilingual" lang="en">
-                  <p>{selectedAdapted.text_en ?? tt("review.lineCut")}</p>
+                  <p>{adaptedText(selectedAdapted)}</p>
                 </div>
               )}
             </section>

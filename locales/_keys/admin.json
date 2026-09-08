@@ -1,94 +1,654 @@
 {
-  "admin.nav.projects": { "en": "Titles", "zh": "剧集" },
-  "admin.nav.producers": { "en": "Producers", "zh": "制片方" },
-  "admin.nav.menu": { "en": "Open menu", "zh": "打开菜单" },
-  "admin.nav.closeMenu": { "en": "Close menu", "zh": "关闭菜单" },
-  "admin.nav.signOut": { "en": "Sign out", "zh": "退出登录" },
-  "admin.head.newTitle": { "en": "New title", "zh": "新建剧集" },
-  "admin.head.pack": { "en": "Creative pack", "zh": "创意素材包" },
-  "admin.head.adaptation": { "en": "Adaptation", "zh": "本土化改编" },
-  "admin.head.title": { "en": "Title", "zh": "剧集" },
-  "admin.ident.admin": { "en": "Administrator", "zh": "管理员" },
-  "admin.ident.editor": { "en": "Editor", "zh": "编辑" },
-  "admin.titles.title": { "en": "Titles", "zh": "剧集" },
-  "admin.titles.sub": { "en": "Adapt, review, approve and export every title.", "zh": "管理每部剧集的改编、审核、批准与导出。" },
-  "admin.titles.new": { "en": "New title", "zh": "新建剧集" },
-  "admin.titles.producer": { "en": "Producer", "zh": "制片方" },
-  "admin.titles.status": { "en": "Status", "zh": "状态" },
-  "admin.titles.progress": { "en": "Progress", "zh": "进度" },
-  "admin.titles.cost": { "en": "API cost", "zh": "API 成本" },
-  "admin.titles.updated": { "en": "Updated", "zh": "更新时间" },
-  "admin.titles.empty": { "en": "No titles yet. Create the first one.", "zh": "暂无剧集，请创建第一部。" },
-  "admin.title.addEpisodes": { "en": "Add episodes", "zh": "添加单集" },
-  "admin.title.upload": { "en": "Upload episodes", "zh": "上传单集" },
-  "admin.episode.n": { "en": "Episode {n}", "zh": "第 {n} 集" },
-  "admin.newTitle.episodesSub": { "en": "Upload SRT, VTT, ASS or a text script; video is optional.", "zh": "上传 SRT、VTT、ASS 或文本剧本；视频可选。" },
-  "admin.newTitle.ingestFailed": { "en": "Import failed", "zh": "导入失败" },
-  "admin.newTitle.ingestOk": { "en": "Imported", "zh": "已导入" },
-  "admin.newTitle.ingestSummary": { "en": "Ready: {lines} lines across {scenes} scenes.", "zh": "导入完成：{scenes} 个场景，共 {lines} 句台词。" },
-  "admin.newTitle.untimed": { "en": "Script-only; no timecodes", "zh": "纯剧本模式，无时间码" },
-  "admin.newTitle.chooseFile": { "en": "Choose a subtitle or script file to enable upload.", "zh": "请选择字幕或剧本文件以启用上传。" },
-  "admin.newTitle.uploading": { "en": "Uploading…", "zh": "上传中…" },
-  "admin.export.button": { "en": "Export", "zh": "导出" },
-  "admin.export.episode": { "en": "Episode", "zh": "单集" },
-  "admin.export.perEpisode": { "en": "Episode files", "zh": "单集文件" },
-  "admin.export.perTitle": { "en": "Title files", "zh": "剧集文件" },
-  "admin.export.sourceHint": { "en": "Exports use the approved snapshot, then the in-review snapshot, then the current draft.", "zh": "导出优先使用已批准快照，其次为审核中快照，最后为当前草稿。" },
-  "admin.export.format.srt": { "en": "SRT", "zh": "SRT" },
-  "admin.export.format.vtt": { "en": "VTT", "zh": "VTT" },
-  "admin.export.format.csv": { "en": "CSV", "zh": "CSV" },
-  "admin.export.format.diff": { "en": "Bilingual diff", "zh": "双语对照" },
-  "admin.export.format.brief": { "en": "Creative brief", "zh": "创意简报" },
-  "admin.export.format.package": { "en": "Title package", "zh": "剧集素材包" },
-  "admin.titleStatus.candidate": { "en": "Candidate", "zh": "候选" },
-  "admin.titleStatus.selected": { "en": "Selected", "zh": "已选择" },
-  "admin.titleStatus.ingesting": { "en": "Ingesting", "zh": "导入中" },
-  "admin.titleStatus.adapting": { "en": "Adapting", "zh": "改编中" },
-  "admin.titleStatus.in_review": { "en": "In partner review", "zh": "制片方审核中" },
-  "admin.titleStatus.approved": { "en": "Approved", "zh": "已通过" },
-  "admin.titleStatus.live": { "en": "Live", "zh": "已上线" },
-  "admin.titleStatus.ended": { "en": "Ended", "zh": "已结束" },
-  "admin.titleStatus.dropped": { "en": "Dropped", "zh": "已停止" },
-  "admin.episodeStatus.ingested": { "en": "Not started", "zh": "尚未开始" },
-  "admin.episodeStatus.adapting": { "en": "Staff editing", "zh": "员工编辑中" },
-  "admin.episodeStatus.in_review": { "en": "With producer", "zh": "制片方处理中" },
-  "admin.episodeStatus.changes": { "en": "Changes requested", "zh": "制片方要求修改" },
-  "admin.episodeStatus.approved": { "en": "Approved", "zh": "已通过" },
-  "admin.title.episodes": { "en": "Episodes", "zh": "单集" },
-  "admin.title.needsStaff": { "en": "Need staff action", "zh": "需要员工处理" },
-  "admin.title.withProducer": { "en": "With producer", "zh": "制片方处理中" },
-  "admin.title.cost": { "en": "API cost to date", "zh": "累计 API 成本" },
-  "admin.title.episodesHelp": { "en": "Each row names the next action and who owns it. Open the episode to see the exact requirements.", "zh": "每一行都会说明下一步操作及当前负责人。打开单集可查看具体要求。" },
-  "admin.title.col.episode": { "en": "Episode", "zh": "集数" },
-  "admin.title.col.name": { "en": "Name", "zh": "名称" },
-  "admin.title.col.status": { "en": "Status", "zh": "状态" },
-  "admin.title.col.progress": { "en": "Progress", "zh": "进度" },
-  "admin.title.col.next": { "en": "Next action", "zh": "下一步" },
-  "admin.episode.short": { "en": "Ep {n}", "zh": "第 {n} 集" },
-  "admin.episode.untitled": { "en": "Untitled episode", "zh": "未命名单集" },
-  "admin.episode.progress": { "en": "{lines}/{totalLines} lines · {scenes}/{totalScenes} scenes ready", "zh": "台词 {lines}/{totalLines} · 场景就绪 {scenes}/{totalScenes}" },
-  "admin.episode.owner": { "en": "Owner: {owner}", "zh": "负责人：{owner}" },
-  "admin.episodeOwner.staff": { "en": "Pulsar staff", "zh": "Pulsar 团队" },
-  "admin.episodeOwner.producer": { "en": "Producer", "zh": "制片方" },
-  "admin.episodeOwner.complete": { "en": "Complete", "zh": "已完成" },
-  "admin.episodeNext.lines": { "en": "Complete {n} remaining line(s)", "zh": "完成剩余 {n} 句台词" },
-  "admin.episodeNext.start": { "en": "Create an English draft for {n} line(s)", "zh": "为 {n} 句台词创建英文初稿" },
-  "admin.episodeNext.scenes": { "en": "Review {n} remaining scene(s)", "zh": "审核剩余 {n} 个场景" },
-  "admin.episodeNext.changes": { "en": "Producer requested changes in {n} scene(s)", "zh": "制片方要求修改 {n} 个场景" },
-  "admin.episodeNext.send": { "en": "Send the finished version", "zh": "提交完成的版本" },
-  "admin.episodeNext.producer": { "en": "Waiting for producer decision", "zh": "等待制片方决定" },
-  "admin.episodeNext.producerScenes": { "en": "Producer has {n} scene decision(s) remaining", "zh": "制片方还有 {n} 个场景待审核" },
-  "admin.episodeNext.feedbackPending": { "en": "{changes} change request received · producer has {remaining} scene(s) left", "zh": "已收到 {changes} 个修改要求 · 制片方还有 {remaining} 个场景待审核" },
-  "admin.episodeNext.complete": { "en": "Approved and ready to export", "zh": "已通过，可导出" },
-  "admin.episodeAction.start": { "en": "Start adaptation", "zh": "开始改编" },
-  "admin.episodeAction.continue": { "en": "Continue editing", "zh": "继续编辑" },
-  "admin.episodeAction.reviewScenes": { "en": "Review scenes", "zh": "审核场景" },
-  "admin.episodeAction.send": { "en": "Send to producer", "zh": "提交制片方" },
-  "admin.episodeAction.openRequest": { "en": "Open request", "zh": "查看修改要求" },
-  "admin.episodeAction.viewReview": { "en": "View review", "zh": "查看审核" },
-  "admin.episodeAction.viewApproved": { "en": "View approved", "zh": "查看已通过版本" },
-  "admin.versionStatus.draft": { "en": "Draft", "zh": "草稿" },
-  "admin.versionStatus.in_review": { "en": "In partner review", "zh": "制片方审核中" },
-  "admin.versionStatus.approved": { "en": "Approved", "zh": "已通过" },
-  "admin.versionStatus.superseded": { "en": "Superseded", "zh": "已被替代" }
+  "admin.nav.projects": {
+    "en": "Titles",
+    "zh": "剧集"
+  },
+  "admin.nav.producers": {
+    "en": "Producers",
+    "zh": "制片方"
+  },
+  "admin.nav.menu": {
+    "en": "Open menu",
+    "zh": "打开菜单"
+  },
+  "admin.nav.closeMenu": {
+    "en": "Close menu",
+    "zh": "关闭菜单"
+  },
+  "admin.nav.signOut": {
+    "en": "Sign out",
+    "zh": "退出登录"
+  },
+  "admin.head.newTitle": {
+    "en": "New title",
+    "zh": "新建剧集"
+  },
+  "admin.head.pack": {
+    "en": "Creative pack",
+    "zh": "创意素材包"
+  },
+  "admin.head.adaptation": {
+    "en": "Adaptation",
+    "zh": "本土化改编"
+  },
+  "admin.head.title": {
+    "en": "Title",
+    "zh": "剧集"
+  },
+  "admin.ident.admin": {
+    "en": "Administrator",
+    "zh": "管理员"
+  },
+  "admin.ident.editor": {
+    "en": "Editor",
+    "zh": "编辑"
+  },
+  "admin.titles.title": {
+    "en": "Titles",
+    "zh": "剧集"
+  },
+  "admin.titles.sub": {
+    "en": "Adapt, review, approve and export every title.",
+    "zh": "管理每部剧集的改编、审核、批准与导出。"
+  },
+  "admin.titles.new": {
+    "en": "New title",
+    "zh": "新建剧集"
+  },
+  "admin.titles.producer": {
+    "en": "Producer",
+    "zh": "制片方"
+  },
+  "admin.titles.status": {
+    "en": "Status",
+    "zh": "状态"
+  },
+  "admin.titles.progress": {
+    "en": "Progress",
+    "zh": "进度"
+  },
+  "admin.titles.cost": {
+    "en": "API cost",
+    "zh": "API 成本"
+  },
+  "admin.titles.updated": {
+    "en": "Updated",
+    "zh": "更新时间"
+  },
+  "admin.titles.empty": {
+    "en": "No titles yet. Create the first one.",
+    "zh": "暂无剧集，请创建第一部。"
+  },
+  "admin.title.addEpisodes": {
+    "en": "Add episodes",
+    "zh": "添加单集"
+  },
+  "admin.title.upload": {
+    "en": "Upload episodes",
+    "zh": "上传单集"
+  },
+  "admin.episode.n": {
+    "en": "Episode {n}",
+    "zh": "第 {n} 集"
+  },
+  "admin.newTitle.episodesSub": {
+    "en": "Upload SRT, VTT, ASS or a text script; video is optional.",
+    "zh": "上传 SRT、VTT、ASS 或文本剧本；视频可选。"
+  },
+  "admin.newTitle.ingestFailed": {
+    "en": "Import failed",
+    "zh": "导入失败"
+  },
+  "admin.newTitle.ingestOk": {
+    "en": "Imported",
+    "zh": "已导入"
+  },
+  "admin.newTitle.ingestSummary": {
+    "en": "Ready: {lines} lines across {scenes} scenes.",
+    "zh": "导入完成：{scenes} 个场景，共 {lines} 句台词。"
+  },
+  "admin.newTitle.untimed": {
+    "en": "Script-only; no timecodes",
+    "zh": "纯剧本模式，无时间码"
+  },
+  "admin.newTitle.chooseFile": {
+    "en": "Choose a subtitle or script file to enable upload.",
+    "zh": "请选择字幕或剧本文件以启用上传。"
+  },
+  "admin.newTitle.uploading": {
+    "en": "Uploading…",
+    "zh": "上传中…"
+  },
+  "admin.export.button": {
+    "en": "Export",
+    "zh": "导出"
+  },
+  "admin.export.episode": {
+    "en": "Episode",
+    "zh": "单集"
+  },
+  "admin.export.perEpisode": {
+    "en": "Episode files",
+    "zh": "单集文件"
+  },
+  "admin.export.perTitle": {
+    "en": "Title files",
+    "zh": "剧集文件"
+  },
+  "admin.export.sourceHint": {
+    "en": "Exports use the approved snapshot, then the in-review snapshot, then the current draft.",
+    "zh": "导出优先使用已批准快照，其次为审核中快照，最后为当前草稿。"
+  },
+  "admin.export.format.srt": {
+    "en": "SRT",
+    "zh": "SRT"
+  },
+  "admin.export.format.vtt": {
+    "en": "VTT",
+    "zh": "VTT"
+  },
+  "admin.export.format.csv": {
+    "en": "CSV",
+    "zh": "CSV"
+  },
+  "admin.export.format.diff": {
+    "en": "Bilingual diff",
+    "zh": "双语对照"
+  },
+  "admin.export.format.brief": {
+    "en": "Creative brief",
+    "zh": "创意简报"
+  },
+  "admin.export.format.package": {
+    "en": "Title package",
+    "zh": "剧集素材包"
+  },
+  "admin.titleStatus.candidate": {
+    "en": "Candidate",
+    "zh": "候选"
+  },
+  "admin.titleStatus.selected": {
+    "en": "Selected",
+    "zh": "已选择"
+  },
+  "admin.titleStatus.ingesting": {
+    "en": "Ingesting",
+    "zh": "导入中"
+  },
+  "admin.titleStatus.adapting": {
+    "en": "Adapting",
+    "zh": "改编中"
+  },
+  "admin.titleStatus.in_review": {
+    "en": "In partner review",
+    "zh": "制片方审核中"
+  },
+  "admin.titleStatus.approved": {
+    "en": "Approved",
+    "zh": "已通过"
+  },
+  "admin.titleStatus.live": {
+    "en": "Live",
+    "zh": "已上线"
+  },
+  "admin.titleStatus.ended": {
+    "en": "Ended",
+    "zh": "已结束"
+  },
+  "admin.titleStatus.dropped": {
+    "en": "Dropped",
+    "zh": "已停止"
+  },
+  "admin.episodeStatus.ingested": {
+    "en": "Not started",
+    "zh": "尚未开始"
+  },
+  "admin.episodeStatus.adapting": {
+    "en": "Staff editing",
+    "zh": "员工编辑中"
+  },
+  "admin.episodeStatus.in_review": {
+    "en": "With producer",
+    "zh": "制片方处理中"
+  },
+  "admin.episodeStatus.changes": {
+    "en": "Changes requested",
+    "zh": "制片方要求修改"
+  },
+  "admin.episodeStatus.approved": {
+    "en": "Approved",
+    "zh": "已通过"
+  },
+  "admin.title.episodes": {
+    "en": "Episodes",
+    "zh": "单集"
+  },
+  "admin.title.needsStaff": {
+    "en": "Need staff action",
+    "zh": "需要员工处理"
+  },
+  "admin.title.withProducer": {
+    "en": "With producer",
+    "zh": "制片方处理中"
+  },
+  "admin.title.cost": {
+    "en": "API cost to date",
+    "zh": "累计 API 成本"
+  },
+  "admin.title.episodesHelp": {
+    "en": "Each row names the next action and who owns it. Open the episode to see the exact requirements.",
+    "zh": "每一行都会说明下一步操作及当前负责人。打开单集可查看具体要求。"
+  },
+  "admin.title.col.episode": {
+    "en": "Episode",
+    "zh": "集数"
+  },
+  "admin.title.col.name": {
+    "en": "Name",
+    "zh": "名称"
+  },
+  "admin.title.col.status": {
+    "en": "Status",
+    "zh": "状态"
+  },
+  "admin.title.col.progress": {
+    "en": "Progress",
+    "zh": "进度"
+  },
+  "admin.title.col.next": {
+    "en": "Next action",
+    "zh": "下一步"
+  },
+  "admin.episode.short": {
+    "en": "Ep {n}",
+    "zh": "第 {n} 集"
+  },
+  "admin.episode.untitled": {
+    "en": "Untitled episode",
+    "zh": "未命名单集"
+  },
+  "admin.episode.progress": {
+    "en": "{lines}/{totalLines} lines · {scenes}/{totalScenes} scenes ready",
+    "zh": "台词 {lines}/{totalLines} · 场景就绪 {scenes}/{totalScenes}"
+  },
+  "admin.episode.owner": {
+    "en": "Owner: {owner}",
+    "zh": "负责人：{owner}"
+  },
+  "admin.episodeOwner.staff": {
+    "en": "Pulsar staff",
+    "zh": "Pulsar 团队"
+  },
+  "admin.episodeOwner.producer": {
+    "en": "Producer",
+    "zh": "制片方"
+  },
+  "admin.episodeOwner.complete": {
+    "en": "Complete",
+    "zh": "已完成"
+  },
+  "admin.episodeNext.lines": {
+    "en": "Complete {n} remaining line(s)",
+    "zh": "完成剩余 {n} 句台词"
+  },
+  "admin.episodeNext.start": {
+    "en": "Create an English draft for {n} line(s)",
+    "zh": "为 {n} 句台词创建英文初稿"
+  },
+  "admin.episodeNext.scenes": {
+    "en": "Review {n} remaining scene(s)",
+    "zh": "审核剩余 {n} 个场景"
+  },
+  "admin.episodeNext.changes": {
+    "en": "Producer requested changes in {n} scene(s)",
+    "zh": "制片方要求修改 {n} 个场景"
+  },
+  "admin.episodeNext.send": {
+    "en": "Send the finished version",
+    "zh": "提交完成的版本"
+  },
+  "admin.episodeNext.producer": {
+    "en": "Waiting for producer decision",
+    "zh": "等待制片方决定"
+  },
+  "admin.episodeNext.producerScenes": {
+    "en": "Producer has {n} scene decision(s) remaining",
+    "zh": "制片方还有 {n} 个场景待审核"
+  },
+  "admin.episodeNext.feedbackPending": {
+    "en": "{changes} change request received · producer has {remaining} scene(s) left",
+    "zh": "已收到 {changes} 个修改要求 · 制片方还有 {remaining} 个场景待审核"
+  },
+  "admin.episodeNext.complete": {
+    "en": "Approved and ready to export",
+    "zh": "已通过，可导出"
+  },
+  "admin.episodeAction.start": {
+    "en": "Start adaptation",
+    "zh": "开始改编"
+  },
+  "admin.episodeAction.continue": {
+    "en": "Continue editing",
+    "zh": "继续编辑"
+  },
+  "admin.episodeAction.reviewScenes": {
+    "en": "Review scenes",
+    "zh": "审核场景"
+  },
+  "admin.episodeAction.send": {
+    "en": "Send to producer",
+    "zh": "提交制片方"
+  },
+  "admin.episodeAction.openRequest": {
+    "en": "Open request",
+    "zh": "查看修改要求"
+  },
+  "admin.episodeAction.viewReview": {
+    "en": "View review",
+    "zh": "查看审核"
+  },
+  "admin.episodeAction.viewApproved": {
+    "en": "View approved",
+    "zh": "查看已通过版本"
+  },
+  "admin.versionStatus.draft": {
+    "en": "Draft",
+    "zh": "草稿"
+  },
+  "admin.versionStatus.in_review": {
+    "en": "In partner review",
+    "zh": "制片方审核中"
+  },
+  "admin.versionStatus.approved": {
+    "en": "Approved",
+    "zh": "已通过"
+  },
+  "admin.versionStatus.superseded": {
+    "en": "Superseded",
+    "zh": "已被替代"
+  },
+  "admin.nav.promote": {
+    "en": "Promote",
+    "zh": "推广"
+  },
+  "admin.head.promote": {
+    "en": "Promote desk",
+    "zh": "推广工作台"
+  },
+  "admin.promote.title": {
+    "en": "Promote desk",
+    "zh": "推广工作台"
+  },
+  "admin.promote.sub": {
+    "en": "Every producer campaign, what it needs from Pulsar, and where Grow has taken it.",
+    "zh": "所有制片方的推广活动、需要 Pulsar 处理的事项，以及 Grow 的投放进度。"
+  },
+  "admin.promote.queue.action": {
+    "en": "Needs Pulsar",
+    "zh": "待 Pulsar 处理"
+  },
+  "admin.promote.queue.producer": {
+    "en": "Waiting on producer",
+    "zh": "等待制片方"
+  },
+  "admin.promote.queue.done": {
+    "en": "Launched",
+    "zh": "已投放"
+  },
+  "admin.promote.col.campaign": {
+    "en": "Campaign",
+    "zh": "推广活动"
+  },
+  "admin.promote.col.producer": {
+    "en": "Producer",
+    "zh": "制片方"
+  },
+  "admin.promote.col.status": {
+    "en": "Status",
+    "zh": "状态"
+  },
+  "admin.promote.col.creatives": {
+    "en": "Creatives",
+    "zh": "创意"
+  },
+  "admin.promote.col.next": {
+    "en": "Next",
+    "zh": "下一步"
+  },
+  "admin.promote.col.updated": {
+    "en": "Updated",
+    "zh": "更新"
+  },
+  "admin.promote.empty": {
+    "en": "No campaigns yet. They appear here the moment a producer starts a promotion.",
+    "zh": "暂无推广活动。制片方发起推广后会显示在这里。"
+  },
+  "admin.promote.status.draft": {
+    "en": "Brief",
+    "zh": "填写需求中"
+  },
+  "admin.promote.status.generating": {
+    "en": "Generating",
+    "zh": "生成中"
+  },
+  "admin.promote.status.review": {
+    "en": "Producer reviewing",
+    "zh": "制片方审阅中"
+  },
+  "admin.promote.status.approved": {
+    "en": "Producer approved",
+    "zh": "制片方已确认"
+  },
+  "admin.promote.status.submitted": {
+    "en": "Ready to launch",
+    "zh": "待投放"
+  },
+  "admin.promote.status.launching": {
+    "en": "Launching on TikTok",
+    "zh": "TikTok 投放中"
+  },
+  "admin.promote.status.live": {
+    "en": "Live",
+    "zh": "已上线"
+  },
+  "admin.promote.status.failed": {
+    "en": "Launch failed",
+    "zh": "投放失败"
+  },
+  "admin.promote.next.changes": {
+    "en": "{n} change requests to answer",
+    "zh": "{n} 条修改要求待处理"
+  },
+  "admin.promote.next.launch": {
+    "en": "Launch on Grow",
+    "zh": "在 Grow 投放"
+  },
+  "admin.promote.next.launching": {
+    "en": "Confirm live when TikTok approves",
+    "zh": "TikTok 通过后确认上线"
+  },
+  "admin.promote.next.failed": {
+    "en": "Retry or follow up",
+    "zh": "重试或跟进"
+  },
+  "admin.promote.next.producer": {
+    "en": "Producer's move",
+    "zh": "等待制片方"
+  },
+  "admin.promote.next.done": {
+    "en": "—",
+    "zh": "—"
+  },
+  "admin.promote.stat.status": {
+    "en": "Status",
+    "zh": "状态"
+  },
+  "admin.promote.stat.creatives": {
+    "en": "Kept / concepts",
+    "zh": "已保留 / 方向"
+  },
+  "admin.promote.stat.changes": {
+    "en": "Change requests",
+    "zh": "修改要求"
+  },
+  "admin.promote.stat.grow": {
+    "en": "Grow campaign",
+    "zh": "Grow 活动"
+  },
+  "admin.promote.brief": {
+    "en": "Brief",
+    "zh": "需求"
+  },
+  "admin.promote.brief.market": {
+    "en": "Market",
+    "zh": "市场"
+  },
+  "admin.promote.brief.objective": {
+    "en": "Objective",
+    "zh": "目标"
+  },
+  "admin.promote.brief.spoilers": {
+    "en": "Spoiler level",
+    "zh": "剧透程度"
+  },
+  "admin.promote.brief.destination": {
+    "en": "Destination",
+    "zh": "落地页"
+  },
+  "admin.promote.brief.direction": {
+    "en": "Creative direction",
+    "zh": "创意方向"
+  },
+  "admin.promote.brief.exclusions": {
+    "en": "Do not use",
+    "zh": "禁止使用"
+  },
+  "admin.promote.launch": {
+    "en": "Launch",
+    "zh": "投放"
+  },
+  "admin.promote.launch.submitted": {
+    "en": "The producer approved {n} creatives and submitted for launch. Create the Grow campaign, then record its progress here.",
+    "zh": "制片方已确认 {n} 条创意并提交投放。在 Grow 创建活动后，在此记录进度。"
+  },
+  "admin.promote.launch.launching": {
+    "en": "Launching on Grow. Confirm here once TikTok approves the ads.",
+    "zh": "Grow 投放中。TikTok 审核通过后在此确认。"
+  },
+  "admin.promote.launch.live": {
+    "en": "Live on TikTok. Metrics arrive with the Grow read-back.",
+    "zh": "已在 TikTok 上线。数据将通过 Grow 回传。"
+  },
+  "admin.promote.launch.failed": {
+    "en": "Launch failed. Fix the campaign in Grow and retry.",
+    "zh": "投放失败。在 Grow 中修正后重试。"
+  },
+  "admin.promote.launch.waiting": {
+    "en": "Nothing to launch yet — the producer has not submitted this campaign.",
+    "zh": "暂无可投放内容——制片方尚未提交。"
+  },
+  "admin.promote.launch.growId": {
+    "en": "Grow campaign id",
+    "zh": "Grow 活动 ID"
+  },
+  "admin.promote.launch.note": {
+    "en": "Note for the audit trail",
+    "zh": "备注（写入审计记录）"
+  },
+  "admin.promote.launch.markLaunching": {
+    "en": "Mark launching",
+    "zh": "标记为投放中"
+  },
+  "admin.promote.launch.markLive": {
+    "en": "Mark live",
+    "zh": "标记为已上线"
+  },
+  "admin.promote.launch.markFailed": {
+    "en": "Mark failed",
+    "zh": "标记为失败"
+  },
+  "admin.promote.launch.retry": {
+    "en": "Retry launch",
+    "zh": "重试投放"
+  },
+  "admin.promote.manifest": {
+    "en": "Approval manifest",
+    "zh": "确认清单"
+  },
+  "admin.promote.handoffs": {
+    "en": "Handoff attempts",
+    "zh": "交接记录"
+  },
+  "admin.promote.creatives": {
+    "en": "Creatives",
+    "zh": "创意"
+  },
+  "admin.promote.creatives.sub": {
+    "en": "Answer each change request with a revised version; the producer sees it as a fresh concept to keep or change again.",
+    "zh": "对每条修改要求给出新版本；制片方会看到新版本并再次决定保留或修改。"
+  },
+  "admin.promote.producerAsked": {
+    "en": "Producer asked",
+    "zh": "制片方要求"
+  },
+  "admin.promote.revise": {
+    "en": "Send revision",
+    "zh": "发送修改版"
+  },
+  "admin.promote.revise.hypothesis": {
+    "en": "Hypothesis",
+    "zh": "获客假设"
+  },
+  "admin.promote.revise.hook": {
+    "en": "Hook",
+    "zh": "钩子"
+  },
+  "admin.promote.revise.caption": {
+    "en": "Caption",
+    "zh": "贴文文案"
+  },
+  "admin.promote.revise.description": {
+    "en": "Ad description",
+    "zh": "广告描述"
+  },
+  "admin.promote.revise.start": {
+    "en": "Start (s)",
+    "zh": "起始（秒）"
+  },
+  "admin.promote.revise.end": {
+    "en": "End (s)",
+    "zh": "结束（秒）"
+  },
+  "admin.promote.revise.note": {
+    "en": "What changed (the producer sees this)",
+    "zh": "修改说明（制片方可见）"
+  },
+  "admin.promote.revise.submit": {
+    "en": "Send revised version",
+    "zh": "发送新版本"
+  },
+  "admin.promote.revise.cancel": {
+    "en": "Cancel",
+    "zh": "取消"
+  },
+  "admin.promote.revise.closed": {
+    "en": "Review is closed for this campaign; revisions need a new round.",
+    "zh": "该活动审阅已结束，修改需要新一轮。"
+  },
+  "admin.promote.version": {
+    "en": "v{v}",
+    "zh": "第 {v} 版"
+  },
+  "admin.promote.history": {
+    "en": "{n} earlier versions",
+    "zh": "{n} 个旧版本"
+  },
+  "admin.promote.source": {
+    "en": "Source",
+    "zh": "来源"
+  },
+  "admin.promote.episode": {
+    "en": "Episode {n}",
+    "zh": "第 {n} 集"
+  }
 }
