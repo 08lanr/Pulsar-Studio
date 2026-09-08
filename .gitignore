@@ -38,3 +38,6 @@ video_output/
 
 # Crawl logs are per-run noise; the raw JSON and snapshots are kept.
 data/research/raw/*.log
+
+# Playwright default output (the root config writes under tmp/).
+test-results/

@@ -1,0 +1,8 @@
+{
+  "catalogRefinement.evidence": { "en": "Score & story evidence", "zh": "评分与题材依据" },
+  "catalogRefinement.campaigns": { "en": "Campaigns", "zh": "广告活动" },
+  "catalogRefinement.campaignOne": { "en": "1 campaign", "zh": "1 个广告活动" },
+  "catalogRefinement.campaignCount": { "en": "{n} campaigns", "zh": "{n} 个广告活动" },
+  "catalogRefinement.tropeScope": { "en": "Story type: {trope}", "zh": "题材：{trope}" },
+  "catalogRefinement.removeTrope": { "en": "Remove story filter", "zh": "清除题材筛选" }
+}

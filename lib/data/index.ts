@@ -17,6 +17,7 @@
 // because the AI routes and the export route need a write/read path the
 // contract's method list left implicit.
 
+import type { AnalyticsLink, AnalyticsListing, AnalyticsRange, TitleAnalytics, TitlePerformanceRow } from "@/lib/analytics/types";
 import type { Session } from "@/lib/auth";
 import { dataSource } from "@/lib/data-source";
 import type { IngestResult } from "@/lib/ingest";
@@ -309,6 +310,9 @@ export type CommitReportInput = {
   skipped_count: number;
 };
 
+/** Title analytics reads (lib/analytics): the range is bookmarkable; `today` is a test hook (fixture mode uses the demo clock). */
+export type AnalyticsOptions = { range?: AnalyticsRange; today?: string };
+
 export type ExportSource = "approved" | "in_review" | "draft";
 
 /** What GET /api/titles/[id]/export renders from; `source` goes in the file header. */
@@ -484,6 +488,17 @@ export interface DataLayer {
   listReportRows(session: Session, opts?: { titleId?: string }): Promise<ReportRow[]>;
   commitReportBatch(session: Session, input: CommitReportInput): Promise<ReportBatch>;
   revertReportBatch(session: Session, batchId: string): Promise<ReportBatch>;
+
+  // title analytics (lib/analytics): company-scoped reads, editor-only listing links.
+  /** One row per title of the caller's company; staff preview and other companies get nothing. */
+  listTitlePerformance(session: Session, opts?: AnalyticsOptions): Promise<TitlePerformanceRow[]>;
+  /** The full record for the four views. A foreign title is not_found, never forbidden. */
+  getTitleAnalytics(session: Session, titleId: string, opts?: AnalyticsOptions): Promise<TitleAnalytics>;
+  /** Platform listings the company may link; `[]` in supabase mode until a provider is connected. */
+  listAnalyticsListings(session: Session): Promise<AnalyticsListing[]>;
+  /** Editors (reviewer/approver) of the title only; a listing linked to another title is a conflict. */
+  linkAnalyticsListing(session: Session, titleId: string, listingId: string): Promise<AnalyticsLink>;
+  unlinkAnalyticsListing(session: Session, titleId: string): Promise<void>;
 }
 
 // ---- the switch ------------------------------------------------------------------------------

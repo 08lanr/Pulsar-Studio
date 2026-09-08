@@ -203,7 +203,7 @@
   "ws.exp.moreVariations": { "en": "Test more ads", "zh": "测试更多广告" },
   "ws.exp.stop": { "en": "Back to campaigns", "zh": "返回广告活动" },
   "ws.exp.roundCreated": { "en": "New round created.", "zh": "已创建新一轮。" },
-  "ws.exp.forTitle": { "en": "for {title}", "zh": "· {title}" },
+  "ws.exp.forTitle": { "en": "for {title}", "zh": "作品：{title}" },
   "ws.company.kicker": { "en": "Company & accounts", "zh": "公司与账户" },
   "ws.company.title": { "en": "Company & accounts", "zh": "公司与账户" },
   "ws.company.sub": { "en": "Your goals, the accounts you own, who can act, billing, and your imported reports.", "zh": "公司目标、你拥有的账户、操作权限、结算方式，以及导入的报表。" },

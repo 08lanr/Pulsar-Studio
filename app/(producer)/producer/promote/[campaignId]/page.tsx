@@ -10,6 +10,7 @@ import { t } from "@/lib/i18n";
 import { BENCHMARK } from "@/lib/research/assessment";
 import { experimentStage } from "@/lib/research/workspace";
 import { campaignWorkflow, workflowStepForStage } from "@/lib/research/workflow";
+import { nextRoundName } from "@/lib/research/results";
 
 // /producer/promote/[campaignId] — one experiment: the stage strip, the
 // structured brief with budget approval, the concept review (generate
@@ -39,7 +40,10 @@ export default async function ExperimentPage({ params }: { params: { campaignId:
   const flow = summary ? campaignWorkflow(summary, detail.results) : { step: workflowStepForStage[st.stage], hint: `workflow.hint.${workflowStepForStage[st.stage]}`, waiting: false };
   const launched = ["submitted", "launching", "live"].includes(detail.campaign.status);
   const panelFirst = ["prepare", "budget", "results"].includes(flow.step) || launched;
-  const experimentPanel = <div id="brief"><ExperimentPanel campaign={detail.campaign} creatives={detail.creatives} results={detail.results} canEdit={canEdit} canApprove={canApprove} fixtureMode={dataSource() === "fixture"} benchmark={BENCHMARK} titleName={titleName} briefExpanded={flow.step === "prepare" || flow.step === "budget"} /></div>;
+  // The next round is a new campaign on the same title: numbered after every round the title already has.
+  const roundNumber = summaries.filter((c) => c.title_id === detail.title.id).length + 1;
+  const nextRound = { number: roundNumber, name: nextRoundName(detail.campaign.name, roundNumber, locale) };
+  const experimentPanel = <div id="brief"><ExperimentPanel campaign={detail.campaign} creatives={detail.creatives} results={detail.results} canEdit={canEdit} canApprove={canApprove} fixtureMode={dataSource() === "fixture"} benchmark={BENCHMARK} titleName={titleName} briefExpanded={flow.step === "prepare" || flow.step === "budget"} nextRound={nextRound} analyticsHref={`/producer/titles/${detail.title.id}/analytics/acquisition?campaign=${detail.campaign.id}`} /></div>;
   const ads = detail.campaign.status === "generating" || (detail.campaign.status === "failed" && !detail.creatives.length) ? null : <section id="ads" className="fc-ads-section"><span id="concepts"/><header className="fc-section-heading"><h2>{t(locale, ["choose", "approveAds"].includes(flow.step) ? `workflow.step.${flow.step}` : "fc.ads")}</h2>{launched && <p>{t(locale, "fc.adsArchiveHint")}</p>}</header><PromoWorkspace detail={detail} media={media} canAct={canEdit} canApprove={canApprove} /></section>;
   const adSection = launched || flow.step === "budget" ? <details className="fc-disclosure fc-archive"><summary><span>{t(locale, "fc.adsArchive")}</span><span>{detail.creatives.filter(c => c.status !== "superseded").length}</span></summary>{ads}</details> : ads;
 

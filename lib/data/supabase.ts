@@ -20,6 +20,9 @@
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import type { Session } from "@/lib/auth";
+import { computeTitleAnalytics, performanceRow } from "@/lib/analytics/compute";
+import { parseRange } from "@/lib/analytics/types";
+import type { AnalyticsLink } from "@/lib/analytics/types";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { buildVersionSnapshot } from "@/data/fixture/snapshot";
 import type {
@@ -1379,6 +1382,65 @@ export const supabaseData: DataLayer = {
       "report batch",
       batchId
     );
+  },
+
+  // ---- title analytics ------------------------------------------------------------------
+  // No provider connector exists yet. Links are real rows (core.analytics_links,
+  // migration 0007, RLS through core.can_edit_title()); every metric comes
+  // back unavailable with the requires-connection reason. Demo numbers never
+  // appear here: production must not fall back to fake data.
+
+  async listTitlePerformance(session, opts) {
+    if (session.kind !== "producer" || !session.producerId) return [];
+    const range = parseRange(opts?.range);
+    const today = opts?.today ?? new Date().toISOString().slice(0, 10);
+    const titles = await many<Pick<Title, "id" | "producer_id" | "name_zh" | "name_en" | "episode_count">>(core(db()).from("titles").select("id, producer_id, name_zh, name_en, episode_count").eq("producer_id", session.producerId).order("updated_at", { ascending: false }));
+    const links = await many<AnalyticsLink>(core(db()).from("analytics_links").select("*").eq("producer_id", session.producerId));
+    return titles.map((t) => {
+      const link = links.find((l) => l.title_id === t.id) ?? null;
+      const row = performanceRow(computeTitleAnalytics({ title: { ...t, episode_count: t.episode_count ?? 0 }, episodes: [], listing: null, link, dataset: null, campaigns: [], results: [], range, today }));
+      return link
+        ? { ...row, analytics_state: "linked_awaiting_data" as const, freshness: { ...row.freshness, state: "linked_awaiting_data" as const, notes: ["an.note.requiresConnection"] } }
+        : { ...row, freshness: { ...row.freshness, notes: ["an.note.requiresConnection"] } };
+    });
+  },
+
+  async getTitleAnalytics(session, titleId, opts) {
+    const c = db();
+    const title = await one<Title>(core(c).from("titles").select("*").eq("id", titleId).maybeSingle(), "title", titleId);
+    const [episodes, campaigns, link] = await Promise.all([
+      many<{ id: string; number: number }>(core(c).from("episodes").select("id, number").eq("title_id", titleId)),
+      many<PromoCampaign>(promote(c).from("campaigns").select("*").eq("title_id", titleId)),
+      many<AnalyticsLink>(core(c).from("analytics_links").select("*").eq("title_id", titleId)).then((rows) => rows[0] ?? null),
+    ]);
+    const results = campaigns.length ? await many<CreativeResult>(promote(c).from("results").select("*").in("campaign_id", campaigns.map((x) => x.id))) : [];
+    const record = computeTitleAnalytics({ title: { id: title.id, producer_id: title.producer_id, name_zh: title.name_zh, name_en: title.name_en, episode_count: title.episode_count ?? episodes.length }, episodes, listing: null, link, dataset: null, campaigns, results, range: parseRange(opts?.range), today: opts?.today ?? new Date().toISOString().slice(0, 10) });
+    return link
+      ? { ...record, analytics_state: "linked_awaiting_data", freshness: { ...record.freshness, state: "linked_awaiting_data", notes: ["an.note.requiresConnection"] } }
+      : { ...record, freshness: { ...record.freshness, notes: ["an.note.requiresConnection"] } };
+  },
+
+  async listAnalyticsListings() {
+    // A provider connection will populate this; until then there is nothing to link (requires_connection).
+    return [];
+  },
+
+  async linkAnalyticsListing(session, titleId, listingId) {
+    requireEditor(session);
+    if (!/^lst_[a-z0-9_]{3,80}$/.test(listingId)) throw invalid("listing id");
+    const c = db();
+    const taken = await many<AnalyticsLink>(core(c).from("analytics_links").select("*").eq("listing_id", listingId).neq("title_id", titleId));
+    if (taken.length) throw conflict(`listing ${listingId} is already linked to another title; unlink it there first`);
+    return one<AnalyticsLink>(
+      core(c).from("analytics_links").upsert({ producer_id: session.producerId, title_id: titleId, listing_id: listingId, linked_by: session.userId, linked_at: new Date().toISOString() }, { onConflict: "title_id" }).select("*").maybeSingle(),
+      "analytics link"
+    );
+  },
+
+  async unlinkAnalyticsListing(session, titleId) {
+    requireEditor(session);
+    const { error } = await core(db()).from("analytics_links").delete().eq("title_id", titleId);
+    if (error) throw mapError(error);
   },
 
 };

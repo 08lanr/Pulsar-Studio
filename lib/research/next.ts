@@ -18,7 +18,7 @@
 import { firstSentence, formatStats, prominenceOf, rankTitles, scoreSnapshot, type FormatStat, type Scores } from "./engine";
 import { counterMovement, firstSeen, rankMovement, type CounterMovement, type RankMovement } from "./history";
 import { TROPES, type TropeId } from "./taxonomy";
-import type { MarketSnapshot, MarketTitle, Observation, Platform } from "./types";
+import type { MarketSnapshot, MarketTitle, MetricUnit, Observation, Platform } from "./types";
 
 export const NEXT_VERSION = "1.0";
 /** A platform release date this recent counts as fresh. */
@@ -48,6 +48,29 @@ export type FreshTitle = {
   premise: string;
 };
 
+/**
+ * Views added to the listings carrying a story type between the two most
+ * recent published days, within ONE platform (raw counters are never pooled
+ * across platforms). Only listings with a comparable baseline count; the
+ * rest are reported as the gap between `listings` and `with_baseline`.
+ */
+export type TropeViews = {
+  platform: Platform;
+  /** Listings on the platform carrying the trope (fresh or not). */
+  listings: number;
+  /** Of those, how many have a comparable counter on both days. */
+  with_baseline: number;
+  unit: MetricUnit;
+  /** Sum of counter deltas over the window, and per day. */
+  delta: number;
+  per_day: number;
+  /** Sum of the baseline counters; growth_pct = delta ÷ this (null when 0). */
+  start_total: number;
+  growth_pct: number | null;
+  /** Listing keys with the largest deltas, biggest first (up to 3). */
+  top: string[];
+};
+
 export type RisingTrope = {
   id: TropeId;
   /** Fresh listings carrying the trope and the fresh cohort size (its denominator). */
@@ -72,6 +95,8 @@ export type RisingTrope = {
   premises: { key: string; title: string; platform: Platform; sentence: string }[];
   /** The producer's own titles that already carry this trope. */
   catalog_ids: string[];
+  /** Views added per platform across every listing carrying the trope; empty while collecting history. */
+  views_added: TropeViews[];
 };
 
 export type PlatformBoard = {
@@ -217,6 +242,29 @@ export function whatToMakeNext(input: NextInput): NextBoard {
       ? freshRows.map((t) => counterMovement("views", t, prevByKey.get(t.key) ?? null, true)).flatMap((g) => (g.state === "ok" && g.growth_pct != null ? [g.growth_pct] : []))
       : [];
     const ranked = rankTitles(freshRows, scores, 6);
+    const views_added: TropeViews[] = windowOk
+      ? latest.platforms.flatMap((p) => {
+          const rows = allRows.filter((t) => t.platform === p.id);
+          if (!rows.length) return [];
+          const moves = rows.flatMap((t) => {
+            const m = counterMovement("views", t, prevByKey.get(t.key) ?? null, true);
+            return m.state === "ok" ? [{ key: t.key, m }] : [];
+          });
+          const delta = moves.reduce((a, x) => a + x.m.delta, 0);
+          const start_total = moves.reduce((a, x) => a + x.m.start, 0);
+          return [{
+            platform: p.id,
+            listings: rows.length,
+            with_baseline: moves.length,
+            unit: moves[0]?.m.unit ?? "views",
+            delta,
+            per_day: moves.reduce((a, x) => a + x.m.per_day, 0),
+            start_total,
+            growth_pct: start_total > 0 ? Math.round((delta / start_total) * 1000) / 10 : null,
+            top: [...moves].sort((a, b) => b.m.delta - a.m.delta || a.key.localeCompare(b.key)).slice(0, 3).map((x) => x.key),
+          }];
+        })
+      : [];
     tropes.push({
       id: trope.id,
       fresh_titles: freshRows.length,
@@ -237,6 +285,7 @@ export function whatToMakeNext(input: NextInput): NextBoard {
         .filter((p) => p.sentence.length >= 30)
         .slice(0, 4),
       catalog_ids: catalog.filter((c) => c.tropes.includes(trope.id)).map((c) => c.id),
+      views_added,
     });
   }
   tropes.sort((a, b) => b.fresh_titles - a.fresh_titles || (b.lift ?? 0) - (a.lift ?? 0) || a.id.localeCompare(b.id));

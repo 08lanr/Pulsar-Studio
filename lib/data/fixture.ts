@@ -16,6 +16,8 @@
 // partner-approved, on-behalf needs a staff admin and an evidence note.
 
 import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { copyFileSync, existsSync, linkSync, mkdirSync } from "node:fs";
+import path from "node:path";
 import { canReadTitle, type Session } from "@/lib/auth";
 import { LAST_CUE_MS, liftStamp, MAX_DERIVED_CUE_MS, SAMPLE_LATENCY_MS, type IngestResult } from "@/lib/ingest";
 import { applyGlobalOffset, assertValidCue } from "@/lib/subtitle-timing";
@@ -26,6 +28,11 @@ import type { ReportBatch, WatchRow } from "@/lib/research/types";
 import type { CompanyAccount } from "@/lib/types";
 import { examplesFromApprovedVersions } from "@/lib/translation-memory";
 import { cloneFixtureDb, type FixtureDb, type FixtureSeed } from "@/data/fixture";
+import { buildDemoAnalytics, DEMO_TODAY } from "@/data/fixture/demo-analytics";
+import { computeTitleAnalytics, performanceRow } from "@/lib/analytics/compute";
+import { parseRange } from "@/lib/analytics/types";
+import type { AnalyticsLink } from "@/lib/analytics/types";
+import { DEMO_CLIP_SOURCE } from "@/data/fixture/demo-catalog";
 import { buildVersionSnapshot, snapshotSha256 } from "@/data/fixture/snapshot";
 import type {
   AdaptedLine,
@@ -62,7 +69,7 @@ import type {
   FirstPassLine,
   NewJob,
 } from "./index";
-import { mediaUrl } from "./storage";
+import { mediaUrl, resolveUploadPath } from "./storage";
 import {
   adaptedLineIssue,
   buildEpisodeSummary,
@@ -84,7 +91,7 @@ type Store = {
 };
 
 /** Bump when the fixture seed shape changes, so a dev server's parked store is rebuilt on hot reload. */
-const SEED_VERSION = "demo-2026-09-08.2";
+const SEED_VERSION = "demo-2026-09-09.1";
 
 const STORE_KEY = "__pulsarStudioFixtureStore";
 
@@ -94,6 +101,7 @@ function store(): Store {
   if (!s || s.seedVersion !== SEED_VERSION) {
     const seed = (globalThis as unknown as Record<string, FixtureSeed | undefined>)[`${STORE_KEY}Seed`];
     const db = cloneFixtureDb(seed);
+    ensureDemoMedia(db);
     s = { db, auditSeq: db.audit_events.reduce((m, e) => Math.max(m, e.id), 0), seedVersion: SEED_VERSION };
     g[STORE_KEY] = s;
   }
@@ -107,7 +115,41 @@ function store(): Store {
   return s;
 }
 
-/** Tests only: drop the process-wide store so the next call reseeds from data/fixture. */
+/**
+ * Every seeded episode video points at a real file: the demo clip is hard
+ * linked (or copied) under .uploads/ so ad previews and the subtitle studio
+ * play in fixture mode with nothing uploaded. Idempotent and best effort: a
+ * read-only disk leaves the row's path in place and the media route 404s
+ * as it would for any missing upload.
+ */
+function ensureDemoMedia(db: FixtureDb): void {
+  const source = path.join(process.cwd(), DEMO_CLIP_SOURCE);
+  if (!existsSync(source)) return;
+  for (const e of db.episodes) {
+    if (!e.video_path) continue;
+    try {
+      const target = resolveUploadPath(e.video_path);
+      if (existsSync(target)) continue;
+      mkdirSync(path.dirname(target), { recursive: true });
+      try { linkSync(source, target); } catch { copyFileSync(source, target); }
+    } catch (err) {
+      console.warn("[fixture] demo media not linked", e.video_path, (err as Error).message);
+    }
+  }
+}
+
+/** Which seed the process-wide store was built from (the demo badge and the reset route read it). */
+export function currentFixtureSeed(): FixtureSeed {
+  return (globalThis as unknown as Record<string, FixtureSeed | undefined>)[`${STORE_KEY}Seed`] ?? (process.env.FIXTURE_SEED === "empty" ? "empty" : "demo");
+}
+
+/**
+ * Drop the process-wide store so the next call reseeds from data/fixture.
+ * Tests use it between cases; in fixture mode the demo reset route
+ * (POST /api/demo/reset) and `npm run demo:reset` call it so a rehearsed
+ * journey starts from the same rows every time. Never reachable in
+ * supabase mode: the route 404s there and this module is never the layer.
+ */
 export function resetFixtureStore(seed?: FixtureSeed): void {
   delete (globalThis as unknown as Record<string, unknown>)[STORE_KEY];
   if (seed) (globalThis as unknown as Record<string, unknown>)[`${STORE_KEY}Seed`] = seed;
@@ -2241,4 +2283,104 @@ export const fixtureData: DataLayer = {
     return clone(batch);
   },
 
+  // ---- title analytics (lib/analytics) ----------------------------------------------
+  // Demo listings and daily series live in data/fixture/demo-analytics.ts and
+  // are labelled demo everywhere; only the title->listing links are store
+  // rows (db.analytics_links, migration 0007). The demo clock (DEMO_TODAY)
+  // is "today" so the numbers are the same on every refresh.
+
+  async listTitlePerformance(session, opts) {
+    requireMemberSession(session);
+    if (session.kind !== "producer" || !session.producerId) return [];
+    const { db } = store();
+    const range = parseRange(opts?.range);
+    const today = opts?.today ?? DEMO_TODAY;
+    return db.titles
+      .filter((t) => t.producer_id === session.producerId)
+      .sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1))
+      .map((t) => performanceRow(analyticsRecord(db, session, t, range, today)));
+  },
+
+  async getTitleAnalytics(session, titleId, opts) {
+    const { db } = store();
+    const title = readableTitle(db, session, titleId);
+    return clone(analyticsRecord(db, session, title, parseRange(opts?.range), opts?.today ?? DEMO_TODAY));
+  },
+
+  async listAnalyticsListings(session) {
+    requireMemberSession(session);
+    if (session.kind !== "producer" || !session.producerId) return [];
+    const { db } = store();
+    const links = analyticsLinks(db);
+    return clone(
+      buildDemoAnalytics().listings
+        .filter((l) => l.producer_id === session.producerId)
+        .map((l) => {
+          const link = links.find((x) => x.listing_id === l.id);
+          const title = link ? db.titles.find((t) => t.id === link.title_id) : null;
+          return { ...l, linked_title_id: link?.title_id ?? null, linked_title_name: title ? title.name_en || title.name_zh : null };
+        })
+    );
+  },
+
+  async linkAnalyticsListing(session, titleId, listingId) {
+    const s = store();
+    const title = readableTitle(s.db, session, titleId); // not_found before forbidden, like RLS
+    if (session.kind !== "producer") throw forbidden("the producer's editors link listings; staff preview cannot act");
+    requireTitleEditor(s.db, session, titleId);
+    const listing = buildDemoAnalytics().listings.find((l) => l.id === listingId && l.producer_id === session.producerId);
+    if (!listing) throw notFound("platform listing", listingId);
+    const links = analyticsLinks(s.db);
+    const taken = links.find((x) => x.listing_id === listingId && x.title_id !== titleId);
+    if (taken) {
+      const other = s.db.titles.find((t) => t.id === taken.title_id);
+      throw conflict(`listing ${listingId} is already linked to ${other ? other.name_en || other.name_zh : "another title"}; unlink it there first`);
+    }
+    const existing = links.find((x) => x.title_id === titleId);
+    if (existing && existing.listing_id === listingId) return clone(existing);
+    const at = now();
+    const row: AnalyticsLink = { id: randomUUID(), producer_id: title.producer_id, title_id: titleId, listing_id: listingId, linked_by: session.userId, linked_at: at };
+    s.db.analytics_links = links.filter((x) => x.title_id !== titleId).concat(row);
+    audit(s, session, "link_analytics_listing", "core.analytics_links", row.id, titleId, existing ?? null, { listing_id: listingId, source: "demo" });
+    return clone(row);
+  },
+
+  async unlinkAnalyticsListing(session, titleId) {
+    const s = store();
+    readableTitle(s.db, session, titleId);
+    if (session.kind !== "producer") throw forbidden("the producer's editors unlink listings; staff preview cannot act");
+    requireTitleEditor(s.db, session, titleId);
+    const links = analyticsLinks(s.db);
+    const existing = links.find((x) => x.title_id === titleId);
+    if (!existing) return;
+    s.db.analytics_links = links.filter((x) => x.title_id !== titleId);
+    audit(s, session, "unlink_analytics_listing", "core.analytics_links", existing.id, titleId, existing, null);
+  },
+
 };
+
+/** A store parked before this table existed (dev hot reload) gets it defaulted here. */
+function analyticsLinks(db: FixtureDb): AnalyticsLink[] {
+  db.analytics_links ??= [];
+  return db.analytics_links;
+}
+
+function analyticsRecord(db: FixtureDb, session: Session, title: Title, range: ReturnType<typeof parseRange>, today: string) {
+  const demo = buildDemoAnalytics(today);
+  const link = analyticsLinks(db).find((x) => x.title_id === title.id) ?? null;
+  const listing = link ? demo.listings.find((l) => l.id === link.listing_id) ?? null : null;
+  const dataset = link ? demo.datasets.get(link.listing_id) ?? null : null;
+  const campaigns = db.promo_campaigns.filter((c) => c.title_id === title.id && canReadTitle(session, title.producer_id));
+  const ids = new Set(campaigns.map((c) => c.id));
+  return computeTitleAnalytics({
+    title: { id: title.id, producer_id: title.producer_id, name_zh: title.name_zh, name_en: title.name_en, episode_count: Math.max(title.episode_count ?? 0, db.episodes.filter((e) => e.title_id === title.id).length) },
+    episodes: db.episodes.filter((e) => e.title_id === title.id).map((e) => ({ id: e.id, number: e.number })),
+    listing,
+    link,
+    dataset,
+    campaigns,
+    results: (db.promo_results ?? []).filter((r) => ids.has(r.campaign_id)),
+    range,
+    today,
+  });
+}

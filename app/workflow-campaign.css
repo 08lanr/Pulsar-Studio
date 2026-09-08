@@ -56,3 +56,49 @@
 .fc-campaign :is(#brief,#ads,#results,#decide) { scroll-margin-top: 90px; }
 @media (max-width: 1050px) { .fc-ad-grid { grid-template-columns: minmax(0,1fr); } }
 @media (max-width: 520px) { .fc-ad-main { grid-template-columns: 100px minmax(0,1fr); gap: 12px; padding: 12px; }.fc-ad-media { width: 100px; height: 178px; }.fc-ad-media video { max-height: 178px; }.fc-ad-message h3 { font-size: 14px; }.fc-ad-message blockquote { font-size: 13px; }.fc-disclosure > summary { padding: 14px; }.fc-archive > .fc-ads-section { padding: 12px; }.fc-ad-actions { flex-wrap: wrap; }.fc-change-request[open] { flex-basis: 100%; text-align: left; } }
+
+/* Results read against the benchmarks, and the decision they lead to (2026-09-09). */
+.rd-provenance { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 0 24px 12px; font-size: 12px; color: var(--text-muted); }
+.rd-provenance .rd-bench { margin-left: auto; color: var(--text); }
+.rd-demo-note { margin: 0 24px 12px; padding: 10px 12px; border: 1px dashed var(--border-strong); border-radius: 8px; font-size: 12px; color: var(--text-muted); max-width: 90ch; }
+.rd-table-wrap { overflow-x: auto; border-top: 1px solid var(--border-light); }
+.rd-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 900px; }
+.rd-table th, .rd-table td { padding: 14px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border-light); }
+.rd-table thead th { font-size: 12px; font-weight: 600; color: var(--text-muted); background: var(--surface-2); white-space: nowrap; }
+.rd-table thead th small { display: block; font-weight: 400; font-size: 11px; margin-top: 2px; }
+.rd-table th:first-child, .rd-table td:first-child { padding-left: 24px; }
+.rd-table th:last-child, .rd-table td:last-child { padding-right: 24px; }
+.rd-table .rd-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rd-table td b { display: block; font-size: 15px; font-weight: 600; }
+.rd-table td small { display: block; font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+.rd-table td.rd-met b { color: var(--success); }
+.rd-table td.rd-miss b { color: var(--error); }
+.rd-table tr.is-winner { background: var(--success-bg); }
+.rd-ad { min-width: 260px; max-width: 420px; font-weight: 400; }
+.rd-ad-number { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; }
+.rd-winner-tag { font-size: 11px; font-weight: 600; color: var(--success); border: 1px solid color-mix(in srgb, var(--success) 40%, transparent); border-radius: 4px; padding: 1px 6px; }
+.rd-ad-hypothesis { display: block; margin-top: 4px; line-height: 1.45; }
+.rd-ad-kind { display: block; margin-top: 4px; font-size: 11px; color: var(--text-muted); overflow-wrap: anywhere; }
+.rd-verdict { display: inline-block; font-size: 12px; font-weight: 600; border-radius: 6px; padding: 4px 8px; white-space: nowrap; }
+.rd-verdict-met { color: var(--success); background: var(--success-bg); }
+.rd-verdict-miss { color: var(--error); background: var(--error-bg); }
+.rd-verdict-none { color: var(--text-muted); border: 1px dashed var(--border-strong); }
+.rd-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; }
+.rd-decide { border-color: var(--brand); }
+.rd-findings { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 10px; }
+.rd-findings li { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.5; }
+.rd-findings li small { color: var(--text-muted); }
+.rd-finding-mark { flex: 0 0 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; font-size: 12px; font-weight: 700; }
+.rd-findings .is-met .rd-finding-mark { color: var(--success); background: var(--success-bg); }
+.rd-findings .is-miss .rd-finding-mark { color: var(--error); background: var(--error-bg); }
+.rd-analytics { margin: 0 0 12px; font-size: 13px; }
+.rd-next-title { font-size: 16px; margin: 20px 0 4px; }
+.rd-next-sub { margin: 0 0 14px; font-size: 13px; color: var(--text-muted); max-width: 80ch; }
+.rd-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.rd-option { display: grid; grid-template-rows: 1fr auto; gap: 14px; padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); min-width: 0; }
+.rd-option.is-primary { border-color: var(--brand); background: var(--brand-tint); }
+.rd-option strong { display: block; font-size: 14px; margin-bottom: 4px; }
+.rd-option p { margin: 0; font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+.rd-option .btn { justify-self: start; white-space: normal; text-align: left; }
+.fc-experiment .rd-decide .note { margin-bottom: 12px; }
+@media (max-width: 900px) { .rd-options { grid-template-columns: 1fr; } .rd-provenance .rd-bench { margin-left: 0; } }

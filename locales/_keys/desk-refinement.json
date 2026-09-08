@@ -1,0 +1,38 @@
+{
+  "desk.title": {
+    "en": "Overview",
+    "zh": "总览"
+  },
+  "desk.sub": {
+    "en": "Manage your campaigns and explore the next story to develop.",
+    "zh": "推进广告活动，探索下一部作品的方向。"
+  },
+  "desk.views": {
+    "en": "Overview views",
+    "zh": "总览视图"
+  },
+  "desk.collected": {
+    "en": "Collected {date}",
+    "zh": "采集于 {date}"
+  },
+  "desk.noSignals": {
+    "en": "No new listings in this collection. Browse market insights for the full catalog.",
+    "zh": "本次采集没有新作。可前往市场洞察浏览全量剧库。"
+  },
+  "desk.inferred": {
+    "en": "Story tags · inferred",
+    "zh": "题材标签 · 推断"
+  },
+  "desk.baseline": {
+    "en": "Of all listings",
+    "zh": "全量作品占比"
+  },
+  "desk.baselineCount": {
+    "en": "{n} of {sample} listings",
+    "zh": "{sample} 部作品中的 {n} 部"
+  },
+  "desk.oneTitle": {
+    "en": "1 title",
+    "zh": "1 部"
+  }
+}

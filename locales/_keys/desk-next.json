@@ -1,0 +1,82 @@
+{
+  "desk.signals": {
+    "en": "What to make next",
+    "zh": "下一部拍什么"
+  },
+  "desk.signalSub": {
+    "en": "Story types the US platforms are launching now, whether their listings are being watched more since the last collection, and which of your titles already carry them.",
+    "zh": "美国平台正在上新的题材、其作品自上次采集以来的观看变化，以及你已有的相关作品。"
+  },
+  "desk.fullBoard": {
+    "en": "Full board",
+    "zh": "完整看板"
+  },
+  "desk.viewsAdded": {
+    "en": "Views added since {start}",
+    "zh": "自 {start} 新增观看"
+  },
+  "desk.viewsAddedNoWindow": {
+    "en": "Views added",
+    "zh": "新增观看"
+  },
+  "desk.viewsCollecting": {
+    "en": "Collecting history: appears after the next collection",
+    "zh": "正在积累历史：下次采集后显示"
+  },
+  "desk.withBaseline": {
+    "en": "{n} of {total} listings with a baseline",
+    "zh": "{total} 部作品中 {n} 部有基线"
+  },
+  "desk.noBaseline": {
+    "en": "{n} listings, no baseline yet",
+    "zh": "{n} 部作品，尚无基线"
+  },
+  "desk.vsAll": {
+    "en": "{pct} of all listings",
+    "zh": "全量占比 {pct}"
+  },
+  "desk.viewListings": {
+    "en": "View listings",
+    "zh": "查看作品"
+  },
+  "desk.topNew": {
+    "en": "Top new listings ({n})",
+    "zh": "热门新作（{n}）"
+  },
+  "desk.moreInExplore": {
+    "en": "More in Explore",
+    "zh": "在浏览中查看更多"
+  },
+  "desk.howComputed": {
+    "en": "How views added are computed",
+    "zh": "新增观看的计算方法"
+  },
+  "desk.definitions": {
+    "en": "Definitions & full evidence",
+    "zh": "定义与完整依据"
+  },
+  "desk.method": {
+    "en": "Newness comes from platform flags, lists, release dates or observed first appearance. Views added are read from each platform's own counter on two published days and are never pooled across platforms. Story tags are inferred and may overlap. This describes release and viewing activity, not audience demand or a forecast of success.",
+    "zh": "新作依据来自平台标记、榜单、上线日期或观测到的首次出现。新增观看读取自各平台自身计数在两个已发布日期的变化，绝不跨平台合并。题材标签为推断且可重叠。这些数据描述上新与观看情况，不代表受众需求或成功预测。"
+  },
+  "desk.examples": {
+    "en": "Newest listings by platform",
+    "zh": "各平台最新上架"
+  },
+  "desk.examplesSub": {
+    "en": "The fastest-growing new listings on each platform, with their own counters. Examples, not a cross-platform ranking.",
+    "zh": "各平台增长最快的新作及其自身计数。仅为示例，并非跨平台排名。"
+  },
+  "desk.newOn": {
+    "en": "{n} of {sample} listings are new",
+    "zh": "{sample} 部中 {n} 部为新作"
+  },
+  "desk.exploreNew": {
+    "en": "All new listings on {platform}",
+    "zh": "{platform} 的全部新作"
+  },
+  "research.explore.sub": {
+    "en": "Every listing in the latest collection, with each platform's own counters. Filter by platform, story type and newness; open a listing for its evidence.",
+    "zh": "最新采集中的全部作品及各平台自身计数。可按平台、题材和新作筛选；打开作品查看依据。"
+  }
+}

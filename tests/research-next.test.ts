@@ -183,6 +183,34 @@ test("story-type shares use the fresh cohort as denominator, lift compares with 
   assert.equal(board.tropes[0].id, "revenge");
 });
 
+test("views added are summed per platform across every listing of the trope, only where a baseline exists", () => {
+  const latest = snap(DAY2, day2());
+  const previous = snap(DAY1, day1());
+  const board = whatToMakeNext({ latest, previous, history: [previous, latest], days: [[DAY1, previous.run_id], [DAY2, latest.run_id]] });
+  const revenge = board.tropes.find((s) => s.id === "revenge")!;
+  const rs = revenge.views_added.find((v) => v.platform === "reelshort")!;
+  // r1 +2000, r2 +500, r3 +10: three listings, three baselines
+  assert.equal(rs.listings, 3);
+  assert.equal(rs.with_baseline, 3);
+  assert.equal(rs.delta, 2510);
+  assert.equal(rs.per_day, 2510);
+  assert.equal(rs.start_total, 2000 + 2500 + 993);
+  assert.equal(rs.growth_pct, Math.round((2510 / 5493) * 1000) / 10);
+  assert.deepEqual(rs.top, ["reelshort-1", "reelshort-2", "reelshort-3"]);
+  // DramaBox's only revenge listing was first seen today: no baseline, no invented zero growth
+  const db = revenge.views_added.find((v) => v.platform === "dramabox")!;
+  assert.equal(db.listings, 1);
+  assert.equal(db.with_baseline, 0);
+  assert.equal(db.delta, 0);
+  assert.equal(db.growth_pct, null);
+  // never pooled across platforms
+  assert.equal(revenge.views_added.length, 2);
+  // one published day: nothing
+  const one = whatToMakeNext({ latest, previous: null, history: [latest], days: [[DAY2, latest.run_id]] });
+  assert.deepEqual(one.tropes.find((s) => s.id === "revenge")!.views_added, []);
+  assert.equal(metricByKey("trope_views_added")?.evidence, "observed");
+});
+
 test("lift is computed once the fresh cohort has ten listings", () => {
   const titles = [
     ...Array.from({ length: 10 }, (_, i) => mt({ key: `reelshort-f${i}`, platform: "reelshort", platform_new: true, tropes: T(i < 8 ? ["revenge"] : ["ceo_billionaire"]) })),

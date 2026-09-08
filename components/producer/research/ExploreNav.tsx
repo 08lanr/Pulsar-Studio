@@ -2,8 +2,12 @@
 import { useSearchParams } from 'next/navigation';
 import { t } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n";
+import InsightsNav from "./InsightsNav";
 
-// Market scope stays in the URL when switching between exploration views.
+// Explore is a view inside US market insights (decision 2026-09-09): the
+// area tabs stay visible above the explorer's own sub-views so a producer
+// arriving from the Overview keeps their place. Market scope stays in the
+// URL when switching between exploration views.
 
 const TABS: { id: "titles" | "tropes" | "platforms" | "companies"; key: string }[] = [
   { id: "titles", key: "research.explore.titles" },
@@ -22,10 +26,12 @@ export default function ExploreNav({ active, locale }: { active: (typeof TABS)[n
     <>
       <div className="page-head">
         <div>
-          <h1>{t(locale, "research.explore.title")}</h1>
+          <h1>{t(locale, "research.market.title")}</h1>
+          <p className="page-sub">{t(locale, "research.explore.sub")}</p>
         </div>
       </div>
-      <nav className="tabs rs-tabs" aria-label={t(locale, "research.explore.title")}>
+      <InsightsNav active="explore" locale={locale} />
+      <nav className="tabs rs-tabs rs-subtabs" aria-label={t(locale, "research.explore.title")}>
         {TABS.map((tab) => (
           <a key={tab.id} className={`tab${tab.id === active && !saved ? " is-active" : ""}`} href={`/producer/explore/${tab.id}?${scoped}`} aria-current={tab.id === active && !saved ? "page" : undefined}>
             {t(locale, tab.key)}

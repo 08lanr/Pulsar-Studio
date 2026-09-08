@@ -8,6 +8,15 @@
 // Everything here is invented and deterministic (stable ids, one timeline).
 // It seeds fixture mode by default; FIXTURE_SEED=empty restores the bare
 // seed the localization demo and the workflow tests expect.
+//
+// The demo journey (one coherent path, decision 2026-09-09): the market
+// board shows CEO/rebirth/revenge stories launching → title 1 carries them
+// and is the best-scored owned title → campaign 1 on title 1 has chosen
+// ads, immutable approvals, a demo handoff and demo-labelled results → the
+// results page explains the winner and offers the next round. Every
+// episode with video points at a real file (docs/demo/xiangyuan-ep1.mp4,
+// linked into .uploads/ by the fixture store) so ad previews play. One
+// campaign per title: nothing in the seed is a duplicate of anything else.
 
 import type {
   AdaptedLine,
@@ -69,6 +78,10 @@ export const DEMO_TITLES: Spec[] = [
   { n: 13, zh: "校园甜心", en: "Campus Sweetheart", genre: "校园 · 青春 · 甜宠", syn_zh: "校园里的学霸与体育生的甜宠青春故事，暗恋、心动与成长。", syn_en: "A sweet campus romance between the top student and the athlete: secret crushes, first heartbeats, growing up.", episodes: 40, license: ["2026-06-01", "2027-06-30"], china: { views: 12_000_000, completion_rate: 0.47, paying_rate: 0.015 }, materials: [0, 0], adapt: "none", logline: "First love, final exams." },
   { n: 14, zh: "末世求生：我有一座物资仓库", en: "Last Warehouse", genre: "男频 · 末世 · 逆袭", syn_zh: "末世降临，丧尸横行。普通人凭借一座隐藏的物资仓库在末日求生，从小人物逆袭成幸存者领袖。", syn_en: "The apocalypse comes and the dead walk. An ordinary man survives on a hidden warehouse of supplies and rises to lead the survivors.", episodes: 90, license: ["2026-07-01", "2028-06-30"], china: { views: 36_000_000, completion_rate: 0.56, paying_rate: 0.031 }, materials: [0, 0], adapt: "none", logline: "Everyone is starving. He has a warehouse." },
 ];
+
+/** The real clip every demo episode video points at (62 s, never dubbed). */
+export const DEMO_CLIP_SOURCE = "docs/demo/xiangyuan-ep1.mp4";
+export const DEMO_CLIP_MS = 62_000;
 
 export const demoTitleId = (n: number) => uuid(B.title, n);
 export const demoEpisodeId = (n: number, ep: number) => uuid(B.episode, n * 100 + ep);
@@ -149,7 +162,7 @@ export function buildDemoSeed(): DemoSeed {
         number: ep,
         name_zh: `第${ep}集`,
         name_en: `Episode ${ep}`,
-        duration_ms: 95_000 + ep * 3_000,
+        duration_ms: ep <= s.materials[1] ? DEMO_CLIP_MS : 95_000 + ep * 3_000,
         source_script_path: `${id}/episode-${ep}/source.srt`,
         script_format: "srt",
         has_timecodes: true,
@@ -286,14 +299,13 @@ export function buildDemoSeed(): DemoSeed {
     "Build escalating cuts around the relationship power shift.",
   ];
   const KINDS: PromoCreative["kind"][] = ["direct_clip", "ugc_story", "direct_clip", "ugc_reaction", "direct_clip"];
-  function campaign(c: number, n: number, status: PromoCampaign["status"], exp: Partial<PromoCampaign["experiment"] & object> | null, approved: boolean, at: string): PromoCampaign {
-    const t = DEMO_TITLES[n - 1];
+  function campaign(c: number, n: number, name: string, status: PromoCampaign["status"], exp: Partial<PromoCampaign["experiment"] & object> | null, approved: boolean, at: string): PromoCampaign {
     const row: PromoCampaign = {
       id: demoCampaignId(c),
       external_id: ext("pb", `demo:${c}`),
       title_id: demoTitleId(n),
       producer_id: PRODUCER_ID,
-      name: `${t.en} — US concept test`,
+      name,
       target_market: "US",
       destination_url: n === 1 ? "https://www.reelshort.com/" : null,
       objective: "views",
@@ -345,7 +357,7 @@ export function buildDemoSeed(): DemoSeed {
   }
 
   // C1: title 1, submitted (demo handoff) with demo results on the two selected creatives.
-  const c1 = campaign(1, 1, "submitted", { hypothesis: "The rebirth-revenge opening outperforms the romance opening for US women 25-44.", audience: "US women 25-44 who watch romance and revenge dramas", first_batch: 2 }, true, AT2);
+  const c1 = campaign(1, 1, "Rebirth vs romance opening — US test, round 1", "submitted", { hypothesis: "The rebirth-revenge opening outperforms the romance opening for US women 25-44.", audience: "US women 25-44 who watch romance and revenge dramas", first_batch: 2 }, true, AT2);
   c1.grow_campaign_id = `cmp_mock_${c1.external_id.slice(3)}`;
   batch(1, 1, ["approved", "approved", "not_selected", "not_selected", "not_selected"], AT2);
   approvals.push({ id: uuid(B.approval, 1), campaign_id: c1.id, producer_id: PRODUCER_ID, approved_by: PRODUCER_USER_ID, manifest: { demo: true, creatives: [creativeId(1, 1), creativeId(1, 2)], budget_usd: 100 }, manifest_sha256: "demo-manifest-c1", created_at: AT2 });
@@ -355,12 +367,12 @@ export function buildDemoSeed(): DemoSeed {
     { id: uuid(B.result, 2), campaign_id: c1.id, creative_id: creativeId(1, 2), source: "demo", window_start: "2026-09-01", window_end: "2026-09-06", impressions: 35_100, video_views: 16_200, hook_hold_rate: 0.27, clicks: 301, spend_usd: 47.6, landing_actions: 34, observed_at: AT3 }
   );
   // C2: title 6, five concepts in review, experiment drafted, budget not yet approved.
-  campaign(2, 6, "review", { hypothesis: "The werewolf-contract-bride premise reads as fantasy romance to US viewers; test a 'sold to the alpha' hook against a 'contract bride' hook.", audience: "US women 18-34 who follow werewolf romance on ReelShort", first_batch: 2 }, false, AT3);
+  campaign(2, 6, "Alpha bride hooks — US test, round 1", "review", { hypothesis: "The werewolf-contract-bride premise reads as fantasy romance to US viewers; test a 'sold to the alpha' hook against a 'contract bride' hook.", audience: "US women 18-34 who follow werewolf romance on ReelShort", first_batch: 2 }, false, AT3);
   batch(2, 6, ["ready", "ready", "ready", "ready", "ready"], AT3);
   // C3: title 4, a brief only (no creatives yet).
-  campaign(3, 4, "draft", { hypothesis: "The fake-heiress reveal is a stronger US hook than the designer comeback.", audience: "US women 25-44, revenge and family drama viewers", first_batch: 2 }, false, AT3);
+  campaign(3, 4, "Fake-heiress reveal — US test, round 1", "draft", { hypothesis: "The fake-heiress reveal is a stronger US hook than the designer comeback.", audience: "US women 25-44, revenge and family drama viewers", first_batch: 2 }, false, AT3);
   // C4: title 8, approved batch and budget, waiting for submission.
-  campaign(4, 8, "approved", { hypothesis: "Male-audience face-slap plays on US TikTok when the reveal comes in the first 3 seconds.", audience: "US men 25-44 who watch action and revenge shorts", first_batch: 2 }, true, AT3);
+  campaign(4, 8, "Face-slap in 3 seconds — US test, round 1", "approved", { hypothesis: "Male-audience face-slap plays on US TikTok when the reveal comes in the first 3 seconds.", audience: "US men 25-44 who watch action and revenge shorts", first_batch: 2 }, true, AT3);
   batch(4, 8, ["approved", "approved", "rejected", "not_selected", "not_selected"], AT3);
   approvals.push({ id: uuid(B.approval, 4), campaign_id: demoCampaignId(4), producer_id: PRODUCER_ID, approved_by: PRODUCER_USER_ID, manifest: { demo: true, creatives: [creativeId(4, 1), creativeId(4, 2)], budget_usd: 100 }, manifest_sha256: "demo-manifest-c4", created_at: AT3 });
 

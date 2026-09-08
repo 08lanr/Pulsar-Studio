@@ -15,6 +15,7 @@ import { containDialogFocus } from "@/components/dialog-focus";
 import { useT } from "@/components/locale";
 import type { Producer } from "@/lib/types";
 import { IconCompass, IconLibrary, IconLogout, IconMarket, IconPlus, IconPromote, IconSources } from "./icons";
+import DemoBadge from "./DemoBadge";
 
 type Item = { href: string; key: string; Icon: (p: { size?: number }) => JSX.Element; match: (path: string) => boolean };
 
@@ -26,7 +27,7 @@ const ITEMS: Item[] = [
   { href: "/producer/company", key: "ws.nav.company", Icon: IconSources, match: (p) => ["/producer/company", "/producer/accounts", "/producer/onboarding", "/producer/reports", "/producer/simulation"].some((x) => p.startsWith(x)) },
 ];
 
-export default function PortalHeader({ company }: { company: Pick<Producer, "name_zh" | "name_en"> | null }) {
+export default function PortalHeader({ company, demo = false }: { company: Pick<Producer, "name_zh" | "name_en"> | null; demo?: boolean }) {
   const { tt, locale } = useT();
   const path = usePathname() ?? "/producer";
   const dialog = useRef<HTMLDialogElement>(null);
@@ -58,6 +59,7 @@ export default function PortalHeader({ company }: { company: Pick<Producer, "nam
         <button ref={trigger} className="btn btn-outline brief-menu" aria-label={tt("ux.menu")} aria-haspopup="dialog" onClick={() => dialog.current?.showModal()}><IconMenu /></button>
         <span className="producer-section">{tt(active?.key ?? "ws.nav.overview")}</span>
         <span className="spacer" />
+        {demo && <DemoBadge />}
         <LangToggle />
         <ThemeToggle />
       </header>

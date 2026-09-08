@@ -1,0 +1,7 @@
+{
+  "demo.badge": { "en": "Demo dataset", "zh": "演示数据集" },
+  "demo.badgeHint": { "en": "Fixture mode: every row is the rehearsal dataset. Simulated results are labelled where they appear. No ad platform or analytics provider is connected and nothing spends money.", "zh": "演示模式：所有数据均为排练用数据集。模拟结果会在出现处标注。未连接任何广告平台或数据源，不会产生任何花费。" },
+  "demo.reset": { "en": "Reset demo", "zh": "重置演示" },
+  "demo.resetDone": { "en": "Reset done", "zh": "已重置" },
+  "demo.resetFailed": { "en": "Reset failed", "zh": "重置失败" }
+}

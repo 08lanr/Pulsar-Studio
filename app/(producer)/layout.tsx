@@ -1,5 +1,6 @@
 import { LocaleProvider } from "@/components/locale";
 import { getData } from '@/lib/data';
+import { dataSource } from "@/lib/data-source";
 import PortalHeader from "@/components/producer/PortalHeader";
 import { isStaffPreview, portalSession, producerLocale } from "@/components/producer/server";
 import { t } from "@/lib/i18n";
@@ -19,7 +20,7 @@ export default async function ProducerLayout({ children }: { children: React.Rea
   const company = await getData().getCompanyIdentity(session);
   return (
     <LocaleProvider locale={locale}>
-      <PortalHeader company={company} />
+      <PortalHeader company={company} demo={dataSource() === "fixture"} />
       <main className="producer-main" id="main-content" tabIndex={-1}>
         {isStaffPreview(session) && (
           <div className="producer-preview-note">

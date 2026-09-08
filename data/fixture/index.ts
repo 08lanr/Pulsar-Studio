@@ -33,7 +33,9 @@ import type {
   Variant,
   Version,
 } from "@/lib/types";
+import type { AnalyticsLink } from "@/lib/analytics/types";
 import type { ReportBatch, ReportRow, WatchRow } from "@/lib/research/types";
+import { buildDemoAnalytics } from "./demo-analytics";
 import { buildDemoSeed } from "./demo-catalog";
 import { producer, profiles } from "./title";
 
@@ -64,6 +66,8 @@ export type FixtureDb = {
   report_rows: ReportRow[];
   promo_results: CreativeResult[];
   company_accounts: CompanyAccount[];
+  /** Title -> platform listing mappings for title analytics (migration 0007). */
+  analytics_links: AnalyticsLink[];
 };
 
 export const fixtureDb: FixtureDb = {
@@ -92,6 +96,7 @@ export const fixtureDb: FixtureDb = {
   report_rows: [],
   promo_results: [],
   company_accounts: [],
+  analytics_links: [],
 };
 
 export type FixtureSeed = "demo" | "empty";
@@ -129,6 +134,7 @@ export function cloneFixtureDb(seed: FixtureSeed = defaultFixtureSeed()): Fixtur
   db.promo_handoffs.push(...demo.handoffs);
   db.promo_results.push(...demo.results);
   db.company_accounts.push(...demo.accounts);
+  db.analytics_links.push(...structuredClone(buildDemoAnalytics().links));
   return db;
 }
 
