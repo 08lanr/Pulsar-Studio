@@ -51,27 +51,26 @@ test("the demo dataset resets to the same rows", async ({ page }) => {
   expect(status).toEqual({ mode: "fixture", seed: "demo" });
 });
 
-test("market signal → matching owned title → its campaign", async ({ page }) => {
+test("status board → market signal → matching owned title → its campaign", async ({ page }) => {
   await resetDemo(page);
+  // The workspace opens on My catalog: one row per title, both statuses and the US potential.
   await page.goto("/producer");
-  await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
-  await expect(page.getByRole("link", { name: /Campaign tasks/ })).toContainText("4");
-  await expect(page.getByText("Demo dataset")).toBeVisible();
-  await shot(page, "overview-tasks");
+  await expect(page).toHaveURL(/\/producer\/titles$/);
+  await expect(page.getByRole("heading", { name: "My catalog", level: 1 })).toBeVisible();
+  await expect(page.locator(".pf-status tbody tr")).toHaveCount(14);
+  await expect(page.getByText("Demo dataset", { exact: true })).toBeVisible();
+  await shot(page, "catalog-status");
 
+  // What to make next is a sidebar item under US market.
   await page.getByRole("link", { name: "What to make next" }).first().click();
-  await expect(page).toHaveURL(/view=opportunities/);
-  await expect(page.getByRole("heading", { name: "What to make next", level: 2 })).toBeVisible();
-  const ceo = page.locator(".desk-signal", { hasText: "CEO & billionaire" }).first();
+  await expect(page).toHaveURL(/\/producer\/insights\/next/);
+  const ceo = page.locator(".nx-board-row", { hasText: "CEO & billionaire" }).first();
   await expect(ceo).toBeVisible();
   await expect(ceo).toContainText("ReelShort");
-  await expect(ceo.getByRole("link", { name: "Reborn as the CEO's First Love" })).toBeVisible();
-  await ceo.getByText(/Top new listings/).click();
-  await expect(ceo.locator(".desk-signal-more li").first()).toBeVisible();
-  await shot(page, "overview-what-to-make-next");
+  await shot(page, "what-to-make-next");
 
-  // "View listings" opens Explore already filtered on the story type; the area tabs stay visible.
-  await ceo.getByRole("link", { name: "View listings" }).click();
+  // The story type opens Explore already filtered on it; the area tabs stay visible.
+  await ceo.locator("a.nx-board-title").click();
   await expect(page).toHaveURL(/\/producer\/explore\/titles\?.*trope=ceo_billionaire/);
   await expect(page.getByRole("link", { name: "Explore listings" })).toHaveAttribute("aria-current", "page");
   await expect(page.locator(".rs-meta")).toContainText(/\d+ listings/);
@@ -88,8 +87,9 @@ test("market signal → matching owned title → its campaign", async ({ page })
   await expect(page.locator("select[name=trope]")).toHaveValue("ceo_billionaire");
   await shot(page, "explore-filtered");
 
-  await page.goto("/producer?view=opportunities");
-  await page.locator(".desk-signal", { hasText: "CEO & billionaire" }).getByRole("link", { name: "Reborn as the CEO's First Love" }).click();
+  // From the status board into the owned title that carries the signal.
+  await page.goto("/producer/titles?q=reborn");
+  await page.locator(".pf-status tbody").getByRole("link", { name: "Reborn as the CEO's First Love", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/producer/titles/${T1}$`));
   await expect(page.locator(".tw-chips")).toContainText(/On TikTok/);
   await expect(page.locator(".tw-chips")).toContainText(/results in/);
@@ -119,25 +119,28 @@ test("catalog: search, band filter and the zero-result recovery", async ({ page 
   await expect(page.getByRole("link", { name: "Reborn as the CEO's First Love" }).first()).toBeVisible();
   await page.goto("/producer/titles");
   await expect(page.locator(".pf-table tbody tr")).toHaveCount(14);
-  // Quick filters use the two statuses and may overlap.
-  await page.getByRole("link", { name: /^On TikTok/ }).click();
-  await expect(page).toHaveURL(/filter=on_tiktok/);
-  await expect(page.locator(".pf-table tbody tr")).toHaveCount(8);
-  await page.getByRole("link", { name: /^Ads active/ }).click();
-  await expect(page.locator(".pf-table tbody tr")).toHaveCount(1);
-  await page.getByRole("link", { name: /^Preparing/ }).click();
-  await expect(page.locator(".pf-table tbody tr")).toHaveCount(6);
-  await expect(page.locator(".pf-table tbody")).not.toContainText("On TikTok");
-  // The preparation checklist keeps the assessment bands.
-  await page.goto("/producer/titles?view=preparation");
+  // Each row carries both statuses and the US potential; every cell links into the section that owns it.
+  const reborn = page.locator(".pf-table tbody tr", { hasText: "Reborn as the CEO's First Love" });
+  await expect(reborn).toContainText(/On TikTok/);
+  await expect(reborn).toContainText(/results in/);
+  await expect(reborn.getByRole("link", { name: /View TikTok data/ })).toHaveAttribute("href", new RegExp(`/producer/titles/${T1}/analytics$`));
+  await expect(reborn.getByRole("link", { name: /View campaigns/ })).toHaveAttribute("href", new RegExp(`/producer/titles/${T1}/campaigns$`));
+  const unlinked = page.locator(".pf-table tbody tr", { hasText: "Campus Sweetheart" });
+  await expect(unlinked.getByRole("link", { name: /Link listing/ })).toBeVisible();
+  await expect(unlinked.getByRole("link", { name: /Start a campaign/ })).toBeVisible();
+  // The recommendation bands filter the board.
   await page.getByRole("link", { name: /Higher priority/ }).first().click();
   await expect(page).toHaveURL(/band=test_first/);
-  await expect(page.locator("tbody tr").first()).toContainText("Higher priority");
+  await expect(page.locator(".pf-table tbody tr").first()).toContainText("Higher priority");
   await page.goto("/producer/titles?q=zzzz-nothing");
   await expect(page.getByRole("heading", { name: "No titles match these filters" })).toBeVisible();
   await page.getByRole("link", { name: "Reset filters" }).click();
   await expect(page).toHaveURL(/\/producer\/titles$/);
   await shot(page, "catalog");
+  // The former TikTok comparison view is its own area now; old links follow.
+  await page.goto("/producer/titles?view=performance&range=7d");
+  await expect(page).toHaveURL(/\/producer\/tiktok\?range=7d/);
+  await expect(page.locator(".cc-performance tbody tr")).toHaveCount(14);
 });
 
 test("ads → approvals → budget → launch → demo results → next round", async ({ page }) => {
@@ -199,9 +202,9 @@ test("ads → approvals → budget → launch → demo results → next round", 
   await expect(page.locator(".ws-stages [aria-current=step]")).toContainText("Prepare");
   await shot(page, "campaign-round-2");
 
-  // The overview queue shows the new round once and the finished round waits for no one.
-  await page.goto("/producer");
-  await expect(page.locator(".wf-queue-row", { hasText: "round 2" })).toHaveCount(1);
+  // The campaigns queue shows the new round once and the finished round waits for no one.
+  await page.goto("/producer/promote");
+  await expect(page.locator(".cc-campaigns tbody tr", { hasText: "round 2" })).toHaveCount(1);
 });
 
 test("error feedback: the API refuses out-of-order actions and invalid input", async ({ page }) => {

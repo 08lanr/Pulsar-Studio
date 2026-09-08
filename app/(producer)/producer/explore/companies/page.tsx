@@ -22,7 +22,7 @@ export default async function ExploreCompanies({searchParams}:{searchParams:Quer
   if (!market.latest) {
     return (
       <>
-        <ExploreNav active="companies" locale={locale} />
+        <ExploreNav active="companies" />
         <section className="rs-panel"><div className="rs-empty">{t(locale, "research.market.noData")}</div></section>
       </>
     );
@@ -38,7 +38,7 @@ export default async function ExploreCompanies({searchParams}:{searchParams:Quer
 
   return (
     <>
-      <ExploreNav active="companies" locale={locale} />
+      <ExploreNav active="companies" />
       <MarketFilters/><div className="rs-meta"><span>{t(locale, "research.section.companiesSub")}</span><span className="ev ev-inferred">{t(locale, "research.role.note")}</span></div>
       <section className="rs-panel">
         <div className="gtable gtable-flush rs-table" style={{ ["--cols" as string]: "minmax(0,1.8fr) 120px 110px 70px 80px minmax(0,1.6fr) minmax(0,1.6fr)" }}>

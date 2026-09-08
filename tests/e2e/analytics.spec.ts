@@ -39,7 +39,7 @@ test.describe("title analytics", () => {
   });
 
   test("catalog performance view → link a demo listing → four views → campaign → back", async ({ page }) => {
-    await page.goto("/producer/titles?view=performance&range=30d");
+    await page.goto("/producer/tiktok?range=30d");
     await expect(page.locator(".cc-performance")).toBeVisible();
     await expect(page.locator(".cc-performance tbody tr")).toHaveCount(14);
     // The unmapped title 3 says it needs a listing link.
@@ -132,14 +132,14 @@ test.describe("title analytics", () => {
     await expect(page).toHaveURL(/\/episodes\?range=90d/);
     await expect(page.locator(".an-range a.on")).toContainText(/90/);
     await page.locator(".studio-crumbs a").first().click();
-    await expect(page).toHaveURL(/\/producer\/titles\?range=90d/);
+    await expect(page).toHaveURL(/\/producer\/tiktok\?range=90d/);
   });
 
   test("performance view search with zero results keeps the view usable", async ({ page }) => {
-    await page.goto("/producer/titles?view=performance&q=zzzz-no-such-title");
+    await page.goto("/producer/tiktok?q=zzzz-no-such-title");
     await expect(page.locator(".ps-catalog-empty")).toBeVisible();
     await expect(page.locator(".cc-performance")).toHaveCount(0);
-    await page.goto("/producer/titles?view=performance&sort=viewers&range=7d");
+    await page.goto("/producer/tiktok?sort=viewers&range=7d");
     const first = page.locator(".cc-performance tbody tr").first();
     await expect(first).toContainText(/Son-in-Law|赘婿/);
   });
@@ -154,11 +154,11 @@ test.describe("title analytics", () => {
       await page.screenshot({ path: path.join(SHOTS, `overview-${tag}.png`), fullPage: true });
       await page.goto(`/producer/titles/${T(1)}/analytics/episodes?range=30d`);
       await page.screenshot({ path: path.join(SHOTS, `episodes-${tag}.png`), fullPage: true });
-      await page.goto("/producer/titles?view=performance");
+      await page.goto("/producer/tiktok");
       await page.screenshot({ path: path.join(SHOTS, `catalog-performance-${tag}.png`), fullPage: true });
     }
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto("/producer/titles?view=performance");
+    await page.goto("/producer/tiktok");
     await page.screenshot({ path: path.join(SHOTS, "catalog-performance-1440.png"), fullPage: true });
   });
 });

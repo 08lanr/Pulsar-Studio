@@ -90,7 +90,7 @@ export default async function CompanyPage({ searchParams }: { searchParams: { ta
         <>
           <p className="note note-info"><EvidenceTag evidence="partner_reported" locale={locale} /> {t(locale, "research.reports.sub")} {t(locale, "research.reports.columns", { metrics: REPORT_METRICS.join(", ") })}</p>
           <ReportImport batches={batches} canAct={canAct} />
-          {rows.length > 0 && <p className="rs-meta"><span>{rows.length} rows</span></p>}
+          {rows.length > 0 && <p className="rs-meta"><span>{t(locale, "research.reports.rowCount", { n: rows.length })}</span></p>}
         </>
       )}
     </>

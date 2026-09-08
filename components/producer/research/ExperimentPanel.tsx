@@ -26,6 +26,10 @@ type Props = {
   nextRound: { number: number; name: string };
   /** Where attributable revenue for this title lives (title analytics → acquisition). */
   analyticsHref?: string | null;
+  /** Which part to render; the campaign page mounts the brief and the results in fixed step order. */
+  section?: "all" | "brief" | "results";
+  /** Budget approval is step 4: offered only once the ads are approved. */
+  budgetStepReached?: boolean;
 };
 
 async function call<T>(url: string, method: string, body?: unknown): Promise<T> {
@@ -41,7 +45,7 @@ const num = (v: number | null | undefined) => (v == null ? "–" : v.toLocaleStr
 
 const VERDICT_CLASS: Record<Verdict, string> = { met_both: "rd-verdict-met", missed_hold: "rd-verdict-miss", missed_ctr: "rd-verdict-miss", missed_both: "rd-verdict-miss", no_impressions: "rd-verdict-none" };
 
-export default function ExperimentPanel({ campaign, creatives, results, canEdit, canApprove, fixtureMode, benchmark, titleName, briefExpanded = true, nextRound, analyticsHref = null }: Props) {
+export default function ExperimentPanel({ campaign, creatives, results, canEdit, canApprove, fixtureMode, benchmark, titleName, briefExpanded = true, nextRound, analyticsHref = null, section = "all", budgetStepReached = true }: Props) {
   const { tt, locale } = useT();
   const router = useRouter();
   const e = campaign.experiment;
@@ -52,7 +56,9 @@ export default function ExperimentPanel({ campaign, creatives, results, canEdit,
   const [signal, setSignal] = useState<ExperimentSpec["signal"]>(e?.signal ?? "views");
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  const [created, setCreated] = useState<string | null>(null);
+  // The round just created, with the number it was announced as. After router.refresh() the
+  // page's nextRound advances by one, so the confirmation must not read the live prop.
+  const [created, setCreated] = useState<{ id: string; number: number } | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const locked = ["submitted", "launching", "live"].includes(campaign.status);
 
@@ -90,7 +96,7 @@ export default function ExperimentPanel({ campaign, creatives, results, canEdit,
         creative_direction: note,
         experiment: { budget_usd: budgetUsd, hypothesis: note, audience: e?.audience ?? "", first_batch: e?.first_batch ?? 2, signal: e?.signal ?? "views" },
       });
-      setCreated(r.campaign.id);
+      setCreated({ id: r.campaign.id, number: nextRound.number });
       return tt("rd.roundCreated", { n: nextRound.number });
     });
 
@@ -131,11 +137,14 @@ export default function ExperimentPanel({ campaign, creatives, results, canEdit,
           </fieldset>
           <div className="rs-form-foot">
             {canEdit && !locked && <button className="btn btn-outline" type="submit" disabled={busy !== null || hypothesis.trim().length < 10 || audience.trim().length < 3}>{busy === "save" ? tt("common.loading") : tt("ws.exp.save")}</button>}
-            {e && !e.approved_at && !locked && (
+            {e && !e.approved_at && !locked && (budgetStepReached ? (
               <button className="btn btn-primary" type="button" onClick={approve} disabled={!canApprove || busy !== null} title={canApprove ? undefined : tt("ws.exp.approverOnly")}>
                 {busy === "approve" ? tt("common.loading") : tt("ws.exp.approveBudget", { n: e.budget_usd })}
               </button>
-            )}
+            ) : (
+              <span className="hint">{tt("ws.exp.budgetLater")}</span>
+            ))}
+            {e && !e.approved_at && !locked && budgetStepReached && !canApprove && <span className="hint">{tt("ws.exp.approverOnly")}</span>}
             {!canEdit && <span className="hint">{tt("ws.readOnly")}</span>}
           </div>
         </form>
@@ -237,7 +246,7 @@ export default function ExperimentPanel({ campaign, creatives, results, canEdit,
             <h3 className="rd-next-title">{tt("rd.nextTitle")}</h3>
             <p className="rd-next-sub">{tt("rd.nextSub", { n: nextRound.number })}</p>
             {created ? (
-              <p className="note note-success" role="status">{tt("rd.roundCreated", { n: nextRound.number })} <a className="btn btn-primary btn-sm" href={`/producer/promote/${created}`}>{tt("rd.openRound", { n: nextRound.number })}</a></p>
+              <p className="note note-success" role="status">{tt("rd.roundCreated", { n: created.number })} <a className="btn btn-primary btn-sm" href={`/producer/promote/${created.id}`}>{tt("rd.openRound", { n: created.number })}</a></p>
             ) : (
               <div className="rd-options">
                 {winner && (
@@ -252,7 +261,7 @@ export default function ExperimentPanel({ campaign, creatives, results, canEdit,
                 </div>
                 <div className="rd-option">
                   <div><strong>{tt("rd.stop")}</strong><p>{tt("rd.stopHint")}</p></div>
-                  <a className="btn btn-ghost" href="/producer/promote">{tt("ws.exp.stop")}</a>
+                  <a className="rd-stop-link" href="/producer/promote">{tt("ws.exp.stop")} →</a>
                 </div>
               </div>
             )}
@@ -260,17 +269,22 @@ export default function ExperimentPanel({ campaign, creatives, results, canEdit,
           </div>
         </section>) : null;
 
-  return <div className="ws-experiment fc-experiment">
-    {msg && !created && <p role="status" className="note note-success">{msg}</p>}
-    {err && <p role="alert" className="err">{err}</p>}
-    {(locked || results.length > 0) && resultsPanel}
-    {results.length > 0 && decisionPanel}
-    {briefExpanded && !locked && !results.length ? briefPanel : (
+  const briefBlock = briefExpanded && !locked && !results.length ? briefPanel : (
       <details className="fc-disclosure" id="brief-record">
         <summary><span>{tt("fc.briefRecord")}</span><span>{e ? `$${e.budget_usd} · ${tt(e.approved_at ? "fc.budgetApproved" : "fc.budgetPending")}` : tt("ws.exp.brief")}</span></summary>
         {briefPanel}
       </details>
-    )}
+    );
+  const resultsBlock = <>
+    {(locked || results.length > 0) && resultsPanel}
+    {results.length > 0 && decisionPanel}
+  </>;
+
+  return <div className="ws-experiment fc-experiment">
+    {msg && !created && <p role="status" className="note note-success">{msg}</p>}
+    {err && <p role="alert" className="err">{err}</p>}
+    {section !== "brief" && resultsBlock}
+    {section !== "results" && briefBlock}
     <span hidden>{locale}</span>
   </div>;
 }

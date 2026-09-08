@@ -61,8 +61,10 @@ export function ComponentBars({ a, locale }: { a: Assessment; locale: Locale }) 
   );
 }
 
-export function WorkflowBadge({ step, locale }: { step: WorkflowStep; locale: Locale }) {
-  return <span className={`wf-badge wf-step-${step}`}><span aria-hidden="true">{WORKFLOW_STEPS.indexOf(step) + 1}</span>{t(locale, `workflow.step.${step}`)}</span>;
+/** "Step n of 6" plus the step name; `compact` leaves the name to the row's own button and hint. */
+export function WorkflowBadge({ step, locale, compact = false }: { step: WorkflowStep; locale: Locale; compact?: boolean }) {
+  const n = WORKFLOW_STEPS.indexOf(step) + 1;
+  return <span className={`wf-badge wf-step-${step}`}><span className="wf-badge-n">{t(locale, "workflow.stepOf", { n, total: WORKFLOW_STEPS.length })}</span>{!compact && t(locale, `workflow.step.${step}`)}</span>;
 }
 
 export function StageStrip({ stage, locale, step }: { stage: ExperimentStage; locale: Locale; step?: WorkflowStep }) {

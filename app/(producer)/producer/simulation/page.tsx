@@ -9,5 +9,5 @@ export default async function SimulationPage() {
   await portalSession('/producer/simulation');
   const locale = producerLocale();
   return <><div className="page-head"><div><h1>{t(locale, 'sim.title')}</h1></div></div>
-    <CompanyNav active="simulation" locale={locale}/><ProducerSimulation locale={locale}/></>;
+    <CompanyNav active="simulation" locale={locale}/><ProducerSimulation/></>;
 }

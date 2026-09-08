@@ -28,7 +28,7 @@
 .wf-queue-title > span { font-size: 12px; color: var(--text-muted); overflow-wrap: anywhere; }
 .wf-queue-step p { margin: 8px 0 0; font-size: 13px; color: var(--text-muted); max-width: 40ch; }
 .wf-badge { display: inline-flex; gap: 8px; align-items: center; font-size: 13px; font-weight: 600; color: var(--text); }
-.wf-badge > span { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 6px; background: var(--brand-tint); color: var(--brand); font-size: 12px; }
+.wf-badge > .wf-badge-n { display: inline-flex; align-items: center; height: 24px; padding: 0 8px; border-radius: 6px; background: var(--brand-tint); color: var(--brand); font-size: 12px; white-space: nowrap; }
 .wf-step-approveAds > span,.wf-step-budget > span { background: var(--warning-bg); color: var(--warning); }
 .wf-step-results > span { background: var(--success-bg); color: var(--success); }
 .wf-queue-budget { display: grid; gap: 3px; font-variant-numeric: tabular-nums; }
@@ -42,13 +42,24 @@
 .wf-suggestions p,.wf-setup p { font-size: 13px; color: var(--text-muted); margin: 4px 0 0; }
 .wf-suggestions a,.wf-setup a { flex-shrink: 0; font-size: 13px; }
 .wf-setup-done { color: var(--success); }
-.wf-guide { margin-bottom: 20px; }
+/* Ad campaigns table: the TikTok performance framing, one row per round. */
+.cc-campaigns .ps-catalog-table thead th:nth-child(1) { width: 28%; }
+.cc-campaigns .ps-catalog-table thead th:nth-child(2) { width: 18%; }
+.cc-campaigns .ps-catalog-table thead th:nth-child(3), .cc-campaigns .ps-catalog-table thead th:nth-child(4) { width: 11%; }
+.cc-campaigns .ps-catalog-table thead th:nth-child(5) { width: 20%; }
+.cc-campaigns .ps-catalog-table thead th:nth-child(6) { width: 12%; }
+.cc-campaigns td.gt-num, .cc-campaigns .an-basis { text-align: right; }
+.cc-campaigns .cc-perf-fresh { display: block; margin-top: 5px; font-size: 12px; color: var(--text-muted); line-height: 1.45; }
+.cc-campaigns .wf-badge { flex-wrap: wrap; row-gap: 4px; }
+.cc-campaigns .ps-catalog-secondary { color: var(--text-muted); }
+.cc-campaigns .rs-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.wf-guide { margin-block: 20px; }
 .wf-guide summary { cursor: pointer; font-size: 14px; font-weight: 600; padding: 12px 0; }
 .wf-guide ol { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 20px 32px; padding: 16px 24px; }
 .wf-guide li::marker { color: var(--brand); font-weight: 600; }
 .wf-guide p { color: var(--text-muted); font-size: 13px; margin: 4px 0; }
 .wf-demo-note { color: var(--text-muted); font-size: 13px; padding: 14px 16px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 24px; }
-@media(max-width:1200px) { .wf-queue-row { grid-template-columns:minmax(180px,1.2fr) minmax(200px,1fr) 150px; gap:16px; } .wf-queue-budget { display:none; } .wf-secondary { grid-template-columns:1fr; gap:0; } }
+@media(max-width:1200px) { .wf-queue-row { grid-template-columns:minmax(180px,1.2fr) minmax(200px,1fr) 150px; gap:12px 16px; } .wf-queue-budget { grid-column:1/-1; display:flex; gap:8px; align-items:baseline; } .wf-secondary { grid-template-columns:1fr; gap:0; } }
 @media(max-width:700px) {
   .producer-main .ws-stages { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
   .wf-queue-row { grid-template-columns:minmax(0,1fr) 140px; padding:20px 16px; }

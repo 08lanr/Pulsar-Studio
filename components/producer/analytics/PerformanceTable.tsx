@@ -70,7 +70,7 @@ export default function PerformanceTable({ rows, perf, range, sort, locale, href
                   <span className="cc-perf-fresh">{r.freshness.data_through ? t(locale, "an.dataThrough", { date: r.freshness.data_through, lag: r.freshness.lag_days ?? 0 }) : r.freshness.last_sync_at ? t(locale, "an.lastSync", { at: fmtUtc(r.freshness.last_sync_at) }) : t(locale, "an.catalog.noSync")}</span>
                 </td>
                 <td className="cc-next" role="cell" data-label={t(locale, "an.catalog.col.action")}>
-                  <a className="btn btn-outline btn-sm" href={href} aria-label={`${t(locale, "an.linkFrom.title")}: ${primary}`}>{t(locale, "an.linkFrom.title")} →</a>
+                  <a className="btn btn-outline btn-sm" href={href} aria-label={`${t(locale, "an.linkFrom.title")}: ${primary}`}>{t(locale, "tw.open")} →</a>
                 </td>
               </tr>
             );

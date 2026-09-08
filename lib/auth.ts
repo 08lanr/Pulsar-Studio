@@ -73,7 +73,7 @@ export function devCookieOptions() {
 
 /** Where a signed-in user lands: the staff title list or the producer home. */
 export function homeFor(kind: UserKind): string {
-  return kind === "staff" ? "/titles" : "/producer";
+  return kind === "staff" ? "/titles" : "/producer/titles";
 }
 
 /**

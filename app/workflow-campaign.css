@@ -100,5 +100,7 @@
 .rd-option strong { display: block; font-size: 14px; margin-bottom: 4px; }
 .rd-option p { margin: 0; font-size: 12px; color: var(--text-muted); line-height: 1.5; }
 .rd-option .btn { justify-self: start; white-space: normal; text-align: left; }
+.rd-option .rd-stop-link { justify-self: start; font-size: 13px; color: var(--text-muted); text-decoration: underline; text-underline-offset: 3px; }
+.rd-option .rd-stop-link:hover { color: var(--text); }
 .fc-experiment .rd-decide .note { margin-bottom: 12px; }
 @media (max-width: 900px) { .rd-options { grid-template-columns: 1fr; } .rd-provenance .rd-bench { margin-left: 0; } }

@@ -24,7 +24,7 @@ export default async function ExplorePlatforms({searchParams}:{searchParams:Quer
   if (!market.latest) {
     return (
       <>
-        <ExploreNav active="platforms" locale={locale} />
+        <ExploreNav active="platforms" />
         <section className="rs-panel"><div className="rs-empty">{t(locale, "research.market.noData")}</div></section>
       </>
     );
@@ -39,7 +39,7 @@ export default async function ExplorePlatforms({searchParams}:{searchParams:Quer
 
   return (
     <>
-      <ExploreNav active="platforms" locale={locale} />
+      <ExploreNav active="platforms" />
       <MarketFilters/><div className="rs-meta"><span>{t(locale, "research.formats.note")}</span></div>
 
       <div className="rs-grid">

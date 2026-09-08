@@ -37,7 +37,7 @@ export function sectionHref(titleId: string, section: TitleSection, query = ""):
   return `/producer/titles/${titleId}${SECTIONS.find((s) => s.id === section)?.sub ?? ""}${query}`;
 }
 
-export default function TitleShell({ locale, titleId, name_zh, name_en, platform, ads, adStep, section, actions, catalogHref = "/producer/titles", tiktokQuery = "", children }: {
+export default function TitleShell({ locale, titleId, name_zh, name_en, platform, ads, adStep, section, actions, catalogHref = "/producer/titles", catalogLabel = "ws.nav.catalog", tiktokQuery = "", children }: {
   locale: Locale;
   titleId: string;
   name_zh: string;
@@ -48,6 +48,8 @@ export default function TitleShell({ locale, titleId, name_zh, name_en, platform
   section: TitleSection;
   actions?: React.ReactNode;
   catalogHref?: string;
+  /** i18n key for the first breadcrumb: the catalog by default, TikTok performance from the TikTok section. */
+  catalogLabel?: string;
   /** `?range=` carried into the TikTok section so the range survives navigation. */
   tiktokQuery?: string;
   children: React.ReactNode;
@@ -56,7 +58,7 @@ export default function TitleShell({ locale, titleId, name_zh, name_en, platform
   return (
     <div className="tw-page">
       <nav className="studio-crumbs" aria-label={t(locale, "v3.breadcrumbs")}>
-        <a href={catalogHref}>{t(locale, "ws.nav.catalog")}</a>
+        <a href={catalogHref}>{t(locale, catalogLabel)}</a>
         <span aria-hidden>›</span>
         {section === "overview" ? <span lang={lang}>{primary}</span> : <a href={sectionHref(titleId, "overview")} lang={lang}>{primary}</a>}
         {section !== "overview" && <><span aria-hidden>›</span><span>{t(locale, `tw.nav.${section}`)}</span></>}

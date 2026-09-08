@@ -38,7 +38,6 @@ export default async function TitleCampaigns({ params }: { params: { id: string 
         <div><span>{t(locale, "tw.ads.rounds")}</span><strong>{rounds.length}</strong></div>
         <div><span>{t(locale, "tw.ads.attributed")}</span><strong><a href={`/producer/titles/${params.id}/analytics/acquisition`}>{t(locale, "tw.nav.tiktok")} →</a></strong></div>
       </div>
-      <p className="tw-note">{t(locale, "ws.exp.mock")}</p>
 
       {rounds.length === 0 ? (
         <section className="rs-panel rs-empty">

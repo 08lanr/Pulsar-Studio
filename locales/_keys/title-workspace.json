@@ -163,10 +163,7 @@
     "en": "My catalog",
     "zh": "我的剧库"
   },
-  "pf.sub": {
-    "en": "Every title, its TikTok status and its advertising status. Open a title for its sections.",
-    "zh": "所有作品及其 TikTok 状态与广告状态。打开作品查看各分区。"
-  },
+  "pf.sub": { "en": "Every title with its TikTok status, ad status and US potential. Each cell opens its section; the numbers live in TikTok performance and Ad campaigns.", "zh": "每部作品的 TikTok 状态、广告状态与美国潜力。点击各栏进入对应分区；数字在 TikTok 表现与广告活动中查看。" },
   "pf.view.portfolio": {
     "en": "Portfolio",
     "zh": "作品总览"
@@ -278,5 +275,12 @@
   "tw.ads.resultsCol": {
     "en": "Ad results",
     "zh": "广告结果"
-  }
+  },
+  "pf.cell.viewTiktok": { "en": "View TikTok data", "zh": "查看 TikTok 数据" },
+  "pf.cell.link": { "en": "Link listing", "zh": "关联平台条目" },
+  "pf.cell.start": { "en": "Start a campaign", "zh": "新建广告活动" },
+  "pf.cell.campaigns": { "en": "View campaigns", "zh": "查看广告活动" },
+  "pf.tiktok.sub": { "en": "Revenue, viewers and payer conversion per title. One basis and one window for the whole table.", "zh": "各作品的收入、观众与付费转化，全表同一口径、同一时间窗。" },
+  "pf.tiktok.empty": { "en": "No TikTok data yet", "zh": "尚无 TikTok 数据" },
+  "pf.tiktok.emptyHint": { "en": "Link a listing from a title's TikTok section to start receiving data.", "zh": "在作品的 TikTok 分区关联平台条目后开始接收数据。" }
 }

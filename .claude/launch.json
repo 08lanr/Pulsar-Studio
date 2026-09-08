@@ -6,6 +6,16 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 3200
+    },
+    {
+      "name": "studio-prod",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "start"],
+      "port": 3200
+    },
+    {
+      "name": "studio-attach",
+      "url": "http://localhost:3200"
     }
   ]
 }

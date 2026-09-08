@@ -1346,5 +1346,13 @@
   "research.nav.reports": {
     "en": "My reports",
     "zh": "我的报表"
+  },
+  "research.col.pairs": {
+    "en": "Trope pairs",
+    "zh": "题材组合"
+  },
+  "research.reports.rowCount": {
+    "en": "{n} rows",
+    "zh": "{n} 行"
   }
 }

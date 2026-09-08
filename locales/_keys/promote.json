@@ -362,5 +362,17 @@
   "promote.workspace.changeSent": {
     "en": "Pulsar is working on this change",
     "zh": "Pulsar 正在处理这条修改"
+  },
+  "promote.new.defaultName": {
+    "en": "{title} — US concept test",
+    "zh": "{title} — 美国概念测试"
+  },
+  "promote.new.requirements": {
+    "en": "To continue: a campaign name, an audience (3+ characters) and a hypothesis (10+ characters).",
+    "zh": "继续前需填写：活动名称、受众（至少 3 个字符）和假设（至少 10 个字符）。"
+  },
+  "promote.new.someNoVideo": {
+    "en": "Titles without video can still save a US campaign brief; generating video ads needs footage.",
+    "zh": "暂无视频的剧目也可以保存美国活动简报；生成视频广告仍需要素材。"
   }
 }

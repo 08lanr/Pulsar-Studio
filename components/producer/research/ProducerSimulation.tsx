@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { t, type Locale } from '@/lib/i18n';
+import { useT } from '@/components/locale';
 
 const concepts = [
   { id: 'contract', search: 'billionaire' },
@@ -9,10 +9,11 @@ const concepts = [
   { id: 'midnight', search: 'time travel' },
 ] as const;
 
-export default function ProducerSimulation({ locale }: { locale: Locale }) {
+export default function ProducerSimulation() {
+  const { tt } = useT();
   const [selected, setSelected] = useState('');
   const [notes, setNotes] = useState<Record<string, string>>({});
-  const copy = (key: string) => t(locale, `sim.${key}`);
+  const copy = (key: string) => tt(`sim.${key}`);
   function download() {
     const text = [copy('notice'), copy('title'), copy('mission'), copy('resourcesBody'),
       copy(`${selected}.name`), copy(`${selected}.premise`),

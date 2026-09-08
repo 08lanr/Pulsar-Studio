@@ -30,7 +30,7 @@ export default async function ExploreTropes({ searchParams }: { searchParams: Se
   if (!market.latest) {
     return (
       <>
-        <ExploreNav active="tropes" locale={locale} />
+        <ExploreNav active="tropes" />
         <section className="rs-panel"><div className="rs-empty">{t(locale, "research.market.noData")}</div></section>
       </>
     );
@@ -56,7 +56,7 @@ export default async function ExploreTropes({ searchParams }: { searchParams: Se
 
   return (
     <>
-      <ExploreNav active="tropes" locale={locale} />
+      <ExploreNav active="tropes" />
       <MarketFilters/>
       <div className="rs-meta">
         <span>{t(locale, "research.section.storyMixSub")}</span>

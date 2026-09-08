@@ -9,7 +9,7 @@ import { mediaUrl } from "@/lib/data/storage";
 import { t } from "@/lib/i18n";
 import { BENCHMARK } from "@/lib/research/assessment";
 import { experimentStage } from "@/lib/research/workspace";
-import { campaignWorkflow, workflowStepForStage } from "@/lib/research/workflow";
+import { WORKFLOW_STEPS, campaignWorkflow, workflowStepForStage } from "@/lib/research/workflow";
 import { nextRoundName } from "@/lib/research/results";
 
 // /producer/promote/[campaignId] — one experiment: the stage strip, the
@@ -43,11 +43,15 @@ export default async function ExperimentPage({ params, searchParams }: { params:
   const raw = searchParams.returnTo ?? "";
   const returnTo = raw.startsWith("/producer/") && !raw.startsWith("//") ? raw : `/producer/titles/${detail.title.id}/campaigns`;
   const returnLabel = returnTo.startsWith("/producer/promote") ? t(locale, "ws.exp.title") : returnTo.includes("/analytics") ? t(locale, "tw.nav.tiktok") : returnTo === "/producer" ? t(locale, "ws.nav.overview") : t(locale, "tw.nav.campaigns");
-  const panelFirst = ["prepare", "budget", "results"].includes(flow.step) || launched;
+  // Budget approval is step 4: it opens once the ads are approved, so the page and the stage strip agree.
+  const budgetStepReached = WORKFLOW_STEPS.indexOf(flow.step) >= WORKFLOW_STEPS.indexOf("budget") || launched;
   // The next round is a new campaign on the same title: numbered after every round the title already has.
   const roundNumber = summaries.filter((c) => c.title_id === detail.title.id).length + 1;
   const nextRound = { number: roundNumber, name: nextRoundName(detail.campaign.name, roundNumber, locale) };
-  const experimentPanel = <div id="brief"><ExperimentPanel campaign={detail.campaign} creatives={detail.creatives} results={detail.results} canEdit={canEdit} canApprove={canApprove} fixtureMode={dataSource() === "fixture"} benchmark={BENCHMARK} titleName={titleName} briefExpanded={flow.step === "prepare" || flow.step === "budget"} nextRound={nextRound} analyticsHref={`/producer/titles/${detail.title.id}/analytics/acquisition?campaign=${detail.campaign.id}`} /></div>;
+  const panelProps = { campaign: detail.campaign, creatives: detail.creatives, results: detail.results, canEdit, canApprove, fixtureMode: dataSource() === "fixture", benchmark: BENCHMARK, titleName, nextRound, analyticsHref: `/producer/titles/${detail.title.id}/analytics/acquisition?campaign=${detail.campaign.id}` };
+  // Sections stay in step order on every visit: brief → ads → results. Past steps collapse; they never move.
+  const briefSection = <div id="brief"><ExperimentPanel {...panelProps} section="brief" briefExpanded={flow.step === "prepare" || flow.step === "budget"} budgetStepReached={budgetStepReached} /></div>;
+  const resultsSection = launched || detail.results.length > 0 ? <ExperimentPanel {...panelProps} section="results" /> : null;
   const ads = detail.campaign.status === "generating" || (detail.campaign.status === "failed" && !detail.creatives.length) ? null : <section id="ads" className="fc-ads-section"><span id="concepts"/><header className="fc-section-heading"><h2>{t(locale, ["choose", "approveAds"].includes(flow.step) ? `workflow.step.${flow.step}` : "fc.ads")}</h2>{launched && <p>{t(locale, "fc.adsArchiveHint")}</p>}</header><PromoWorkspace detail={detail} media={media} canAct={canEdit} canApprove={canApprove} /></section>;
   const adSection = launched || flow.step === "budget" ? <details className="fc-disclosure fc-archive"><summary><span>{t(locale, "fc.adsArchive")}</span><span>{detail.creatives.filter(c => c.status !== "superseded").length}</span></summary>{ads}</details> : ads;
 
@@ -73,10 +77,12 @@ export default async function ExperimentPage({ params, searchParams }: { params:
         </span>
       </div>
       <StageStrip stage={st.stage} step={flow.step} locale={locale} />
-      <p className="note note-info">{t(locale, "ws.exp.mock")}</p>
+      {(flow.step === "launch" || flow.waiting) && <p className="note note-info">{t(locale, "ws.exp.mock")}</p>}
 
       {flow.waiting && <div className="fc-current-task" id="launch-status"><strong>{t(locale, `workflow.step.${flow.step}`)}</strong><span>{t(locale, flow.hint)}</span></div>}
-      {panelFirst ? <>{experimentPanel}{adSection}</> : <>{adSection}{experimentPanel}</>}
+      {briefSection}
+      {adSection}
+      {resultsSection}
     </div>
   );
 }

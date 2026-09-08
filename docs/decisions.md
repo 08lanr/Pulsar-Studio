@@ -6,6 +6,17 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-09-08 (evening) · Status-board catalog; TikTok performance is its own area; Overview retired
+
+Decided by the founders (Ruobin) after walking the pulled build: the Overview was "kind of useless" (its task queue duplicated Ad campaigns and its market board duplicated What to make next) and the catalog was unintuitive — three views competing on one screen, buttons whose destination changed per row, and a "TikTok comparison" label that meant nothing on its own. The fix separates ad performance from TikTok performance completely and makes the catalog a plain status page.
+
+- **My catalog is the landing page and a status board.** One row per title: title, TikTok status, ad status, US potential (score dial and band). Each cell links into the section that owns it — TikTok → the title's TikTok section (or the listing-link flow when not linked), Ads → the title's campaigns (or a new campaign when none), US potential → Preparation — plus Open. Search, sort (launch priority or name) and the recommendation-band chips are the only controls. No numbers on this page.
+- **TikTok performance (`/producer/tiktok`)** is a sidebar area of its own: the former catalog "TikTok comparison" table unchanged (revenue, viewers, payer conversion, D30 cohort value, state), with range, search and sort. The per-title TikTok section breadcrumbs back here. `/producer/titles?view=performance|tiktok` redirects here with its query.
+- **Ad campaigns** keeps every ad number: the task queue, all rounds, results and the next-round decision. The queue rows read "Step n of 6" and the budget stays visible at every width; the demo-handoff note appears only at the launch step.
+- **Overview is retired.** `/producer` redirects to the catalog (`?view=opportunities` to What to make next). The company goal and monthly budget remain on Company & accounts.
+- **Two sidebar groups** (later the same day): *My titles* — My catalog · Ad campaigns · TikTok performance; *US market* — US overview · What to make next · Explore listings · Data sources; then Company & accounts. The market pages drop their in-page area tabs (the sidebar is the area navigation); Explore keeps its own sub-tabs. Ad campaigns is a table in the TikTok performance framing (one row per round: step, budget, spend, results, action). What to make next is trimmed to read top-down: story types in five columns (pair and "of yours" fold into the story-type cell), three make-now briefs, a four-tile summary (new listings, leading story type, fastest riser, own exposure), six newest listings per platform beside each other with the five fastest movers folded into the same panel.
+- Preparation is unchanged as a title section; the catalog's "preparation checklist" view folds into the band filter. `homeFor("producer")` is `/producer/titles`.
+
 ## 2026-09-09 (later) · One title workspace; the catalog is the portfolio home
 
 Decided by the founders (Ruobin): "reframe the items; the information is good, it is missing presentation." A title had four unrelated homes (episode console, assessment, analytics, campaign) and the catalog mixed preparation with operating results. The reorganization moves presentation only; every calculation, permission and provenance rule stays where it was.

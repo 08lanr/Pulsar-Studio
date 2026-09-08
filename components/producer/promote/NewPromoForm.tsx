@@ -14,7 +14,7 @@ export default function NewPromoForm({ titles, initialTitleId, readOnly = false 
   const router = useRouter();
   const first = titles.find((x) => x.id === initialTitleId) ?? titles.find((x) => x.hasVideo) ?? titles[0];
   const [titleId, setTitleId] = useState(first?.id ?? "");
-  const [name, setName] = useState(first ? `${first.name} — US concept test` : "");
+  const [name, setName] = useState(first ? tt("promote.new.defaultName", { title: first.name }) : "");
   const [budget, setBudget] = useState("100");
   const [hypothesis, setHypothesis] = useState("");
   const [audience, setAudience] = useState("");
@@ -56,7 +56,7 @@ export default function NewPromoForm({ titles, initialTitleId, readOnly = false 
               <a href="/producer/promote/new">{tt("promote.new.change")}</a>
             </div>
           ) : (
-            <select className="input" value={titleId} onChange={(e) => { setTitleId(e.target.value); const title = titles.find((x) => x.id === e.target.value); if (title) setName(`${title.name} — US concept test`); }}>
+            <select className="input" value={titleId} onChange={(e) => { setTitleId(e.target.value); const title = titles.find((x) => x.id === e.target.value); if (title) setName(tt("promote.new.defaultName", { title: title.name })); }}>
               {titles.map((title) => <option key={title.id} value={title.id}>{title.name} · {title.episodeCount} {tt("promote.new.episodes")}{!title.hasVideo ? ` · ${tt("promote.new.noVideo")}` : ""}</option>)}
             </select>
           )}
@@ -70,7 +70,7 @@ export default function NewPromoForm({ titles, initialTitleId, readOnly = false 
         <div className="field"><label className="label">{tt("promote.new.direction")}</label><textarea className="textarea" rows={4} value={direction} placeholder={tt("promote.new.directionHint")} onChange={(e) => setDirection(e.target.value)} /></div>
         <div className="field"><label className="label">{tt("promote.new.exclusions")}</label><textarea className="textarea" rows={3} value={exclusions} placeholder={tt("promote.new.exclusionsHint")} onChange={(e) => setExclusions(e.target.value)} /></div>
       </section>
-      <aside className="promo-brief-side card"><span className="page-kicker">{tt("promote.new.spoilerLabel")}</span><h3>{tt("promote.new.spoilerTitle")}</h3><p>{tt("promote.new.spoilerHint")}</p><div className="promo-choice-grid">{(["low", "medium", "high"] as const).map((level) => <button key={level} type="button" className={spoilers === level ? "is-selected" : ""} onClick={() => setSpoilers(level)}><strong>{tt(`promote.spoiler.${level}`)}</strong><span>{tt(`promote.spoiler.${level}Hint`)}</span></button>)}</div><div className="promo-output-note"><strong>{tt("promote.new.outputTitle")}</strong><span>{tt("promote.new.outputHint")}</span></div>{error && <p className="err">{error}</p>}<button className="btn btn-primary promo-wide" disabled={readOnly || busy || !name.trim() || hypothesis.trim().length < 10 || audience.trim().length < 3}>{busy ? tt("common.loading") : tt("promote.new.cta")}</button></aside>
+      <aside className="promo-brief-side card"><span className="page-kicker">{tt("promote.new.spoilerLabel")}</span><h3>{tt("promote.new.spoilerTitle")}</h3><p>{tt("promote.new.spoilerHint")}</p><div className="promo-choice-grid">{(["low", "medium", "high"] as const).map((level) => <button key={level} type="button" className={spoilers === level ? "is-selected" : ""} onClick={() => setSpoilers(level)}><strong>{tt(`promote.spoiler.${level}`)}</strong><span>{tt(`promote.spoiler.${level}Hint`)}</span></button>)}</div><div className="promo-output-note"><strong>{tt("promote.new.outputTitle")}</strong><span>{tt("promote.new.outputHint")}</span></div>{error && <p className="err">{error}</p>}{!readOnly && (!name.trim() || hypothesis.trim().length < 10 || audience.trim().length < 3) && <p className="hint">{tt("promote.new.requirements")}</p>}<button className="btn btn-primary promo-wide" disabled={readOnly || busy || !name.trim() || hypothesis.trim().length < 10 || audience.trim().length < 3}>{busy ? tt("common.loading") : tt("promote.new.cta")}</button></aside>
     </form>
   );
 }

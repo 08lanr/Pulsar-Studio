@@ -73,12 +73,19 @@
 .pf-views a { padding: 10px 14px; font-size: 14px; font-weight: 600; color: var(--text-muted); text-decoration: none; border-bottom: 3px solid transparent; white-space: nowrap; margin-bottom: -1px; }
 .pf-views a[aria-current] { color: var(--text); border-color: var(--brand); }
 .pf-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 12px; }
-.pf-filters form { display: flex; gap: 8px; flex-wrap: wrap; }
-.pf-filters .input { min-width: 240px; }
+.pf-filters form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; flex: 1 1 100%; min-width: 0; }
+.pf-filters .input { width: min(100%, 360px); min-width: 0; }
+.pf-filters .select { width: auto; max-width: 100%; }
 .pf-quick { display: flex; flex-wrap: wrap; gap: 6px; }
 .pf-legend { font-size: 12px; color: var(--text-muted); margin: 0 0 12px; }
 .pf-table-wrap { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); overflow-x: auto; }
 .pf-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 860px; table-layout: auto; }
+.pf-table.pf-status { min-width: 680px; }
+.pf-cell { vertical-align: top; }
+.pf-cell-link { display: block; font-size: 12px; margin-top: 6px; color: var(--text-muted); text-decoration: none; white-space: nowrap; }
+.pf-cell-link:hover { color: var(--text); text-decoration: underline; }
+.pf-score { display: flex; gap: 10px; align-items: center; }
+.pf-score > div { display: grid; gap: 2px; }
 .pf-table th, .pf-table td { padding: 12px 10px; text-align: left; vertical-align: middle; border-top: 1px solid var(--border-light); }
 .pf-table thead th { border-top: 0; font-size: 12px; font-weight: 600; color: var(--text-muted); background: var(--surface-2); vertical-align: bottom; }
 .pf-table thead th small { display: block; font-weight: 400; font-size: 11px; margin-top: 2px; white-space: normal; max-width: 150px; margin-left: auto; }

@@ -61,7 +61,7 @@ export default async function MarketTitlePage({ params, searchParams }: { params
   return (
     <>
       <nav className="studio-crumbs" aria-label={t(locale, "v3.breadcrumbs")}>
-        <a href="/producer">{t(locale, "research.nav.overview")}</a>
+        <a href="/producer/titles">{t(locale, "ws.nav.catalog")}</a>
         <span>›</span>
         <a href={returnTo}>{t(locale, "research.explore.titles")}</a>
         <span>›</span>

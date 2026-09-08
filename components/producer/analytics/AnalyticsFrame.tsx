@@ -30,7 +30,7 @@ export default function AnalyticsFrame({ data, view, children }: { data: Analyti
 
   const adStep = ads.flow ? t(locale, `workflow.step.${ads.flow.step}`) : null;
   return (
-    <TitleShell locale={locale} titleId={a.title.id} name_zh={a.title.name_zh} name_en={a.title.name_en} platform={platform} ads={ads.status} adStep={adStep} section="tiktok" tiktokQuery={query} catalogHref={`/producer/titles?range=${range}`}
+    <TitleShell locale={locale} titleId={a.title.id} name_zh={a.title.name_zh} name_en={a.title.name_en} platform={platform} ads={ads.status} adStep={adStep} section="tiktok" tiktokQuery={query} catalogHref={`/producer/tiktok?range=${range}`} catalogLabel="ws.nav.tiktok"
       actions={canEdit ? <a className="btn btn-outline btn-sm" href={linkHref}>{t(locale, a.listing ? "an.link.change" : "an.link.cta")}</a> : <span className="ev ev-inferred">{t(locale, "an.readOnly")}</span>}>
       <div className="rs-tool-row an-chips">
         <StateChip state={state} locale={locale} />

@@ -17,7 +17,7 @@
   "workflow.viewProgress": {"en":"View progress","zh":"查看进度"},
   "workflow.hint.generating": {"en":"Ads are being generated. Wait for them to finish.","zh":"正在生成广告，请等待完成。"},
   "workflow.budgetApproved": {"en":"Approved","zh":"已批准"},
-  "workflow.budgetUnapproved": {"en":"Not approved","zh":"未批准"},
+  "workflow.budgetUnapproved": {"en":"Awaiting approval","zh":"待批准"},
   "workflow.overview": {"en":"What needs your attention","zh":"待办事项"},
   "workflow.overviewSub": {"en":"Each campaign has one current step and one next action.","zh":"每个广告活动都有明确的当前步骤和下一步操作。"},
   "workflow.noGoal": {"en":"Add your US launch goal in Company & accounts.","zh":"在公司与账户中设置美国发行目标。"},
@@ -47,5 +47,15 @@
   "workflow.campaignsSub": {"en":"Find the current step, complete the action, then move on.","zh":"查看当前步骤，完成操作后继续下一步。"},
   "workflow.howItWorks": {"en":"How campaigns work · 6 steps","zh":"广告活动流程 · 6 个步骤"},
   "workflow.queueSub": {"en":"One row per campaign. Tasks first, submitted campaigns last.","zh":"每个活动一行。待办优先，已提交的活动排在最后。"},
-  "workflow.demoMode": {"en":"Launch is currently a demo handoff. No ad platform is connected and no money is spent.","zh":"当前投放为演示交接，尚未连接广告平台，不会产生广告花费。"}
+  "workflow.demoMode": {"en":"Launch is currently a demo handoff. No ad platform is connected and no money is spent.","zh":"当前投放为演示交接，尚未连接广告平台，不会产生广告花费。"},
+  "workflow.stepOf": {"en":"Step {n} of {total}","zh":"第 {n}/{total} 步"},
+  "workflow.noTasks": {"en":"No campaign needs your action right now. Submitted campaigns are waiting for results.","zh":"目前没有需要处理的广告活动。已提交的活动正在等待结果。"},
+  "workflow.colStep": {"en":"Step","zh":"步骤"},
+  "workflow.search": {"en":"Search campaigns and titles","zh":"搜索广告活动或作品"},
+  "workflow.filter.label": {"en":"Show","zh":"显示"},
+  "workflow.filter.all": {"en":"All","zh":"全部"},
+  "workflow.filter.action": {"en":"Needs action","zh":"待处理"},
+  "workflow.filter.waiting": {"en":"Waiting for results","zh":"等待结果"},
+  "workflow.count": {"en":"{n} campaigns","zh":"{n} 个广告活动"},
+  "workflow.noMatches": {"en":"No campaigns match this search","zh":"没有匹配的广告活动"}
 }

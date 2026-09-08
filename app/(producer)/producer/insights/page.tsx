@@ -9,7 +9,6 @@ import { fmtPct, fmtUtc, hrefWith, exploreHref, MetricLabel, StateBadge } from '
 import MarketFilters from '@/components/producer/research/MarketFilters';
 import DramaCard from '@/components/producer/research/DramaCard';
 import OwnTitles from '@/components/producer/research/OwnTitles';
-import InsightsNav from '@/components/producer/research/InsightsNav';
 export const dynamic='force-dynamic';
 export default async function Overview({searchParams}:{searchParams:Query}) {
  const session=await portalSession();const locale=producerLocale();const data=getData();
@@ -21,7 +20,7 @@ export default async function Overview({searchParams}:{searchParams:Query}) {
  const prominent=rankTitles(relevant,scores,6);const stats=snapshot?tropeStats(scoped,scores,snapshot.taxonomy_version):[];
  const returnTo=hrefWith('/producer/insights',base,{});
  return <div className="market-brief"><div className="page-head"><div><h1>{t(locale,'research.market.title')}</h1><p className="page-sub">{t(locale,'ux.overview.sub')}</p></div><a className="brief-company-link" href="/producer/company">{company?(locale==='en'?company.name_en||company.name_zh:company.name_zh):t(locale,'ux.company')}<small>{t(locale,'ux.edit')} →</small></a></div>
- <InsightsNav active="overview" locale={locale}/>
+
  {searchParams.saved==='1'&&<p className="note note-success" role="status">{t(locale,'ux.profileSaved')}</p>}
  <div className="brief-mode" role="group" aria-label={t(locale,'ux.relevance')}><a className={personal?'is-active':''} aria-current={personal?'true':undefined} href={profile?hrefWith('/producer/insights',base,{mode:'company',audience:searchParams.audience}):'/producer/company?edit=1'}>{t(locale,'ux.forCompany')}</a><a className={!personal?'is-active':''} aria-current={!personal?'true':undefined} href={hrefWith('/producer/insights',base,{mode:'all',audience:searchParams.audience})}>{t(locale,'ux.allTitles')}</a></div>
  <MarketFilters overview audience={filter.audience}/>

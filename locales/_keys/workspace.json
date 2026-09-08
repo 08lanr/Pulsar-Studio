@@ -262,5 +262,9 @@
   "ws.card.priority": { "en": "Priority index", "zh": "优先级指数" },
   "ws.card.demoResults": { "en": "Demo campaign results available", "zh": "已有演示广告结果" },
   "ws.actions.generateAds": { "en": "Generate ads", "zh": "生成广告" },
-  "ws.accounts.edit": { "en": "Edit", "zh": "编辑" }
+  "ws.accounts.edit": { "en": "Edit", "zh": "编辑" },
+  "ws.exp.budgetLater": { "en": "Budget approval opens at step 4, once the ads are approved.", "zh": "批准预算是第 4 步，在批准广告之后开放。" },
+  "ws.nav.tiktok": { "en": "TikTok performance", "zh": "TikTok 表现" },
+  "ws.nav.group.titles": { "en": "My titles", "zh": "我的作品" },
+  "ws.nav.group.market": { "en": "US market", "zh": "美国市场" }
 }
