@@ -12,6 +12,15 @@ paid-social ads through Pulsar Grow.*
 > everything themselves on one continuous script sheet and finalizes in one
 > click; deliverables are the clean English script and the subtitled video.
 
+> **Market desk pivot (2026-09-06):** after the first producer meeting, Studio
+> is angled away from being a production space and toward telling a studio
+> what to make and how it is doing: (1) market research from public platform
+> data, (2) performance analytics against that market, (3) marketing advice
+> and promotion. The producer home is now the market overview. Adapt and
+> Promote remain as tools under "My titles". See the top entry of
+> [docs/decisions.md](docs/decisions.md) and
+> [docs/research-feasibility.md](docs/research-feasibility.md).
+
 > **Promote addition (2026-09-04):** Promote is a separate producer product,
 > not a sixth adaptation step and not the staff creative pack. It shares only
 > `core.titles`, `core.episodes`, and source media with Adapt. See the newest

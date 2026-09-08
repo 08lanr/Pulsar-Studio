@@ -50,6 +50,9 @@ import type {
 } from "@/lib/types";
 import { applyGlobalOffset, assertValidCue } from "@/lib/subtitle-timing";
 import { isLlmAvailable } from "@/lib/llm";
+import { marketView } from "@/lib/research/snapshot";
+import type { ReportBatch, ReportRow, ResearchProfile, WatchRow } from "@/lib/research/types";
+import type { CatalogRow } from "@/lib/research/engine";
 import { examplesFromApprovedVersions } from "@/lib/translation-memory";
 import { DataError, conflict, invalid, notFound } from "./errors";
 import type { DataLayer, ExportSnapshot } from "./index";
@@ -69,6 +72,7 @@ type Db = SupabaseClient;
 
 const db = (): Db => createServerSupabase();
 const core = (c: Db) => c.schema("core");
+const research = (c: Db) => c.schema("research");
 const studio = (c: Db) => c.schema("studio");
 const promote = (c: Db) => c.schema("promote");
 
@@ -94,6 +98,11 @@ async function many<T>(q: PromiseLike<Result<T[]>>): Promise<T[]> {
   const { data, error } = await q;
   if (error) throw mapError(error);
   return data ?? [];
+}
+
+function requireEditor(session: Session): void {
+  if (session.kind !== "producer" || !session.producerId) throw new DataError("forbidden", "producer editors only");
+  if (session.producerRole !== "approver" && session.producerRole !== "reviewer") throw new DataError("forbidden", "producer editors only");
 }
 
 async function one<T>(q: PromiseLike<Result<T>>, what: string, id?: string): Promise<T> {
@@ -1137,6 +1146,126 @@ export const supabaseData: DataLayer = {
   async listAuditEvents(_session, titleId) {
     return many<AuditEvent>(core(db()).from("audit_events").select("*").eq("title_id", titleId).order("id", { ascending: false }));
   },
+  // ---- the market desk ----------------------------------------------------------------
+
+  async getMarket(_session) {
+    // The snapshot is committed public data, read the same way in both modes
+    // (lib/research/snapshot.ts). research.title_observations (0004) is the
+    // crawl's landing table for history and is not read yet.
+    return marketView();
+  },
+
+  async getResearchProfile(session) {
+    if (session.kind !== "producer" || !session.producerId) return null;
+    const row = await one<Pick<Producer, "research_profile">>(
+      core(db()).from("producers").select("research_profile").eq("id", session.producerId).maybeSingle(),
+      "producer",
+      session.producerId
+    );
+    return row.research_profile ?? null;
+  },
+
+  async saveResearchProfile(session, input) {
+    if (session.kind !== "producer" || !session.producerId) throw new DataError("forbidden", "producer editors only");
+    if (session.producerRole !== "approver" && session.producerRole !== "reviewer") throw new DataError("forbidden", "producer editors only");
+    const profile: ResearchProfile = { ...input, updated_at: new Date().toISOString() };
+    // RLS policy producer_update_own_profile + guard trigger (0004) enforce the same rule server-side.
+    const row = await one<Pick<Producer, "research_profile">>(
+      core(db()).from("producers").update({ research_profile: profile }).eq("id", session.producerId).select("research_profile").maybeSingle(),
+      "producer",
+      session.producerId
+    );
+    return row.research_profile ?? profile;
+  },
+
+  async listCatalogForMatching(session, opts) {
+    if (session.kind !== "producer" || !session.producerId) return { rows: [], total: 0, truncated: false };
+    const limit = Math.max(1, Math.min(opts?.limit ?? 500, 2000));
+    // RLS scopes titles to the caller's company; the explicit filter keeps the intent visible.
+    const { data, error, count } = await core(db())
+      .from("titles")
+      .select("id,name_zh,name_en,genre,synopsis_zh,synopsis_en", { count: "exact" })
+      .eq("producer_id", session.producerId)
+      .order("updated_at", { ascending: false })
+      .limit(limit);
+    if (error) throw mapError(error);
+    const rows = (data ?? []) as CatalogRow[];
+    const total = count ?? rows.length;
+    return { rows, total, truncated: total > rows.length };
+  },
+
+  // ---- watchlist and report imports (research schema, migration 0005; RLS scopes by producer) ----
+
+  async listWatchlist(session) {
+    if (session.kind !== "producer" || !session.producerId) return [];
+    return many<WatchRow>(research(db()).from("watchlist").select("*").eq("producer_id", session.producerId).order("created_at", { ascending: false }));
+  },
+
+  async addWatch(session, listingKey) {
+    requireEditor(session);
+    if (!/^(reelshort|dramabox)-[A-Za-z0-9]+$/.test(listingKey)) throw invalid("listing key");
+    return one<WatchRow>(
+      research(db())
+        .from("watchlist")
+        .upsert({ producer_id: session.producerId, listing_key: listingKey, created_by: session.userId }, { onConflict: "producer_id,listing_key" })
+        .select("*")
+        .maybeSingle(),
+      "watch",
+      listingKey
+    );
+  },
+
+  async removeWatch(session, listingKey) {
+    requireEditor(session);
+    const { error } = await research(db()).from("watchlist").delete().eq("producer_id", session.producerId!).eq("listing_key", listingKey);
+    if (error) throw mapError(error);
+  },
+
+  async listReportBatches(session) {
+    if (session.kind !== "producer" || !session.producerId) return [];
+    return many<ReportBatch>(research(db()).from("report_batches").select("*").eq("producer_id", session.producerId).order("imported_at", { ascending: false }));
+  },
+
+  async listReportRows(session, opts) {
+    if (session.kind !== "producer" || !session.producerId) return [];
+    const batches = await many<Pick<ReportBatch, "id">>(research(db()).from("report_batches").select("id").eq("producer_id", session.producerId).is("reverted_at", null));
+    const ids = batches.map((b) => b.id);
+    if (ids.length === 0) return [];
+    let q = research(db()).from("report_rows").select("*").eq("producer_id", session.producerId).in("batch_id", ids);
+    if (opts?.titleId) q = q.eq("title_id", opts.titleId);
+    return many<ReportRow>(q);
+  },
+
+  async commitReportBatch(session, input) {
+    requireEditor(session);
+    if (!input.rows.length) throw invalid("no rows to import");
+    const c = db();
+    const batch = await one<ReportBatch>(
+      research(c)
+        .from("report_batches")
+        .insert({ producer_id: session.producerId, filename: input.filename.slice(0, 200), imported_by: session.userId, row_count: input.rows.length, skipped_count: input.skipped_count, column_map: input.column_map })
+        .select("*")
+        .maybeSingle(),
+      "report batch"
+    );
+    const { error } = await research(c).from("report_rows").insert(input.rows.map((r) => ({ ...r, batch_id: batch.id, producer_id: session.producerId })));
+    if (error) {
+      // Not transactional (supabase-js): mark the batch reverted so a half-written batch never shows.
+      await research(c).from("report_batches").update({ reverted_at: new Date().toISOString() }).eq("id", batch.id);
+      throw mapError(error);
+    }
+    return batch;
+  },
+
+  async revertReportBatch(session, batchId) {
+    requireEditor(session);
+    return one<ReportBatch>(
+      research(db()).from("report_batches").update({ reverted_at: new Date().toISOString() }).eq("id", batchId).eq("producer_id", session.producerId!).is("reverted_at", null).select("*").maybeSingle(),
+      "report batch",
+      batchId
+    );
+  },
+
 };
 
 /** Timing edits ripple upward: episode duration follows the last cue.

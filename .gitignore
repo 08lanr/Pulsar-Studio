@@ -34,3 +34,6 @@ video_output/
 # Editor local history and stray server logs.
 .history/
 .server-out.log
+
+# Crawl logs are per-run noise; the raw JSON and snapshots are kept.
+data/research/raw/*.log

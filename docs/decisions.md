@@ -4,6 +4,122 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-09-07 · Trust in the numbers: run artifacts, provenance, registry, Data & Sources
+
+Decided by the founders (Ruobin) via the market-intelligence review
+(`docs/market-intelligence-review.md`) and its prompt. The desk is rebuilt
+as a market-intelligence and launch-decision tool; the ledger is
+`docs/market-desk-plan.md`. What changed in the contracts:
+
+- **Snapshot schema v2.** Every counter is an `Observation` with the
+  platform's field name, unit (views / collects / follows / rating), read
+  time and evidence. Collection context (English public web, locale en) is
+  recorded separately from audience geography, which is `unknown` for these
+  sources: an English page does not establish a US audience. Runtime basis
+  (`episode_1` vs `listed_average`) travels with the value.
+- **Immutable runs, atomic publication.** Collectors write
+  `data/research/runs/<run_id>/` and refuse to overwrite; the builder
+  validates with zod and only then moves `data/research/published.json`.
+  The latest validated run of a day represents that day; earlier same-day
+  runs stay on disk. A failed platform is carried forward as `stale` from
+  the last published run, never dropped; a run with no fresh platform
+  publishes nothing and is recorded as `last_failure`.
+- **Scores are within-platform and null when unobserved.** `view_percentile`
+  and `chart_visibility` stay separate; their max is called *prominence*
+  and is documented as not momentum. Ties go to the charted listing. Whole
+  snapshots are scored before filtering, current and previous alike, so an
+  unchanged snapshot shows zero movement under every filter.
+- **Movement only with comparable history** (`lib/research/history.ts`):
+  counter velocity over the actual interval, growth % only on a positive
+  baseline, decreases as anomalies, rank movement within the same named
+  list, entry/exit categorical. First-seen dates come from history.
+- **Words.** Publisher ≠ studio (`companies[].role`); 女频/男频 is audience
+  positioning, not protagonist gender or demographics; synopsis openings
+  are *premise examples*, not hooks.
+- **Registry.** `lib/research/registry.ts` lists every source and metric
+  with grain, source field, unit, denominator, window, evidence, formula,
+  version, limitations and a status computed from the published data
+  (`available | collecting_history | requires_connection | manual |
+  unavailable | stale | failed`). Rendered at `/producer/sources`; every
+  metric label links to its entry. The review's source corrections (Meta
+  Ad Library scope, YouTube public vs owned, Trends normalization, TikTok
+  Top Ads sample, no assumed app-store RSS) are recorded there.
+- **Navigation.** 市场概览 / 市场探索 (作品 · 题材 · 平台 · 公司) / 我的剧库 /
+  素材与测试 / 数据与来源, with 新增作品 as an action. Title detail has
+  Overview · Trends · Story & format · Creative examples · Comparables ·
+  Sources.
+- **Company-scoped records (migration 0005).** Watchlists; report imports
+  with preview, validation, duplicate detection and reversible batches;
+  an explained launch-test shortlist (`lib/research/shortlist.ts`, v1.0)
+  whose reasons and missing inputs are visible. Nothing here is a
+  probability of success.
+- **Not enabled:** scheduled collection (terms-of-service posture is the
+  founders' call), every external connector (listed with real states).
+
+Current coverage at this decision (recounted from the published run
+`2026-09-07T04-38-53Z`, 507 listings, 506 tagged):
+
+| platform | status | listings | with views | fetched |
+|---|---|---|---|---|
+| reelshort | ok | 442 | 442 | 2026-09-07T04:39:46.308Z |
+| dramabox | ok | 65 | 53 | 2026-09-07T04:38:53.436Z |
+
+## 2026-09-06 · Studio becomes the market desk
+
+Decided by the founders (Ruobin) after the first conversation with a Chinese
+mini-drama studio: Studio angles away from being a creation/production space
+and toward helping studios decide **what to produce, where to release, and
+how they are doing.** Two products under one roof, in this order of
+importance, and the platform (the money pit) feeds the second one later.
+
+- **Market research is the front door.** `/producer` is now the market
+  overview: public charts from ReelShort and DramaBox (first two platforms;
+  Meta Ad Library, TikTok Creative Center and YouTube are next), run through
+  one **trope taxonomy** (`lib/research/taxonomy.ts`, ~28 premise mechanics
+  such as 霸总, 复仇, 隐藏身份, 契约婚姻, 战神, 狼人) so titles, tropes,
+  studios and the producer's own catalog are comparable. Filters by
+  platform, audience (女频/男频) and trope. Nothing raw is shown: a crawl is
+  normalized into a dated snapshot (`data/research/snapshots/YYYY-MM-DD.json`,
+  `npm run research:crawl`) and the engine (`lib/research/engine.ts`) computes
+  what the page shows. Snapshots append; a second crawl turns on change
+  columns.
+- **Every number carries an evidence label**: `observed` (read from the
+  platform's page), `inferred` (our rules, e.g. a keyword trope or a studio
+  guessed from a shelf), `estimated` (a model or third-party estimate),
+  `partner_reported` (the producer told us). The UI shows the label beside
+  the number. Competitor CTR, payer conversion and spend are NOT shown
+  because no public source exposes them; rank, chart share, saves and view
+  velocity are what is observable. Raw views are never compared across
+  platforms (ReelShort read_count and DramaBox viewCount count different
+  things); titles get a within-platform heat score (0-100).
+- **Personalization comes from a short onboarding**, not from Adapt: a
+  producer editor answers which tropes they produce, their audience, volume,
+  distribution mode and markets (`core.producers.research_profile`,
+  migration 0004). The market page then shows "you produce it and the charts
+  want it / the charts want it and you do not list it / you produce it and it
+  is thin on the charts". Viewer-role producers read the desk but cannot
+  describe the company; staff previewing cannot act, as everywhere.
+- **My titles is the second tab**: the catalog, each title tagged with the
+  same taxonomy from its synopsis, scored against chart share, with
+  comparable market titles. Performance-vs-market is an honest empty state
+  until a platform report is connected or a CSV imported; the founder's
+  China numbers on a title (`china_metrics`) show as partner-reported.
+- **Hooks and promotion are the third**: Promote's home now opens with the
+  opening sentence of the hottest blurbs for the producer's tropes ("hooks
+  that are working"), then the existing campaign flow. Promote proposes the
+  test; Grow runs it and reports back. No measurement is rebuilt in Studio.
+- **Adapt is frozen, not retired.** It is the fulfillment step once a title
+  is chosen ("you already have an English-ready version") and the catalog
+  intake for producers who upload scripts. It moves off the home page under
+  My titles; no new pipeline work.
+- Feasibility of the first two crawls, the fields each platform exposes,
+  and the caveats (client-side pagination, DramaBox's two view counts,
+  terms-of-service posture) are in `docs/research-feasibility.md`.
+- Data-layer contract: `getMarket` (any member; Studio-wide, no per-producer
+  rows), `getResearchProfile` / `saveResearchProfile` (own company only).
+  Both modes read the same committed snapshot; `research.title_observations`
+  is the crawl's landing table for history and is not read yet.
+
 ## 2026-09-04 · Promote is a sibling product; Grow owns launch
 
 Decided by the founders (Ruobin): Pulsar Studio now has two producer-facing

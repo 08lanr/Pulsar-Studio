@@ -10,7 +10,9 @@
     "lint": "next lint",
     "test": "node --import tsx --test tests/*.test.ts",
     "memory:import:tatoeba": "tsx scripts/import-tatoeba.ts",
-    "memory:import:cedict": "tsx scripts/import-cedict.ts"
+    "memory:import:cedict": "tsx scripts/import-cedict.ts",
+    "research:crawl": "node scripts/research/run.mjs",
+    "research:build": "tsx scripts/research/build-snapshot.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

@@ -20,6 +20,9 @@
 import type { Session } from "@/lib/auth";
 import { dataSource } from "@/lib/data-source";
 import type { IngestResult } from "@/lib/ingest";
+import type { CatalogRow } from "@/lib/research/engine";
+import type { MarketView } from "@/lib/research/snapshot";
+import type { ReportBatch, ReportRow, ResearchProfile, WatchRow } from "@/lib/research/types";
 import type {
   AdAngle,
   AdaptTag,
@@ -249,6 +252,22 @@ export type ApproveOptions = {
   channel?: AuditChannel;
 };
 
+/** What the onboarding form posts; `updated_at` is stamped by the data layer. */
+export type ResearchProfileInput = Omit<ResearchProfile, "updated_at">;
+
+export type CatalogForMatching = {
+  rows: CatalogRow[];
+  total: number;
+  truncated: boolean;
+};
+
+export type CommitReportInput = {
+  filename: string;
+  column_map: Record<string, string>;
+  rows: Omit<ReportRow, "id" | "batch_id" | "producer_id">[];
+  skipped_count: number;
+};
+
 export type ExportSource = "approved" | "in_review" | "draft";
 
 /** What GET /api/titles/[id]/export renders from; `source` goes in the file header. */
@@ -382,6 +401,31 @@ export interface DataLayer {
   // exports and audit
   getExportSnapshot(session: Session, titleId: string, episodeNumber: number): Promise<ExportSnapshot>;
   listAuditEvents(session: Session, titleId: string): Promise<AuditEvent[]>;
+
+  // the market desk (decision 2026-09-06). The snapshot is Studio-wide public
+  // data, identical in both modes; the profile is the producer's own row.
+  /** Any signed-in member. Never per-producer rows; nothing to leak. */
+  getMarket(session: Session): Promise<MarketView>;
+  /** The caller's own company's onboarding answers; staff previewing get null. */
+  getResearchProfile(session: Session): Promise<ResearchProfile | null>;
+  /** Producer editors (approver/reviewer) only; staff and viewers are refused. */
+  saveResearchProfile(session: Session, input: ResearchProfileInput): Promise<ResearchProfile>;
+  /**
+   * The caller's own catalog, with the synopsis fields the taxonomy needs,
+   * in one read. `truncated` says a limit was hit; nothing is silently cut.
+   * Staff previewing get an empty catalog (no company to match).
+   */
+  listCatalogForMatching(session: Session, opts?: { limit?: number }): Promise<CatalogForMatching>;
+
+  // watchlist and report imports (phase 4): company-scoped, editor-only writes
+  listWatchlist(session: Session): Promise<WatchRow[]>;
+  addWatch(session: Session, listingKey: string): Promise<WatchRow>;
+  removeWatch(session: Session, listingKey: string): Promise<void>;
+  listReportBatches(session: Session): Promise<ReportBatch[]>;
+  /** Rows of batches that are not reverted; optionally one title's. */
+  listReportRows(session: Session, opts?: { titleId?: string }): Promise<ReportRow[]>;
+  commitReportBatch(session: Session, input: CommitReportInput): Promise<ReportBatch>;
+  revertReportBatch(session: Session, batchId: string): Promise<ReportBatch>;
 }
 
 // ---- the switch ------------------------------------------------------------------------------

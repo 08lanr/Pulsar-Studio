@@ -31,6 +31,7 @@ import type {
   Variant,
   Version,
 } from "@/lib/types";
+import type { ReportBatch, ReportRow, WatchRow } from "@/lib/research/types";
 import { producer, profiles } from "./title";
 
 /** Table name -> rows; the key is the studio.* / core.* table name. */
@@ -55,6 +56,9 @@ export type FixtureDb = {
   promo_approvals: PromoApproval[];
   promo_handoffs: PromoHandoff[];
   audit_events: AuditEvent[];
+  research_watchlist: WatchRow[];
+  report_batches: ReportBatch[];
+  report_rows: ReportRow[];
 };
 
 export const fixtureDb: FixtureDb = {
@@ -78,6 +82,9 @@ export const fixtureDb: FixtureDb = {
   promo_approvals: [],
   promo_handoffs: [],
   audit_events: [],
+  research_watchlist: [],
+  report_batches: [],
+  report_rows: [],
 };
 
 /** A deep copy for a data layer that mutates in fixture mode. */

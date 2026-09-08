@@ -1,5 +1,18 @@
 # Session handoff — Pulsar Studio
 
+> **2026-09-07: market-intelligence rebuild landed** (ledger in
+> `docs/market-desk-plan.md`, decision at the top of `docs/decisions.md`).
+> Overview / Explore / My titles / Creative & tests / Data & Sources; runs
+> are immutable and published atomically; watchlists, shortlist and CSV
+> report import exist. Scheduled collection and external connectors are
+> not enabled (founder decisions / access validation pending).
+>
+> **2026-09-06 (evening): market-desk pivot landed.** Read the top of
+> `docs/decisions.md`, then `docs/research-feasibility.md`. The producer
+> home is the market overview over two crawled platforms; `npm run
+> research:crawl` refreshes the snapshot. Everything below this note
+> predates the pivot and still describes Adapt/Promote accurately.
+
 Updated 2026-09-03 (evening), after the producer-first pivot. If a new
 session picks this up: read `docs/decisions.md` top entry first, then
 `CLAUDE.md`, then `docs/demo-script.md` to see what the demo does.

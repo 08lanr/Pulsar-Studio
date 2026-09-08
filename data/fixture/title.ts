@@ -24,6 +24,7 @@ export const producer: Producer = {
   contact_email: "chen@xinghai.example",
   contact_wechat: "xinghai_chen",
   deliverables: { clean_master: true, dialogue_stem: false, script_or_srt: true, music_note: "" },
+  research_profile: null,
   created_at: AT.producer,
 };
 

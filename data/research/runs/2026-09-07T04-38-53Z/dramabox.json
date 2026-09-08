@@ -1,0 +1,4396 @@
+{
+ "platform": "dramabox",
+ "fetched_at": "2026-09-07T04:38:53.436Z",
+ "source_urls": [
+  "https://www.dramaboxapp.com/",
+  "https://www.dramaboxapp.com/more/trending",
+  "https://www.dramaboxapp.com/more/must-sees",
+  "https://www.dramaboxapp.com/more/hidden-gems",
+  "https://www.dramaboxapp.com/browse"
+ ],
+ "genres": [
+  {
+   "id": 0,
+   "name": "all"
+  },
+  {
+   "id": 534,
+   "name": "Werewolves"
+  },
+  {
+   "id": 271,
+   "name": "Avenge"
+  },
+  {
+   "id": 189,
+   "name": "Divine Tycoon"
+  },
+  {
+   "id": 253,
+   "name": "Love Triangle"
+  },
+  {
+   "id": 260,
+   "name": "Revenge"
+  },
+  {
+   "id": 273,
+   "name": "Paranormal"
+  },
+  {
+   "id": 287,
+   "name": "Sudden Wealth"
+  },
+  {
+   "id": 566,
+   "name": "Cinderella"
+  },
+  {
+   "id": 288,
+   "name": "Underdog Rise"
+  },
+  {
+   "id": 184,
+   "name": "Son-in-Law"
+  },
+  {
+   "id": 185,
+   "name": "Secret Identity"
+  },
+  {
+   "id": 252,
+   "name": "Second-chance Love"
+  },
+  {
+   "id": 567,
+   "name": "Comedy"
+  },
+  {
+   "id": 250,
+   "name": "Marriage"
+  },
+  {
+   "id": 563,
+   "name": "Mafia"
+  },
+  {
+   "id": 583,
+   "name": "Forbidden Love"
+  },
+  {
+   "id": 262,
+   "name": "Uplifting Series"
+  },
+  {
+   "id": 249,
+   "name": "Strong Female Lead"
+  },
+  {
+   "id": 161,
+   "name": "Romance"
+  },
+  {
+   "id": 269,
+   "name": "CEO"
+  },
+  {
+   "id": 276,
+   "name": "Marriage Before Love"
+  },
+  {
+   "id": 291,
+   "name": "Fantasy"
+  },
+  {
+   "id": 255,
+   "name": "Soulmate"
+  },
+  {
+   "id": 268,
+   "name": "Trending"
+  },
+  {
+   "id": 265,
+   "name": "Concealed Identity"
+  },
+  {
+   "id": 261,
+   "name": "Counterattack"
+  },
+  {
+   "id": 586,
+   "name": "Disguise"
+  },
+  {
+   "id": 248,
+   "name": "Sweet Love"
+  },
+  {
+   "id": 264,
+   "name": "Suspense"
+  },
+  {
+   "id": 676,
+   "name": "Betrayal"
+  },
+  {
+   "id": 160,
+   "name": "Urban"
+  },
+  {
+   "id": 284,
+   "name": "Turbulent Love"
+  },
+  {
+   "id": 274,
+   "name": "Werewolf"
+  },
+  {
+   "id": 207,
+   "name": "Mystery"
+  },
+  {
+   "id": 286,
+   "name": "Super Power"
+  },
+  {
+   "id": 267,
+   "name": "Enemies to Lovers"
+  },
+  {
+   "id": 258,
+   "name": "Billionaire"
+  },
+  {
+   "id": 280,
+   "name": "Alternative History"
+  },
+  {
+   "id": 270,
+   "name": "Badboy"
+  },
+  {
+   "id": 263,
+   "name": "Rebirth"
+  },
+  {
+   "id": 228,
+   "name": "Small Potato"
+  },
+  {
+   "id": 275,
+   "name": "Contract Lover"
+  },
+  {
+   "id": 283,
+   "name": "Toxic Love"
+  },
+  {
+   "id": 292,
+   "name": "Wealthy"
+  },
+  {
+   "id": 212,
+   "name": "Humor"
+  },
+  {
+   "id": 257,
+   "name": "True Love"
+  },
+  {
+   "id": 677,
+   "name": "Misunderstanding"
+  },
+  {
+   "id": 227,
+   "name": "Comeback"
+  },
+  {
+   "id": 285,
+   "name": "Toxic Relationship"
+  },
+  {
+   "id": 251,
+   "name": "Contract Marriage"
+  },
+  {
+   "id": 498,
+   "name": "Family"
+  },
+  {
+   "id": 278,
+   "name": "Time Travel"
+  },
+  {
+   "id": 254,
+   "name": "Bitter Love"
+  },
+  {
+   "id": 256,
+   "name": "Destiny"
+  },
+  {
+   "id": 259,
+   "name": "Twisted"
+  }
+ ],
+ "lists": [
+  {
+   "list": "home-top",
+   "name": "Top Hits",
+   "books": [
+    {
+     "rank": 1,
+     "book_id": "41000119953",
+     "title": "Queen Mom Rules",
+     "blurb": "At her parents' anniversary party, a successful CEO is dismissed as a low-class nobody, her diamond gift is called fake, and she's even banned from the table!",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000119953/41000119953.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Family Bonds",
+      "Strong Female Lead"
+     ],
+     "genres": [
+      "Family",
+      "Strong Female Lead",
+      "CEO"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 63,
+     "rating": null,
+     "card_view_count": 19467,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 2,
+     "book_id": "41000104043",
+     "title": "The Dominant Heir's Triumphant Return",
+     "blurb": "Sean York is born into a respected family. For the past three years, he has been in a relationship with Mia Leed. But he gets injured in a car accident and falls into a coma. For his sake, Mia works multiple jobs to pay for his medical bills. Mia's relatives often mock and tease her. They introduce Mia to the son of a wealthy family. However, as Mia resists, Sean wakes up. To return her favor, Sean reclaims his title with his parents and confronts those who have wronged Mia.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000104043/41000104043.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Modern",
+      "The Chosen One"
+     ],
+     "genres": [
+      "Urban",
+      "Hatred"
+     ],
+     "lead": "M-Drama",
+     "episode_count": 76,
+     "rating": null,
+     "card_view_count": 19121,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 3,
+     "book_id": "41000109644",
+     "title": "Christmas Homecoming of My Trillionaire Husband",
+     "blurb": "Philip, the chairman of the Wharton Group and investor in the Ravenham Auto Plant, returns to his wife, Caroline's family to celebrate Christmas. However, unaware of his true identity, her family mocks and mistreats him and even tries to convince Caroline to divorce him, causing her to doubt Riley, until his true identity is revealed, shaming everyone who doubted him. Riley and Caroline reconcile and enjoy their Christmas together.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000109644/41000109644.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Divine Tycoon",
+      "Modern"
+     ],
+     "genres": [
+      "Urban"
+     ],
+     "lead": "M-Drama",
+     "episode_count": 59,
+     "rating": null,
+     "card_view_count": 17779,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    }
+   ]
+  },
+  {
+   "list": "home-1268",
+   "name": "必看好剧",
+   "books": [
+    {
+     "rank": 1,
+     "book_id": "41000100375",
+     "title": "Ultimate Food Deliveryman",
+     "blurb": "He was once the revered master of the Sky Medical Palace, respected by all. Obeying the orders of his master, he pretended to be a food deliveryman and married into the Lewis family for a year. In this duration, he plowed through countless side eyes and now... His one year duration is up—it is time to turn the tables around!",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100375/41000100375.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Son-in-Law",
+      "Divine Tycoon"
+     ],
+     "genres": [
+      "Urban",
+      "Twisted",
+      "Trending",
+      "Revenge"
+     ],
+     "lead": "M-Drama",
+     "episode_count": 103,
+     "rating": null,
+     "card_view_count": 18062,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 2,
+     "book_id": "41000100331",
+     "title": "The Holy Joy King ",
+     "blurb": "An evil scheme brought tragedy upon all eighteen members of the Hoffman family ten years ago. Noah Hoffman had fallen off a cliff then, before being rescued by a grandmaster who taught him all that he knew. He yields the courage to enter the North army, starting from the lowest of ranks and eventually rising up to become a legendaryconqueror of the battlefield named the Holy Joy King! Ten years later, he returns to the city under a new alias Liam Holland, out for payback in w",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100331/41000100331.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "War God",
+      "Modern"
+     ],
+     "genres": [
+      "Urban",
+      "Revenge",
+      "Fantasy",
+      "Mystery"
+     ],
+     "lead": "M-Drama",
+     "episode_count": 107,
+     "rating": null,
+     "card_view_count": 13350,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 3,
+     "book_id": "41000100297",
+     "title": "Xander's Golden Era",
+     "blurb": "After he was tragically murdered, Xander Lewis, a top entrepreneur, was sent back in time to the beginning of the millennium! Dusting himself off and getting back on his feet, he welcomes his very own golden era!",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100297/41000100297.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Time Travel",
+      "Rebirth"
+     ],
+     "genres": [
+      "Popular",
+      "Urban",
+      "CEO",
+      "Counterattack"
+     ],
+     "lead": "M-Drama",
+     "episode_count": 100,
+     "rating": null,
+     "card_view_count": 12299,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 4,
+     "book_id": "41000100374",
+     "title": "Never Too Late for Love",
+     "blurb": "A daughter of a wealthy family was swapped out at birth. From then on, she had been on the receiving end of bullying and malicious schemes until a rich, young man came along and showered her with love.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100374/41000100374.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Revenge",
+      "Destined Love"
+     ],
+     "genres": [
+      "Destiny",
+      "Romance",
+      "Marriage"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 101,
+     "rating": null,
+     "card_view_count": 10438,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 5,
+     "book_id": "41000100296",
+     "title": "The Inimitable Grand Duke",
+     "blurb": "He is the supreme Grand Duke, a powerful leader with the world at his command. With his return to the South Valley, he has taken up the mantle of bodyguard to the gorgeous company President. Watch as he conjures miraculous wealth while stomping through all the nobodies that dare stand in his way. There's a new sheriff in town — let's see who gets the last laugh!",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100296/41000100296.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "War God",
+      "Divine Tycoon"
+     ],
+     "genres": [
+      "Betrayal",
+      "Urban",
+      "Revenge"
+     ],
+     "lead": "M-Drama",
+     "episode_count": 96,
+     "rating": null,
+     "card_view_count": 19566,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 6,
+     "book_id": "41000104560",
+     "title": "Years of Dedication: Her Path to Glory",
+     "blurb": "In the pressure-cooker town of Cluville, college entrance exam results are a matter of life and death—socially, that is. On announcement day, rumors swirl around Dave and Sue Cole. Sue's results are shrouded in secrecy, sparking whispers and scorn from the judgmental villagers. But what if Sue's hidden score holds a truth that could shatter expectations and send shockwaves across the nation? ",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000104560/41000104560.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Strong Female Lead",
+      "Hidden Identity"
+     ],
+     "genres": [
+      "True Love",
+      "Family"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 80,
+     "rating": null,
+     "card_view_count": 13238,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    }
+   ]
+  },
+  {
+   "list": "home-1269",
+   "name": "当前热播",
+   "books": [
+    {
+     "rank": 1,
+     "book_id": "41000100669",
+     "title": "Revenge Marriage Sweet Love",
+     "blurb": "Cate's sister Rebecca had not only stolen her boyfriend Ethan, but had also stripped her of her inheritance. Fueled by desire for revenge, a drunken Cate impulsively decided to seduce Ethan's handsome uncle, Shaun, who later was ignited by Cate and fell madly in love despite his cold demeanor. However, when they both realized Shaun was mistaken as Ethan's uncle, Shaun realized that she initially approached him only for revenge against Ethan, putting their love to the test. ",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100669/41000100669.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Love After Marriage",
+      "Billionaire"
+     ],
+     "genres": [
+      "True Love",
+      "Marriage Before Love",
+      "Sweet Love"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 48,
+     "rating": null,
+     "card_view_count": 19169,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 2,
+     "book_id": "41000100701",
+     "title": "Rebel in Devil's Shackle",
+     "blurb": "Sold out by someone in dark web, Nina Morgan bumps into mafia lord, Max Luther in the riches’ hunting game. Once an aristocracy, Nina is now dragged into inferno by Max, lost in sweetness and tortures. She finally makes up her mind to leave, but Max confines her no matter how many times she tries. It’s out of love, or of hatred? Overwhelmed by love and forbidden desire, the two hurt each other but simultaneously save each other. ",
+     "cover": "",
+     "author": "Webfic",
+     "tags": [
+      "Forced Love",
+      "Revenge"
+     ],
+     "genres": [
+      "Romance",
+      "Toxic Relationship",
+      "Love Triangle"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 88,
+     "rating": null,
+     "card_view_count": 10887,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 3,
+     "book_id": "41000100855",
+     "title": "The Lovers' Saga",
+     "blurb": "When Carmelia Sanders stepped in for Maeve Turner at the After Hours Club, a twist of fate led her into a night with Asher Lowery. However, Maeve took credit for Carmelia's encounter with Asher.  \r\nAsher woke up and found the pendant that Carmelia had left behind, becoming convinced that Maeve was the daughter of his savior. He deeply adored Maeve and even promised to make her his bride. \r\n",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100855/41000100855.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Love After Marriage",
+      "Modern"
+     ],
+     "genres": [
+      "CEO"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 80,
+     "rating": null,
+     "card_view_count": 10115,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 4,
+     "book_id": "41000100832",
+     "title": "She’s the Apple of Their Eye",
+     "blurb": "Emily, the daughter of the illustrious Porter family, had her world upended when she learned she wasn't her parents' biological daughter. When the true Porter family heiress returned to claim her birthright, Emily was kicked out of the family. After rejoining her biological family, she discovered she was the heiress of the nation's wealthiest dynasty. She had five exceptional brothers who showered her with affection, two adoring parents, and a wealthy CEO fiancé. \r\n",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100832/41000100832.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Family Bonds",
+      "Strong Female Lead"
+     ],
+     "genres": [
+      "Counterattack",
+      "Sweet Love",
+      "CEO"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 98,
+     "rating": null,
+     "card_view_count": 11621,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 5,
+     "book_id": "41000100836",
+     "title": "Sweetheart Wife",
+     "blurb": "Four years ago, Queenie Young was framed by Sandy Young and driven abroad by her father. She coincidentally rescued Shane Lawson abroad.Returning home four years later, Queenie found her fiance, Sam Fowler, cheating on her with Sandy. She impulsively married her best friend, Xander Lawson, but Xander took the wrong ID card because he was drunk. They accidentally registered Queenie's marriage with the male lead, Shane.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100836/41000100836.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Love After Marriage",
+      "Revenge"
+     ],
+     "genres": [
+      "Sweet Love",
+      "Comeback",
+      "CEO"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 95,
+     "rating": null,
+     "card_view_count": 17889,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 6,
+     "book_id": "41000100714",
+     "title": "Profit Prophecy",
+     "blurb": "They say the chances of winning the lottery are the same as getting struck by lightning. So it'd be nut and absurd to have both happen to you, right? You're broke. You're abandoned. You're kicked out of your girl's house by her all-about-political image father. You've reached rock bottom. Lightning strikes. You are different now. You're gonna make all rich, spoiled folks respect you, envy you, or even better, fear you.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100714/41000100714.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Modern",
+      "The Chosen One"
+     ],
+     "genres": [
+      "Underdog Rise",
+      "Fantasy",
+      "Super Power",
+      "Sudden Wealth"
+     ],
+     "lead": "M-Drama",
+     "episode_count": 60,
+     "rating": null,
+     "card_view_count": 18857,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    }
+   ]
+  },
+  {
+   "list": "home-1270",
+   "name": "精彩剧集",
+   "books": [
+    {
+     "rank": 1,
+     "book_id": "41000101854",
+     "title": "Flash Marriage with My Werewolf Husband",
+     "blurb": "To escape her abusive stepfather, Lisa takes the offer from a law firm in New York, where she unexpectedly flash-marries her boss. As she juggles work, she wants to bring the werewolf who once attacked her to justice, her boss becomes more and more suspicious… Caught between his mounting suspicion and her undeniable attraction to him, Lisa struggles with her next move.",
+     "cover": "",
+     "author": "Webfic",
+     "tags": [
+      "Love After Marriage",
+      "Forced Love"
+     ],
+     "genres": [
+      "Romance",
+      "Werewolf",
+      "Wealthy",
+      "Sweet Love"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 74,
+     "rating": null,
+     "card_view_count": 12707,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 2,
+     "book_id": "41000100424",
+     "title": "Jude's Sweet Pursuit",
+     "blurb": "Chelsea Swanson and Jude Lewis have been married for three years, but not many knew about it. \r\nDuring the day, she was his employee, satisfying his every whim. At night, she was the President's wife, lying in a custom-made sofa designed by Jude in his mansion, and playing with his dog.\r\nHowever, only he could lord her around. If anyone were to humiliate or bully her, he would stand up for her and crush them to pieces...",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100424/41000100424.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Love After Marriage",
+      "Billionaire"
+     ],
+     "genres": [
+      "Romance",
+      "Sweet Love"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 88,
+     "rating": null,
+     "card_view_count": 13505,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 3,
+     "book_id": "41000100423",
+     "title": "From Substitute Bride to Beloved Wife",
+     "blurb": "Mabel was originally the daughter of the wealthy Grant family. However, her happy family was torn apart when she was eight. Since then, her days were hard and challenging. ",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100423/41000100423.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Family Bonds",
+      "Strong Female Lead"
+     ],
+     "genres": [
+      "Romance",
+      "Sweet Love",
+      "Marriage",
+      "Contract Marriage"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 100,
+     "rating": null,
+     "card_view_count": 19136,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 4,
+     "book_id": "41000100377",
+     "title": "Kim Is Mission Impossible",
+     "blurb": "Kimberly and Darren, never having met even once, had been married for three years. Few people knew of their marriage. One night, she accidentally entered the wrong room and had a wild night with a man she thought was a stranger. The next day, she left behind ten dollars for the man and ran away, not knowing that he was actually her husband. Upon returning to her work, Kimberly was surprised that the new CEO was the man from her wild night...",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100377/41000100377.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Love After Marriage",
+      "Billionaire"
+     ],
+     "genres": [
+      "Romance",
+      "Marriage"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 100,
+     "rating": null,
+     "card_view_count": 17757,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 5,
+     "book_id": "41000100376",
+     "title": "Henry's Imprisoned Wife",
+     "blurb": "Henry Saber's wife finds herself imprisoned—literally—and tortured by his own hands, leading her to give up on their relationship and leave him. However, Henry refuses to let her go, declaring that if she chose to stay by his side, she will stay with him for the rest of her life...",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100376/41000100376.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Billionaire",
+      "Forced Love"
+     ],
+     "genres": [
+      "Destiny",
+      "Romance",
+      "Twisted",
+      "Marriage"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 98,
+     "rating": null,
+     "card_view_count": 10328,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 6,
+     "book_id": "41000100403",
+     "title": "Hooked On You",
+     "blurb": "Nathan Young, the wealthiest man in Delphville, lost his fiancée in a car crash. The perpetrator, Emily Cohen, who was once a famous lawyer, was sentenced to three years in prison. When she got out, she became a street sweeper in destitution and got mixed up with Nathan by accident. She knelt on the floor begging him, \"Nathan, have mercy.\" Nathan merely snickered, \"Emily, I'm never going to let you go.\" They say that Nathan is cold-hearted, but he doted on Emily. By a twi",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100403/41000100403.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Forced Love",
+      "Revenge"
+     ],
+     "genres": [
+      "Destiny",
+      "Romance",
+      "Marriage"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 55,
+     "rating": null,
+     "card_view_count": 10333,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    }
+   ]
+  },
+  {
+   "list": "trending",
+   "name": "Trending",
+   "books": [
+    {
+     "rank": 1,
+     "book_id": "41000100669",
+     "title": "Revenge Marriage Sweet Love",
+     "blurb": "Cate's sister Rebecca had not only stolen her boyfriend Ethan, but had also stripped her of her inheritance. Fueled by desire for revenge, a drunken Cate impulsively decided to seduce Ethan's handsome uncle, Shaun, who later was ignited by Cate and fell madly in love despite his cold demeanor. However, when they both realized Shaun was mistaken as Ethan's uncle, Shaun realized that she initially approached him only for revenge against Ethan, putting their love to the test. ",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100669/41000100669.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Love After Marriage",
+      "Billionaire"
+     ],
+     "genres": [
+      "True Love",
+      "Marriage Before Love",
+      "Sweet Love"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 48,
+     "rating": 8.4,
+     "card_view_count": 19169,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 2,
+     "book_id": "41000100701",
+     "title": "Rebel in Devil's Shackle",
+     "blurb": "Sold out by someone in dark web, Nina Morgan bumps into mafia lord, Max Luther in the riches’ hunting game. Once an aristocracy, Nina is now dragged into inferno by Max, lost in sweetness and tortures. She finally makes up her mind to leave, but Max confines her no matter how many times she tries. It’s out of love, or of hatred? Overwhelmed by love and forbidden desire, the two hurt each other but simultaneously save each other. ",
+     "cover": "",
+     "author": "Webfic",
+     "tags": [
+      "Forced Love",
+      "Revenge"
+     ],
+     "genres": [
+      "Romance",
+      "Toxic Relationship",
+      "Love Triangle"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 88,
+     "rating": 9.7,
+     "card_view_count": 10887,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 3,
+     "book_id": "41000100855",
+     "title": "The Lovers' Saga",
+     "blurb": "When Carmelia Sanders stepped in for Maeve Turner at the After Hours Club, a twist of fate led her into a night with Asher Lowery. However, Maeve took credit for Carmelia's encounter with Asher.  \r\nAsher woke up and found the pendant that Carmelia had left behind, becoming convinced that Maeve was the daughter of his savior. He deeply adored Maeve and even promised to make her his bride. \r\n",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100855/41000100855.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Love After Marriage",
+      "Modern"
+     ],
+     "genres": [
+      "CEO"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 80,
+     "rating": 8,
+     "card_view_count": 10115,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 4,
+     "book_id": "41000100832",
+     "title": "She’s the Apple of Their Eye",
+     "blurb": "Emily, the daughter of the illustrious Porter family, had her world upended when she learned she wasn't her parents' biological daughter. When the true Porter family heiress returned to claim her birthright, Emily was kicked out of the family. After rejoining her biological family, she discovered she was the heiress of the nation's wealthiest dynasty. She had five exceptional brothers who showered her with affection, two adoring parents, and a wealthy CEO fiancé. \r\n",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100832/41000100832.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Family Bonds",
+      "Strong Female Lead"
+     ],
+     "genres": [
+      "Counterattack",
+      "Sweet Love",
+      "CEO"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 98,
+     "rating": 7.3,
+     "card_view_count": 11621,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 5,
+     "book_id": "41000100836",
+     "title": "Sweetheart Wife",
+     "blurb": "Four years ago, Queenie Young was framed by Sandy Young and driven abroad by her father. She coincidentally rescued Shane Lawson abroad.Returning home four years later, Queenie found her fiance, Sam Fowler, cheating on her with Sandy. She impulsively married her best friend, Xander Lawson, but Xander took the wrong ID card because he was drunk. They accidentally registered Queenie's marriage with the male lead, Shane.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100836/41000100836.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Love After Marriage",
+      "Revenge"
+     ],
+     "genres": [
+      "Sweet Love",
+      "Comeback",
+      "CEO"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 95,
+     "rating": 8.5,
+     "card_view_count": 17889,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 6,
+     "book_id": "41000100714",
+     "title": "Profit Prophecy",
+     "blurb": "They say the chances of winning the lottery are the same as getting struck by lightning. So it'd be nut and absurd to have both happen to you, right? You're broke. You're abandoned. You're kicked out of your girl's house by her all-about-political image father. You've reached rock bottom. Lightning strikes. You are different now. You're gonna make all rich, spoiled folks respect you, envy you, or even better, fear you.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100714/41000100714.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Modern",
+      "The Chosen One"
+     ],
+     "genres": [
+      "Underdog Rise",
+      "Fantasy",
+      "Super Power",
+      "Sudden Wealth"
+     ],
+     "lead": "M-Drama",
+     "episode_count": 60,
+     "rating": 8.3,
+     "card_view_count": 18857,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 7,
+     "book_id": "41000104219",
+     "title": "Mafia's Good Girl",
+     "blurb": "Abducted by the mafia king, innocent Bella was forced to sign a contract with him in order to pay for her mother’s surgery. However, this contract that’s worthy of half a million dollars requires much more from Bella than she has ever imagined… The mafia king’s hardcore outer shell is slowly getting softened by Bella, while Bella gradually discovers her true self as well. But is it love, or just Stockholm syndrome?  ",
+     "cover": "",
+     "author": "Webfic",
+     "tags": [
+      "Forced Love",
+      "Revenge"
+     ],
+     "genres": [
+      "Romance",
+      "Mafia"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 61,
+     "rating": 9.9,
+     "card_view_count": 17542,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 8,
+     "book_id": "41000106089",
+     "title": "Spoiled by Four Billionaires",
+     "blurb": "Yvonne, who had no family of her own, financially supported her boyfriend Josh through his college years. However, once Josh found success, he left her for Clair, a woman with deep pockets. Together, Josh and Clair made Yvonne's life miserable, not realizing that Yvonne was actually a lost daughter of the wealthy Hoffman family. When her three powerful brothers and her fiancé finally located her, they rallied to her side to help her exact revenge on Josh.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000106089/41000106089.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Family Bonds",
+      "Strong Female Lead"
+     ],
+     "genres": [
+      "Romance",
+      "Billionaire",
+      "Sweet Love"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 54,
+     "rating": 7.5,
+     "card_view_count": 17180,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 9,
+     "book_id": "41000107757",
+     "title": "How to Divorce a Billionaire",
+     "blurb": "A female lawyer is unexpectedly hired by her estranged billionaire husband to be his divorce attorney. Amidst a series of misunderstandings, they rediscover their feelings for each other.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000107757/41000107757.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Second Chance",
+      "Love After Marriage"
+     ],
+     "genres": [
+      "Romance",
+      "Billionaire",
+      "Sweet Love"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 60,
+     "rating": 8.6,
+     "card_view_count": 18851,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 10,
+     "book_id": "41000107542",
+     "title": "The Best Mistake Ever",
+     "blurb": "A nerdy but smart girl, NIA, has a one night stand with billion-dollar fashion empire\r\nOwner, JAMES, and he mistakes Nia’s best friend, SELINE, for the girl he found\r\nhimself infatuated and had relations with. As Seline and Nia serve as his first and\r\nsecond assistant, the web of friendship and love gets beyond entangled…",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000107542/41000107542.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Billionaire",
+      "Love Triangle"
+     ],
+     "genres": [
+      "Betrayal",
+      "Misunderstanding",
+      "Love Triangle"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 57,
+     "rating": 9.6,
+     "card_view_count": 18549,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 11,
+     "book_id": "41000107274",
+     "title": "Waking Up Married To My Crush!",
+     "blurb": "Jasmine awoke to find herself married her college crush Patrick – who is both handsome and wealthy! Yet, she quickly discovers that her marriage is sinking. A tragic accident had damaged her brain, erased the last few years of her life, trapping her at the age of 21. Determined not to spend her 25th year as a love-struck, subservient wife, Jasmine decides to reclaim her sparkle. This transformation gives Patrick a new perspective on Jasmine, he starts to fall in love with her",
+     "cover": "",
+     "author": "Webfic",
+     "tags": [
+      "Second Chance",
+      "Billionaire"
+     ],
+     "genres": [
+      "Romance",
+      "Billionaire",
+      "Sweet Love"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 62,
+     "rating": 9.8,
+     "card_view_count": 17009,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 12,
+     "book_id": "41000104164",
+     "title": "Ascension to the Lost Throne",
+     "blurb": "After defeating the Killer Sect, the Lord of War, Harry White, is forced to leave the War Sect with his wife due to family conflicts. Unexpectedly, the Killer Sect rejuvenates and collaborates with Harry’s brother, John White, to take him down. Even Harry’s wife betrays him and stands against him. Thanks to Mary Norris, Harry stands a chance to win this battle. ",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000104164/41000104164.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "War God",
+      "Modern"
+     ],
+     "genres": [
+      "Urban"
+     ],
+     "lead": "M-Drama",
+     "episode_count": 87,
+     "rating": 7.4,
+     "card_view_count": 12309,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 13,
+     "book_id": "41000105010",
+     "title": " Her Journey Beyond the Script",
+     "blurb": "Charlotte Chase has been whisked into a romance novel! Unfortunately, she takes the role of the antagonist whose every move and decision is rife with… well, stupidity. It is apparent that \"Charlotte Chase\" was only written to show how much better the Female Lead is. Her inescapable ending, as decided by the book, is death.Charlotte knows she has to get out of the Male Lead, Fred's, life before she is dragged into a whirlwind of power plays and conspiracies. ",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000105010/41000105010.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Strong Female Lead",
+      "Palace Intrigue"
+     ],
+     "genres": [
+      "CEO"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 80,
+     "rating": 9,
+     "card_view_count": 13542,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 14,
+     "book_id": "41000105143",
+     "title": "Hidden Hero: His Time to Shine",
+     "blurb": "As Logant’s top researcher, Nathan Kent takes part in the Kunst Program, a secret national security operation. All participants unselfishly devote themselves to the operation for the good of the country. However, when Nathan’s teacher dies from exhaustion, a top celebrity and his assistant ask Nathan to empty the ward and even humiliate him. ",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000105143/41000105143.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "A Nobody",
+      "Modern"
+     ],
+     "genres": [
+      "Urban"
+     ],
+     "lead": "M-Drama",
+     "episode_count": 81,
+     "rating": 8.1,
+     "card_view_count": 19158,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 15,
+     "book_id": "41000105195",
+     "title": "Harvest of Ambition: A CEO's Odyssey",
+     "blurb": "After five years of working hard in the city, Derek Larsen becomes the CEO of Gilmore Group and orders the acquisition of all unsold vegetables in Ashville. Unexpectedly, his actions are met with doubt and mockery from his family and acquaintances instead of appreciation. His wife, Nina Hart, arrives to meet him in her secret lover, Simon Hall’s, car and claims that the acquisition is Simon’s deed. ",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000105195/41000105195.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Modern",
+      "Revenge"
+     ],
+     "genres": [
+      "Urban"
+     ],
+     "lead": "M-Drama",
+     "episode_count": 60,
+     "rating": 9,
+     "card_view_count": 12586,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 16,
+     "book_id": "41000102609",
+     "title": "Back to the 80s",
+     "blurb": "Julie Stein wakes up from her sleep, expecting just another ordinary day. However, to her surprise, she finds herself in the 80s, a totally different era from where she belongs. Not only is she a disowned daughter of a wealthy family to whom she has no blood connection, but she is also supposed to marry an old man with two children, in place of the family’s biological daughter.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000102609/41000102609.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Strong Female Lead",
+      "Revenge"
+     ],
+     "genres": [
+      "Rebirth",
+      "Sweet Love"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 82,
+     "rating": 8.6,
+     "card_view_count": 11154,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 17,
+     "book_id": "41000100807",
+     "title": "Spoiling My Sweet Wife to Her Core",
+     "blurb": "On the day of the engagement, Anne Miller was framed in a cheating scandal. Her fiance, Shawn Smith, was furious and vowed never to marry Anne. She knew that her pretentious step-sister, Elsa Miller, was the mastermind behind it all. Shawn believed entirely in Elsa's lies. Devastated, Anne died with resentment and regret.A soul of a heroine—who shared the same name as Anne—transmigrated into Anne Miller's body and swore to avenge her.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100807/41000100807.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Strong Female Lead",
+      "Revenge"
+     ],
+     "genres": [
+      "Revenge",
+      "Sweet Love",
+      "Comeback"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 98,
+     "rating": 8.6,
+     "card_view_count": 17213,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 18,
+     "book_id": "41000103781",
+     "title": "Fated to My Cruel CEO",
+     "blurb": "Helen and Algar escaped an orphanage and embarked on separate journeys, with only their hearts connected by a promise that refuses to break. A fated reunion filled with love, secrets and echoes of their past.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000103781/41000103781.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Revenge",
+      "Hidden Identity"
+     ],
+     "genres": [
+      "Sweet Love"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 57,
+     "rating": 7.4,
+     "card_view_count": 16195,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    }
+   ]
+  },
+  {
+   "list": "must-sees",
+   "name": "Must-sees",
+   "books": [
+    {
+     "rank": 1,
+     "book_id": "41000100375",
+     "title": "Ultimate Food Deliveryman",
+     "blurb": "He was once the revered master of the Sky Medical Palace, respected by all. Obeying the orders of his master, he pretended to be a food deliveryman and married into the Lewis family for a year. In this duration, he plowed through countless side eyes and now... His one year duration is up—it is time to turn the tables around!",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100375/41000100375.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Son-in-Law",
+      "Divine Tycoon"
+     ],
+     "genres": [
+      "Urban",
+      "Twisted",
+      "Trending",
+      "Revenge"
+     ],
+     "lead": "M-Drama",
+     "episode_count": 103,
+     "rating": 7.8,
+     "card_view_count": 18062,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 2,
+     "book_id": "41000100331",
+     "title": "The Holy Joy King ",
+     "blurb": "An evil scheme brought tragedy upon all eighteen members of the Hoffman family ten years ago. Noah Hoffman had fallen off a cliff then, before being rescued by a grandmaster who taught him all that he knew. He yields the courage to enter the North army, starting from the lowest of ranks and eventually rising up to become a legendaryconqueror of the battlefield named the Holy Joy King! Ten years later, he returns to the city under a new alias Liam Holland, out for payback in w",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100331/41000100331.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "War God",
+      "Modern"
+     ],
+     "genres": [
+      "Urban",
+      "Revenge",
+      "Fantasy",
+      "Mystery"
+     ],
+     "lead": "M-Drama",
+     "episode_count": 107,
+     "rating": 7.3,
+     "card_view_count": 13350,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 3,
+     "book_id": "41000100297",
+     "title": "Xander's Golden Era",
+     "blurb": "After he was tragically murdered, Xander Lewis, a top entrepreneur, was sent back in time to the beginning of the millennium! Dusting himself off and getting back on his feet, he welcomes his very own golden era!",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100297/41000100297.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Time Travel",
+      "Rebirth"
+     ],
+     "genres": [
+      "Popular",
+      "Urban",
+      "CEO",
+      "Counterattack"
+     ],
+     "lead": "M-Drama",
+     "episode_count": 100,
+     "rating": 9.7,
+     "card_view_count": 12299,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 4,
+     "book_id": "41000100374",
+     "title": "Never Too Late for Love",
+     "blurb": "A daughter of a wealthy family was swapped out at birth. From then on, she had been on the receiving end of bullying and malicious schemes until a rich, young man came along and showered her with love.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100374/41000100374.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Revenge",
+      "Destined Love"
+     ],
+     "genres": [
+      "Destiny",
+      "Romance",
+      "Marriage"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 101,
+     "rating": 8.6,
+     "card_view_count": 10438,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 5,
+     "book_id": "41000100296",
+     "title": "The Inimitable Grand Duke",
+     "blurb": "He is the supreme Grand Duke, a powerful leader with the world at his command. With his return to the South Valley, he has taken up the mantle of bodyguard to the gorgeous company President. Watch as he conjures miraculous wealth while stomping through all the nobodies that dare stand in his way. There's a new sheriff in town — let's see who gets the last laugh!",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100296/41000100296.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "War God",
+      "Divine Tycoon"
+     ],
+     "genres": [
+      "Betrayal",
+      "Urban",
+      "Revenge"
+     ],
+     "lead": "M-Drama",
+     "episode_count": 96,
+     "rating": 8.8,
+     "card_view_count": 19566,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 6,
+     "book_id": "41000104560",
+     "title": "Years of Dedication: Her Path to Glory",
+     "blurb": "In the pressure-cooker town of Cluville, college entrance exam results are a matter of life and death—socially, that is. On announcement day, rumors swirl around Dave and Sue Cole. Sue's results are shrouded in secrecy, sparking whispers and scorn from the judgmental villagers. But what if Sue's hidden score holds a truth that could shatter expectations and send shockwaves across the nation? ",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000104560/41000104560.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Strong Female Lead",
+      "Hidden Identity"
+     ],
+     "genres": [
+      "True Love",
+      "Family"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 80,
+     "rating": 8.5,
+     "card_view_count": 13238,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 7,
+     "book_id": "41000106403",
+     "title": "The Portal of Retribution",
+     "blurb": "As the only survivor of the Greens, the richest family on Earth, who were targeted for extermination, Jonah Green's teleportation power awakens when his life is on the line due to severe injuries. Determined to uncover the truth behind the attack and avenge his family, he embarks on a journey to gather evidence for his revenge. Along the way, he meets the woman with whom he will spend the rest of his life, once his plans are complete.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000106403/41000106403.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Divine Tycoon",
+      "Modern"
+     ],
+     "genres": [
+      "Urban"
+     ],
+     "lead": "M-Drama",
+     "episode_count": 80,
+     "rating": 8.6,
+     "card_view_count": 14188,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 8,
+     "book_id": "41000105454",
+     "title": "Undercover Duo",
+     "blurb": "Former chief female agent of the \"Dark League\" syndicate, code-named Mulan, had to disappear after she reported the syndicate’s leader, Cedric Klaine, for conspiring with Moore Corp in illegal dealings. Hunted by both the syndicate and the Moore Corp, she was forced to retire and return to her hometown, where she assumed a new identity as Penelope Kirk, a delivery worker.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000105454/41000105454.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Strong Female Lead",
+      "Revenge"
+     ],
+     "genres": [
+      "CEO"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 64,
+     "rating": 8.9,
+     "card_view_count": 16163,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 9,
+     "book_id": "41000105041",
+     "title": "The Return of the Unwanted Wife",
+     "blurb": "I made a deal with the demon for the man I love to reach his peak. The price was harsh: should he never love me in return, I’d have to give up my own life. Yet, after five years of marriage, my hope that his heart might soften towards me shattered completely. Instead of the love I yearned for, I was served divorce papers, a cold reminder of my failure. The demon came to collect its due, but in the twist of fate, a soul sacrificed her own to restore mine. Now that I’m back…",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000105041/41000105041.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Love After Marriage",
+      "Forced Love"
+     ],
+     "genres": [
+      "Family",
+      "Rebirth",
+      "Comeback",
+      "CEO"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 74,
+     "rating": 8.2,
+     "card_view_count": 18128,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 10,
+     "book_id": "41000105193",
+     "title": "After Divorce: I Become Heiress",
+     "blurb": "In order to get rid of her billionaire father’s overwhelming love, Sally hid her real identity as the wealthy heiress and chose to make her own living. Her husband Felix cheats on her. In retaliation, Sally married Aiden in a flash. Unknown to her, Aiden is CEO of Taylor family. After the divorce, Sally chose to reveal her identity but was jeered by Felix and others. Aiden didn’t believe her either. But when would Sally and Aiden know their real identities? ",
+     "cover": "",
+     "author": "Webfic",
+     "tags": [
+      "Love After Marriage",
+      "Billionaire"
+     ],
+     "genres": [
+      "Revenge",
+      "CEO"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 57,
+     "rating": 7.2,
+     "card_view_count": 13138,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 11,
+     "book_id": "41000104494",
+     "title": "Love's Detour to Destiny",
+     "blurb": "Mia Cole has been married to Joe Holt for three years when she catches him in bed with Sue Cole on the day of their third wedding anniversary. After seeking a divorce, Mia reclaims her title as the founder of MY Corp and overcomes Sue, resolving the misunderstandings between herself and Joe. Having gone through thick and thin together, they finally end up as a happy couple.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000104494/41000104494.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Second Chance",
+      "Love After Marriage"
+     ],
+     "genres": [
+      "Sweet Love",
+      "CEO"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 85,
+     "rating": 8.9,
+     "card_view_count": 15305,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 12,
+     "book_id": "41000104125",
+     "title": "Trails of Hope: His Journey Back Home（DUBBED）",
+     "blurb": "Theo Levy lost contact with his parents 20 years ago due to a car accident. Fortunately, he was adopted by the chairman of Boyd Group, who raised him into the man he is today. Now that he has finally returned to his hometown, he swears to find his biological parents with the pendant he has.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000104125/41000104125.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Divine Tycoon",
+      "Family Bonds"
+     ],
+     "genres": [
+      "Urban"
+     ],
+     "lead": "M-Drama",
+     "episode_count": 88,
+     "rating": 9,
+     "card_view_count": 10581,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 13,
+     "book_id": "41000104224",
+     "title": "Masked Magnate: The Dominant Son-in-Law",
+     "blurb": "After being reunited with his biological father, Chris Bell assumes the CEO position at the Olgow branch of Apex Group. However, at his father-in-law's birthday party, he faces rejection from the family table, labeled as a useless live-in son-in-law. His challenges escalate as his wife faces disdain alongside him, a suitor tries to take her away, developers attempt to forcibly demolish their home, and his daughter falls victim to a brutal attack by a wealthy man.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000104224/41000104224.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Son-in-Law",
+      "Modern"
+     ],
+     "genres": [
+      "Urban"
+     ],
+     "lead": "M-Drama",
+     "episode_count": 120,
+     "rating": 9.2,
+     "card_view_count": 19312,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 14,
+     "book_id": "41000105242",
+     "title": "Wait, My Secretary Is My Wife?!",
+     "blurb": "Thanks to Sam Good’s grandmother, Sam Good and Sue Judd get married despite knowing very little about each other. After their wedding, they part ways and only reunite a year later at Sam's election event for secretary, where Sue becomes his personal secretary. Remarkably, neither of them recognizes the other. Despite several attempts by Lana Bale and Sam’s mother to sabotage their relationship, Sam and Sue gradually fall for each other. ",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000105242/41000105242.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Love After Marriage",
+      "Family Intrigue"
+     ],
+     "genres": [
+      "Sweet Love",
+      "CEO"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 102,
+     "rating": 7.5,
+     "card_view_count": 12638,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 15,
+     "book_id": "41000105213",
+     "title": "Treasure Seeker: The Eyes That See All",
+     "blurb": "After breaking up with his fiancée, Rue Leed, Finn Cole gains remarkable skills as an appraiser following an accident involving a vase. Using his newfound talent, he helps Mia Shaw, the boss of Treasure Trove, amass a fortune. Leveraging his abilities, Finn forms valuable connections by assisting notable figures like antique tycoon Ken Cork, Queen of the Underworld Phoebe Lowe, Leo Good, and Travis Gold. He then outmaneuvers Rue, Tom Judd, and Zach Walker in their schemes. ",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000105213/41000105213.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Divine Tycoon",
+      "Modern"
+     ],
+     "genres": [
+      "Super Power"
+     ],
+     "lead": "M-Drama",
+     "episode_count": 92,
+     "rating": 8.5,
+     "card_view_count": 17858,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 16,
+     "book_id": "41000102609",
+     "title": "Back to the 80s",
+     "blurb": "Julie Stein wakes up from her sleep, expecting just another ordinary day. However, to her surprise, she finds herself in the 80s, a totally different era from where she belongs. Not only is she a disowned daughter of a wealthy family to whom she has no blood connection, but she is also supposed to marry an old man with two children, in place of the family’s biological daughter.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000102609/41000102609.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Strong Female Lead",
+      "Revenge"
+     ],
+     "genres": [
+      "Rebirth",
+      "Sweet Love"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 82,
+     "rating": 8.6,
+     "card_view_count": 11154,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 17,
+     "book_id": "41000101912",
+     "title": "Shadowed Thrones",
+     "blurb": "Felix Young, known as the Supreme, discreetly supports his wife, Madison Xavier, in her ascent to a higher position. However, the day she is appointed as the War God, Madison files for divorce. Disheartened, Felix is determined to reclaim everything he once granted her.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000101912/41000101912.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "War God",
+      "Divine Tycoon"
+     ],
+     "genres": [
+      "Urban",
+      "Divine Tycoon"
+     ],
+     "lead": "M-Drama",
+     "episode_count": 142,
+     "rating": 7.2,
+     "card_view_count": 13623,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 18,
+     "book_id": "41000104481",
+     "title": "The Heiress and Her Three Princes",
+     "blurb": "Just as Ria hits her rock bottom in life with her boyfriend cheating and her step-sister bullying, three handsome billionaires come to her save. They offer her a multi-billion inheritance! But, under one condition…… She has to marry one of the three brothers to be the heiress. Who is she going to choose? And who would be YOUR pick?",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000104481/41000104481.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Love After Marriage",
+      "Billionaire"
+     ],
+     "genres": [
+      "Romance",
+      "Cinderella",
+      "Comedy"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 51,
+     "rating": 9.1,
+     "card_view_count": 18095,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    }
+   ]
+  },
+  {
+   "list": "hidden-gems",
+   "name": "Hidden Gems",
+   "books": [
+    {
+     "rank": 1,
+     "book_id": "41000101854",
+     "title": "Flash Marriage with My Werewolf Husband",
+     "blurb": "To escape her abusive stepfather, Lisa takes the offer from a law firm in New York, where she unexpectedly flash-marries her boss. As she juggles work, she wants to bring the werewolf who once attacked her to justice, her boss becomes more and more suspicious… Caught between his mounting suspicion and her undeniable attraction to him, Lisa struggles with her next move.",
+     "cover": "",
+     "author": "Webfic",
+     "tags": [
+      "Love After Marriage",
+      "Forced Love"
+     ],
+     "genres": [
+      "Romance",
+      "Werewolf",
+      "Wealthy",
+      "Sweet Love"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 74,
+     "rating": 8.3,
+     "card_view_count": 12707,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 2,
+     "book_id": "41000100424",
+     "title": "Jude's Sweet Pursuit",
+     "blurb": "Chelsea Swanson and Jude Lewis have been married for three years, but not many knew about it. \r\nDuring the day, she was his employee, satisfying his every whim. At night, she was the President's wife, lying in a custom-made sofa designed by Jude in his mansion, and playing with his dog.\r\nHowever, only he could lord her around. If anyone were to humiliate or bully her, he would stand up for her and crush them to pieces...",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100424/41000100424.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Love After Marriage",
+      "Billionaire"
+     ],
+     "genres": [
+      "Romance",
+      "Sweet Love"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 88,
+     "rating": 9.9,
+     "card_view_count": 13505,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 3,
+     "book_id": "41000100423",
+     "title": "From Substitute Bride to Beloved Wife",
+     "blurb": "Mabel was originally the daughter of the wealthy Grant family. However, her happy family was torn apart when she was eight. Since then, her days were hard and challenging. ",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100423/41000100423.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Family Bonds",
+      "Strong Female Lead"
+     ],
+     "genres": [
+      "Romance",
+      "Sweet Love",
+      "Marriage",
+      "Contract Marriage"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 100,
+     "rating": 9.9,
+     "card_view_count": 19136,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 4,
+     "book_id": "41000100377",
+     "title": "Kim Is Mission Impossible",
+     "blurb": "Kimberly and Darren, never having met even once, had been married for three years. Few people knew of their marriage. One night, she accidentally entered the wrong room and had a wild night with a man she thought was a stranger. The next day, she left behind ten dollars for the man and ran away, not knowing that he was actually her husband. Upon returning to her work, Kimberly was surprised that the new CEO was the man from her wild night...",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100377/41000100377.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Love After Marriage",
+      "Billionaire"
+     ],
+     "genres": [
+      "Romance",
+      "Marriage"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 100,
+     "rating": 9.9,
+     "card_view_count": 17757,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 5,
+     "book_id": "41000100376",
+     "title": "Henry's Imprisoned Wife",
+     "blurb": "Henry Saber's wife finds herself imprisoned—literally—and tortured by his own hands, leading her to give up on their relationship and leave him. However, Henry refuses to let her go, declaring that if she chose to stay by his side, she will stay with him for the rest of her life...",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100376/41000100376.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Billionaire",
+      "Forced Love"
+     ],
+     "genres": [
+      "Destiny",
+      "Romance",
+      "Twisted",
+      "Marriage"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 98,
+     "rating": 9.9,
+     "card_view_count": 10328,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 6,
+     "book_id": "41000100403",
+     "title": "Hooked On You",
+     "blurb": "Nathan Young, the wealthiest man in Delphville, lost his fiancée in a car crash. The perpetrator, Emily Cohen, who was once a famous lawyer, was sentenced to three years in prison. When she got out, she became a street sweeper in destitution and got mixed up with Nathan by accident. She knelt on the floor begging him, \"Nathan, have mercy.\" Nathan merely snickered, \"Emily, I'm never going to let you go.\" They say that Nathan is cold-hearted, but he doted on Emily. By a twi",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100403/41000100403.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Forced Love",
+      "Revenge"
+     ],
+     "genres": [
+      "Destiny",
+      "Romance",
+      "Marriage"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 55,
+     "rating": 10,
+     "card_view_count": 10333,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 7,
+     "book_id": "41000103356",
+     "title": "One Fateful Night with My Boss",
+     "blurb": "After having a one-night stand with an old geezer for money, Anita said goodbye to this cold city and went abroad. Six years later, she comes back with her son and bumps into the legendary CEO, Tristan, who later turns out to be her new boss. Before she knows it, her son starts calling this handsome new boss: “dad”. Could this be fate?",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000103356/41000103356.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Single Mom",
+      "Love After Marriage"
+     ],
+     "genres": [
+      "Romance",
+      "Family",
+      "Wealthy"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 56,
+     "rating": 7.8,
+     "card_view_count": 19172,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 8,
+     "book_id": "41000102472",
+     "title": "Fortunes Unveiled: My Husband Is a Big Shot",
+     "blurb": "On the first day of Chinese New Year, Jay Wade pays a visit to his wife's family, only to be ill-treated with contempt. Little do they know that Jay is, in fact, the chairman of Win Corp, one of the top ten companies in the world.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000102472/41000102472.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Modern",
+      "Family Intrigue"
+     ],
+     "genres": [
+      "Urban",
+      "Divine Tycoon"
+     ],
+     "lead": "M-Drama",
+     "episode_count": 89,
+     "rating": 8.3,
+     "card_view_count": 14401,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 9,
+     "book_id": "41000102849",
+     "title": "The Unrivaled Overlord",
+     "blurb": "Theo Larsen, alias the Overlord, commands a Wolf Army of a million strong. Shrouding his identity, he ties the knot with Sarah Welsh, the daughter of the prosperous Welsh family, securing the future of Glory Group before ascending to the pinnacle of his life.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000102849/41000102849.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "War God",
+      "Modern"
+     ],
+     "genres": [
+      "Urban"
+     ],
+     "lead": "M-Drama",
+     "episode_count": 93,
+     "rating": 7.4,
+     "card_view_count": 12866,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 10,
+     "book_id": "41000102839",
+     "title": "A Breath Away From Forever",
+     "blurb": "Five years ago, Callista Summers rescued Jeremiah Fuller when he was drugged. She then pursued her career abroad, driven by her initial self-doubt as a housekeeper. Over time, Callista became a renowned designer and a devoted mother to her son, Scotty Fuller. When she learns of Jeremiah’s kidney failure, she selflessly returns to donate her kidney, saving him once more. However, misunderstandings breed animosity between them.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000102839/41000102839.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Second Chance",
+      "Single Mom"
+     ],
+     "genres": [
+      "Counterattack",
+      "Bitter Love"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 104,
+     "rating": 7.7,
+     "card_view_count": 10040,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 11,
+     "book_id": "41000102810",
+     "title": "Return of the Dominant Queen",
+     "blurb": "Layla Moore, formerly the second-in-command at Seradel Palace, moved to Redville with her daughter, Clara Moore. Six months ago, Clara married Harry Chase, who has subjected her to abuse and violence. Not only is Harry a poor husband, but he also conspires with a bandit named Michael Kane for personal gain. As word of their schemes spreads, Layla returns to Seradel, reclaiming her throne as queen to save her daughter and thwart Michael's conspiracy once and for all.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000102810/41000102810.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Strong Female Lead",
+      "Single Mom"
+     ],
+     "genres": [
+      "Avenge"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 65,
+     "rating": 7.8,
+     "card_view_count": 10490,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 12,
+     "book_id": "41000102743",
+     "title": "Supremacy Unbound: Ascending Above All",
+     "blurb": "Once a great and powerful Lord of Valor, Maxwell Kane now finds himself grappling with the loss of his memory, leading a hard life toiling away on construction sites. Despite his hardships, he perseveres and tries his best to cope with life, but all sorts of injustices set him back like tides of cruelty.However, fate takes an unexpected turn when he encounters a gorgeous woman named Samantha Claude. ",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000102743/41000102743.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Tough Guy",
+      "War God"
+     ],
+     "genres": [
+      "Urban"
+     ],
+     "lead": "M-Drama",
+     "episode_count": 102,
+     "rating": 9.3,
+     "card_view_count": 15028,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 13,
+     "book_id": "41000103437",
+     "title": "CEO’s Substitute Wife",
+     "blurb": "Framed and abandoned, Alice, the adopted daughter of the influential Dunn family, faced a relentless betrayal. Ariel, her long-lost twin, who walks in as Alice to seek vengeance. With the enigmatic Vincent by her side, Ariel navigates a treacherous path of deceit and danger. As their quest for retribution unfolds, dark secrets emerge, blurring the line between ally and enemy.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000103437/41000103437.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Strong Female Lead",
+      "Revenge"
+     ],
+     "genres": [
+      "Revenge"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 60,
+     "rating": 9.3,
+     "card_view_count": 15534,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 14,
+     "book_id": "41000103670",
+     "title": "Trails of Hope: His Journey Back Home",
+     "blurb": "Theo Levy lost contact with his parents 20 years ago due to a car accident. Fortunately, he was adopted by the chairman of Boyd Group, who raised him into the man he is today. Now that he has finally returned to his hometown, he swears to find his biological parents with the pendant he has.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000103670/41000103670.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Family Bonds",
+      "Modern"
+     ],
+     "genres": [
+      "Urban"
+     ],
+     "lead": "M-Drama",
+     "episode_count": 88,
+     "rating": 7.9,
+     "card_view_count": 17678,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 15,
+     "book_id": "41000102609",
+     "title": "Back to the 80s",
+     "blurb": "Julie Stein wakes up from her sleep, expecting just another ordinary day. However, to her surprise, she finds herself in the 80s, a totally different era from where she belongs. Not only is she a disowned daughter of a wealthy family to whom she has no blood connection, but she is also supposed to marry an old man with two children, in place of the family’s biological daughter.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000102609/41000102609.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Strong Female Lead",
+      "Revenge"
+     ],
+     "genres": [
+      "Rebirth",
+      "Sweet Love"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 82,
+     "rating": 8.6,
+     "card_view_count": 11154,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 16,
+     "book_id": "41000104494",
+     "title": "Love's Detour to Destiny",
+     "blurb": "Mia Cole has been married to Joe Holt for three years when she catches him in bed with Sue Cole on the day of their third wedding anniversary. After seeking a divorce, Mia reclaims her title as the founder of MY Corp and overcomes Sue, resolving the misunderstandings between herself and Joe. Having gone through thick and thin together, they finally end up as a happy couple.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000104494/41000104494.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Second Chance",
+      "Love After Marriage"
+     ],
+     "genres": [
+      "Sweet Love",
+      "CEO"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 85,
+     "rating": 8.9,
+     "card_view_count": 15305,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 17,
+     "book_id": "41000100669",
+     "title": "Revenge Marriage Sweet Love",
+     "blurb": "Cate's sister Rebecca had not only stolen her boyfriend Ethan, but had also stripped her of her inheritance. Fueled by desire for revenge, a drunken Cate impulsively decided to seduce Ethan's handsome uncle, Shaun, who later was ignited by Cate and fell madly in love despite his cold demeanor. However, when they both realized Shaun was mistaken as Ethan's uncle, Shaun realized that she initially approached him only for revenge against Ethan, putting their love to the test. ",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100669/41000100669.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Love After Marriage",
+      "Billionaire"
+     ],
+     "genres": [
+      "True Love",
+      "Marriage Before Love",
+      "Sweet Love"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 48,
+     "rating": 8.4,
+     "card_view_count": 19169,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    },
+    {
+     "rank": 18,
+     "book_id": "41000102880",
+     "title": "The Deal with Love",
+     "blurb": "Katherine, a single girl with no intimate relationship, gets knocked up to her own surprise, like Virgin Marry. Right upon she gets informed of the pregnancy, her CEO Felix's fiancée jumps out claiming that the mysterious father of the baby is Katherine’s boss, Felix Morgan. However, Mr. Morgan seems to have no clue nor interest in this unexpected baby…",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000102880/41000102880.jpg@w=240&h=400",
+     "author": "Webfic",
+     "tags": [
+      "Billionaire",
+      "Forced Love"
+     ],
+     "genres": [
+      "Romance",
+      "Contract Marriage"
+     ],
+     "lead": "F-Drama",
+     "episode_count": 51,
+     "rating": 8.2,
+     "card_view_count": 13440,
+     "follow_count": null,
+     "shelf_time": null,
+     "status": "Completed",
+     "free": null,
+     "language": null
+    }
+   ]
+  },
+  {
+   "list": "newest",
+   "name": "New on DramaBox",
+   "books": [
+    {
+     "rank": 1,
+     "book_id": "42000026722",
+     "title": "Wipe Out My Pack? A Dumb Pup Turned the Tables!",
+     "blurb": "Mia Blackridge, the youngest daughter of Blackridge Pack's Alpha, is widely seen as a useless dumb pup who can't even shift into wolf form. Secretly, she is the reborn soul of a former Pack Alpha who ruled for 70 years. When the scheming Beta Grady forges a royal Crown Order to execute her father and wipe out the whole pack, Mia steps forward, exposes the fake seal, outplays the enemy forces with her lifelong wisdom, and saves her entire pack from ruin.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x2/42x0/420x0/42000026722/42000026722.jpg@w=240&h=400",
+     "author": null,
+     "tags": [
+      "Werewolf",
+      "Hidden Identity"
+     ],
+     "genres": [
+      "Werewolf"
+     ],
+     "lead": null,
+     "episode_count": 30,
+     "rating": 9.4,
+     "card_view_count": null,
+     "follow_count": 119,
+     "shelf_time": "2026-09-07 10:45:24",
+     "status": "Completed",
+     "free": 1,
+     "language": "ENGLISH"
+    },
+    {
+     "rank": 2,
+     "book_id": "42000026314",
+     "title": "Her Forbidden Alphas",
+     "blurb": "Her fiancé chose another woman. His best friend chose her. Celine used Cassian to get back at Damian—but Cassian knew and stayed anyway. Seven years of lies, stolen kisses, and two Alphas fighting for her. But when the Moon Court forced her to pick one, Celine refused. She chose herself first. Then she chose Cassian—on her own terms. No more playing victim. She's done being the prize. Now she writes her own rules.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x2/42x0/420x0/42000026314/42000026314.jpg@w=240&h=400",
+     "author": null,
+     "tags": [
+      "Strong Female Lead",
+      "Revenge"
+     ],
+     "genres": [
+      "Romance",
+      "Strong Female Lead"
+     ],
+     "lead": null,
+     "episode_count": 39,
+     "rating": 8.8,
+     "card_view_count": null,
+     "follow_count": 323,
+     "shelf_time": "2026-09-07 10:00:03",
+     "status": "Completed",
+     "free": 1,
+     "language": "ENGLISH"
+    },
+    {
+     "rank": 3,
+     "book_id": "42000026222",
+     "title": "No Looking Back: I Remarried Your Rival Brother",
+     "blurb": "After her fiancé Adrian betrays her with her stepsister, mermaid noblewoman Selena is framed, imprisoned, and cast out. She escapes and marries his powerful uncle, Marcus. With his support, she rebuilds her fortune, exposes the royal family’s lies, and rises from discarded bride to Queen of the Seven Seas—leaving Adrian to regret losing her.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x2/42x0/420x0/42000026222/42000026222.jpg@w=240&h=400",
+     "author": null,
+     "tags": [
+      "Strong Female Lead",
+      "Love After Marriage"
+     ],
+     "genres": [
+      "Counterattack"
+     ],
+     "lead": null,
+     "episode_count": 40,
+     "rating": 9,
+     "card_view_count": null,
+     "follow_count": 208,
+     "shelf_time": "2026-09-07 10:00:03",
+     "status": "Completed",
+     "free": 1,
+     "language": "ENGLISH"
+    },
+    {
+     "rank": 4,
+     "book_id": "42000026678",
+     "title": "Claimed by The Galaxy King",
+     "blurb": "After catching her husband cheating, Nora thinks her life can't get worse — until she’s abducted by aliens and claimed by Kairos, their dangerously irresistible King. Desperate to return to her son, she vows to escape. But when hatred turns into forbidden desire, will she still want to leave?",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x2/42x0/420x0/42000026678/42000026678.jpg@w=240&h=400",
+     "author": null,
+     "tags": [
+      "Forbidden Love",
+      "Hidden Identity"
+     ],
+     "genres": [
+      "Romance",
+      "Enemies to Lovers"
+     ],
+     "lead": null,
+     "episode_count": 39,
+     "rating": 8.8,
+     "card_view_count": null,
+     "follow_count": 282,
+     "shelf_time": "2026-09-07 10:00:03",
+     "status": "Completed",
+     "free": 1,
+     "language": "ENGLISH"
+    },
+    {
+     "rank": 5,
+     "book_id": "42000026254",
+     "title": "Yes Or No ：The Binary King",
+     "blurb": "Betrayed by his girlfriend and framed for theft, broke burger worker Leo awakens a mysterious Yes-or-No System that predicts every outcome. Guided by impossible odds, he rises from poverty to power, joins mafia heiress Olivia, uncovers his true identity, and battles the enemies determined to destroy his family and love.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x2/42x0/420x0/42000026254/42000026254.jpg@w=240&h=400",
+     "author": null,
+     "tags": [
+      "Gamified World",
+      "A Nobody"
+     ],
+     "genres": [
+      "Mafia"
+     ],
+     "lead": null,
+     "episode_count": 50,
+     "rating": 9.2,
+     "card_view_count": null,
+     "follow_count": 221,
+     "shelf_time": "2026-09-07 10:00:03",
+     "status": "Completed",
+     "free": 1,
+     "language": "ENGLISH"
+    },
+    {
+     "rank": 6,
+     "book_id": "42000026679",
+     "title": "The Dragon King's Pregnant Runaway",
+     "blurb": "Cursed to die without an heir, dragon king Draven searches a thousand years for his fated mate—Chloe, the only mortal who survives his fire. He claims her as his bride, but on their wedding day, a siren's trick makes her stab him through the heart. Pregnant and shattered, she escapes to raise their horned daughter Iris alone in hiding. When Draven rises from the volcano, he finds his child—and realizes the curse was never about an heir. It was about her. Love breaks it all.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x2/42x0/420x0/42000026679/42000026679.jpg@w=240&h=400",
+     "author": null,
+     "tags": [
+      "Family Bonds",
+      "Revenge"
+     ],
+     "genres": [
+      "Fantasy",
+      "Enemies to Lovers"
+     ],
+     "lead": null,
+     "episode_count": 51,
+     "rating": 8.9,
+     "card_view_count": null,
+     "follow_count": 636,
+     "shelf_time": "2026-09-07 10:00:03",
+     "status": "Completed",
+     "free": 1,
+     "language": "ENGLISH"
+    },
+    {
+     "rank": 7,
+     "book_id": "42000026720",
+     "title": "Jailbreak Cat Heiress Outclawed",
+     "blurb": "Wrongly convicted heiress Piper La'Paw breaks out of Scratchgate Penitentiary after learning her father has been kidnapped. Hunted across Purr Haven, she joins forces with her loyal childhood friend Huntley and an unlikely crew of feline criminals. To save her father and reclaim her name, Piper must expose a deadly conspiracy involving her scheming stepmother and the former fiancé who betrayed her.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x2/42x0/420x0/42000026720/42000026720.jpg@w=240&h=400",
+     "author": null,
+     "tags": [
+      "Strong Female Lead",
+      "Revenge"
+     ],
+     "genres": [
+      "Revenge",
+      "Counterattack",
+      "Strong Female Lead",
+      "Comeback"
+     ],
+     "lead": null,
+     "episode_count": 30,
+     "rating": 7.1,
+     "card_view_count": null,
+     "follow_count": 74,
+     "shelf_time": "2026-09-07 10:00:03",
+     "status": "Completed",
+     "free": 1,
+     "language": "ENGLISH"
+    },
+    {
+     "rank": 8,
+     "book_id": "42000026335",
+     "title": "Cross The Line with Me, Zaddy",
+     "blurb": "Determined to win the heart of her father's best friend, Gabrielle boldly sets out to seduce the one man who's sworn to resist her.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x2/42x0/420x0/42000026335/42000026335.jpg@w=240&h=400",
+     "author": null,
+     "tags": [
+      "Forbidden Love",
+      "Modern"
+     ],
+     "genres": [
+      "Romance",
+      "Forbidden Love"
+     ],
+     "lead": null,
+     "episode_count": 69,
+     "rating": 9.1,
+     "card_view_count": null,
+     "follow_count": 1048,
+     "shelf_time": "2026-09-07 10:00:02",
+     "status": "Completed",
+     "free": 1,
+     "language": "ENGLISH"
+    },
+    {
+     "rank": 9,
+     "book_id": "42000026621",
+     "title": "Your Dumped Housewife Is Your Boss",
+     "blurb": "Linda gave up her billionaire legacy for her husband Nick. A ransom call shatters her perfect life: Nick and their daughter have been kidnapped. Rushing to pay the ransom, she's forced to trade her freedom for Nick's mistress Claire, a housewife endures three years of torture in a drug lab. \r\nWhen Linda finally escapes and returns as the billionaire heiress of the Hastings Group, she's ready to make everyone who betrayed her kneel at her feet.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x2/42x0/420x0/42000026621/42000026621.jpg@w=240&h=400",
+     "author": null,
+     "tags": [
+      "Comeback Story",
+      "Strong Female Lead"
+     ],
+     "genres": [
+      "Billionaire",
+      "Revenge",
+      "Concealed Identity",
+      "Comeback",
+      "CEO"
+     ],
+     "lead": null,
+     "episode_count": 51,
+     "rating": 7.8,
+     "card_view_count": null,
+     "follow_count": 252,
+     "shelf_time": "2026-09-07 10:00:02",
+     "status": "Completed",
+     "free": 1,
+     "language": "ENGLISH"
+    },
+    {
+     "rank": 10,
+     "book_id": "42000026794",
+     "title": "The Rejected Daughter Is a Magic Prodigy",
+     "blurb": "Elise Blackwood, born into a pure-blood family that forbids girls from learning magic, is despised by her father Cygnus, who favors her brother Orion. Her mother helps her escape, then is imprisoned and tortured. Determined to save her mother, Elise masters magic, defeats the family's enemies and Voldemort, and rises as the most revered mage in the Magic Academy.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x2/42x0/420x0/42000026794/42000026794.jpg@w=240&h=400",
+     "author": null,
+     "tags": [
+      "Strong Female Lead",
+      "Revenge"
+     ],
+     "genres": [
+      "Family",
+      "Fantasy",
+      "Strong Female Lead"
+     ],
+     "lead": null,
+     "episode_count": 49,
+     "rating": 9.2,
+     "card_view_count": null,
+     "follow_count": 193,
+     "shelf_time": "2026-09-07 10:00:02",
+     "status": "Completed",
+     "free": 1,
+     "language": "ENGLISH"
+    },
+    {
+     "rank": 11,
+     "book_id": "42000026712",
+     "title": "Bound by the Demon Lord: Obsession 100%",
+     "blurb": "Otome gamer Chloe Quinn is mistakenly trapped in a deadly demon realm as an assassin. To survive, she must romance Damian Vance, a ruthless Demon Lord whose hatred turns into obsession. But when she learns he is a real man imprisoned in the game, love becomes their only way home",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x2/42x0/420x0/42000026712/42000026712.jpg@w=240&h=400",
+     "author": null,
+     "tags": [
+      "Forced Love",
+      "Transmigration"
+     ],
+     "genres": [
+      "Romance",
+      "Sweet Love"
+     ],
+     "lead": null,
+     "episode_count": 50,
+     "rating": 7.2,
+     "card_view_count": null,
+     "follow_count": 192,
+     "shelf_time": "2026-09-07 10:00:02",
+     "status": "Completed",
+     "free": 1,
+     "language": "ENGLISH"
+    },
+    {
+     "rank": 12,
+     "book_id": "42000026660",
+     "title": "The Fox Queen’s Hybrid Princess",
+     "blurb": "Queen Celeste of the Fox Clan is rescued by wandering werewolf warrior Ronan after a border ambush. They fall for each other in a snow‑bound cave. She secretly gives birth to Aurora, a hybrid daughter wielding both fox and wolf powers, hiding her for five years. When political rivals stage a coup, Aurora awakens immense power. Celeste reveals her daughter’s identity, forms a sacred bond with Ronan, crushes rebellion and unites the two clans against outside threats.",
+     "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x2/42x0/420x0/42000026660/42000026660.jpg@w=240&h=400",
+     "author": null,
+     "tags": [
+      "Family Bonds",
+      "Werewolf"
+     ],
+     "genres": [
+      "Romance"
+     ],
+     "lead": null,
+     "episode_count": 30,
+     "rating": 8.6,
+     "card_view_count": null,
+     "follow_count": 253,
+     "shelf_time": "2026-09-07 10:00:02",
+     "status": "Completed",
+     "free": 1,
+     "language": "ENGLISH"
+    }
+   ]
+  }
+ ],
+ "details": [
+  {
+   "book_id": "41000119953",
+   "title": "Queen Mom Rules",
+   "blurb": "At her parents' anniversary party, a successful CEO is dismissed as a low-class nobody, her diamond gift is called fake, and she's even banned from the table!",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000119953/41000119953.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Family Bonds",
+    "Strong Female Lead"
+   ],
+   "genres": [
+    "Family",
+    "Strong Female Lead",
+    "CEO"
+   ],
+   "lead": null,
+   "episode_count": 63,
+   "rating": null,
+   "card_view_count": 51732413,
+   "follow_count": 1302325,
+   "shelf_time": "2025-08-17 15:00:00",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 51732413,
+   "chapters_listed": 63,
+   "avg_episode_s": 85,
+   "paid_start": 17,
+   "languages": [
+    "de",
+    "ar",
+    "th",
+    "pt",
+    "in",
+    "ja",
+    "en",
+    "fr",
+    "es"
+   ]
+  },
+  {
+   "book_id": "41000104043",
+   "title": "The Dominant Heir's Triumphant Return",
+   "blurb": "Sean York is born into a respected family. For the past three years, he has been in a relationship with Mia Leed. But he gets injured in a car accident and falls into a coma. For his sake, Mia works multiple jobs to pay for his medical bills. Mia's relatives often mock and tease her. They introduce Mia to the son of a wealthy family. However, as Mia resists, Sean wakes up. To return her favor, Sean reclaims his title with his parents and confronts those who have wronged Mia.",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000104043/41000104043.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Modern",
+    "The Chosen One"
+   ],
+   "genres": [
+    "Urban",
+    "Hatred"
+   ],
+   "lead": null,
+   "episode_count": 76,
+   "rating": null,
+   "card_view_count": 81979665,
+   "follow_count": 2206665,
+   "shelf_time": "2024-06-21 14:13:25",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 81979665,
+   "chapters_listed": 76,
+   "avg_episode_s": 93,
+   "paid_start": 14,
+   "languages": [
+    "de",
+    "ko",
+    "pt",
+    "in",
+    "en",
+    "it",
+    "fr",
+    "es",
+    "zh",
+    "ar",
+    "vi",
+    "th",
+    "ja",
+    "pl",
+    "tr"
+   ]
+  },
+  {
+   "book_id": "41000109644",
+   "title": "Christmas Homecoming of My Trillionaire Husband",
+   "blurb": "Philip, the chairman of the Wharton Group and investor in the Ravenham Auto Plant, returns to his wife, Caroline's family to celebrate Christmas. However, unaware of his true identity, her family mocks and mistreats him and even tries to convince Caroline to divorce him, causing her to doubt Riley, until his true identity is revealed, shaming everyone who doubted him. Riley and Caroline reconcile and enjoy their Christmas together.",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000109644/41000109644.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Divine Tycoon",
+    "Modern"
+   ],
+   "genres": [
+    "Urban"
+   ],
+   "lead": null,
+   "episode_count": 59,
+   "rating": null,
+   "card_view_count": 15846791,
+   "follow_count": 334719,
+   "shelf_time": "2024-12-24 15:51:04",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 15846791,
+   "chapters_listed": 59,
+   "avg_episode_s": 94,
+   "paid_start": 16,
+   "languages": [
+    "de",
+    "pt",
+    "in",
+    "en",
+    "fr",
+    "es"
+   ]
+  },
+  {
+   "book_id": "41000100375",
+   "title": "Ultimate Food Deliveryman",
+   "blurb": "He was once the revered master of the Sky Medical Palace, respected by all. Obeying the orders of his master, he pretended to be a food deliveryman and married into the Lewis family for a year. In this duration, he plowed through countless side eyes and now... His one year duration is up—it is time to turn the tables around!",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100375/41000100375.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Son-in-Law",
+    "Divine Tycoon"
+   ],
+   "genres": [
+    "Urban",
+    "Twisted",
+    "Trending",
+    "Revenge"
+   ],
+   "lead": null,
+   "episode_count": 103,
+   "rating": null,
+   "card_view_count": 8129447,
+   "follow_count": 83351,
+   "shelf_time": "2023-05-19 18:14:08",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 8129447,
+   "chapters_listed": 103,
+   "avg_episode_s": 68,
+   "paid_start": 13,
+   "languages": [
+    "zhHans",
+    "en",
+    "zh"
+   ]
+  },
+  {
+   "book_id": "41000100331",
+   "title": "The Holy Joy King ",
+   "blurb": "An evil scheme brought tragedy upon all eighteen members of the Hoffman family ten years ago. Noah Hoffman had fallen off a cliff then, before being rescued by a grandmaster who taught him all that he knew. He yields the courage to enter the North army, starting from the lowest of ranks and eventually rising up to become a legendaryconqueror of the battlefield named the Holy Joy King! Ten years later, he returns to the city under a new alias Liam Holland, out for payback in w",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100331/41000100331.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "War God",
+    "Modern"
+   ],
+   "genres": [
+    "Urban",
+    "Revenge",
+    "Fantasy",
+    "Mystery"
+   ],
+   "lead": null,
+   "episode_count": 107,
+   "rating": null,
+   "card_view_count": 7575722,
+   "follow_count": 79773,
+   "shelf_time": "2023-05-04 11:02:36",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 7575722,
+   "chapters_listed": 107,
+   "avg_episode_s": 67,
+   "paid_start": 10,
+   "languages": [
+    "zhHans",
+    "en",
+    "zh"
+   ]
+  },
+  {
+   "book_id": "41000100297",
+   "title": "Xander's Golden Era",
+   "blurb": "After he was tragically murdered, Xander Lewis, a top entrepreneur, was sent back in time to the beginning of the millennium! Dusting himself off and getting back on his feet, he welcomes his very own golden era!",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100297/41000100297.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Time Travel",
+    "Rebirth"
+   ],
+   "genres": [
+    "Popular",
+    "Urban",
+    "CEO",
+    "Counterattack"
+   ],
+   "lead": null,
+   "episode_count": 100,
+   "rating": null,
+   "card_view_count": 5256689,
+   "follow_count": 52001,
+   "shelf_time": "2024-01-09 17:00:56",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 5256689,
+   "chapters_listed": 100,
+   "avg_episode_s": 74,
+   "paid_start": 8,
+   "languages": [
+    "zhHans",
+    "en",
+    "zh"
+   ]
+  },
+  {
+   "book_id": "41000100374",
+   "title": "Never Too Late for Love",
+   "blurb": "A daughter of a wealthy family was swapped out at birth. From then on, she had been on the receiving end of bullying and malicious schemes until a rich, young man came along and showered her with love.",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100374/41000100374.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Revenge",
+    "Destined Love"
+   ],
+   "genres": [
+    "Destiny",
+    "Romance",
+    "Marriage"
+   ],
+   "lead": null,
+   "episode_count": 101,
+   "rating": null,
+   "card_view_count": 5255666,
+   "follow_count": 165434,
+   "shelf_time": "2023-05-18 14:59:41",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 5255666,
+   "chapters_listed": 101,
+   "avg_episode_s": 85,
+   "paid_start": 10,
+   "languages": [
+    "en",
+    "zh"
+   ]
+  },
+  {
+   "book_id": "41000100296",
+   "title": "The Inimitable Grand Duke",
+   "blurb": "He is the supreme Grand Duke, a powerful leader with the world at his command. With his return to the South Valley, he has taken up the mantle of bodyguard to the gorgeous company President. Watch as he conjures miraculous wealth while stomping through all the nobodies that dare stand in his way. There's a new sheriff in town — let's see who gets the last laugh!",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100296/41000100296.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "War God",
+    "Divine Tycoon"
+   ],
+   "genres": [
+    "Betrayal",
+    "Urban",
+    "Revenge"
+   ],
+   "lead": null,
+   "episode_count": 96,
+   "rating": null,
+   "card_view_count": 5882242,
+   "follow_count": 138383,
+   "shelf_time": "2024-01-09 13:56:42",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 5882242,
+   "chapters_listed": 96,
+   "avg_episode_s": 74,
+   "paid_start": 10,
+   "languages": [
+    "ko",
+    "zhHans",
+    "en",
+    "es"
+   ]
+  },
+  {
+   "book_id": "41000104560",
+   "title": "Years of Dedication: Her Path to Glory",
+   "blurb": "In the pressure-cooker town of Cluville, college entrance exam results are a matter of life and death—socially, that is. On announcement day, rumors swirl around Dave and Sue Cole. Sue's results are shrouded in secrecy, sparking whispers and scorn from the judgmental villagers. But what if Sue's hidden score holds a truth that could shatter expectations and send shockwaves across the nation? ",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000104560/41000104560.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Strong Female Lead",
+    "Hidden Identity"
+   ],
+   "genres": [
+    "True Love",
+    "Family"
+   ],
+   "lead": null,
+   "episode_count": 80,
+   "rating": null,
+   "card_view_count": 13375247,
+   "follow_count": 338750,
+   "shelf_time": "2024-07-23 15:26:22",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 13375247,
+   "chapters_listed": 80,
+   "avg_episode_s": 101,
+   "paid_start": 18,
+   "languages": [
+    "ar",
+    "ko",
+    "in",
+    "ja",
+    "en"
+   ]
+  },
+  {
+   "book_id": "41000100669",
+   "title": "Revenge Marriage Sweet Love",
+   "blurb": "Cate's sister Rebecca had not only stolen her boyfriend Ethan, but had also stripped her of her inheritance. Fueled by desire for revenge, a drunken Cate impulsively decided to seduce Ethan's handsome uncle, Shaun, who later was ignited by Cate and fell madly in love despite his cold demeanor. However, when they both realized Shaun was mistaken as Ethan's uncle, Shaun realized that she initially approached him only for revenge against Ethan, putting their love to the test. ",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100669/41000100669.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Love After Marriage",
+    "Billionaire"
+   ],
+   "genres": [
+    "True Love",
+    "Marriage Before Love",
+    "Sweet Love"
+   ],
+   "lead": null,
+   "episode_count": 48,
+   "rating": null,
+   "card_view_count": 189045021,
+   "follow_count": 9663362,
+   "shelf_time": "2023-09-01 17:34:26",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 189045021,
+   "chapters_listed": 48,
+   "avg_episode_s": 61,
+   "paid_start": 8,
+   "languages": [
+    "de",
+    "ar",
+    "ko",
+    "th",
+    "pt",
+    "in",
+    "ja",
+    "en",
+    "fr",
+    "es",
+    "zh"
+   ]
+  },
+  {
+   "book_id": "41000100701",
+   "title": "Rebel in Devil's Shackle",
+   "blurb": "Sold out by someone in dark web, Nina Morgan bumps into mafia lord, Max Luther in the riches’ hunting game. Once an aristocracy, Nina is now dragged into inferno by Max, lost in sweetness and tortures. She finally makes up her mind to leave, but Max confines her no matter how many times she tries. It’s out of love, or of hatred? Overwhelmed by love and forbidden desire, the two hurt each other but simultaneously save each other. ",
+   "cover": "",
+   "author": "Webfic",
+   "tags": [
+    "Forced Love",
+    "Revenge"
+   ],
+   "genres": [
+    "Romance",
+    "Toxic Relationship",
+    "Love Triangle"
+   ],
+   "lead": null,
+   "episode_count": 88,
+   "rating": null,
+   "card_view_count": 81955866,
+   "follow_count": 26154379,
+   "shelf_time": "2023-09-14 14:17:49",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 81955866,
+   "chapters_listed": 88,
+   "avg_episode_s": 58,
+   "paid_start": 16,
+   "languages": [
+    "de",
+    "pt",
+    "in",
+    "en",
+    "es"
+   ]
+  },
+  {
+   "book_id": "41000100855",
+   "title": "The Lovers' Saga",
+   "blurb": "When Carmelia Sanders stepped in for Maeve Turner at the After Hours Club, a twist of fate led her into a night with Asher Lowery. However, Maeve took credit for Carmelia's encounter with Asher.  \r\nAsher woke up and found the pendant that Carmelia had left behind, becoming convinced that Maeve was the daughter of his savior. He deeply adored Maeve and even promised to make her his bride. \r\n",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100855/41000100855.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Love After Marriage",
+    "Modern"
+   ],
+   "genres": [
+    "CEO"
+   ],
+   "lead": null,
+   "episode_count": 80,
+   "rating": null,
+   "card_view_count": 5768624,
+   "follow_count": 64779,
+   "shelf_time": "2023-10-31 15:08:15",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 5768624,
+   "chapters_listed": 80,
+   "avg_episode_s": 98,
+   "paid_start": 11,
+   "languages": [
+    "zhHans",
+    "en",
+    "zh"
+   ]
+  },
+  {
+   "book_id": "41000100832",
+   "title": "She’s the Apple of Their Eye",
+   "blurb": "Emily, the daughter of the illustrious Porter family, had her world upended when she learned she wasn't her parents' biological daughter. When the true Porter family heiress returned to claim her birthright, Emily was kicked out of the family. After rejoining her biological family, she discovered she was the heiress of the nation's wealthiest dynasty. She had five exceptional brothers who showered her with affection, two adoring parents, and a wealthy CEO fiancé. \r\n",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100832/41000100832.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Family Bonds",
+    "Strong Female Lead"
+   ],
+   "genres": [
+    "Counterattack",
+    "Sweet Love",
+    "CEO"
+   ],
+   "lead": null,
+   "episode_count": 98,
+   "rating": null,
+   "card_view_count": 16819353,
+   "follow_count": 2059406,
+   "shelf_time": "2023-10-27 14:41:03",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 16819353,
+   "chapters_listed": 98,
+   "avg_episode_s": 68,
+   "paid_start": 10,
+   "languages": [
+    "ko",
+    "th",
+    "pt",
+    "in",
+    "zhHans",
+    "ja",
+    "en"
+   ]
+  },
+  {
+   "book_id": "41000100836",
+   "title": "Sweetheart Wife",
+   "blurb": "Four years ago, Queenie Young was framed by Sandy Young and driven abroad by her father. She coincidentally rescued Shane Lawson abroad.Returning home four years later, Queenie found her fiance, Sam Fowler, cheating on her with Sandy. She impulsively married her best friend, Xander Lawson, but Xander took the wrong ID card because he was drunk. They accidentally registered Queenie's marriage with the male lead, Shane.",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100836/41000100836.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Love After Marriage",
+    "Revenge"
+   ],
+   "genres": [
+    "Sweet Love",
+    "Comeback",
+    "CEO"
+   ],
+   "lead": null,
+   "episode_count": 95,
+   "rating": null,
+   "card_view_count": 10044279,
+   "follow_count": 72256,
+   "shelf_time": "2023-10-26 13:37:11",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 10044279,
+   "chapters_listed": 95,
+   "avg_episode_s": 78,
+   "paid_start": 11,
+   "languages": [
+    "zhHans",
+    "en",
+    "zh"
+   ]
+  },
+  {
+   "book_id": "41000100714",
+   "title": "Profit Prophecy",
+   "blurb": "They say the chances of winning the lottery are the same as getting struck by lightning. So it'd be nut and absurd to have both happen to you, right? You're broke. You're abandoned. You're kicked out of your girl's house by her all-about-political image father. You've reached rock bottom. Lightning strikes. You are different now. You're gonna make all rich, spoiled folks respect you, envy you, or even better, fear you.",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100714/41000100714.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Modern",
+    "The Chosen One"
+   ],
+   "genres": [
+    "Underdog Rise",
+    "Fantasy",
+    "Super Power",
+    "Sudden Wealth"
+   ],
+   "lead": null,
+   "episode_count": 60,
+   "rating": null,
+   "card_view_count": 3458328,
+   "follow_count": 38444,
+   "shelf_time": "2023-09-19 10:55:25",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 3458328,
+   "chapters_listed": 60,
+   "avg_episode_s": 65,
+   "paid_start": 9,
+   "languages": [
+    "en"
+   ]
+  },
+  {
+   "book_id": "41000101854",
+   "title": "Flash Marriage with My Werewolf Husband",
+   "blurb": "To escape her abusive stepfather, Lisa takes the offer from a law firm in New York, where she unexpectedly flash-marries her boss. As she juggles work, she wants to bring the werewolf who once attacked her to justice, her boss becomes more and more suspicious… Caught between his mounting suspicion and her undeniable attraction to him, Lisa struggles with her next move.",
+   "cover": "",
+   "author": "Webfic",
+   "tags": [
+    "Love After Marriage",
+    "Forced Love"
+   ],
+   "genres": [
+    "Romance",
+    "Werewolf",
+    "Wealthy",
+    "Sweet Love"
+   ],
+   "lead": null,
+   "episode_count": 74,
+   "rating": null,
+   "card_view_count": 93347451,
+   "follow_count": 27643789,
+   "shelf_time": "2024-01-15 17:04:43",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 93347451,
+   "chapters_listed": 74,
+   "avg_episode_s": 88,
+   "paid_start": 8,
+   "languages": [
+    "de",
+    "pt",
+    "en",
+    "es"
+   ]
+  },
+  {
+   "book_id": "41000100424",
+   "title": "Jude's Sweet Pursuit",
+   "blurb": "Chelsea Swanson and Jude Lewis have been married for three years, but not many knew about it. \r\nDuring the day, she was his employee, satisfying his every whim. At night, she was the President's wife, lying in a custom-made sofa designed by Jude in his mansion, and playing with his dog.\r\nHowever, only he could lord her around. If anyone were to humiliate or bully her, he would stand up for her and crush them to pieces...",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100424/41000100424.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Love After Marriage",
+    "Billionaire"
+   ],
+   "genres": [
+    "Romance",
+    "Sweet Love"
+   ],
+   "lead": null,
+   "episode_count": 88,
+   "rating": null,
+   "card_view_count": 8054512,
+   "follow_count": 83822,
+   "shelf_time": "2023-06-14 13:36:31",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 8054512,
+   "chapters_listed": 88,
+   "avg_episode_s": 78,
+   "paid_start": 12,
+   "languages": [
+    "zhHans",
+    "en",
+    "zh"
+   ]
+  },
+  {
+   "book_id": "41000100423",
+   "title": "From Substitute Bride to Beloved Wife",
+   "blurb": "Mabel was originally the daughter of the wealthy Grant family. However, her happy family was torn apart when she was eight. Since then, her days were hard and challenging. ",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100423/41000100423.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Family Bonds",
+    "Strong Female Lead"
+   ],
+   "genres": [
+    "Romance",
+    "Sweet Love",
+    "Marriage",
+    "Contract Marriage"
+   ],
+   "lead": null,
+   "episode_count": 100,
+   "rating": null,
+   "card_view_count": 26066682,
+   "follow_count": 116188,
+   "shelf_time": "2023-06-14 11:30:59",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 26066682,
+   "chapters_listed": 100,
+   "avg_episode_s": 79,
+   "paid_start": 10,
+   "languages": [
+    "zhHans",
+    "en",
+    "zh"
+   ]
+  },
+  {
+   "book_id": "41000100377",
+   "title": "Kim Is Mission Impossible",
+   "blurb": "Kimberly and Darren, never having met even once, had been married for three years. Few people knew of their marriage. One night, she accidentally entered the wrong room and had a wild night with a man she thought was a stranger. The next day, she left behind ten dollars for the man and ran away, not knowing that he was actually her husband. Upon returning to her work, Kimberly was surprised that the new CEO was the man from her wild night...",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100377/41000100377.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Love After Marriage",
+    "Billionaire"
+   ],
+   "genres": [
+    "Romance",
+    "Marriage"
+   ],
+   "lead": null,
+   "episode_count": 100,
+   "rating": null,
+   "card_view_count": 5428420,
+   "follow_count": 56854,
+   "shelf_time": "2023-05-18 11:38:28",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 5428420,
+   "chapters_listed": 100,
+   "avg_episode_s": 66,
+   "paid_start": 7,
+   "languages": [
+    "ko",
+    "zhHans",
+    "en"
+   ]
+  },
+  {
+   "book_id": "41000100376",
+   "title": "Henry's Imprisoned Wife",
+   "blurb": "Henry Saber's wife finds herself imprisoned—literally—and tortured by his own hands, leading her to give up on their relationship and leave him. However, Henry refuses to let her go, declaring that if she chose to stay by his side, she will stay with him for the rest of her life...",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100376/41000100376.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Billionaire",
+    "Forced Love"
+   ],
+   "genres": [
+    "Destiny",
+    "Romance",
+    "Twisted",
+    "Marriage"
+   ],
+   "lead": null,
+   "episode_count": 98,
+   "rating": null,
+   "card_view_count": 2830963,
+   "follow_count": 26404,
+   "shelf_time": "2023-05-18 11:13:12",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 2830963,
+   "chapters_listed": 98,
+   "avg_episode_s": 78,
+   "paid_start": 10,
+   "languages": [
+    "zhHans",
+    "en",
+    "zh"
+   ]
+  },
+  {
+   "book_id": "41000100403",
+   "title": "Hooked On You",
+   "blurb": "Nathan Young, the wealthiest man in Delphville, lost his fiancée in a car crash. The perpetrator, Emily Cohen, who was once a famous lawyer, was sentenced to three years in prison. When she got out, she became a street sweeper in destitution and got mixed up with Nathan by accident. She knelt on the floor begging him, \"Nathan, have mercy.\" Nathan merely snickered, \"Emily, I'm never going to let you go.\" They say that Nathan is cold-hearted, but he doted on Emily. By a twi",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100403/41000100403.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Forced Love",
+    "Revenge"
+   ],
+   "genres": [
+    "Destiny",
+    "Romance",
+    "Marriage"
+   ],
+   "lead": null,
+   "episode_count": 55,
+   "rating": null,
+   "card_view_count": 8516577,
+   "follow_count": 125873,
+   "shelf_time": "2023-06-07 15:46:21",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 8516577,
+   "chapters_listed": 55,
+   "avg_episode_s": 48,
+   "paid_start": 10,
+   "languages": [
+    "zhHans",
+    "en",
+    "zh"
+   ]
+  },
+  {
+   "book_id": "41000104219",
+   "title": "Mafia's Good Girl",
+   "blurb": "Abducted by the mafia king, innocent Bella was forced to sign a contract with him in order to pay for her mother’s surgery. However, this contract that’s worthy of half a million dollars requires much more from Bella than she has ever imagined… The mafia king’s hardcore outer shell is slowly getting softened by Bella, while Bella gradually discovers her true self as well. But is it love, or just Stockholm syndrome?  ",
+   "cover": "",
+   "author": "Webfic",
+   "tags": [
+    "Forced Love",
+    "Revenge"
+   ],
+   "genres": [
+    "Romance",
+    "Mafia"
+   ],
+   "lead": null,
+   "episode_count": 61,
+   "rating": null,
+   "card_view_count": 220840843,
+   "follow_count": 4540649,
+   "shelf_time": "2024-07-05 17:39:41",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 220840843,
+   "chapters_listed": 61,
+   "avg_episode_s": 85,
+   "paid_start": 8,
+   "languages": [
+    "de",
+    "ko",
+    "pt",
+    "in",
+    "en",
+    "it",
+    "fr",
+    "es",
+    "vi",
+    "th",
+    "ja",
+    "pl",
+    "tr"
+   ]
+  },
+  {
+   "book_id": "41000106089",
+   "title": "Spoiled by Four Billionaires",
+   "blurb": "Yvonne, who had no family of her own, financially supported her boyfriend Josh through his college years. However, once Josh found success, he left her for Clair, a woman with deep pockets. Together, Josh and Clair made Yvonne's life miserable, not realizing that Yvonne was actually a lost daughter of the wealthy Hoffman family. When her three powerful brothers and her fiancé finally located her, they rallied to her side to help her exact revenge on Josh.",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000106089/41000106089.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Family Bonds",
+    "Strong Female Lead"
+   ],
+   "genres": [
+    "Romance",
+    "Billionaire",
+    "Sweet Love"
+   ],
+   "lead": null,
+   "episode_count": 54,
+   "rating": null,
+   "card_view_count": 81993062,
+   "follow_count": 1458135,
+   "shelf_time": "2024-09-23 10:09:29",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 81993062,
+   "chapters_listed": 54,
+   "avg_episode_s": 88,
+   "paid_start": 5,
+   "languages": [
+    "ja",
+    "en"
+   ]
+  },
+  {
+   "book_id": "41000107757",
+   "title": "How to Divorce a Billionaire",
+   "blurb": "A female lawyer is unexpectedly hired by her estranged billionaire husband to be his divorce attorney. Amidst a series of misunderstandings, they rediscover their feelings for each other.",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000107757/41000107757.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Second Chance",
+    "Love After Marriage"
+   ],
+   "genres": [
+    "Romance",
+    "Billionaire",
+    "Sweet Love"
+   ],
+   "lead": null,
+   "episode_count": 60,
+   "rating": null,
+   "card_view_count": 32452900,
+   "follow_count": 588727,
+   "shelf_time": "2024-11-19 14:16:52",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 32452900,
+   "chapters_listed": 60,
+   "avg_episode_s": 78,
+   "paid_start": 11,
+   "languages": [
+    "de",
+    "ko",
+    "pt",
+    "in",
+    "ja",
+    "en",
+    "fr",
+    "es"
+   ]
+  },
+  {
+   "book_id": "41000107542",
+   "title": "The Best Mistake Ever",
+   "blurb": "A nerdy but smart girl, NIA, has a one night stand with billion-dollar fashion empire\r\nOwner, JAMES, and he mistakes Nia’s best friend, SELINE, for the girl he found\r\nhimself infatuated and had relations with. As Seline and Nia serve as his first and\r\nsecond assistant, the web of friendship and love gets beyond entangled…",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000107542/41000107542.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Billionaire",
+    "Love Triangle"
+   ],
+   "genres": [
+    "Betrayal",
+    "Misunderstanding",
+    "Love Triangle"
+   ],
+   "lead": null,
+   "episode_count": 57,
+   "rating": null,
+   "card_view_count": 65653881,
+   "follow_count": 1053010,
+   "shelf_time": "2024-11-13 10:30:00",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 65653881,
+   "chapters_listed": 57,
+   "avg_episode_s": 90,
+   "paid_start": 14,
+   "languages": [
+    "de",
+    "ko",
+    "pt",
+    "in",
+    "ja",
+    "en",
+    "fr",
+    "es"
+   ]
+  },
+  {
+   "book_id": "41000107274",
+   "title": "Waking Up Married To My Crush!",
+   "blurb": "Jasmine awoke to find herself married her college crush Patrick – who is both handsome and wealthy! Yet, she quickly discovers that her marriage is sinking. A tragic accident had damaged her brain, erased the last few years of her life, trapping her at the age of 21. Determined not to spend her 25th year as a love-struck, subservient wife, Jasmine decides to reclaim her sparkle. This transformation gives Patrick a new perspective on Jasmine, he starts to fall in love with her",
+   "cover": "",
+   "author": "Webfic",
+   "tags": [
+    "Second Chance",
+    "Billionaire"
+   ],
+   "genres": [
+    "Romance",
+    "Billionaire",
+    "Sweet Love"
+   ],
+   "lead": null,
+   "episode_count": 62,
+   "rating": null,
+   "card_view_count": 68281630,
+   "follow_count": 1745433,
+   "shelf_time": "2024-11-05 11:00:00",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 68281630,
+   "chapters_listed": 62,
+   "avg_episode_s": 95,
+   "paid_start": 13,
+   "languages": [
+    "de",
+    "ar",
+    "ko",
+    "th",
+    "pt",
+    "in",
+    "ja",
+    "en",
+    "es"
+   ]
+  },
+  {
+   "book_id": "41000104164",
+   "title": "Ascension to the Lost Throne",
+   "blurb": "After defeating the Killer Sect, the Lord of War, Harry White, is forced to leave the War Sect with his wife due to family conflicts. Unexpectedly, the Killer Sect rejuvenates and collaborates with Harry’s brother, John White, to take him down. Even Harry’s wife betrays him and stands against him. Thanks to Mary Norris, Harry stands a chance to win this battle. ",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000104164/41000104164.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "War God",
+    "Modern"
+   ],
+   "genres": [
+    "Urban"
+   ],
+   "lead": null,
+   "episode_count": 87,
+   "rating": null,
+   "card_view_count": 7005418,
+   "follow_count": 124921,
+   "shelf_time": "2024-07-02 17:18:36",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 7005418,
+   "chapters_listed": 87,
+   "avg_episode_s": 78,
+   "paid_start": 14,
+   "languages": [
+    "en"
+   ]
+  },
+  {
+   "book_id": "41000105010",
+   "title": " Her Journey Beyond the Script",
+   "blurb": "Charlotte Chase has been whisked into a romance novel! Unfortunately, she takes the role of the antagonist whose every move and decision is rife with… well, stupidity. It is apparent that \"Charlotte Chase\" was only written to show how much better the Female Lead is. Her inescapable ending, as decided by the book, is death.Charlotte knows she has to get out of the Male Lead, Fred's, life before she is dragged into a whirlwind of power plays and conspiracies. ",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000105010/41000105010.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Strong Female Lead",
+    "Palace Intrigue"
+   ],
+   "genres": [
+    "CEO"
+   ],
+   "lead": null,
+   "episode_count": 80,
+   "rating": null,
+   "card_view_count": 1656702,
+   "follow_count": 31544,
+   "shelf_time": "2024-08-01 15:45:03",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 1656702,
+   "chapters_listed": 80,
+   "avg_episode_s": 88,
+   "paid_start": 11,
+   "languages": [
+    "en"
+   ]
+  },
+  {
+   "book_id": "41000105143",
+   "title": "Hidden Hero: His Time to Shine",
+   "blurb": "As Logant’s top researcher, Nathan Kent takes part in the Kunst Program, a secret national security operation. All participants unselfishly devote themselves to the operation for the good of the country. However, when Nathan’s teacher dies from exhaustion, a top celebrity and his assistant ask Nathan to empty the ward and even humiliate him. ",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000105143/41000105143.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "A Nobody",
+    "Modern"
+   ],
+   "genres": [
+    "Urban"
+   ],
+   "lead": null,
+   "episode_count": 81,
+   "rating": null,
+   "card_view_count": 2482212,
+   "follow_count": 45833,
+   "shelf_time": "2024-08-06 14:46:06",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 2482212,
+   "chapters_listed": 81,
+   "avg_episode_s": 96,
+   "paid_start": 13,
+   "languages": [
+    "en"
+   ]
+  },
+  {
+   "book_id": "41000105195",
+   "title": "Harvest of Ambition: A CEO's Odyssey",
+   "blurb": "After five years of working hard in the city, Derek Larsen becomes the CEO of Gilmore Group and orders the acquisition of all unsold vegetables in Ashville. Unexpectedly, his actions are met with doubt and mockery from his family and acquaintances instead of appreciation. His wife, Nina Hart, arrives to meet him in her secret lover, Simon Hall’s, car and claims that the acquisition is Simon’s deed. ",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000105195/41000105195.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Modern",
+    "Revenge"
+   ],
+   "genres": [
+    "Urban"
+   ],
+   "lead": null,
+   "episode_count": 60,
+   "rating": null,
+   "card_view_count": 2715677,
+   "follow_count": 59711,
+   "shelf_time": "2024-08-07 18:18:50",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 2715677,
+   "chapters_listed": 60,
+   "avg_episode_s": 101,
+   "paid_start": 11,
+   "languages": [
+    "en"
+   ]
+  },
+  {
+   "book_id": "41000102609",
+   "title": "Back to the 80s",
+   "blurb": "Julie Stein wakes up from her sleep, expecting just another ordinary day. However, to her surprise, she finds herself in the 80s, a totally different era from where she belongs. Not only is she a disowned daughter of a wealthy family to whom she has no blood connection, but she is also supposed to marry an old man with two children, in place of the family’s biological daughter.",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000102609/41000102609.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Strong Female Lead",
+    "Revenge"
+   ],
+   "genres": [
+    "Rebirth",
+    "Sweet Love"
+   ],
+   "lead": null,
+   "episode_count": 82,
+   "rating": null,
+   "card_view_count": 30268649,
+   "follow_count": 1097432,
+   "shelf_time": "2024-03-05 16:20:28",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 30268649,
+   "chapters_listed": 82,
+   "avg_episode_s": 84,
+   "paid_start": 11,
+   "languages": [
+    "de",
+    "ko",
+    "th",
+    "pt",
+    "in",
+    "ja",
+    "en",
+    "fr",
+    "es",
+    "zh"
+   ]
+  },
+  {
+   "book_id": "41000100807",
+   "title": "Spoiling My Sweet Wife to Her Core",
+   "blurb": "On the day of the engagement, Anne Miller was framed in a cheating scandal. Her fiance, Shawn Smith, was furious and vowed never to marry Anne. She knew that her pretentious step-sister, Elsa Miller, was the mastermind behind it all. Shawn believed entirely in Elsa's lies. Devastated, Anne died with resentment and regret.A soul of a heroine—who shared the same name as Anne—transmigrated into Anne Miller's body and swore to avenge her.",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000100807/41000100807.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Strong Female Lead",
+    "Revenge"
+   ],
+   "genres": [
+    "Revenge",
+    "Sweet Love",
+    "Comeback"
+   ],
+   "lead": null,
+   "episode_count": 98,
+   "rating": null,
+   "card_view_count": 19151132,
+   "follow_count": 1215831,
+   "shelf_time": "2023-10-20 11:31:12",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 19151132,
+   "chapters_listed": 98,
+   "avg_episode_s": 88,
+   "paid_start": 11,
+   "languages": [
+    "de",
+    "th",
+    "in",
+    "ja",
+    "en",
+    "es"
+   ]
+  },
+  {
+   "book_id": "41000103781",
+   "title": "Fated to My Cruel CEO",
+   "blurb": "Helen and Algar escaped an orphanage and embarked on separate journeys, with only their hearts connected by a promise that refuses to break. A fated reunion filled with love, secrets and echoes of their past.",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000103781/41000103781.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Revenge",
+    "Hidden Identity"
+   ],
+   "genres": [
+    "Sweet Love"
+   ],
+   "lead": null,
+   "episode_count": 57,
+   "rating": null,
+   "card_view_count": 73931832,
+   "follow_count": 2017417,
+   "shelf_time": "2024-06-03 16:11:32",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 73931832,
+   "chapters_listed": 57,
+   "avg_episode_s": 83,
+   "paid_start": 10,
+   "languages": [
+    "en"
+   ]
+  },
+  {
+   "book_id": "41000106403",
+   "title": "The Portal of Retribution",
+   "blurb": "As the only survivor of the Greens, the richest family on Earth, who were targeted for extermination, Jonah Green's teleportation power awakens when his life is on the line due to severe injuries. Determined to uncover the truth behind the attack and avenge his family, he embarks on a journey to gather evidence for his revenge. Along the way, he meets the woman with whom he will spend the rest of his life, once his plans are complete.",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000106403/41000106403.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Divine Tycoon",
+    "Modern"
+   ],
+   "genres": [
+    "Urban"
+   ],
+   "lead": null,
+   "episode_count": 80,
+   "rating": null,
+   "card_view_count": 370844,
+   "follow_count": 9533,
+   "shelf_time": "2024-09-27 16:51:36",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 370844,
+   "chapters_listed": 80,
+   "avg_episode_s": 80,
+   "paid_start": 8,
+   "languages": [
+    "en"
+   ]
+  },
+  {
+   "book_id": "41000105454",
+   "title": "Undercover Duo",
+   "blurb": "Former chief female agent of the \"Dark League\" syndicate, code-named Mulan, had to disappear after she reported the syndicate’s leader, Cedric Klaine, for conspiring with Moore Corp in illegal dealings. Hunted by both the syndicate and the Moore Corp, she was forced to retire and return to her hometown, where she assumed a new identity as Penelope Kirk, a delivery worker.",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000105454/41000105454.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Strong Female Lead",
+    "Revenge"
+   ],
+   "genres": [
+    "CEO"
+   ],
+   "lead": null,
+   "episode_count": 64,
+   "rating": null,
+   "card_view_count": 1493451,
+   "follow_count": 37204,
+   "shelf_time": "2024-08-20 17:56:04",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 1493451,
+   "chapters_listed": 64,
+   "avg_episode_s": 83,
+   "paid_start": 11,
+   "languages": [
+    "en"
+   ]
+  },
+  {
+   "book_id": "41000105041",
+   "title": "The Return of the Unwanted Wife",
+   "blurb": "I made a deal with the demon for the man I love to reach his peak. The price was harsh: should he never love me in return, I’d have to give up my own life. Yet, after five years of marriage, my hope that his heart might soften towards me shattered completely. Instead of the love I yearned for, I was served divorce papers, a cold reminder of my failure. The demon came to collect its due, but in the twist of fate, a soul sacrificed her own to restore mine. Now that I’m back…",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000105041/41000105041.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Love After Marriage",
+    "Forced Love"
+   ],
+   "genres": [
+    "Family",
+    "Rebirth",
+    "Comeback",
+    "CEO"
+   ],
+   "lead": null,
+   "episode_count": 74,
+   "rating": null,
+   "card_view_count": 27882940,
+   "follow_count": 458708,
+   "shelf_time": "2024-08-12 15:35:15",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 27882940,
+   "chapters_listed": 74,
+   "avg_episode_s": 76,
+   "paid_start": 11,
+   "languages": [
+    "de",
+    "ko",
+    "en"
+   ]
+  },
+  {
+   "book_id": "41000105193",
+   "title": "After Divorce: I Become Heiress",
+   "blurb": "In order to get rid of her billionaire father’s overwhelming love, Sally hid her real identity as the wealthy heiress and chose to make her own living. Her husband Felix cheats on her. In retaliation, Sally married Aiden in a flash. Unknown to her, Aiden is CEO of Taylor family. After the divorce, Sally chose to reveal her identity but was jeered by Felix and others. Aiden didn’t believe her either. But when would Sally and Aiden know their real identities? ",
+   "cover": "",
+   "author": "Webfic",
+   "tags": [
+    "Love After Marriage",
+    "Billionaire"
+   ],
+   "genres": [
+    "Revenge",
+    "CEO"
+   ],
+   "lead": null,
+   "episode_count": 57,
+   "rating": null,
+   "card_view_count": 65021909,
+   "follow_count": 1614834,
+   "shelf_time": "2024-08-09 08:20:00",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 65021909,
+   "chapters_listed": 57,
+   "avg_episode_s": 74,
+   "paid_start": 14,
+   "languages": [
+    "th",
+    "in",
+    "ja",
+    "en"
+   ]
+  },
+  {
+   "book_id": "41000104494",
+   "title": "Love's Detour to Destiny",
+   "blurb": "Mia Cole has been married to Joe Holt for three years when she catches him in bed with Sue Cole on the day of their third wedding anniversary. After seeking a divorce, Mia reclaims her title as the founder of MY Corp and overcomes Sue, resolving the misunderstandings between herself and Joe. Having gone through thick and thin together, they finally end up as a happy couple.",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000104494/41000104494.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Second Chance",
+    "Love After Marriage"
+   ],
+   "genres": [
+    "Sweet Love",
+    "CEO"
+   ],
+   "lead": null,
+   "episode_count": 85,
+   "rating": null,
+   "card_view_count": 37504532,
+   "follow_count": 695466,
+   "shelf_time": "2024-07-25 10:30:00",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 37504532,
+   "chapters_listed": 85,
+   "avg_episode_s": 99,
+   "paid_start": 12,
+   "languages": [
+    "de",
+    "ar",
+    "ko",
+    "th",
+    "in",
+    "ja",
+    "en",
+    "fr",
+    "es",
+    "zh",
+    "tr"
+   ]
+  },
+  {
+   "book_id": "41000104125",
+   "title": "Trails of Hope: His Journey Back Home（DUBBED）",
+   "blurb": "Theo Levy lost contact with his parents 20 years ago due to a car accident. Fortunately, he was adopted by the chairman of Boyd Group, who raised him into the man he is today. Now that he has finally returned to his hometown, he swears to find his biological parents with the pendant he has.",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000104125/41000104125.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Divine Tycoon",
+    "Family Bonds"
+   ],
+   "genres": [
+    "Urban"
+   ],
+   "lead": null,
+   "episode_count": 88,
+   "rating": null,
+   "card_view_count": 69276952,
+   "follow_count": 2105305,
+   "shelf_time": "2024-06-28 11:48:58",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 69276952,
+   "chapters_listed": 88,
+   "avg_episode_s": 87,
+   "paid_start": 12,
+   "languages": [
+    "ar",
+    "ko",
+    "in",
+    "ja",
+    "en",
+    "es"
+   ]
+  },
+  {
+   "book_id": "41000104224",
+   "title": "Masked Magnate: The Dominant Son-in-Law",
+   "blurb": "After being reunited with his biological father, Chris Bell assumes the CEO position at the Olgow branch of Apex Group. However, at his father-in-law's birthday party, he faces rejection from the family table, labeled as a useless live-in son-in-law. His challenges escalate as his wife faces disdain alongside him, a suitor tries to take her away, developers attempt to forcibly demolish their home, and his daughter falls victim to a brutal attack by a wealthy man.",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000104224/41000104224.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Son-in-Law",
+    "Modern"
+   ],
+   "genres": [
+    "Urban"
+   ],
+   "lead": null,
+   "episode_count": 120,
+   "rating": null,
+   "card_view_count": 44435396,
+   "follow_count": 1184616,
+   "shelf_time": "2024-07-05 16:39:54",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 44435396,
+   "chapters_listed": 120,
+   "avg_episode_s": 99,
+   "paid_start": 11,
+   "languages": [
+    "de",
+    "ar",
+    "ko",
+    "th",
+    "pt",
+    "in",
+    "ja",
+    "en",
+    "it",
+    "es",
+    "zh",
+    "tr"
+   ]
+  },
+  {
+   "book_id": "41000105242",
+   "title": "Wait, My Secretary Is My Wife?!",
+   "blurb": "Thanks to Sam Good’s grandmother, Sam Good and Sue Judd get married despite knowing very little about each other. After their wedding, they part ways and only reunite a year later at Sam's election event for secretary, where Sue becomes his personal secretary. Remarkably, neither of them recognizes the other. Despite several attempts by Lana Bale and Sam’s mother to sabotage their relationship, Sam and Sue gradually fall for each other. ",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000105242/41000105242.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Love After Marriage",
+    "Family Intrigue"
+   ],
+   "genres": [
+    "Sweet Love",
+    "CEO"
+   ],
+   "lead": null,
+   "episode_count": 102,
+   "rating": null,
+   "card_view_count": 33750697,
+   "follow_count": 375230,
+   "shelf_time": "2024-08-09 14:47:54",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 33750697,
+   "chapters_listed": 102,
+   "avg_episode_s": 92,
+   "paid_start": 13,
+   "languages": [
+    "ja",
+    "en"
+   ]
+  },
+  {
+   "book_id": "41000105213",
+   "title": "Treasure Seeker: The Eyes That See All",
+   "blurb": "After breaking up with his fiancée, Rue Leed, Finn Cole gains remarkable skills as an appraiser following an accident involving a vase. Using his newfound talent, he helps Mia Shaw, the boss of Treasure Trove, amass a fortune. Leveraging his abilities, Finn forms valuable connections by assisting notable figures like antique tycoon Ken Cork, Queen of the Underworld Phoebe Lowe, Leo Good, and Travis Gold. He then outmaneuvers Rue, Tom Judd, and Zach Walker in their schemes. ",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000105213/41000105213.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Divine Tycoon",
+    "Modern"
+   ],
+   "genres": [
+    "Super Power"
+   ],
+   "lead": null,
+   "episode_count": 92,
+   "rating": null,
+   "card_view_count": 7900359,
+   "follow_count": 141477,
+   "shelf_time": "2024-08-08 14:50:03",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 7900359,
+   "chapters_listed": 92,
+   "avg_episode_s": 86,
+   "paid_start": 15,
+   "languages": [
+    "ar",
+    "ko",
+    "in",
+    "ja",
+    "en",
+    "fr",
+    "es"
+   ]
+  },
+  {
+   "book_id": "41000101912",
+   "title": "Shadowed Thrones",
+   "blurb": "Felix Young, known as the Supreme, discreetly supports his wife, Madison Xavier, in her ascent to a higher position. However, the day she is appointed as the War God, Madison files for divorce. Disheartened, Felix is determined to reclaim everything he once granted her.",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000101912/41000101912.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "War God",
+    "Divine Tycoon"
+   ],
+   "genres": [
+    "Urban",
+    "Divine Tycoon"
+   ],
+   "lead": null,
+   "episode_count": 142,
+   "rating": null,
+   "card_view_count": 90992119,
+   "follow_count": 7481492,
+   "shelf_time": "2024-01-19 10:27:24",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 90992119,
+   "chapters_listed": 142,
+   "avg_episode_s": 89,
+   "paid_start": 16,
+   "languages": [
+    "de",
+    "ko",
+    "pt",
+    "in",
+    "en",
+    "fr",
+    "es",
+    "zh",
+    "ar",
+    "vi",
+    "th",
+    "ja",
+    "tr"
+   ]
+  },
+  {
+   "book_id": "41000104481",
+   "title": "The Heiress and Her Three Princes",
+   "blurb": "Just as Ria hits her rock bottom in life with her boyfriend cheating and her step-sister bullying, three handsome billionaires come to her save. They offer her a multi-billion inheritance! But, under one condition…… She has to marry one of the three brothers to be the heiress. Who is she going to choose? And who would be YOUR pick?",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000104481/41000104481.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Love After Marriage",
+    "Billionaire"
+   ],
+   "genres": [
+    "Romance",
+    "Cinderella",
+    "Comedy"
+   ],
+   "lead": null,
+   "episode_count": 51,
+   "rating": null,
+   "card_view_count": 16576971,
+   "follow_count": 353158,
+   "shelf_time": "2024-07-18 17:02:40",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 16576971,
+   "chapters_listed": 51,
+   "avg_episode_s": 73,
+   "paid_start": 6,
+   "languages": [
+    "en"
+   ]
+  },
+  {
+   "book_id": "41000103356",
+   "title": "One Fateful Night with My Boss",
+   "blurb": "After having a one-night stand with an old geezer for money, Anita said goodbye to this cold city and went abroad. Six years later, she comes back with her son and bumps into the legendary CEO, Tristan, who later turns out to be her new boss. Before she knows it, her son starts calling this handsome new boss: “dad”. Could this be fate?",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000103356/41000103356.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Single Mom",
+    "Love After Marriage"
+   ],
+   "genres": [
+    "Romance",
+    "Family",
+    "Wealthy"
+   ],
+   "lead": null,
+   "episode_count": 56,
+   "rating": null,
+   "card_view_count": 115785612,
+   "follow_count": 4391500,
+   "shelf_time": "2024-05-07 11:44:13",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 115785612,
+   "chapters_listed": 56,
+   "avg_episode_s": 105,
+   "paid_start": 12,
+   "languages": [
+    "de",
+    "ar",
+    "vi",
+    "pt",
+    "in",
+    "ja",
+    "en",
+    "fr",
+    "es",
+    "tr"
+   ]
+  },
+  {
+   "book_id": "41000102472",
+   "title": "Fortunes Unveiled: My Husband Is a Big Shot",
+   "blurb": "On the first day of Chinese New Year, Jay Wade pays a visit to his wife's family, only to be ill-treated with contempt. Little do they know that Jay is, in fact, the chairman of Win Corp, one of the top ten companies in the world.",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000102472/41000102472.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Modern",
+    "Family Intrigue"
+   ],
+   "genres": [
+    "Urban",
+    "Divine Tycoon"
+   ],
+   "lead": null,
+   "episode_count": 89,
+   "rating": null,
+   "card_view_count": 94563755,
+   "follow_count": 9418287,
+   "shelf_time": "2024-03-01 16:20:56",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 94563755,
+   "chapters_listed": 89,
+   "avg_episode_s": 95,
+   "paid_start": 9,
+   "languages": [
+    "de",
+    "ko",
+    "pt",
+    "in",
+    "en",
+    "it",
+    "fr",
+    "es",
+    "zh",
+    "ar",
+    "vi",
+    "th",
+    "ja",
+    "pl",
+    "tr"
+   ]
+  },
+  {
+   "book_id": "41000102849",
+   "title": "The Unrivaled Overlord",
+   "blurb": "Theo Larsen, alias the Overlord, commands a Wolf Army of a million strong. Shrouding his identity, he ties the knot with Sarah Welsh, the daughter of the prosperous Welsh family, securing the future of Glory Group before ascending to the pinnacle of his life.",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000102849/41000102849.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "War God",
+    "Modern"
+   ],
+   "genres": [
+    "Urban"
+   ],
+   "lead": null,
+   "episode_count": 93,
+   "rating": null,
+   "card_view_count": 36478790,
+   "follow_count": 1159894,
+   "shelf_time": "2024-03-22 14:02:30",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 36478790,
+   "chapters_listed": 93,
+   "avg_episode_s": 90,
+   "paid_start": 10,
+   "languages": [
+    "de",
+    "ar",
+    "vi",
+    "pt",
+    "in",
+    "ja",
+    "en",
+    "fr",
+    "es",
+    "zh",
+    "tr"
+   ]
+  },
+  {
+   "book_id": "41000102839",
+   "title": "A Breath Away From Forever",
+   "blurb": "Five years ago, Callista Summers rescued Jeremiah Fuller when he was drugged. She then pursued her career abroad, driven by her initial self-doubt as a housekeeper. Over time, Callista became a renowned designer and a devoted mother to her son, Scotty Fuller. When she learns of Jeremiah’s kidney failure, she selflessly returns to donate her kidney, saving him once more. However, misunderstandings breed animosity between them.",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000102839/41000102839.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Second Chance",
+    "Single Mom"
+   ],
+   "genres": [
+    "Counterattack",
+    "Bitter Love"
+   ],
+   "lead": null,
+   "episode_count": 104,
+   "rating": null,
+   "card_view_count": 28146715,
+   "follow_count": 417241,
+   "shelf_time": "2024-03-21 17:36:58",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 28146715,
+   "chapters_listed": 104,
+   "avg_episode_s": 117,
+   "paid_start": 14,
+   "languages": [
+    "de",
+    "vi",
+    "ko",
+    "in",
+    "zhHans",
+    "ja",
+    "en",
+    "es",
+    "zh",
+    "tr"
+   ]
+  },
+  {
+   "book_id": "41000102810",
+   "title": "Return of the Dominant Queen",
+   "blurb": "Layla Moore, formerly the second-in-command at Seradel Palace, moved to Redville with her daughter, Clara Moore. Six months ago, Clara married Harry Chase, who has subjected her to abuse and violence. Not only is Harry a poor husband, but he also conspires with a bandit named Michael Kane for personal gain. As word of their schemes spreads, Layla returns to Seradel, reclaiming her throne as queen to save her daughter and thwart Michael's conspiracy once and for all.",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000102810/41000102810.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Strong Female Lead",
+    "Single Mom"
+   ],
+   "genres": [
+    "Avenge"
+   ],
+   "lead": null,
+   "episode_count": 65,
+   "rating": null,
+   "card_view_count": 16242028,
+   "follow_count": 306582,
+   "shelf_time": "2024-03-21 17:03:14",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 16242028,
+   "chapters_listed": 65,
+   "avg_episode_s": 105,
+   "paid_start": 10,
+   "languages": [
+    "vi",
+    "ko",
+    "in",
+    "en",
+    "es",
+    "zh",
+    "tr"
+   ]
+  },
+  {
+   "book_id": "41000102743",
+   "title": "Supremacy Unbound: Ascending Above All",
+   "blurb": "Once a great and powerful Lord of Valor, Maxwell Kane now finds himself grappling with the loss of his memory, leading a hard life toiling away on construction sites. Despite his hardships, he perseveres and tries his best to cope with life, but all sorts of injustices set him back like tides of cruelty.However, fate takes an unexpected turn when he encounters a gorgeous woman named Samantha Claude. ",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000102743/41000102743.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Tough Guy",
+    "War God"
+   ],
+   "genres": [
+    "Urban"
+   ],
+   "lead": null,
+   "episode_count": 102,
+   "rating": null,
+   "card_view_count": 20244223,
+   "follow_count": 469817,
+   "shelf_time": "2024-03-13 14:02:11",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 20244223,
+   "chapters_listed": 102,
+   "avg_episode_s": 108,
+   "paid_start": 16,
+   "languages": [
+    "ko",
+    "in",
+    "en",
+    "es"
+   ]
+  },
+  {
+   "book_id": "41000103437",
+   "title": "CEO’s Substitute Wife",
+   "blurb": "Framed and abandoned, Alice, the adopted daughter of the influential Dunn family, faced a relentless betrayal. Ariel, her long-lost twin, who walks in as Alice to seek vengeance. With the enigmatic Vincent by her side, Ariel navigates a treacherous path of deceit and danger. As their quest for retribution unfolds, dark secrets emerge, blurring the line between ally and enemy.",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000103437/41000103437.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Strong Female Lead",
+    "Revenge"
+   ],
+   "genres": [
+    "Revenge"
+   ],
+   "lead": null,
+   "episode_count": 60,
+   "rating": null,
+   "card_view_count": 46171489,
+   "follow_count": 711509,
+   "shelf_time": "2024-05-10 10:41:35",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 46171489,
+   "chapters_listed": 60,
+   "avg_episode_s": 90,
+   "paid_start": 5,
+   "languages": [
+    "en"
+   ]
+  },
+  {
+   "book_id": "41000103670",
+   "title": "Trails of Hope: His Journey Back Home",
+   "blurb": "Theo Levy lost contact with his parents 20 years ago due to a car accident. Fortunately, he was adopted by the chairman of Boyd Group, who raised him into the man he is today. Now that he has finally returned to his hometown, he swears to find his biological parents with the pendant he has.",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000103670/41000103670.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Family Bonds",
+    "Modern"
+   ],
+   "genres": [
+    "Urban"
+   ],
+   "lead": null,
+   "episode_count": 88,
+   "rating": null,
+   "card_view_count": 103891054,
+   "follow_count": 10986166,
+   "shelf_time": "2024-05-24 16:56:49",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 103891054,
+   "chapters_listed": 88,
+   "avg_episode_s": 87,
+   "paid_start": 12,
+   "languages": [
+    "de",
+    "ar",
+    "th",
+    "pt",
+    "in",
+    "ja",
+    "en",
+    "it",
+    "fr",
+    "es",
+    "zh"
+   ]
+  },
+  {
+   "book_id": "41000102880",
+   "title": "The Deal with Love",
+   "blurb": "Katherine, a single girl with no intimate relationship, gets knocked up to her own surprise, like Virgin Marry. Right upon she gets informed of the pregnancy, her CEO Felix's fiancée jumps out claiming that the mysterious father of the baby is Katherine’s boss, Felix Morgan. However, Mr. Morgan seems to have no clue nor interest in this unexpected baby…",
+   "cover": "https://thwztchapter.dramaboxdb.com/data/cppartner/4x1/41x0/410x0/41000102880/41000102880.jpg@w=360&h=640",
+   "author": "Webfic",
+   "tags": [
+    "Billionaire",
+    "Forced Love"
+   ],
+   "genres": [
+    "Romance",
+    "Contract Marriage"
+   ],
+   "lead": null,
+   "episode_count": 51,
+   "rating": null,
+   "card_view_count": 50381140,
+   "follow_count": 2926626,
+   "shelf_time": "2024-03-25 17:08:15",
+   "status": null,
+   "free": null,
+   "language": "ENGLISH",
+   "view_count": 50381140,
+   "chapters_listed": 51,
+   "avg_episode_s": 79,
+   "paid_start": 10,
+   "languages": [
+    "en"
+   ]
+  }
+ ]
+}

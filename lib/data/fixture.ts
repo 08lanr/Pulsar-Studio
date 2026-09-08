@@ -21,6 +21,8 @@ import { LAST_CUE_MS, liftStamp, MAX_DERIVED_CUE_MS, SAMPLE_LATENCY_MS, type Ing
 import { applyGlobalOffset, assertValidCue } from "@/lib/subtitle-timing";
 import { splitSpeaker } from "@/lib/ingest/text";
 import { isLlmAvailable } from "@/lib/llm";
+import { marketView } from "@/lib/research/snapshot";
+import type { ReportBatch, WatchRow } from "@/lib/research/types";
 import { examplesFromApprovedVersions } from "@/lib/translation-memory";
 import { cloneFixtureDb, type FixtureDb } from "@/data/fixture";
 import { buildVersionSnapshot, snapshotSha256 } from "@/data/fixture/snapshot";
@@ -87,6 +89,11 @@ function store(): Store {
     s = { db, auditSeq: db.audit_events.reduce((m, e) => Math.max(m, e.id), 0) };
     g[STORE_KEY] = s;
   }
+  // A store parked on globalThis survives a dev-server hot reload that added
+  // tables to the fixture shape; default them so a stale store cannot throw.
+  s.db.research_watchlist ??= [];
+  s.db.report_batches ??= [];
+  s.db.report_rows ??= [];
   return s;
 }
 
@@ -122,6 +129,17 @@ function extId(prefix: string): string {
 
 function requireStaff(session: Session): void {
   if (session.kind !== "staff") throw forbidden("Pulsar staff only");
+}
+
+/** A producer with an editing role (approver/reviewer); staff and viewers are refused. */
+function requireProducerEditor(session: Session): void {
+  if (session.kind !== "producer" || !session.producerId) throw forbidden("producer editors only");
+  if (session.producerRole !== "approver" && session.producerRole !== "reviewer") throw forbidden("producer editors only");
+}
+
+/** Anyone signed in: a producer of any role, or staff previewing. */
+function requireMemberSession(session: Session): void {
+  if (session.kind !== "staff" && session.kind !== "producer") throw forbidden("sign in");
 }
 
 function requireStaffAdmin(session: Session): void {
@@ -525,6 +543,7 @@ export const fixtureData: DataLayer = {
       contact_email: input.contact_email?.trim() || null,
       contact_wechat: input.contact_wechat?.trim() || null,
       deliverables: {},
+      research_profile: null,
       created_at: now(),
     };
     s.db.producers.push(producer);
@@ -1905,4 +1924,114 @@ export const fixtureData: DataLayer = {
         .sort((a, b) => b.id - a.id)
     );
   },
+  // ---- the market desk ----------------------------------------------------------------
+
+  async getMarket(session) {
+    requireMemberSession(session);
+    return marketView();
+  },
+
+  async getResearchProfile(session) {
+    requireMemberSession(session);
+    if (session.kind !== "producer" || !session.producerId) return null;
+    const producer = store().db.producers.find((p) => p.id === session.producerId);
+    return producer?.research_profile ? clone(producer.research_profile) : null;
+  },
+
+  async saveResearchProfile(session, input) {
+    if (session.kind !== "producer" || !session.producerId) throw forbidden("producer editors only");
+    if (session.producerRole !== "approver" && session.producerRole !== "reviewer") throw forbidden("producer editors only");
+    const producer = store().db.producers.find((p) => p.id === session.producerId);
+    if (!producer) throw notFound("producer", session.producerId);
+    producer.research_profile = { ...input, updated_at: now() };
+    return clone(producer.research_profile);
+  },
+
+  async listCatalogForMatching(session, opts) {
+    requireMemberSession(session);
+    if (session.kind !== "producer" || !session.producerId) return { rows: [], total: 0, truncated: false };
+    const limit = Math.max(1, Math.min(opts?.limit ?? 500, 2000));
+    const own = store().db.titles.filter((t) => canReadTitle(session, t.producer_id));
+    const rows = own.slice(0, limit).map((t) => ({
+      id: t.id,
+      name_zh: t.name_zh,
+      name_en: t.name_en,
+      genre: t.genre,
+      synopsis_zh: t.synopsis_zh,
+      synopsis_en: t.synopsis_en,
+    }));
+    return { rows, total: own.length, truncated: own.length > limit };
+  },
+
+  // ---- watchlist and report imports ---------------------------------------------------
+
+  async listWatchlist(session) {
+    requireMemberSession(session);
+    if (session.kind !== "producer" || !session.producerId) return [];
+    return clone(store().db.research_watchlist.filter((w) => w.producer_id === session.producerId));
+  },
+
+  async addWatch(session, listingKey) {
+    requireProducerEditor(session);
+    if (!/^(reelshort|dramabox)-[A-Za-z0-9]+$/.test(listingKey)) throw invalid("listing key");
+    const s = store();
+    const existing = s.db.research_watchlist.find((w) => w.producer_id === session.producerId && w.listing_key === listingKey);
+    if (existing) return clone(existing);
+    const row: WatchRow = { producer_id: session.producerId!, listing_key: listingKey, created_by: session.userId, created_at: now() };
+    s.db.research_watchlist.push(row);
+    return clone(row);
+  },
+
+  async removeWatch(session, listingKey) {
+    requireProducerEditor(session);
+    const s = store();
+    s.db.research_watchlist = s.db.research_watchlist.filter((w) => !(w.producer_id === session.producerId && w.listing_key === listingKey));
+  },
+
+  async listReportBatches(session) {
+    requireMemberSession(session);
+    if (session.kind !== "producer" || !session.producerId) return [];
+    return clone(store().db.report_batches.filter((b) => b.producer_id === session.producerId).sort((a, b) => (a.imported_at < b.imported_at ? 1 : -1)));
+  },
+
+  async listReportRows(session, opts) {
+    requireMemberSession(session);
+    if (session.kind !== "producer" || !session.producerId) return [];
+    const { db } = store();
+    const active = new Set(db.report_batches.filter((b) => b.producer_id === session.producerId && !b.reverted_at).map((b) => b.id));
+    return clone(db.report_rows.filter((r) => r.producer_id === session.producerId && active.has(r.batch_id) && (!opts?.titleId || r.title_id === opts.titleId)));
+  },
+
+  async commitReportBatch(session, input) {
+    requireProducerEditor(session);
+    if (!input.rows.length) throw invalid("no rows to import");
+    const s = store();
+    const own = new Set(s.db.titles.filter((t) => t.producer_id === session.producerId).map((t) => t.id));
+    const batch: ReportBatch = {
+      id: randomUUID(),
+      producer_id: session.producerId!,
+      filename: input.filename.slice(0, 200),
+      imported_at: now(),
+      imported_by: session.userId,
+      row_count: input.rows.length,
+      skipped_count: input.skipped_count,
+      column_map: input.column_map,
+      reverted_at: null,
+    };
+    s.db.report_batches.push(batch);
+    for (const r of input.rows) {
+      // A row can only link to the caller's own title; anything else is stored unlinked.
+      s.db.report_rows.push({ ...r, id: randomUUID(), batch_id: batch.id, producer_id: session.producerId!, title_id: r.title_id && own.has(r.title_id) ? r.title_id : null });
+    }
+    return clone(batch);
+  },
+
+  async revertReportBatch(session, batchId) {
+    requireProducerEditor(session);
+    const batch = store().db.report_batches.find((b) => b.id === batchId && b.producer_id === session.producerId);
+    if (!batch) throw notFound("report batch", batchId);
+    if (!batch.reverted_at) batch.reverted_at = now();
+    return clone(batch);
+  },
+
 };

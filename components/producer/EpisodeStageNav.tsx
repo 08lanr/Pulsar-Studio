@@ -19,7 +19,7 @@ export default function EpisodeStageNav({ titleId, titleName, episodeNumber, act
   return (
     <div className="episode-context">
       <nav className="studio-crumbs" aria-label={tt("v3.breadcrumbs")}>
-        <a href="/producer">{tt("v3.nav.library")}</a>
+        <a href="/producer/titles">{tt("research.nav.titles")}</a>
         <IconChevronRight size={13} />
         <a href={root}>{titleName}</a>
         <IconChevronRight size={13} />

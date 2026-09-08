@@ -64,6 +64,32 @@ export function IconLibrary(p: IconProps) {
   );
 }
 
+export function IconMarket(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M2.5 13.5h11M4 11V7.5M7.3 11V4.5M10.6 11V6M13 11V3" />
+    </Svg>
+  );
+}
+
+export function IconCompass(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <circle cx="8" cy="8" r="6" />
+      <path d="M10.5 5.5l-1.6 4-4 1.6 1.6-4z" />
+    </Svg>
+  );
+}
+
+export function IconSources(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <ellipse cx="8" cy="4" rx="5" ry="2" />
+      <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2" />
+    </Svg>
+  );
+}
+
 export function IconPlus(p: IconProps) {
   return (
     <Svg {...p}>

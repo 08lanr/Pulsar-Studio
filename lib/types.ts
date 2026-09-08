@@ -14,6 +14,8 @@
 
 // ---- json ---------------------------------------------------------------------
 
+import type { ResearchProfile } from "@/lib/research/types";
+
 export type Json =
   | string
   | number
@@ -212,6 +214,8 @@ export type Producer = {
   contact_email: string | null;
   contact_wechat: string | null;
   deliverables: Json;
+  /** Onboarding answers for the market desk (lib/research/types ResearchProfile); null until the producer fills it in. */
+  research_profile: ResearchProfile | null;
   created_at: string;
 };
 

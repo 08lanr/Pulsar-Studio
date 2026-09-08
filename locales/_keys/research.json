@@ -1,0 +1,1350 @@
+{
+  "research.nav.overview": {
+    "en": "Overview",
+    "zh": "市场概览"
+  },
+  "research.nav.explore": {
+    "en": "Explore",
+    "zh": "市场探索"
+  },
+  "research.nav.titles": {
+    "en": "My titles",
+    "zh": "我的剧库"
+  },
+  "research.nav.creative": {
+    "en": "Creative & tests",
+    "zh": "素材与测试"
+  },
+  "research.nav.sources": {
+    "en": "Data & Sources",
+    "zh": "数据与来源"
+  },
+  "research.nav.addTitle": {
+    "en": "Add title",
+    "zh": "新增作品"
+  },
+  "research.nav.market": {
+    "en": "Overview",
+    "zh": "市场概览"
+  },
+  "research.market.kicker": {
+    "en": "Market research",
+    "zh": "市场研究"
+  },
+  "research.market.title": {
+    "en": "Market overview",
+    "zh": "市场概览"
+  },
+  "research.market.sub": {
+    "en": "Public charts from ReelShort and DramaBox through one story-type taxonomy: what is prominent, what the charts are made of, and where your catalog fits.",
+    "zh": "ReelShort、DramaBox 的公开榜单，经同一套题材体系整理：什么最显眼、榜单由什么构成、你的剧库处在哪里。"
+  },
+  "research.market.observed": {
+    "en": "Observed {date}",
+    "zh": "采集于 {date}"
+  },
+  "research.market.observedAtUtc": {
+    "en": "{date} {time} UTC",
+    "zh": "{date} {time} UTC"
+  },
+  "research.market.noData": {
+    "en": "No published market snapshot. Run the crawl to create one.",
+    "zh": "还没有已发布的市场快照，请先运行采集。"
+  },
+  "research.market.invalid": {
+    "en": "The published snapshot failed validation and is not shown. See Data & Sources.",
+    "zh": "已发布的快照未通过校验，未显示。见数据与来源。"
+  },
+  "research.market.firstObservation": {
+    "en": "First observation day; change columns turn on with the second.",
+    "zh": "首个采集日，第二个采集日后显示变化。"
+  },
+  "research.scope": {
+    "en": "Scope",
+    "zh": "范围"
+  },
+  "research.scope.value": {
+    "en": "English public catalogs · audience geography unknown",
+    "zh": "英文公开目录 · 观众地域未知"
+  },
+  "research.freshness": {
+    "en": "Freshness",
+    "zh": "数据时间"
+  },
+  "research.search.placeholder": {
+    "en": "Search titles, tropes, companies",
+    "zh": "搜索作品、题材、公司"
+  },
+  "research.search.go": {
+    "en": "Search",
+    "zh": "搜索"
+  },
+  "research.filter.platform": {
+    "en": "Platform",
+    "zh": "平台"
+  },
+  "research.filter.all": {
+    "en": "All",
+    "zh": "全部"
+  },
+  "research.filter.audience": {
+    "en": "Positioning",
+    "zh": "受众定位"
+  },
+  "research.filter.trope": {
+    "en": "Trope",
+    "zh": "题材"
+  },
+  "research.filter.clear": {
+    "en": "Clear",
+    "zh": "清除"
+  },
+  "research.filter.reset": {
+    "en": "Reset filters",
+    "zh": "重置筛选"
+  },
+  "research.card.prominent": {
+    "en": "Prominent titles",
+    "zh": "最显眼的作品"
+  },
+  "research.card.storyMix": {
+    "en": "Story mix",
+    "zh": "题材构成"
+  },
+  "research.card.newListings": {
+    "en": "Newly discovered listings",
+    "zh": "新发现作品"
+  },
+  "research.card.yourComparables": {
+    "en": "Your comparable titles",
+    "zh": "你的可比作品"
+  },
+  "research.card.climber": {
+    "en": "Biggest chart climber",
+    "zh": "榜单攀升最快"
+  },
+  "research.card.fastestViews": {
+    "en": "Fastest view growth",
+    "zh": "观看增长最快"
+  },
+  "research.card.risingTrope": {
+    "en": "Rising story type",
+    "zh": "上升题材"
+  },
+  "research.card.shortlist": {
+    "en": "Your shortlist",
+    "zh": "你的候选"
+  },
+  "research.card.open": {
+    "en": "Open supporting data",
+    "zh": "查看支持数据"
+  },
+  "research.state.available": {
+    "en": "Available",
+    "zh": "可用"
+  },
+  "research.state.collecting": {
+    "en": "Collecting history",
+    "zh": "积累历史中"
+  },
+  "research.state.collectingHint": {
+    "en": "Needs a second observation day to show change.",
+    "zh": "需要第二个采集日才能显示变化。"
+  },
+  "research.state.requiresConnection": {
+    "en": "Requires connection",
+    "zh": "需要接入"
+  },
+  "research.state.manual": {
+    "en": "Manual import",
+    "zh": "人工导入"
+  },
+  "research.state.unavailable": {
+    "en": "Unavailable",
+    "zh": "暂不可用"
+  },
+  "research.state.stale": {
+    "en": "Stale",
+    "zh": "已过期"
+  },
+  "research.state.failed": {
+    "en": "Failed",
+    "zh": "采集失败"
+  },
+  "research.state.noProfile": {
+    "en": "Shown after your studio profile",
+    "zh": "填写工作室资料后显示"
+  },
+  "research.state.noCatalog": {
+    "en": "Shown once you add a title",
+    "zh": "添加作品后显示"
+  },
+  "research.state.notShown": {
+    "en": "Not shown by the platform",
+    "zh": "平台未公开"
+  },
+  "research.state.validZero": {
+    "en": "Observed zero",
+    "zh": "观测值为 0"
+  },
+  "research.state.partialCoverage": {
+    "en": "Partial coverage",
+    "zh": "部分覆盖"
+  },
+  "research.section.prominent": {
+    "en": "Prominent titles",
+    "zh": "最显眼的作品"
+  },
+  "research.section.prominentSub": {
+    "en": "Within-platform prominence: view percentile or chart position, whichever is higher. Not momentum.",
+    "zh": "平台内显著度：观看分位或榜单位置，取高者。不是势头。"
+  },
+  "research.section.insights": {
+    "en": "Observations worth investigating",
+    "zh": "值得深究的观察"
+  },
+  "research.section.insightsSub": {
+    "en": "Templated from the snapshot; each cites the listings it was computed from.",
+    "zh": "由快照按模板生成；每条都引用其计算依据的作品。"
+  },
+  "research.section.storyMix": {
+    "en": "Story types among prominent titles",
+    "zh": "显著作品的题材构成"
+  },
+  "research.section.storyMixSub": {
+    "en": "Share of the prominence cohort carrying each trope. Multi-label: shares sum above 100%.",
+    "zh": "显著作品群中含各题材的占比。多标签：合计会超过 100%。"
+  },
+  "research.section.yourTitles": {
+    "en": "Your titles to test",
+    "zh": "你的作品：值得测试的"
+  },
+  "research.section.yourTitlesSub": {
+    "en": "Tagged from your synopses; similarity to prominent listings, not success probability.",
+    "zh": "根据你的简介打标签；是与显著作品的相似度，不是成功概率。"
+  },
+  "research.section.newListings": {
+    "en": "Platform-new listings",
+    "zh": "平台新上架"
+  },
+  "research.section.newListingsSub": {
+    "en": "Marked new by the platform in this crawl. \"First seen by us\" starts with the second observation day.",
+    "zh": "本次采集中平台标记为新上架。「我们首次发现」从第二个采集日开始。"
+  },
+  "research.section.watchlist": {
+    "en": "Watchlist",
+    "zh": "关注列表"
+  },
+  "research.section.top": {
+    "en": "Top titles",
+    "zh": "热门作品"
+  },
+  "research.section.tropes": {
+    "en": "What the charts are made of",
+    "zh": "榜单题材构成"
+  },
+  "research.section.companies": {
+    "en": "Companies",
+    "zh": "公司"
+  },
+  "research.section.companiesSub": {
+    "en": "As the platform shows them, with the role kept. DramaBox names a publisher; ReelShort names none beyond its own originals.",
+    "zh": "以平台公开为准并保留角色。DramaBox 显示出版方；ReelShort 只能标出自制剧。"
+  },
+  "research.section.formats": {
+    "en": "Formats",
+    "zh": "形式"
+  },
+  "research.formats.note": {
+    "en": "Medians per platform with sample sizes: episodes per listing, first paid episode, episode length (basis named, never pooled).",
+    "zh": "按平台的中位数及样本量：每部集数、首个付费集、单集时长（注明口径，不合并）。"
+  },
+  "research.coverage": {
+    "en": "Coverage: {listings} listings · {platforms} platforms",
+    "zh": "覆盖：{listings} 个上架条目 · {platforms} 个平台"
+  },
+  "research.coverage.note": {
+    "en": "Platform listings, not distinct dramas.",
+    "zh": "是平台上架条目，不是去重后的剧集数。"
+  },
+  "research.insight.tropeLift": {
+    "en": "\"{trope}\" is {lift}× as common among prominent listings as in the tracked sample ({inCohort} of {cohort} vs {titles} of {sample}).",
+    "zh": "「{trope}」在显著作品中的占比是整体样本的 {lift} 倍（前 {cohort} 部中 {inCohort} 部；样本 {sample} 部中 {titles} 部）。"
+  },
+  "research.insight.paywallGap": {
+    "en": "{a} puts the first paid episode at {aMedian} (n={aN}); {b} at {bMedian} (n={bN}).",
+    "zh": "{a} 的首个付费集中位为第 {aMedian} 集（n={aN}），{b} 为第 {bMedian} 集（n={bN}）。"
+  },
+  "research.insight.newListings": {
+    "en": "{platform} marks {count} listings as new in this crawl.",
+    "zh": "{platform} 本次采集有 {count} 部被平台标记为新上架。"
+  },
+  "research.insight.audienceSplit": {
+    "en": "{share} of tracked {platform} listings are positioned 女频 (n={n}). Platform shelving, not audience data.",
+    "zh": "{platform} 追踪作品中 {share} 为女频定位（n={n}）。是平台分类，不是观众数据。"
+  },
+  "research.insight.exploratory": {
+    "en": "Exploratory",
+    "zh": "探索性"
+  },
+  "research.insight.examples": {
+    "en": "Examples",
+    "zh": "示例"
+  },
+  "research.explore.title": {
+    "en": "Explore",
+    "zh": "市场探索"
+  },
+  "research.explore.titles": {
+    "en": "Titles",
+    "zh": "作品"
+  },
+  "research.explore.tropes": {
+    "en": "Tropes",
+    "zh": "题材"
+  },
+  "research.explore.platforms": {
+    "en": "Platforms",
+    "zh": "平台"
+  },
+  "research.explore.companies": {
+    "en": "Companies",
+    "zh": "公司"
+  },
+  "research.explore.sort": {
+    "en": "Sort",
+    "zh": "排序"
+  },
+  "research.sort.prominence": {
+    "en": "Prominence",
+    "zh": "显著度"
+  },
+  "research.sort.views": {
+    "en": "Views counter",
+    "zh": "观看计数"
+  },
+  "research.sort.saves": {
+    "en": "Saves / follows",
+    "zh": "收藏 / 追剧"
+  },
+  "research.sort.episodes": {
+    "en": "Episodes",
+    "zh": "集数"
+  },
+  "research.sort.title": {
+    "en": "Title",
+    "zh": "标题"
+  },
+  "research.sort.released": {
+    "en": "Released",
+    "zh": "上架日期"
+  },
+  "research.page": {
+    "en": "Page {page} of {pages}",
+    "zh": "第 {page} / {pages} 页"
+  },
+  "research.results": {
+    "en": "{n} listings",
+    "zh": "{n} 条"
+  },
+  "research.prev": {
+    "en": "Previous",
+    "zh": "上一页"
+  },
+  "research.next": {
+    "en": "Next",
+    "zh": "下一页"
+  },
+  "research.noResults": {
+    "en": "No listings match. Reset the filters or search a different term.",
+    "zh": "没有匹配的作品。重置筛选或换个词搜索。"
+  },
+  "research.viewsPooledNote": {
+    "en": "Views columns are platform-specific counters and are never pooled.",
+    "zh": "观看列为各平台自己的计数，不合并。"
+  },
+  "research.col.title": {
+    "en": "Title",
+    "zh": "作品"
+  },
+  "research.col.platform": {
+    "en": "Platform",
+    "zh": "平台"
+  },
+  "research.col.tropes": {
+    "en": "Tropes",
+    "zh": "题材"
+  },
+  "research.col.prominence": {
+    "en": "Prominence",
+    "zh": "显著度"
+  },
+  "research.col.chartRank": {
+    "en": "Chart rank",
+    "zh": "榜单名次"
+  },
+  "research.col.views": {
+    "en": "Views",
+    "zh": "观看"
+  },
+  "research.col.viewsRs": {
+    "en": "Views · read_count",
+    "zh": "观看 · read_count"
+  },
+  "research.col.viewsDb": {
+    "en": "Views · viewCount",
+    "zh": "观看 · viewCount"
+  },
+  "research.col.saves": {
+    "en": "Saves",
+    "zh": "收藏"
+  },
+  "research.col.collects": {
+    "en": "Collects",
+    "zh": "收藏"
+  },
+  "research.col.follows": {
+    "en": "Follows",
+    "zh": "追剧"
+  },
+  "research.col.episodes": {
+    "en": "Eps",
+    "zh": "集数"
+  },
+  "research.col.paywall": {
+    "en": "Paywall",
+    "zh": "付费起点"
+  },
+  "research.col.company": {
+    "en": "Company",
+    "zh": "公司"
+  },
+  "research.col.role": {
+    "en": "Role",
+    "zh": "角色"
+  },
+  "research.col.movement": {
+    "en": "Change",
+    "zh": "变化"
+  },
+  "research.col.audience": {
+    "en": "Positioning",
+    "zh": "受众定位"
+  },
+  "research.col.basis": {
+    "en": "Basis",
+    "zh": "口径"
+  },
+  "research.col.n": {
+    "en": "n",
+    "zh": "n"
+  },
+  "research.col.lift": {
+    "en": "Lift",
+    "zh": "超额比"
+  },
+  "research.col.cohortShare": {
+    "en": "Prominent share",
+    "zh": "显著占比"
+  },
+  "research.col.sampleShare": {
+    "en": "Sample share",
+    "zh": "样本占比"
+  },
+  "research.col.count": {
+    "en": "Listings",
+    "zh": "作品数"
+  },
+  "research.col.inCohort": {
+    "en": "In cohort",
+    "zh": "入显著群"
+  },
+  "research.col.released": {
+    "en": "Released",
+    "zh": "上架"
+  },
+  "research.col.rating": {
+    "en": "Rating",
+    "zh": "评分"
+  },
+  "research.col.pair": {
+    "en": "Pair",
+    "zh": "组合"
+  },
+  "research.col.share": {
+    "en": "Share",
+    "zh": "占比"
+  },
+  "research.col.delta": {
+    "en": "Change",
+    "zh": "变化"
+  },
+  "research.col.new": {
+    "en": "Platform-new",
+    "zh": "平台新上架"
+  },
+  "research.col.withViews": {
+    "en": "With views",
+    "zh": "有观看计数"
+  },
+  "research.role.publisher": {
+    "en": "Publisher",
+    "zh": "出版方"
+  },
+  "research.role.platform_original": {
+    "en": "Platform original",
+    "zh": "平台自制"
+  },
+  "research.role.producer": {
+    "en": "Producer",
+    "zh": "制作方"
+  },
+  "research.role.rights_holder": {
+    "en": "Rights holder",
+    "zh": "版权方"
+  },
+  "research.role.note": {
+    "en": "A publisher label is not the production studio. Neither platform exposes who made a title.",
+    "zh": "出版方标签不等于制作方。两家平台都不公开制作方。"
+  },
+  "research.audience.female": {
+    "en": "女频 · F-audience",
+    "zh": "女频"
+  },
+  "research.audience.male": {
+    "en": "男频 · M-audience",
+    "zh": "男频"
+  },
+  "research.audience.note": {
+    "en": "Platform audience positioning, not protagonist gender and not measured demographics.",
+    "zh": "平台受众定位，不是主角性别，也不是观众人口统计。"
+  },
+  "research.basis.episode_1": {
+    "en": "episode 1",
+    "zh": "第 1 集"
+  },
+  "research.basis.listed_average": {
+    "en": "listed average",
+    "zh": "全集均值"
+  },
+  "research.basis.mixed": {
+    "en": "mixed",
+    "zh": "混合口径"
+  },
+  "research.evidence.observed": {
+    "en": "Observed",
+    "zh": "观测"
+  },
+  "research.evidence.inferred": {
+    "en": "Inferred",
+    "zh": "推断"
+  },
+  "research.evidence.estimated": {
+    "en": "Estimated",
+    "zh": "估算"
+  },
+  "research.evidence.partner_reported": {
+    "en": "Partner-reported",
+    "zh": "合作方提供"
+  },
+  "research.evidence.legend": {
+    "en": "Every number carries its source. Observed: read from the platform's page. Inferred: derived by our rules. Estimated: a model's estimate. Partner-reported: told to us by a producer.",
+    "zh": "每个数字都标注来源。观测：从平台页面读取；推断：由我们的规则得出；估算：模型估计；合作方提供：制片方告知。"
+  },
+  "research.prominence.note": {
+    "en": "Prominence is relative within a platform (0–100). Raw views count different things on different platforms and are never compared across them.",
+    "zh": "显著度为平台内相对值（0–100）。各平台观看量口径不同，不做跨平台比较。"
+  },
+  "research.personal.title": {
+    "en": "For your studio",
+    "zh": "与你相关"
+  },
+  "research.personal.sub": {
+    "en": "Based on the tropes you told us you produce.",
+    "zh": "根据你填写的主要题材。"
+  },
+  "research.personal.producingHot": {
+    "en": "You produce it, the charts show it",
+    "zh": "你做的，榜单也在推"
+  },
+  "research.personal.hotNotProducing": {
+    "en": "The charts show it, you don't list it",
+    "zh": "榜单在推，你还没做"
+  },
+  "research.personal.producingCold": {
+    "en": "You produce it, thin on the charts",
+    "zh": "你做的，榜单上偏少"
+  },
+  "research.personal.none": {
+    "en": "None",
+    "zh": "暂无"
+  },
+  "research.onboard.banner": {
+    "en": "Answer a few questions and this desk personalizes to your tropes.",
+    "zh": "回答几个问题，市场页会按你的题材个性化。"
+  },
+  "research.onboard.cta": {
+    "en": "Set up your studio profile",
+    "zh": "完善工作室资料"
+  },
+  "research.onboard.edit": {
+    "en": "Edit profile",
+    "zh": "修改资料"
+  },
+  "research.onboard.title": {
+    "en": "Studio profile",
+    "zh": "工作室资料"
+  },
+  "research.onboard.sub": {
+    "en": "We use this to filter the market for you. It is never shown to other producers.",
+    "zh": "我们用它为你筛选市场数据，不会展示给其他制片方。"
+  },
+  "research.onboard.tropes": {
+    "en": "Which tropes do you produce?",
+    "zh": "你主要做哪些题材？"
+  },
+  "research.onboard.tropesHint": {
+    "en": "Pick 3 to 8",
+    "zh": "选 3–8 个"
+  },
+  "research.onboard.audience": {
+    "en": "Audience positioning",
+    "zh": "受众定位"
+  },
+  "research.onboard.audienceHint": {
+    "en": "How you position your titles (女频 / 男频), not who watches them.",
+    "zh": "你的作品定位（女频 / 男频），不是实际观众。"
+  },
+  "research.onboard.audienceBoth": {
+    "en": "Both",
+    "zh": "都做"
+  },
+  "research.onboard.volume": {
+    "en": "Titles per year",
+    "zh": "每年产量（部）"
+  },
+  "research.onboard.distribution": {
+    "en": "How you distribute overseas",
+    "zh": "海外发行方式"
+  },
+  "research.onboard.dist.licensed": {
+    "en": "License to a platform (ReelShort, DramaBox…)",
+    "zh": "授权给平台（ReelShort、DramaBox 等）"
+  },
+  "research.onboard.dist.self": {
+    "en": "Own app or mini-program",
+    "zh": "自有 App / 小程序"
+  },
+  "research.onboard.dist.youtube": {
+    "en": "YouTube and social",
+    "zh": "YouTube / 社媒"
+  },
+  "research.onboard.dist.none": {
+    "en": "Not yet",
+    "zh": "还没出海"
+  },
+  "research.onboard.markets": {
+    "en": "Target markets",
+    "zh": "目标市场"
+  },
+  "research.onboard.marketsHint": {
+    "en": "Comma-separated, e.g. US, UK, Canada",
+    "zh": "逗号分隔，如 美国, 英国, 加拿大"
+  },
+  "research.onboard.save": {
+    "en": "Save",
+    "zh": "保存"
+  },
+  "research.onboard.saved": {
+    "en": "Saved",
+    "zh": "已保存"
+  },
+  "research.onboard.readOnly": {
+    "en": "Staff preview: the profile is read-only here.",
+    "zh": "员工预览：这里不能修改制片方资料。"
+  },
+  "research.onboard.viewerOnly": {
+    "en": "Only reviewer or approver roles can edit the profile.",
+    "zh": "只有审阅或审批角色可以修改资料。"
+  },
+  "research.tab.overview": {
+    "en": "Overview",
+    "zh": "概览"
+  },
+  "research.tab.trends": {
+    "en": "Trends",
+    "zh": "趋势"
+  },
+  "research.tab.story": {
+    "en": "Story & format",
+    "zh": "故事与形式"
+  },
+  "research.tab.creative": {
+    "en": "Creative examples",
+    "zh": "素材示例"
+  },
+  "research.tab.comparables": {
+    "en": "Comparables",
+    "zh": "可比作品"
+  },
+  "research.tab.sources": {
+    "en": "Sources",
+    "zh": "数据来源"
+  },
+  "research.title.back": {
+    "en": "Back to overview",
+    "zh": "返回概览"
+  },
+  "research.title.open": {
+    "en": "Open on {platform}",
+    "zh": "在 {platform} 打开"
+  },
+  "research.title.similar": {
+    "en": "Similar listings",
+    "zh": "相似作品"
+  },
+  "research.title.similarNote": {
+    "en": "Trope overlap (Jaccard). Similarity is not identity: the same drama may appear elsewhere under another title.",
+    "zh": "题材重合度（Jaccard）。相似不等于同一部剧：同一部剧可能在其他平台以别名出现。"
+  },
+  "research.title.blurb": {
+    "en": "Synopsis",
+    "zh": "简介"
+  },
+  "research.title.placements": {
+    "en": "Chart placements",
+    "zh": "榜单位置"
+  },
+  "research.title.tagVia": {
+    "en": "via {via}",
+    "zh": "来源：{via}"
+  },
+  "research.title.yourMatches": {
+    "en": "Your comparable titles",
+    "zh": "你的相似作品"
+  },
+  "research.title.notFound": {
+    "en": "This listing is not in the current snapshot.",
+    "zh": "当前快照中没有这部作品。"
+  },
+  "research.title.firstSeen": {
+    "en": "First seen by us",
+    "zh": "我们首次发现"
+  },
+  "research.title.platformNew": {
+    "en": "Platform marks as new",
+    "zh": "平台标记新上架"
+  },
+  "research.title.trendsEmpty": {
+    "en": "Trends need at least two observation days; there is {days} so far. Nothing is invented before then.",
+    "zh": "趋势需要至少两个采集日，目前有 {days} 个。在此之前不虚构任何变化。"
+  },
+  "research.title.rankMove.entered": {
+    "en": "Entered {list} at #{rank}",
+    "zh": "进入 {list}，第 {rank} 名"
+  },
+  "research.title.rankMove.exited": {
+    "en": "Left {list} (was #{rank})",
+    "zh": "离开 {list}（此前第 {rank} 名）"
+  },
+  "research.title.rankMove.ok": {
+    "en": "{list}: #{prior} → #{rank} ({movement})",
+    "zh": "{list}：第 {prior} → 第 {rank} 名（{movement}）"
+  },
+  "research.title.rankMove.absent": {
+    "en": "Not on a chart on either day",
+    "zh": "两个采集日都未上榜"
+  },
+  "research.title.counter.ok": {
+    "en": "+{delta} over {days} days ({perDay} per day)",
+    "zh": "{days} 天内 +{delta}（日均 {perDay}）"
+  },
+  "research.title.counter.anomaly": {
+    "en": "Counter decreased ({start} → {end}); treated as an anomaly, not negative demand.",
+    "zh": "计数下降（{start} → {end}）；视为异常，不是负需求。"
+  },
+  "research.title.counter.noBaseline": {
+    "en": "No baseline: first seen this crawl.",
+    "zh": "没有基线：本次采集首次发现。"
+  },
+  "research.title.counter.noCounter": {
+    "en": "No comparable counter on both days.",
+    "zh": "两个采集日没有可比的计数。"
+  },
+  "research.title.creativeEmpty": {
+    "en": "Ad creative observations need a connected source (see Data & Sources). Below are premise sentences from the synopsis, not tested hooks.",
+    "zh": "广告素材观测需要接入来源（见数据与来源）。下面是简介的开场设定句，不是经过测试的钩子。"
+  },
+  "research.title.sourcesNote": {
+    "en": "Source field, unit and read time of every number on this page.",
+    "zh": "本页每个数字的来源字段、单位与读取时间。"
+  },
+  "research.title.observedAt": {
+    "en": "read",
+    "zh": "读取于"
+  },
+  "research.title.field": {
+    "en": "field",
+    "zh": "字段"
+  },
+  "research.title.unit": {
+    "en": "unit",
+    "zh": "单位"
+  },
+  "research.title.methodology": {
+    "en": "Methodology",
+    "zh": "方法说明"
+  },
+  "research.title.identityNote": {
+    "en": "This is one platform listing. The same drama may appear elsewhere under another title; similarity is not identity.",
+    "zh": "这是一个平台上架条目。同一部剧可能在其他平台以别名出现；相似不等于同一作品。"
+  },
+  "research.title.audienceGeo": {
+    "en": "Audience geography",
+    "zh": "观众地域"
+  },
+  "research.title.collectionLocale": {
+    "en": "Collection locale",
+    "zh": "采集语言"
+  },
+  "research.sources.title": {
+    "en": "Data & Sources",
+    "zh": "数据与来源"
+  },
+  "research.sources.sub": {
+    "en": "What every metric means, where it comes from, how it is defined, and its current state. Credentials and operational logs are not here.",
+    "zh": "每个指标的含义、来源、口径与当前状态。凭证与运行日志不在此页。"
+  },
+  "research.sources.metrics": {
+    "en": "Metrics",
+    "zh": "指标"
+  },
+  "research.sources.sourcesHead": {
+    "en": "Sources",
+    "zh": "来源"
+  },
+  "research.sources.question": {
+    "en": "Question",
+    "zh": "回答的问题"
+  },
+  "research.sources.grain": {
+    "en": "Grain",
+    "zh": "粒度"
+  },
+  "research.sources.field": {
+    "en": "Source field",
+    "zh": "来源字段"
+  },
+  "research.sources.unit": {
+    "en": "Unit",
+    "zh": "单位"
+  },
+  "research.sources.denominator": {
+    "en": "Denominator",
+    "zh": "分母"
+  },
+  "research.sources.window": {
+    "en": "Window",
+    "zh": "时间窗"
+  },
+  "research.sources.evidence": {
+    "en": "Evidence",
+    "zh": "证据类型"
+  },
+  "research.sources.formula": {
+    "en": "Formula",
+    "zh": "公式"
+  },
+  "research.sources.version": {
+    "en": "Version",
+    "zh": "版本"
+  },
+  "research.sources.limits": {
+    "en": "Limitations",
+    "zh": "限制"
+  },
+  "research.sources.access": {
+    "en": "Access",
+    "zh": "读取方式"
+  },
+  "research.sources.surface": {
+    "en": "Surface",
+    "zh": "来源页面"
+  },
+  "research.sources.locale": {
+    "en": "Collection locale",
+    "zh": "采集语言"
+  },
+  "research.sources.geo": {
+    "en": "Audience geography",
+    "zh": "观众地域"
+  },
+  "research.sources.refresh": {
+    "en": "Refresh target",
+    "zh": "更新目标"
+  },
+  "research.sources.reviewNote": {
+    "en": "Review note",
+    "zh": "评审备注"
+  },
+  "research.sources.status": {
+    "en": "Status",
+    "zh": "状态"
+  },
+  "research.sources.coverage": {
+    "en": "Current coverage",
+    "zh": "当前覆盖"
+  },
+  "research.sources.lastRun": {
+    "en": "Last published run",
+    "zh": "最近发布的运行"
+  },
+  "research.sources.lastFailure": {
+    "en": "Last failed run",
+    "zh": "最近失败的运行"
+  },
+  "research.sources.history": {
+    "en": "{n} observation days",
+    "zh": "{n} 个采集日"
+  },
+  "research.sources.source": {
+    "en": "Source",
+    "zh": "来源"
+  },
+  "research.sources.usedBy": {
+    "en": "Metrics from this source",
+    "zh": "来自此来源的指标"
+  },
+  "research.sources.notFound": {
+    "en": "No such entry.",
+    "zh": "没有这个条目。"
+  },
+  "research.sources.detailCoverage": {
+    "en": "Detail pages: {fetched} of {requested}",
+    "zh": "详情页：{requested} 个中读取 {fetched} 个"
+  },
+  "research.sources.errors": {
+    "en": "Load errors",
+    "zh": "读取错误"
+  },
+  "research.geo.unknown": {
+    "en": "Unknown (an English page does not establish a US audience)",
+    "zh": "未知（英文页面不能说明观众在美国）"
+  },
+  "research.geo.US": {
+    "en": "US",
+    "zh": "美国"
+  },
+  "research.geo.global": {
+    "en": "Global",
+    "zh": "全球"
+  },
+  "research.geo.per_report": {
+    "en": "Per report",
+    "zh": "按报表"
+  },
+  "research.mine.kicker": {
+    "en": "My catalog",
+    "zh": "我的剧库"
+  },
+  "research.mine.title": {
+    "en": "My titles",
+    "zh": "我的剧库"
+  },
+  "research.mine.sub": {
+    "en": "Your titles against the market. Localization and test tools live inside each title.",
+    "zh": "你的作品与市场的对照；本地化与测试工具在每部作品内。"
+  },
+  "research.mine.vsMarket": {
+    "en": "Against the market",
+    "zh": "与市场对照"
+  },
+  "research.mine.vsMarketSub": {
+    "en": "Each title's tropes scored against the prominent-listing share; open a title for comparable listings and why.",
+    "zh": "按题材与显著作品占比匹配；点开作品查看可比作品与原因。"
+  },
+  "research.mine.marketScore": {
+    "en": "Market match",
+    "zh": "市场匹配"
+  },
+  "research.mine.marketScoreNote": {
+    "en": "Similarity, not success probability",
+    "zh": "相似度，不是成功概率"
+  },
+  "research.mine.hotTropes": {
+    "en": "prominent tropes",
+    "zh": "个显著题材"
+  },
+  "research.mine.comparables": {
+    "en": "Comparable listings",
+    "zh": "可比作品"
+  },
+  "research.mine.untagged": {
+    "en": "No tropes recognized. Add a synopsis to match.",
+    "zh": "未识别出题材，补充简介后可匹配。"
+  },
+  "research.mine.reported": {
+    "en": "Your reported numbers",
+    "zh": "你提供的数据"
+  },
+  "research.mine.views": {
+    "en": "Views (China)",
+    "zh": "国内观看"
+  },
+  "research.mine.completion": {
+    "en": "Completion",
+    "zh": "完播率"
+  },
+  "research.mine.paying": {
+    "en": "Paying rate",
+    "zh": "付费率"
+  },
+  "research.mine.perfTitle": {
+    "en": "US performance",
+    "zh": "美国表现"
+  },
+  "research.mine.perfEmpty": {
+    "en": "No US performance data yet. Import a distribution or platform report and each title compares to the market on comparable definitions.",
+    "zh": "还没有美国表现数据。导入发行或平台报表后，每部作品将按可比口径与市场对照。"
+  },
+  "research.mine.perfCta": {
+    "en": "Import a report",
+    "zh": "导入报表"
+  },
+  "research.mine.empty": {
+    "en": "No titles yet.",
+    "zh": "还没有作品。"
+  },
+  "research.mine.truncated": {
+    "en": "Showing {shown} of {total} titles.",
+    "zh": "显示前 {shown} 部，共 {total} 部。"
+  },
+  "research.mine.why": {
+    "en": "Why",
+    "zh": "原因"
+  },
+  "research.mine.adapt": {
+    "en": "Localize (Adapt)",
+    "zh": "本地化（Adapt）"
+  },
+  "research.mine.test": {
+    "en": "Propose a test (Promote)",
+    "zh": "提出测试（Promote）"
+  },
+  "research.premise.title": {
+    "en": "Premise examples from prominent titles",
+    "zh": "显著作品的开场设定示例"
+  },
+  "research.premise.sub": {
+    "en": "The first sentence of each synopsis. Examples of how a premise is stated, not tested hooks: no creative-outcome evidence exists here.",
+    "zh": "每部简介的第一句。是设定表述的示例，不是经过测试的钩子：这里没有创意效果证据。"
+  },
+  "research.premise.forYou": {
+    "en": "Filtered to your tropes",
+    "zh": "按你的题材筛选"
+  },
+  "research.premise.all": {
+    "en": "Whole market",
+    "zh": "全市场"
+  },
+  "research.watch.add": {
+    "en": "Watch",
+    "zh": "关注"
+  },
+  "research.watch.remove": {
+    "en": "Unwatch",
+    "zh": "取消关注"
+  },
+  "research.watch.empty": {
+    "en": "Nothing watched yet. Watch a listing from its page; rank and counter changes appear here once a second observation day exists.",
+    "zh": "还没有关注的作品。在作品页点关注；有第二个采集日后，这里显示名次与计数变化。"
+  },
+  "research.watch.count": {
+    "en": "{n} watched",
+    "zh": "关注 {n} 部"
+  },
+  "research.platform.reelshort": {
+    "en": "ReelShort",
+    "zh": "ReelShort"
+  },
+  "research.platform.dramabox": {
+    "en": "DramaBox",
+    "zh": "DramaBox"
+  },
+  "research.new": {
+    "en": "New",
+    "zh": "新"
+  },
+  "research.crawl.count": {
+    "en": "{n} listings",
+    "zh": "{n} 条"
+  },
+  "research.delta.up": {
+    "en": "+{n} pts",
+    "zh": "+{n} 点"
+  },
+  "research.delta.down": {
+    "en": "−{n} pts",
+    "zh": "−{n} 点"
+  },
+  "research.delta.flat": {
+    "en": "flat",
+    "zh": "持平"
+  },
+  "research.more": {
+    "en": "Show all {n}",
+    "zh": "展开全部 {n}"
+  },
+  "research.less": {
+    "en": "Show fewer",
+    "zh": "收起"
+  },
+  "research.tableAlt": {
+    "en": "Table view",
+    "zh": "表格"
+  },
+  "research.chartSummary": {
+    "en": "Chart summary",
+    "zh": "图表摘要"
+  },
+  "research.card.platformNew": {
+    "en": "Platform-new listings",
+    "zh": "平台新上架"
+  },
+  "research.watch.watching": {
+    "en": "Watching",
+    "zh": "已关注"
+  },
+  "research.watch.readOnly": {
+    "en": "Reviewer or approver roles can watch listings.",
+    "zh": "审阅或审批角色可以关注作品。"
+  },
+  "research.watch.missing": {
+    "en": "Not in the current snapshot",
+    "zh": "不在当前快照中"
+  },
+  "research.shortlist.title": {
+    "en": "Launch-test shortlist",
+    "zh": "上线测试候选"
+  },
+  "research.shortlist.sub": {
+    "en": "An explained hypothesis, not a probability of success. Formula v{version}: comparables (0–50), rights window (±), localization readiness (0–20), your constraints (±10), own evidence (+5).",
+    "zh": "是有解释的假设，不是成功概率。公式 v{version}：可比作品（0–50）、版权窗口（±）、本地化就绪（0–20）、你的约束（±10）、自有证据（+5）。"
+  },
+  "research.shortlist.score": {
+    "en": "Test priority",
+    "zh": "测试优先级"
+  },
+  "research.shortlist.missing": {
+    "en": "Missing",
+    "zh": "缺少"
+  },
+  "research.shortlist.reason.comparables": {
+    "en": "Market match {score}: {n} comparable prominent listings, {hot} prominent tropes",
+    "zh": "市场匹配 {score}：{n} 部可比显著作品，{hot} 个显著题材"
+  },
+  "research.shortlist.reason.untagged": {
+    "en": "No tropes recognized in the synopsis",
+    "zh": "简介中未识别出题材"
+  },
+  "research.shortlist.reason.noSynopsis": {
+    "en": "No synopsis to match",
+    "zh": "没有可匹配的简介"
+  },
+  "research.shortlist.reason.rightsOk": {
+    "en": "License window covers today (until {end}, as you reported)",
+    "zh": "授权窗口覆盖今天（至 {end}，按你提供的信息）"
+  },
+  "research.shortlist.reason.rightsOutside": {
+    "en": "Outside the license window ({start} – {end})",
+    "zh": "不在授权窗口内（{start} – {end}）"
+  },
+  "research.shortlist.reason.rightsUnknown": {
+    "en": "US rights window not recorded",
+    "zh": "未记录美国版权窗口"
+  },
+  "research.shortlist.reason.subtitlesApproved": {
+    "en": "Approved English subtitles exist",
+    "zh": "已有定稿英文字幕"
+  },
+  "research.shortlist.reason.subtitlesPartial": {
+    "en": "English adaptation {pct}% done ({eps}/{total} episodes uploaded)",
+    "zh": "英文改编完成 {pct}%（已上传 {eps}/{total} 集）"
+  },
+  "research.shortlist.reason.scriptsOnly": {
+    "en": "{eps} episodes uploaded, no adaptation yet",
+    "zh": "已上传 {eps} 集，尚未改编"
+  },
+  "research.shortlist.reason.noMaterials": {
+    "en": "No episodes uploaded",
+    "zh": "未上传任何集"
+  },
+  "research.shortlist.reason.targetsUS": {
+    "en": "You listed the US as a target market",
+    "zh": "你把美国列为目标市场"
+  },
+  "research.shortlist.reason.notTargetingUS": {
+    "en": "US not among your target markets ({markets})",
+    "zh": "美国不在你的目标市场中（{markets}）"
+  },
+  "research.shortlist.reason.noProfile": {
+    "en": "Target markets not set in your studio profile",
+    "zh": "工作室资料中未设置目标市场"
+  },
+  "research.shortlist.reason.ownReports": {
+    "en": "{n} imported report rows link to this title",
+    "zh": "有 {n} 条导入报表关联到此作品"
+  },
+  "research.shortlist.reason.noReports": {
+    "en": "No imported performance for this title",
+    "zh": "此作品没有导入的表现数据"
+  },
+  "research.reports.title": {
+    "en": "My reports",
+    "zh": "我的报表"
+  },
+  "research.reports.sub": {
+    "en": "Import your own distribution or platform reports as CSV. Rows are validated before anything is saved; a batch can be reverted. Only your company sees them.",
+    "zh": "以 CSV 导入你自己的发行或平台报表。保存前逐行校验；导入批次可撤销。只有你的公司可见。"
+  },
+  "research.reports.columns": {
+    "en": "Expected columns: title, platform, period_start, period_end (optional), metric ({metrics}), value, currency (for revenue/spend). Chinese headers are recognized.",
+    "zh": "需要的列：title（剧名）、platform（平台）、period_start（开始）、period_end（结束，可选）、metric（指标：{metrics}）、value（数值）、currency（收入/花费需要币种）。中文表头可识别。"
+  },
+  "research.reports.choose": {
+    "en": "Choose a CSV file",
+    "zh": "选择 CSV 文件"
+  },
+  "research.reports.preview": {
+    "en": "Preview",
+    "zh": "预览"
+  },
+  "research.reports.commit": {
+    "en": "Import {n} rows",
+    "zh": "导入 {n} 行"
+  },
+  "research.reports.allowDuplicates": {
+    "en": "Also import duplicates",
+    "zh": "同时导入重复行"
+  },
+  "research.reports.valid": {
+    "en": "{n} valid",
+    "zh": "{n} 行有效"
+  },
+  "research.reports.invalid": {
+    "en": "{n} with errors (not imported)",
+    "zh": "{n} 行有错误（不导入）"
+  },
+  "research.reports.duplicates": {
+    "en": "{n} duplicates (skipped unless allowed)",
+    "zh": "{n} 行重复（默认跳过）"
+  },
+  "research.reports.unmatched": {
+    "en": "{n} titles not in your catalog (imported without a link)",
+    "zh": "{n} 个剧名不在剧库中（不关联导入）"
+  },
+  "research.reports.missingColumns": {
+    "en": "Missing columns: {cols}",
+    "zh": "缺少列：{cols}"
+  },
+  "research.reports.row": {
+    "en": "Row",
+    "zh": "行"
+  },
+  "research.reports.batches": {
+    "en": "Import batches",
+    "zh": "导入批次"
+  },
+  "research.reports.revert": {
+    "en": "Revert",
+    "zh": "撤销"
+  },
+  "research.reports.reverted": {
+    "en": "Reverted",
+    "zh": "已撤销"
+  },
+  "research.reports.imported": {
+    "en": "Imported {n} rows.",
+    "zh": "已导入 {n} 行。"
+  },
+  "research.reports.none": {
+    "en": "No batches yet.",
+    "zh": "还没有导入批次。"
+  },
+  "research.reports.readOnly": {
+    "en": "Reviewer or approver roles can import reports.",
+    "zh": "审阅或审批角色可以导入报表。"
+  },
+  "research.reports.period": {
+    "en": "Period",
+    "zh": "期间"
+  },
+  "research.reports.metric": {
+    "en": "Metric",
+    "zh": "指标"
+  },
+  "research.reports.value": {
+    "en": "Value",
+    "zh": "数值"
+  },
+  "research.reports.file": {
+    "en": "File",
+    "zh": "文件"
+  },
+  "research.reports.rows": {
+    "en": "Rows",
+    "zh": "行数"
+  },
+  "research.reports.skipped": {
+    "en": "Skipped",
+    "zh": "跳过"
+  },
+  "research.reports.when": {
+    "en": "Imported",
+    "zh": "导入时间"
+  },
+  "research.mine.perfFrom": {
+    "en": "From your reports (latest period per metric)",
+    "zh": "来自你的报表（每指标最近期间）"
+  },
+  "research.metric.starts": {
+    "en": "Starts",
+    "zh": "开播人数"
+  },
+  "research.metric.views": {
+    "en": "Views",
+    "zh": "观看"
+  },
+  "research.metric.completions": {
+    "en": "Completions",
+    "zh": "完播"
+  },
+  "research.metric.payers": {
+    "en": "Payers",
+    "zh": "付费人数"
+  },
+  "research.metric.revenue": {
+    "en": "Revenue",
+    "zh": "收入"
+  },
+  "research.metric.spend": {
+    "en": "Spend",
+    "zh": "花费"
+  },
+  "research.metric.installs": {
+    "en": "Installs",
+    "zh": "安装"
+  },
+  "research.metric.impressions": {
+    "en": "Impressions",
+    "zh": "曝光"
+  },
+  "research.metric.clicks": {
+    "en": "Clicks",
+    "zh": "点击"
+  },
+  "research.nav.reports": {
+    "en": "My reports",
+    "zh": "我的报表"
+  }
+}

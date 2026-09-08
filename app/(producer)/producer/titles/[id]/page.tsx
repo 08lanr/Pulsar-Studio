@@ -51,7 +51,7 @@ export default async function ProducerTitlePage({ params }: { params: { id: stri
   return (
     <>
       <nav className="studio-crumbs" aria-label={t(locale, "v3.breadcrumbs")}>
-        <a href="/producer">{t(locale, "v3.nav.library")}</a>
+        <a href="/producer/titles">{t(locale, "research.nav.titles")}</a>
         <span aria-hidden>›</span>
         <span>{detail.title.name_en || detail.title.name_zh}</span>
       </nav>
