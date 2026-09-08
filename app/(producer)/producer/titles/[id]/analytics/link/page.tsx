@@ -105,7 +105,7 @@ export default async function AnalyticsLinkPage({ params, searchParams }: { para
                   <p className="gt-muted">{t(locale, "an.link.step3Sub", { title: titleName, listing: picked.name })}</p>
                   {canEdit ? (
                     already ? (
-                      <a className="btn btn-primary" href={next}>{t(locale, "an.link.openAnalytics")} →</a>
+                      <a className="btn btn-primary" href={next}>{t(locale, "an.link.openAnalytics")}&nbsp;→</a>
                     ) : (
                       <ConfirmLink titleId={a.title.id} listingId={picked.id} next={next} disabled={conflict} />
                     )

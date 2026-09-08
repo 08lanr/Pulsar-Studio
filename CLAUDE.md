@@ -55,6 +55,7 @@ Run `npm test`, `npm run typecheck`, and `npm run build` before considering an i
 - Use `t()` in server components and `useT()` in client components. Add strings under `locales/_keys/`, then run `node scripts/merge-locales.mjs`.
 - Chinese source and English adaptation remain in their content languages independent of chrome locale; retain `lang` attributes or bilingual classes.
 - Use existing tokens and classes in `app/globals.css`. Do not introduce a CSS framework or external font host.
+- Wrapping discipline (decision 2026-09-08 "final UI/UX pass", `app/polish.css` loads last): a "label →" link gets `&nbsp;→`; action columns in repeating tables are fixed-width and their buttons never wrap; the date range is the `RangeControl` segmented control; use the `text-wrap-style` longhand, never the `text-wrap` shorthand, so deliberate `white-space: nowrap` survives.
 - Reserve the gold `.btn-approve` for the partner's primary approval action.
 
 ## Routes and exports

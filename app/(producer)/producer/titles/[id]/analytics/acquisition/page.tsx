@@ -54,7 +54,7 @@ export default async function AnalyticsAcquisition({ params, searchParams }: { p
                         {c.refreshed_at && <> · {t(locale, "an.acq.refreshed", { at: fmtUtc(c.refreshed_at) })}</>}
                       </p>
                     </div>
-                    {c.href ? <a className="btn btn-outline btn-sm" href={c.href}>{t(locale, "an.acq.openCampaign")} →</a> : <span className="rs-panel-aside">{t(locale, "an.acq.noRecord")}</span>}
+                    {c.href ? <a className="btn btn-outline btn-sm" href={c.href}>{t(locale, "an.acq.openCampaign")}&nbsp;→</a> : <span className="rs-panel-aside">{t(locale, "an.acq.noRecord")}</span>}
                   </div>
                   <div className="an-two">
                     <dl className="an-kv">

@@ -135,7 +135,8 @@ export default async function WhatToMakeNext({ searchParams }: { searchParams: {
                       <span className="rs-bar-track"><span className="rs-bar-fill" style={{ width: `${Math.round(s.fresh_share * 100)}%` }} /></span>
                       <b>{fmtPct(s.fresh_share)}</b>
                     </div>
-                    <small>{t(locale, "next.board.ofNew", { n: s.fresh_titles, sample: s.fresh_sample })} · {Object.entries(s.by_platform).map(([p, n]) => `${nameOf(p as Platform)} ${n}`).join(" · ")} · <a href={exploreHref}>{t(locale, "next.board.see")} →</a></small>
+                    <small><span>{t(locale, "next.board.ofNew", { n: s.fresh_titles, sample: s.fresh_sample })}</span>{Object.entries(s.by_platform).map(([p, n]) => <span key={p}> · {nameOf(p as Platform)} {n}</span>)}</small>
+                    <a className="nx-board-see" href={exploreHref}>{t(locale, "next.board.see")}&nbsp;→</a>
                   </div>
                   <div className="nx-board-num">
                     <LiftChip trope={s} locale={locale} />
@@ -183,7 +184,7 @@ export default async function WhatToMakeNext({ searchParams }: { searchParams: {
                     </blockquote>
                   )}
                   <div className="nx-recipe-foot">
-                    <a href={`/producer/explore/titles?trope=${s.id}&newonly=1&mode=all`}>{t(locale, "next.recipe.see")} →</a>
+                    <a href={`/producer/explore/titles?trope=${s.id}&newonly=1&mode=all`}>{t(locale, "next.recipe.see")}&nbsp;→</a>
                     <EvidenceTag evidence="inferred" locale={locale} />
                   </div>
                 </article>
@@ -201,7 +202,7 @@ export default async function WhatToMakeNext({ searchParams }: { searchParams: {
                 <h2>{t(locale, "next.platform.title", { platform: nameOf(p.platform) })}</h2>
                 <p>{t(locale, historyOk ? "next.platform.sub" : "next.platform.subNoHistory", { fresh: p.fresh, sample: p.sample, platform: nameOf(p.platform) })}</p>
               </div>
-              <a href={`/producer/explore/titles?platform=${p.platform}&newonly=1&mode=all`}>{t(locale, "next.more", { platform: nameOf(p.platform) })} →</a>
+              <a href={`/producer/explore/titles?platform=${p.platform}&newonly=1&mode=all`}>{t(locale, "next.more", { platform: nameOf(p.platform) })}&nbsp;→</a>
             </header>
             {p.titles.length === 0 ? (
               <div className="rs-empty">{t(locale, "next.platform.none", { platform: nameOf(p.platform) })}</div>

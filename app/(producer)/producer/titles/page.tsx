@@ -74,6 +74,7 @@ export default async function MyCatalog({ searchParams }: { searchParams: Search
           <button className="btn btn-outline btn-sm" type="submit">{t(locale, "research.search.go")}</button>
         </form>
         <div className="pf-quick" role="group" aria-label={t(locale, "ws.catalog.band")}>
+          <a className={`filter-chip${!band ? " on" : ""}`} aria-current={!band ? "true" : undefined} href={href({ band: undefined })}>{t(locale, "pf.quick.all")}</a>
           {BAND_ORDER.map((b) => <a key={b} className={`filter-chip${band === b ? " on" : ""}`} aria-current={band === b ? "true" : undefined} href={href({ band: band === b ? undefined : b })}>{t(locale, `ws.band.${b}`)}</a>)}
         </div>
       </div>
@@ -109,20 +110,20 @@ export default async function MyCatalog({ searchParams }: { searchParams: Search
                     <th scope="row" className="pf-title"><a href={open} lang={lang}>{primary}</a>{secondary && <small lang={lang === "en" ? "zh-CN" : "en"}>{secondary}</small>}</th>
                     <td className="pf-cell">
                       <PlatformChip status={platform} locale={locale} />
-                      <a className="pf-cell-link" href={linked ? `${open}/analytics` : `${open}/analytics/link`}>{t(locale, linked ? "pf.cell.viewTiktok" : "pf.cell.link")} →</a>
+                      <a className="pf-cell-link" href={linked ? `${open}/analytics` : `${open}/analytics/link`}>{t(locale, linked ? "pf.cell.viewTiktok" : "pf.cell.link")}&nbsp;→</a>
                     </td>
                     <td className="pf-cell">
                       <AdChip status={ads.status} locale={locale} step={step} />
-                      <a className="pf-cell-link" href={ads.status === "none" ? `/producer/promote/new?title=${id}` : `${open}/campaigns`}>{t(locale, ads.status === "none" ? "pf.cell.start" : "pf.cell.campaigns")} →</a>
+                      <a className="pf-cell-link" href={ads.status === "none" ? `/producer/promote/new?title=${id}` : `${open}/campaigns`}>{t(locale, ads.status === "none" ? "pf.cell.start" : "pf.cell.campaigns")}&nbsp;→</a>
                     </td>
                     <td className="pf-cell pf-score">
                       <ScoreDial score={a.score} band={a.band} locale={locale} size="sm" />
                       <div>
                         <BandPill band={a.band} locale={locale} />
-                        <a className="pf-cell-link" href={`${open}/preparation`}>{t(locale, "tw.nav.preparation")} →</a>
+                        <a className="pf-cell-link" href={`${open}/preparation`}>{t(locale, "tw.nav.preparation")}&nbsp;→</a>
                       </div>
                     </td>
-                    <td className="pf-num"><a className="btn btn-outline btn-sm" href={open} aria-label={`${t(locale, "pf.col.open")}: ${primary}`}>{t(locale, "pf.col.open")} →</a></td>
+                    <td className="pf-num"><a className="btn btn-outline btn-sm" href={open} aria-label={`${t(locale, "pf.col.open")}: ${primary}`}>{t(locale, "pf.col.open")}&nbsp;→</a></td>
                   </tr>
                 );
               })}

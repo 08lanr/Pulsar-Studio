@@ -37,7 +37,7 @@ const GROUPS: Group[] = [
       { href: "/producer/insights", key: "next.nav.overview", Icon: IconCompass, match: (p) => p === "/producer/insights" },
       { href: "/producer/insights/next", key: "next.nav.next", Icon: IconCompass, match: (p) => p.startsWith("/producer/insights/next") },
       { href: "/producer/explore/titles", key: "next.nav.explore", Icon: IconCompass, match: (p) => p.startsWith("/producer/explore") || p.startsWith("/producer/market") },
-      { href: "/producer/sources", key: "next.nav.sources", Icon: IconSources, match: (p) => p.startsWith("/producer/sources") },
+      { href: "/producer/sources", key: "ws.nav.sources", Icon: IconSources, match: (p) => p.startsWith("/producer/sources") },
     ],
   },
   {

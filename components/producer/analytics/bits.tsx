@@ -100,10 +100,9 @@ export function DemoChip({ locale }: { locale: Locale }) {
 
 export function RangeControl({ range, hrefFor, locale }: { range: AnalyticsRange; hrefFor: (r: AnalyticsRange) => string; locale: Locale }) {
   return (
-    <nav className="filter-row an-range" aria-label={t(locale, "an.range.label")}>
-      <span className="rs-toolbar-label">{t(locale, "an.range.label")}</span>
+    <nav className="seg an-range" aria-label={t(locale, "an.range.label")}>
       {RANGES.map((r) => (
-        <a key={r} className={`filter-chip${r === range ? " on" : ""}`} aria-current={r === range ? "true" : undefined} href={hrefFor(r)}>
+        <a key={r} className={`seg-btn${r === range ? " on" : ""}`} aria-current={r === range ? "true" : undefined} href={hrefFor(r)}>
           {t(locale, `an.range.${r}`)}
         </a>
       ))}

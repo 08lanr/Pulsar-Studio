@@ -76,28 +76,28 @@
     "zh": "广告活动简报"
   },
   "promote.new.title": {
-    "en": "What should these ads accomplish?",
-    "zh": "这批广告要带来什么结果？"
+    "en": "New ad campaign",
+    "zh": "新建广告活动"
   },
   "promote.new.sub": {
-    "en": "Set the audience, goal and content boundaries. Then generate ads to choose from.",
-    "zh": "设置受众、目标和内容边界，再生成广告供选择。"
+    "en": "A campaign is one round of ads for a single drama. Save the brief first, then generate and select ads, approve the content and budget, and submit the round.",
+    "zh": "每个广告活动是针对一部短剧的一轮广告测试。先保存简报，再生成并选择广告，批准内容与预算后提交。"
   },
   "promote.new.noTitles": {
-    "en": "Upload a drama first",
-    "zh": "请先上传一部剧"
+    "en": "Add your first drama",
+    "zh": "先添加一部短剧"
   },
   "promote.new.noTitlesHint": {
-    "en": "Promote and Adapt use the same title library.",
-    "zh": "推广和改编共用同一个作品库。"
+    "en": "Add a title to your catalog, then return here to plan its ads. You can upload video later.",
+    "zh": "先将短剧加入剧库，再回来规划广告。视频可以稍后上传。"
   },
   "promote.new.source": {
-    "en": "Source and outcome",
-    "zh": "素材与目标"
+    "en": "Campaign details",
+    "zh": "广告活动信息"
   },
   "promote.new.drama": {
-    "en": "Drama",
-    "zh": "剧集"
+    "en": "Drama to advertise",
+    "zh": "推广作品"
   },
   "promote.new.episodes": {
     "en": "episodes",
@@ -112,12 +112,12 @@
     "zh": "这部剧至少需要一集视频，才能开始生成广告。"
   },
   "promote.new.campaignName": {
-    "en": "Campaign name",
-    "zh": "广告活动名称"
+    "en": "Campaign name (internal)",
+    "zh": "广告活动名称（内部使用）"
   },
   "promote.new.market": {
-    "en": "Launch market",
-    "zh": "投放市场"
+    "en": "Target market",
+    "zh": "目标市场"
   },
   "promote.new.objective": {
     "en": "Primary objective",
@@ -128,16 +128,16 @@
     "zh": "观众点击后去哪里（可稍后填写）"
   },
   "promote.new.direction": {
-    "en": "What should viewers feel or understand?",
-    "zh": "希望观众产生什么感受或认知？"
+    "en": "Creative direction (optional)",
+    "zh": "创意方向（选填）"
   },
   "promote.new.directionHint": {
     "en": "For example: she looks powerless at first, but the audience should sense she is in control.",
     "zh": "例如：她一开始看似弱势，但观众应该逐渐发现局面其实由她掌控。"
   },
   "promote.new.exclusions": {
-    "en": "Do not use",
-    "zh": "不要使用"
+    "en": "Content to avoid (optional)",
+    "zh": "避免使用的内容（选填）"
   },
   "promote.new.exclusionsHint": {
     "en": "Characters, episodes, plot reveals, claims, or visual moments to avoid.",
@@ -156,16 +156,16 @@
     "zh": "这会决定哪些剧情能做开头钩子，不只是文案措辞。"
   },
   "promote.new.outputTitle": {
-    "en": "Ads to generate",
-    "zh": "待生成广告"
+    "en": "What happens next",
+    "zh": "保存后做什么"
   },
   "promote.new.outputHint": {
-    "en": "Generate 5 ads per round across direct clips and creator-style formats, each with a hook, caption, description and source timecode. Choose which ads to test first.",
-    "zh": "每轮生成 5 条直剪或达人风格广告，每条包含钩子、贴文文案、广告描述和来源时间码，再选择首轮测试的广告。"
+    "en": "Saving creates a draft. On the next screen, generate five ad proposals with opening lines, captions and source clips, then choose which to test.",
+    "zh": "保存后创建草稿。下一页可生成五条广告方案，包含开场文案、配文和源片段，再选择本轮要测试的广告。"
   },
   "promote.new.cta": {
-    "en": "Create campaign brief",
-    "zh": "创建广告活动简报"
+    "en": "Save campaign brief",
+    "zh": "保存广告简报"
   },
   "promote.objective.subscriptions": {
     "en": "Paid subscriptions",
@@ -240,8 +240,8 @@
     "zh": "批准广告"
   },
   "promote.workspace.submitLaunch": {
-    "en": "Launch",
-    "zh": "投放"
+    "en": "Submit demo launch",
+    "zh": "提交演示投放"
   },
   "promote.workspace.submitted": {
     "en": "Pulsar is preparing launch",
@@ -328,16 +328,16 @@
     "zh": "已上线"
   },
   "promote.new.pickTitle": {
-    "en": "Pick a drama",
-    "zh": "选择剧目"
+    "en": "Choose a drama to advertise",
+    "zh": "选择要推广的短剧"
   },
   "promote.new.pickHint": {
     "en": "Ads are generated from this drama's episodes.",
     "zh": "广告将根据该剧的剧集生成。"
   },
   "promote.new.pickReady": {
-    "en": "Ready",
-    "zh": "可用"
+    "en": "Video uploaded",
+    "zh": "已有视频"
   },
   "promote.new.change": {
     "en": "Change",
@@ -360,16 +360,16 @@
     "zh": "修改说明"
   },
   "promote.workspace.changeSent": {
-    "en": "Pulsar is working on this change",
-    "zh": "Pulsar 正在处理这条修改"
+    "en": "Change requested — awaiting Pulsar review",
+    "zh": "已提交修改要求，等待 Pulsar 处理"
   },
   "promote.new.defaultName": {
-    "en": "{title} — US concept test",
-    "zh": "{title} — 美国概念测试"
+    "en": "{title} — ad test",
+    "zh": "{title} — 广告测试"
   },
   "promote.new.requirements": {
-    "en": "To continue: a campaign name, an audience (3+ characters) and a hypothesis (10+ characters).",
-    "zh": "继续前需填写：活动名称、受众（至少 3 个字符）和假设（至少 10 个字符）。"
+    "en": "Enter a campaign name, an audience (at least 3 characters), and a test idea (at least 10 characters) to save.",
+    "zh": "请填写活动名称、目标受众（至少 3 个字符）和测试想法（至少 10 个字符）后保存。"
   },
   "promote.new.someNoVideo": {
     "en": "Titles without video can still save a US campaign brief; generating video ads needs footage.",

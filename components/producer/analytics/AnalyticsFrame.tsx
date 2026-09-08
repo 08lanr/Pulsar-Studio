@@ -38,7 +38,6 @@ export default function AnalyticsFrame({ data, view, children }: { data: Analyti
         {a.listing && <span className="ev ev-partner_reported" title={a.listing.id}>{a.listing.platform_label} · {a.listing.name}</span>}
       </div>
       <div className="an-controls">
-        <RangeControl range={range} hrefFor={hrefFor} locale={locale} />
         <nav className="tabs rs-tabs an-nav" aria-label={t(locale, "an.title")}>
           {VIEWS.map((v) => (
             <a key={v.id} className={`tab${v.id === view ? " on" : ""}`} href={`${base}${v.sub}${query}`} aria-current={v.id === view ? "page" : undefined}>
@@ -47,6 +46,7 @@ export default function AnalyticsFrame({ data, view, children }: { data: Analyti
           ))}
           <a className={`tab${view === "link" ? " on" : ""}`} href={linkHref} aria-current={view === "link" ? "page" : undefined}>{t(locale, "an.nav.link")}</a>
         </nav>
+        <RangeControl range={range} hrefFor={hrefFor} locale={locale} />
       </div>
 
       <FreshnessLine f={a.freshness} period={a.period} locale={locale} source={a.source} />

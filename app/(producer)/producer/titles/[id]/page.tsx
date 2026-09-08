@@ -48,7 +48,7 @@ export default async function TitleOverview({ params, searchParams }: { params: 
 
       <div className="tw-grid">
         <section className="tw-card tw-card-tiktok" aria-labelledby="tw-tiktok">
-          <header><h2 id="tw-tiktok">{t(locale, "tw.nav.tiktok")}</h2><a href={tiktokHref}>{t(locale, "tw.open")} →</a></header>
+          <header><h2 id="tw-tiktok">{t(locale, "tw.nav.tiktok")}</h2><a href={tiktokHref}>{t(locale, "tw.open")}&nbsp;→</a></header>
           {w.tiktok && w.tiktok.revenue.value != null ? (
             <dl className="tw-facts">
               <div><dt>{t(locale, `an.basis.${w.tiktok.revenue.basis}`)} · {t(locale, `an.range.${range}`)}</dt><dd className="tw-big">{fmtUsd(w.tiktok.revenue.value, 0)}</dd></div>
@@ -67,7 +67,7 @@ export default async function TitleOverview({ params, searchParams }: { params: 
         </section>
 
         <section className="tw-card tw-card-ads" aria-labelledby="tw-ads">
-          <header><h2 id="tw-ads">{t(locale, "tw.nav.campaigns")}</h2><a href={sectionHref(params.id, "campaigns")}>{t(locale, "tw.open")} →</a></header>
+          <header><h2 id="tw-ads">{t(locale, "tw.nav.campaigns")}</h2><a href={sectionHref(params.id, "campaigns")}>{t(locale, "tw.open")}&nbsp;→</a></header>
           {w.ads.campaign ? (
             <dl className="tw-facts">
               <div><dt>{t(locale, "tw.ads.spendToDate")}</dt><dd className="tw-big">{spend == null ? <span className="tw-muted">{t(locale, "tw.ads.noSpend")}</span> : fmtUsd(spend, 0)}</dd></div>
@@ -85,7 +85,7 @@ export default async function TitleOverview({ params, searchParams }: { params: 
         </section>
 
         <section className="tw-card" aria-labelledby="tw-prep">
-          <header><h2 id="tw-prep">{t(locale, "tw.nav.preparation")}</h2><a href={sectionHref(params.id, "preparation")}>{t(locale, "tw.open")} →</a></header>
+          <header><h2 id="tw-prep">{t(locale, "tw.nav.preparation")}</h2><a href={sectionHref(params.id, "preparation")}>{t(locale, "tw.open")}&nbsp;→</a></header>
           <dl className="tw-facts">
             <div><dt>{t(locale, "tw.prep.band")}</dt><dd><BandPill band={a.band} locale={locale} /></dd></div>
             <div><dt>{t(locale, "ws.catalog.col.rights")}</dt><dd className={x.facts.rights === "outside" ? "delta-down" : undefined}>{t(locale, `ws.catalog.rights.${x.facts.rights}`)}</dd></div>
@@ -94,7 +94,7 @@ export default async function TitleOverview({ params, searchParams }: { params: 
         </section>
 
         <section className="tw-card" aria-labelledby="tw-materials">
-          <header><h2 id="tw-materials">{t(locale, "tw.nav.materials")}</h2><a href={sectionHref(params.id, "materials")}>{t(locale, "tw.open")} →</a></header>
+          <header><h2 id="tw-materials">{t(locale, "tw.nav.materials")}</h2><a href={sectionHref(params.id, "materials")}>{t(locale, "tw.open")}&nbsp;→</a></header>
           <dl className="tw-facts">
             <div><dt>{t(locale, "v3.title.episodes")}</dt><dd className="tw-big">{episodes.length}<small> / {w.detail.title.episode_count}</small></dd></div>
             <div><dt>{t(locale, "ws.catalog.col.video")}</dt><dd>{withVideo > 0 ? t(locale, "ws.catalog.video.n", { n: withVideo }) : t(locale, "ws.catalog.video.none")}</dd></div>

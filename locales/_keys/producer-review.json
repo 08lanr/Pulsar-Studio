@@ -1,0 +1,50 @@
+{
+  "review.audienceHint": {
+    "en": "For example: US women aged 25–44 who watch romance dramas. Minimum 3 characters.",
+    "zh": "例如：喜欢爱情短剧的 25–44 岁美国女性。至少 3 个字符。"
+  },
+  "review.hypothesisHint": {
+    "en": "For example: Will opening with the betrayal get more clicks than opening with the romance? Minimum 10 characters.",
+    "zh": "例如：背叛情节开场是否比浪漫情节开场获得更多点击？至少 10 个字符。"
+  },
+  "review.selectionHint": {
+    "en": "Selecting adds an ad to this round. Approve ads locks the selected content; budget approval and submission follow separately.",
+    "zh": "选择广告是将其加入本轮测试。“批准广告”会锁定所选内容，之后还需单独批准预算并提交。"
+  },
+  "review.sourcePreview": {
+    "en": "Source footage preview. This player shows the episode, not a finished ad; use the time range below to review the proposed clip.",
+    "zh": "这里预览的是分集源视频，并非成品广告。请按下方时间范围查看建议片段。"
+  },
+  "review.roundSpend": {
+    "en": "this round to date",
+    "zh": "本轮累计"
+  },
+  "review.bothBenchmarks": {
+    "en": "Opening retention ≥ {hold}% · click-through ≥ {ctr}%",
+    "zh": "开场留存 ≥ {hold}% · 点击率 ≥ {ctr}%"
+  },
+  "review.unsavedBrief": {
+    "en": "You have unsaved changes. Save the brief before approving its budget.",
+    "zh": "当前有未保存的修改，请先保存简报，再批准预算。"
+  },
+  "review.noImpressions": {
+    "en": "Ad {n} has no impressions yet. There is not enough data to judge its performance.",
+    "zh": "广告 {n} 暂无展示，数据不足以判断效果。"
+  },
+  "review.resetConfirm": {
+    "en": "Reset the demo workspace? This replaces locally added titles, campaign changes and sample results with the original demo dataset.",
+    "zh": "重置演示工作区？本地新增作品、广告活动修改和示例结果将被原始演示数据替换。"
+  },
+  "review.profileSaved": {
+    "en": "Company profile saved.",
+    "zh": "公司资料已保存。"
+  },
+  "review.materialsIntro": {
+    "en": "Upload episode files here. The workflow below prepares English subtitles; you can create ads from video without completing subtitle adaptation.",
+    "zh": "在这里上传分集文件。下方流程用于制作英文字幕；已有视频即可制作广告，无需先完成字幕改编。"
+  },
+  "review.noPerformance": {
+    "en": "No performance data yet. Wait for reported impressions before judging these ads.",
+    "zh": "暂无效果数据，请等待展示数据后再判断广告效果。"
+  }
+}

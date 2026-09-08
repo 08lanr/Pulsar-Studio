@@ -14,6 +14,7 @@ export default function DemoBadge({ canReset = true }: { canReset?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [state, setState] = useState<"idle" | "done" | "error">("idle");
   async function reset() {
+    if (!window.confirm(tt("review.resetConfirm"))) return;
     setBusy(true);
     setState("idle");
     try {

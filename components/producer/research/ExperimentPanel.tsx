@@ -62,6 +62,8 @@ export default function ExperimentPanel({ campaign, creatives, results, canEdit,
   const [err, setErr] = useState<string | null>(null);
   const locked = ["submitted", "launching", "live"].includes(campaign.status);
 
+  const dirty = !!e && (Number(budget) !== e.budget_usd || hypothesis.trim() !== e.hypothesis || audience.trim() !== e.audience || Number(batch) !== e.first_batch || signal !== e.signal);
+
   async function run(key: string, fn: () => Promise<string | null>) {
     setBusy(key);
     setErr(null);
@@ -135,10 +137,11 @@ export default function ExperimentPanel({ campaign, creatives, results, canEdit,
             </div>
             <p className="hint">{tt("ws.exp.budgetNote")}</p>
           </fieldset>
+          {dirty && <p className="hint" role="status">{tt("review.unsavedBrief")}</p>}
           <div className="rs-form-foot">
             {canEdit && !locked && <button className="btn btn-outline" type="submit" disabled={busy !== null || hypothesis.trim().length < 10 || audience.trim().length < 3}>{busy === "save" ? tt("common.loading") : tt("ws.exp.save")}</button>}
             {e && !e.approved_at && !locked && (budgetStepReached ? (
-              <button className="btn btn-primary" type="button" onClick={approve} disabled={!canApprove || busy !== null} title={canApprove ? undefined : tt("ws.exp.approverOnly")}>
+              <button className="btn btn-primary" type="button" onClick={approve} disabled={!canApprove || busy !== null || dirty} title={canApprove ? undefined : tt("ws.exp.approverOnly")}>
                 {busy === "approve" ? tt("common.loading") : tt("ws.exp.approveBudget", { n: e.budget_usd })}
               </button>
             ) : (
@@ -233,15 +236,15 @@ export default function ExperimentPanel({ campaign, creatives, results, canEdit,
                 <li key={x.result.id} className={x.verdict === "met_both" ? "is-met" : "is-miss"}>
                   <span className="rd-finding-mark" aria-hidden="true">{x.verdict === "met_both" ? "✓" : "✗"}</span>
                   <span>
-                    {x.verdict === "met_both"
+                    {x.verdict === "no_impressions" ? tt("review.noImpressions", { n: x.ad_number ?? "?" }) : x.verdict === "met_both"
                       ? tt("rd.winnerLine", { n: x.ad_number ?? "?", hold: Math.round(x.result.hook_hold_rate * 100), bh, ctr: x.ctr == null ? "–" : (x.ctr * 100).toFixed(2), bc })
                       : tt("rd.missedLine", { n: x.ad_number ?? "?", what: missedWhat(x), hold: Math.round(x.result.hook_hold_rate * 100), ctr: x.ctr == null ? "–" : (x.ctr * 100).toFixed(2) })}
                   </span>
                 </li>
               ))}
             </ul>
-            {!winner && <p className="note note-warn">{tt("rd.noWinner")}</p>}
-            {analyticsHref && <p className="rd-analytics"><a href={analyticsHref}>{tt("rd.analyticsLink")} →</a></p>}
+            {!winner && <p className="note note-warn">{tt(reading.rows.every((x) => x.verdict === "no_impressions") ? "review.noPerformance" : "rd.noWinner")}</p>}
+            {analyticsHref && <p className="rd-analytics"><a href={analyticsHref}>{tt("rd.analyticsLink")}&nbsp;→</a></p>}
 
             <h3 className="rd-next-title">{tt("rd.nextTitle")}</h3>
             <p className="rd-next-sub">{tt("rd.nextSub", { n: nextRound.number })}</p>
@@ -261,7 +264,7 @@ export default function ExperimentPanel({ campaign, creatives, results, canEdit,
                 </div>
                 <div className="rd-option">
                   <div><strong>{tt("rd.stop")}</strong><p>{tt("rd.stopHint")}</p></div>
-                  <a className="rd-stop-link" href="/producer/promote">{tt("ws.exp.stop")} →</a>
+                  <a className="rd-stop-link" href="/producer/promote">{tt("ws.exp.stop")}&nbsp;→</a>
                 </div>
               </div>
             )}

@@ -1,6 +1,6 @@
 {
   "launch.title": {
-    "en": "Find the US potential in your catalog",
+    "en": "Find the US launch priority in your catalog",
     "zh": "发现剧库中的美国市场潜力"
   },
   "launch.sub": {
@@ -28,8 +28,8 @@
     "zh": "待评估作品"
   },
   "launch.assess": {
-    "en": "Assess US potential",
-    "zh": "评估美国潜力"
+    "en": "Assess US launch priority",
+    "zh": "评估美国发行优先级"
   },
   "launch.test": {
     "en": "Prepare a $100 test",

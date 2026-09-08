@@ -6,6 +6,18 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-09-08 (night) · Final UI/UX pass: nothing hangs, one shape per row, one range control
+
+Decided by the founders (Ruobin) after the redesign: "small things have fallen through the cracks" — the Ad campaigns table and its buttons, the date-range chips, and words or arrows hanging alone on a new line. Presentation only; no number, rule or route changed.
+
+- `app/polish.css` loads last. Producer-portal text uses `text-wrap-style: pretty` (paragraphs, cells, captions) and `balance` (headings) so a last line is never one word; the longhand is deliberate, the `text-wrap` shorthand would undo every intentional `white-space: nowrap`. Every "label →" link carries a non-breaking space before the arrow; the freshness lag "(1 d lag)" and the comparison note "(% change)" carry non-breaking spaces in the locale strings.
+- Repeating rows share one shape: the action column is a fixed width in Ad campaigns (170px), TikTok performance (112px), My catalog and the title's campaigns table, and its button never wraps; the "Step n of 6" badge always sits above its step name; column names share the top line of the header with units and bases beneath; the Spend and Ad results sub-labels (`USD · this round to date`, `Hook hold ≥ 30% · CTR ≥ 1.2%`) break only at their separator. TikTok performance headers are single-line and the state chip stays on one line.
+- The date range is one segmented control (`RangeControl`, `.seg.an-range`) everywhere, sitting at the right of the analytics view tabs under a shared hairline and beside the TikTok performance filters; the "Range" label is now the control's accessible name only.
+- What to make next: the story-type board's lift and growth columns are wide enough for "vs all listings" and "median of {n} listings"; "See all →" is its own line under the platform split, which breaks only between platforms.
+- Sidebar: the US market item reads **Data sources** (`ws.nav.sources`); the page and the What-to-make-next button keep "Data sources & definitions". The section tab rows (`.tw-nav`, `.pf-views`) no longer summon a vertical scrollbar from the active tab's 1px overhang.
+
+Checks: `npm test` (173), `npm run typecheck`, `npx next lint`, `npm run build`, `npm run test:e2e` (both viewports), walked in both locales at 1440 and 1920.
+
 ## 2026-09-08 (evening) · Status-board catalog; TikTok performance is its own area; Overview retired
 
 Decided by the founders (Ruobin) after walking the pulled build: the Overview was "kind of useless" (its task queue duplicated Ad campaigns and its market board duplicated What to make next) and the catalog was unintuitive — three views competing on one screen, buttons whose destination changed per row, and a "TikTok comparison" label that meant nothing on its own. The fix separates ad performance from TikTok performance completely and makes the catalog a plain status page.

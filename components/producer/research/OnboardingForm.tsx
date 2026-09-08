@@ -57,7 +57,7 @@ export default function OnboardingForm({ initial, readOnly }: { initial: Researc
       });
       const body = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
-      router.push("/producer?mode=company&saved=1");
+      router.push("/producer/company?tab=profile&saved=1");
       router.refresh();
     } catch (err) {
       setError((err as Error).message);

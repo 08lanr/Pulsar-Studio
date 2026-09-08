@@ -47,6 +47,7 @@ export default async function MaterialsPage({ params }: { params: { id: string }
   return (
     <TitleShell locale={locale} titleId={params.id} name_zh={detail.title.name_zh} name_en={detail.title.name_en} platform={w.platform} ads={w.ads.status} adStep={adStep} section="materials"
       actions={canEdit ? <a className="btn btn-primary" href="#add-episodes">{t(locale, "v3.title.addEpisodes")}</a> : undefined}>
+      <p className="page-sub">{t(locale, "review.materialsIntro")}</p>
       {detail.title.genre && <p className="tw-next-hint">{detail.title.genre}</p>}
       {!canEdit && <p className="note note-info">{t(locale, "ws.readOnly")}</p>}
       <section className="title-overview" aria-label={t(locale, "v3.title.overview")}>

@@ -72,7 +72,7 @@ export default async function AnalyticsEpisodes({ params, searchParams }: { para
                       <td className="gt-num"><MetricValue m={r.unlock_conversion} unit="rate" locale={locale} compact />{r.unlock_conversion.denominator != null && <small className="an-basis">n={r.unlock_conversion.denominator.toLocaleString("en-US")}</small>}</td>
                       <td className="gt-num"><MetricValue m={r.revenue_usd} unit="usd" locale={locale} compact /></td>
                       <td className="an-flags">{r.flags.length ? r.flags.map((f) => <span key={f} className={`an-flag an-flag-${f}`}>{t(locale, `an.flag.${f}`)}</span>) : <span className="gt-muted">–</span>}</td>
-                      <td>{r.episode_id ? <a className="btn btn-ghost btn-sm" href={`/producer/titles/${a.title.id}/episodes/${r.number}?returnTo=${returnTo}`}>{t(locale, "an.ep.workspace")} →</a> : <span className="gt-muted" title={t(locale, "an.ep.notInStudio")}>{t(locale, "an.ep.notInStudio")}</span>}</td>
+                      <td>{r.episode_id ? <a className="btn btn-ghost btn-sm" href={`/producer/titles/${a.title.id}/episodes/${r.number}?returnTo=${returnTo}`}>{t(locale, "an.ep.workspace")}&nbsp;→</a> : <span className="gt-muted" title={t(locale, "an.ep.notInStudio")}>{t(locale, "an.ep.notInStudio")}</span>}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -95,7 +95,7 @@ test("status board → market signal → matching owned title → its campaign",
   await expect(page.locator(".tw-chips")).toContainText(/results in/);
   await shot(page, "title-overview");
   // The title workspace: Preparation keeps the full assessment; the campaign is one section away and comes back.
-  await page.locator(".tw-nav a", { hasText: "Preparation" }).click();
+  await page.locator(".tw-nav a", { hasText: "US launch priority" }).click();
   await expect(page).toHaveURL(new RegExp(`/producer/titles/${T1}/preparation`));
   await expect(page.locator(".ps-score b").first()).toHaveText(/\d+/);
   await page.locator(".tw-nav a", { hasText: "Ad campaigns" }).click();
@@ -115,7 +115,7 @@ test("status board → market signal → matching owned title → its campaign",
 test("catalog: search, band filter and the zero-result recovery", async ({ page }) => {
   await resetDemo(page);
   await page.goto("/producer/titles?q=reborn");
-  await expect(page.locator(".pf-foot")).toContainText("1 titles");
+  await expect(page.locator(".pf-foot")).toContainText("Titles shown: 1");
   await expect(page.getByRole("link", { name: "Reborn as the CEO's First Love" }).first()).toBeVisible();
   await page.goto("/producer/titles");
   await expect(page.locator(".pf-table tbody tr")).toHaveCount(14);
@@ -126,7 +126,7 @@ test("catalog: search, band filter and the zero-result recovery", async ({ page 
   await expect(reborn.getByRole("link", { name: /View TikTok data/ })).toHaveAttribute("href", new RegExp(`/producer/titles/${T1}/analytics$`));
   await expect(reborn.getByRole("link", { name: /View campaigns/ })).toHaveAttribute("href", new RegExp(`/producer/titles/${T1}/campaigns$`));
   const unlinked = page.locator(".pf-table tbody tr", { hasText: "Campus Sweetheart" });
-  await expect(unlinked.getByRole("link", { name: /Link listing/ })).toBeVisible();
+  await expect(unlinked.getByRole("link", { name: /Link TikTok title/ })).toBeVisible();
   await expect(unlinked.getByRole("link", { name: /Start a campaign/ })).toBeVisible();
   // The recommendation bands filter the board.
   await page.getByRole("link", { name: /Higher priority/ }).first().click();
@@ -160,7 +160,7 @@ test("ads → approvals → budget → launch → demo results → next round", 
   await firstAd.getByLabel("What should change?").fill("Open on the wedding, not the forest.");
   await expect(sendChange).toBeEnabled();
   await sendChange.click();
-  await expect(firstAd).toContainText("Pulsar is working on this change");
+  await expect(firstAd).toContainText("Change requested — awaiting Pulsar review");
   await expect(firstAd).toContainText("Open on the wedding, not the forest.");
 
   await page.getByRole("button", { name: /Choose all \d+ ads/ }).click();
@@ -168,14 +168,20 @@ test("ads → approvals → budget → launch → demo results → next round", 
   await page.getByRole("button", { name: "Approve ads", exact: true }).click();
   await expect(page.locator(".ws-stages [aria-current=step]")).toContainText("Approve budget");
   await expect(page.getByText("Budget not approved")).toBeVisible();
-  await page.getByRole("button", { name: /Approve budget \$100/ }).click();
+  const budgetApproval = page.getByRole("button", { name: /Approve budget \$100/ });
+  await page.getByLabel("Proposed budget (USD)").fill("150");
+  await expect(budgetApproval).toBeDisabled();
+  await expect(page.getByText("You have unsaved changes. Save the brief before approving its budget.")).toBeVisible();
+  await page.getByLabel("Proposed budget (USD)").fill("100");
+  await expect(budgetApproval).toBeEnabled();
+  await budgetApproval.click();
   await expect(page.locator("#brief-record summary")).toContainText("Budget approved");
-  await expect(page.locator(".ws-stages [aria-current=step]")).toContainText("Launch");
+  await expect(page.locator(".ws-stages [aria-current=step]")).toContainText("Submit for launch");
   await shot(page, "campaign-budget-approved");
 
-  await page.getByRole("button", { name: "Launch", exact: true }).click();
-  await expect(page.locator(".ws-stages [aria-current=step]")).toContainText("Launch");
-  await expect(page.getByText("Submitted. Waiting for results; no action needed.")).toBeVisible();
+  await page.getByRole("button", { name: "Submit demo launch", exact: true }).click();
+  await expect(page.locator(".ws-stages [aria-current=step]")).toContainText("Submit for launch");
+  await expect(page.getByText("Submitted. Waiting for results. In demo mode, use Simulate demo results below to continue.")).toBeVisible();
   await page.getByRole("button", { name: "Simulate demo results" }).click();
   await expect(page.getByRole("heading", { name: "What the results say" })).toBeVisible();
   await expect(page.locator(".rd-table tbody tr")).toHaveCount(4);
@@ -190,12 +196,12 @@ test("ads → approvals → budget → launch → demo results → next round", 
   const winnerRow = page.locator(".rd-table tr.is-winner");
   if (await winnerRow.count()) {
     await expect(page.locator(".rd-findings li.is-met").first()).toContainText(/met both/);
-    await expect(page.getByRole("button", { name: /Test the best ad with \$300/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Draft a \$300 test/ })).toBeVisible();
   } else {
     await expect(page.getByText("No ad met both benchmarks")).toBeVisible();
   }
 
-  await page.getByRole("button", { name: "Test more ads" }).click();
+  await page.getByRole("button", { name: "Draft another test" }).click();
   await expect(page.getByRole("status")).toContainText("Round 2 created");
   await page.getByRole("link", { name: "Open round 2" }).click();
   await expect(page.getByRole("heading", { name: /round 2/ })).toBeVisible();
@@ -221,10 +227,10 @@ test("error feedback: the API refuses out-of-order actions and invalid input", a
   await page.goto(`/producer/promote/new?title=${T1}`);
   const cta = page.locator(".promo-brief-side button.btn-primary");
   await expect(cta).toBeDisabled();
-  await page.getByLabel("Hypothesis").fill("Short");
-  await page.getByLabel("Audience").fill("US women 25-44");
+  await page.getByLabel("What do you want to test?").fill("Short");
+  await page.getByLabel("Target audience").fill("US women 25-44");
   await expect(cta).toBeDisabled();
-  await page.getByLabel("Hypothesis").fill("The rebirth opening beats the romance opening for US women 25-44.");
+  await page.getByLabel("What do you want to test?").fill("The rebirth opening beats the romance opening for US women 25-44.");
   await expect(cta).toBeEnabled();
   await shot(page, "new-campaign-validation");
 });

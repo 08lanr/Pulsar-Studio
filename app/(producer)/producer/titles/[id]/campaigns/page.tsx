@@ -36,7 +36,7 @@ export default async function TitleCampaigns({ params }: { params: { id: string 
         <div><span>{t(locale, "tw.ads.spendToDate")}</span><strong>{spend == null ? "–" : fmtUsd(spend, 2)}</strong></div>
         <div><span>{t(locale, "tw.ads.ctrToDate")}</span><strong>{ctr ? <>{fmtPct(ctr.ctr, 2)} <small>{ctr.ctr >= BENCHMARK.ctr ? "✓" : "✗"} ≥ {(BENCHMARK.ctr * 100).toFixed(1)}%</small></> : "–"}</strong></div>
         <div><span>{t(locale, "tw.ads.rounds")}</span><strong>{rounds.length}</strong></div>
-        <div><span>{t(locale, "tw.ads.attributed")}</span><strong><a href={`/producer/titles/${params.id}/analytics/acquisition`}>{t(locale, "tw.nav.tiktok")} →</a></strong></div>
+        <div><span>{t(locale, "tw.ads.attributed")}</span><strong><a href={`/producer/titles/${params.id}/analytics/acquisition`}>{t(locale, "tw.nav.tiktok")}&nbsp;→</a></strong></div>
       </div>
 
       {rounds.length === 0 ? (

@@ -35,7 +35,7 @@ export default function PromoWorkspace({ detail, media, canAct = true, canApprov
 
   if (detail.campaign.status === "generating") return <p role="status">{tt("workflow.hint.generating")}</p>;
   if (detail.campaign.status === "failed" && !active.length) return <p role="alert">{tt("workflow.hint.failed")}</p>;
-  if (!active.length && !detail.episodes.some(e => e.video_path)) return <section className="fc-empty"><p>{tt("launch.planNote")}</p><a className="btn btn-primary" href={`/producer/titles/${detail.title.id}`}>{tt("ux.addMaterials")}</a></section>;
+  if (!active.length && !detail.episodes.some(e => e.video_path)) return <section className="fc-empty"><p>{tt("launch.planNote")}</p><a className="btn btn-primary" href={`/producer/titles/${detail.title.id}/materials#add-episodes`}>{tt("ux.addMaterials")}</a></section>;
   if (!active.length) return <section className="fc-empty"><h3>{tt("promote.workspace.readyTitle")}</h3><p>{tt("promote.workspace.readyHint")}</p>{canAct && <button className="btn btn-primary" disabled={!!busy} onClick={() => act("generate", `/api/producer/promote/${detail.campaign.id}/generate`)}>{busy ? tt("common.loading") : tt("promote.workspace.generate")}</button>}{error && <p className="err" role="alert">{error}</p>}</section>;
 
   return <div className="fc-ad-review">
@@ -47,6 +47,8 @@ export default function PromoWorkspace({ detail, media, canAct = true, canApprov
         {detail.campaign.status === "approved" && <button className="btn btn-primary" disabled={!!busy || !canApprove || !budgetReady} onClick={() => act("submit", `/api/producer/promote/${detail.campaign.id}/submit`)}>{busy === "submit" ? tt("common.loading") : tt("promote.workspace.submitLaunch")}</button>}
       </div>
     </div>
+    {!locked && <p className="fc-review-guidance">{tt("review.selectionHint")}</p>}
+    <p className="fc-review-guidance">{tt("review.sourcePreview")}</p>
     {!canApprove && ["review", "approved"].includes(detail.campaign.status) && <p className="fc-review-guidance">{tt("fc.approverNeeded")}</p>}
     {detail.campaign.status === "approved" && !budgetReady && <p className="fc-review-guidance">{tt("fc.approveBudgetFirst")} <a href="#brief">{tt("ws.exp.brief")}</a></p>}
     {error && <p className="note note-warn" role="alert">{error}</p>}

@@ -27,7 +27,7 @@ export default async function Preparation({ params }: { params: { id: string } }
 
   return (
     <TitleShell locale={locale} titleId={params.id} name_zh={w.detail.title.name_zh} name_en={w.detail.title.name_en} platform={w.platform} ads={w.ads.status} adStep={adStep} section="preparation"
-      actions={!x.campaigns.length ? <a className="btn btn-primary" href={`/producer/promote/new?title=${x.summary.id}`}>{t(locale, "ws.actions.test")}</a> : <a className="btn btn-outline" href={campaignWorkflow(x.campaigns[0], w.title.results).href}>{t(locale, "tw.nav.campaigns")} →</a>}>
+      actions={!x.campaigns.length ? <a className="btn btn-primary" href={`/producer/promote/new?title=${x.summary.id}`}>{t(locale, "ws.actions.test")}</a> : <a className="btn btn-outline" href={campaignWorkflow(x.campaigns[0], w.title.results).href}>{t(locale, "tw.nav.campaigns")}&nbsp;→</a>}>
       <section className="ws-hero tw-hero">
         <ScoreDial score={a.score} band={a.band} locale={locale} />
         <div className="ws-hero-body">

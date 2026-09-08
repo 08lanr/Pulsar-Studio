@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
 type Tab = "profile" | "accounts" | "access" | "reports";
 const TABS: Tab[] = ["profile", "accounts", "access", "reports"];
 
-export default async function CompanyPage({ searchParams }: { searchParams: { tab?: string; edit?: string } }) {
+export default async function CompanyPage({ searchParams }: { searchParams: { tab?: string; edit?: string; saved?: string } }) {
   const session = await portalSession("/producer/company");
   const locale = producerLocale();
   const data = getData();
@@ -39,6 +39,7 @@ export default async function CompanyPage({ searchParams }: { searchParams: { ta
         {tab === "profile" && !edit && canAct && <a className="btn btn-primary" href="/producer/company?tab=profile&edit=1">{t(locale, "ux.edit")}</a>}
       </div>
       <CompanyNav active={tab} locale={locale} />
+      {searchParams.saved === "1" && <p className="note note-success" role="status">{t(locale, "review.profileSaved")}</p>}
 
       {tab === "profile" && (
         <>

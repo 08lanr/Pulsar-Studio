@@ -32,8 +32,8 @@
     "zh": "市场研究"
   },
   "research.market.title": {
-    "en": "Market overview",
-    "zh": "市场概览"
+    "en": "US overview",
+    "zh": "美国市场总览"
   },
   "research.market.sub": {
     "en": "Public charts from ReelShort and DramaBox through one story-type taxonomy: what is prominent, what the charts are made of, and where your catalog fits.",
@@ -508,12 +508,12 @@
     "zh": "出版方标签不等于制作方。两家平台都不公开制作方。"
   },
   "research.audience.female": {
-    "en": "女频 · F-audience",
-    "zh": "女频"
+    "en": "Female-oriented stories",
+    "zh": "女频题材"
   },
   "research.audience.male": {
-    "en": "男频 · M-audience",
-    "zh": "男频"
+    "en": "Male-oriented stories",
+    "zh": "男频题材"
   },
   "research.audience.note": {
     "en": "Platform audience positioning, not protagonist gender and not measured demographics.",
@@ -808,8 +808,8 @@
     "zh": "采集语言"
   },
   "research.sources.title": {
-    "en": "Data & Sources",
-    "zh": "数据与来源"
+    "en": "Data sources & definitions",
+    "zh": "数据来源与定义"
   },
   "research.sources.sub": {
     "en": "What every metric means, where it comes from, how it is defined, and its current state. Credentials and operational logs are not here.",

@@ -106,8 +106,8 @@ export default async function Campaigns({ searchParams }: { searchParams: Search
               <th scope="col">{t(locale, "ws.exp.col.experiment")}</th>
               <th scope="col">{t(locale, "workflow.colStep")}</th>
               <th scope="col" className="gt-num">{t(locale, "ws.exp.col.budget")} <small className="an-basis">USD</small></th>
-              <th scope="col" className="gt-num">{t(locale, "rd.col.spend")} <small className="an-basis">USD · {t(locale, "pf.toDate")}</small></th>
-              <th scope="col">{t(locale, "tw.ads.resultsCol")} <small className="an-basis">{t(locale, "pf.ctrBench", { n: benchCtr })}</small></th>
+              <th scope="col" className="gt-num">{t(locale, "rd.col.spend")} <small className="an-basis"><span>USD</span> · <span>{t(locale, "review.roundSpend")}</span></small></th>
+              <th scope="col">{t(locale, "tw.ads.resultsCol")} <small className="an-basis"><span>{t(locale, "rd.benchHold", { n: Math.round(BENCHMARK.hook_hold_rate * 100) })}</span> · <span>{t(locale, "rd.benchCtr", { n: benchCtr })}</span></small></th>
               <th scope="col">{t(locale, "an.catalog.col.action")}</th>
             </tr></thead>
             <tbody role="rowgroup">
@@ -137,7 +137,7 @@ export default async function Campaigns({ searchParams }: { searchParams: Search
                     ) : <span className="gt-muted">{t(locale, flow.waiting ? "ws.exp.waiting.results" : "tw.ads.noResults")}</span>}
                   </td>
                   <td className="cc-next" role="cell" data-label={t(locale, "an.catalog.col.action")}>
-                    <a className={`btn btn-sm ${flow.waiting ? "btn-outline" : "btn-primary"}`} href={flow.href.replace("#", `?returnTo=${RETURN_TO}#`)}>{t(locale, flow.action)} →</a>
+                    <a className={`btn btn-sm ${flow.waiting ? "btn-outline" : "btn-primary"}`} href={flow.href.replace("#", `?returnTo=${RETURN_TO}#`)}>{t(locale, flow.action)}&nbsp;→</a>
                   </td>
                 </tr>
               ))}

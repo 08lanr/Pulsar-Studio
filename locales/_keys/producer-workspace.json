@@ -144,8 +144,8 @@
     "zh": "请先确认所有场景"
   },
   "pw.finalize.confirm": {
-    "en": "Finalizing freezes this episode with a hash; further edits need a new revision.",
-    "zh": "定稿后本集将冻结存档，再改需另起修订稿。"
+    "en": "Save this version as final? Later edits will start a new draft and keep this approved version intact.",
+    "zh": "将当前版本定稿？后续编辑将创建新草稿，保留此已批准版本。"
   },
   "pw.finalize.cta": {
     "en": "Finalize episode",
@@ -244,12 +244,12 @@
     "zh": "正在创建剧集…"
   },
   "pw.new.cta": {
-    "en": "Create and upload",
-    "zh": "创建并上传"
+    "en": "Add title",
+    "zh": "新增作品"
   },
   "pw.new.genre": {
-    "en": "Genre",
-    "zh": "题材"
+    "en": "Genre (optional)",
+    "zh": "题材（选填）"
   },
   "pw.new.genreHint": {
     "en": "e.g. Romance · mini drama",
@@ -264,8 +264,8 @@
     "zh": "英文名（可选）"
   },
   "pw.new.nameZh": {
-    "en": "Name (Chinese)",
-    "zh": "剧名（中文）"
+    "en": "Chinese title (required)",
+    "zh": "中文剧名（必填）"
   },
   "pw.new.notes": {
     "en": "Character notes (optional)",
@@ -276,8 +276,8 @@
     "zh": "主要角色的姓名、身份与关系，改编时会参考。"
   },
   "pw.new.sub": {
-    "en": "Fill in the title's info and upload each episode's script or subtitle file.",
-    "zh": "填写剧集信息并上传每集的剧本或字幕文件。"
+    "en": "Add a drama series to your catalog. Only its Chinese name is required. You can upload episode videos and subtitles now or add them later.",
+    "zh": "将短剧加入剧库，只需填写中文剧名。分集视频和字幕可以现在上传，也可以稍后补充。"
   },
   "pw.new.synopsis": {
     "en": "Synopsis (optional)",
@@ -336,24 +336,24 @@
     "zh": "上传剧本"
   },
   "pw.title.continue": {
-    "en": "Continue",
-    "zh": "继续改编"
+    "en": "Continue editing subtitles",
+    "zh": "继续编辑字幕"
   },
   "pw.title.lines": {
-    "en": "Lines {done} / {total}",
-    "zh": "台词 {done} / {total}"
+    "en": "English lines ready: {done} / {total}",
+    "zh": "已完成英文台词：{done} / {total}"
   },
   "pw.title.noEpisodes": {
-    "en": "No episodes yet — upload a script first.",
-    "zh": "还没有单集，请先上传剧本。"
+    "en": "No episodes yet. Add video or subtitles below.",
+    "zh": "暂无分集，请在下方添加视频或字幕。"
   },
   "pw.title.review": {
-    "en": "Review",
-    "zh": "去审核"
+    "en": "Review English subtitles",
+    "zh": "审阅英文字幕"
   },
   "pw.title.start": {
-    "en": "Start adapting",
-    "zh": "开始改编"
+    "en": "Adapt English subtitles",
+    "zh": "改编英文字幕"
   },
   "pw.title.view": {
     "en": "View",
@@ -624,8 +624,8 @@
     "en": "Name spelling drifts ({detail})"
   },
   "pw.upload.hint3": {
-    "zh": "每集可先上传视频、字幕/剧本，或两者一起上传。推广可直接使用视频；改编可稍后补字幕。文件会按名称自动归到对应集数。",
-    "en": "Upload video, subtitles/script, or both for each episode. Promote can start from video; Adapt can add text later. Files sort into episodes by filename."
+    "zh": "现在可暂不上传文件。制作广告需要分集视频；改编英文字幕需要剧本或字幕文件。相同集数的文件名（如 ep1.mp4 和 ep1.srt）会分到同一集。",
+    "en": "Files are optional now. Ad generation needs episode video; English subtitle adaptation needs a script or subtitle file. Matching filenames, such as ep1.mp4 and ep1.srt, go into the same episode."
   },
   "pw.upload.pick": {
     "zh": "把所有文件拖到这里，或点击选择",
@@ -1024,8 +1024,8 @@
     "en": "Project overview"
   },
   "v3.title.progress": {
-    "zh": "已定稿",
-    "en": "Finalized"
+    "zh": "字幕已定稿",
+    "en": "Subtitles finalized"
   },
   "v3.title.approvedCount": {
     "zh": "{done} / {total} 集",
@@ -1040,8 +1040,8 @@
     "en": "Episodes"
   },
   "v3.title.actionHint": {
-    "zh": "每集只显示下一项操作",
-    "en": "Each episode shows its next action"
+    "zh": "此处状态表示字幕准备进度，与广告审批无关。",
+    "en": "These statuses track subtitle preparation, not ad approval."
   },
   "v3.title.addEpisodes": {
     "zh": "添加剧集",
