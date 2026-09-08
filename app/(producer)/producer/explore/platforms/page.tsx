@@ -1,3 +1,6 @@
+import MarketFilters from '@/components/producer/research/MarketFilters';
+import { parseMarketFilter, type Query } from '@/lib/research/navigation';
+import { filterTitles } from '@/lib/research/engine';
 import ExploreNav from "@/components/producer/research/ExploreNav";
 import { portalSession, producerLocale } from "@/components/producer/server";
 import { EvidenceTag, MetricLabel, StateBadge, TropeChip, exploreHref, fmtPct, fmtSeconds, fmtUtc, platformName } from "@/components/producer/research/ui";
@@ -13,7 +16,7 @@ import type { Platform } from "@/lib/research/types";
 
 export const dynamic = "force-dynamic";
 
-export default async function ExplorePlatforms() {
+export default async function ExplorePlatforms({searchParams}:{searchParams:Query}) {
   const session = await portalSession("/producer/explore/platforms");
   const locale = producerLocale();
   const data = getData();
@@ -26,8 +29,10 @@ export default async function ExplorePlatforms() {
       </>
     );
   }
-  const snapshot = market.latest;
-  const scores = scoreSnapshot(snapshot);
+  const filter=parseMarketFilter(searchParams);
+  const visible=filterTitles(market.latest.titles,filter);
+  const snapshot = {...market.latest,titles:searchParams.mode==='company'&&profile&&!filter.trope?visible.filter(x=>x.tropes.some(tr=>profile.tropes.includes(tr.id))):visible};
+  const scores = scoreSnapshot(market.latest);
   const formats = formatStats(snapshot.titles);
   const statuses = platformStatuses(market);
   const mine = new Set(profile?.tropes ?? []);
@@ -35,7 +40,7 @@ export default async function ExplorePlatforms() {
   return (
     <>
       <ExploreNav active="platforms" locale={locale} />
-      <div className="rs-meta"><span>{t(locale, "research.formats.note")}</span></div>
+      <MarketFilters/><div className="rs-meta"><span>{t(locale, "research.formats.note")}</span></div>
 
       <div className="rs-grid">
         {formats.map((f) => {
@@ -70,7 +75,7 @@ export default async function ExplorePlatforms() {
                 <dt>{t(locale, "research.col.tropes")}</dt>
                 <dd className="rs-tropes">{stats.map((s) => <TropeChip key={s.id} id={s.id} locale={locale} mine={mine.has(s.id)} href={exploreHref({ platform: f.platform }, { trope: s.id })} />)}</dd>
               </dl>
-              <div className="rs-panel-foot"><a href={exploreHref({}, { platform: f.platform })}>{t(locale, "research.explore.titles")} ›</a> · <a href={`/producer/sources/${f.platform}_web`}>{t(locale, "research.nav.sources")} ›</a></div>
+              <div className="rs-panel-foot"><a href={exploreHref(searchParams, { platform: f.platform })}>{t(locale, "research.explore.titles")} ›</a> · <a href={`/producer/sources/${f.platform}_web`}>{t(locale, "research.nav.sources")} ›</a></div>
             </section>
           );
         })}

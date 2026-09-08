@@ -100,7 +100,7 @@ export default function ReportImport({ batches, canAct }: { batches: ReportBatch
         <legend>{tt("research.reports.choose")}</legend>
         {!canAct && <p className="hint">{tt("research.reports.readOnly")}</p>}
         <div className="rs-tool-row" style={{ alignItems: "center" }}>
-          <input type="file" accept=".csv,text/csv" onChange={onFile} />
+          <input aria-label={tt("research.reports.choose")} type="file" accept=".csv,text/csv" onChange={onFile} />
           <button type="button" className="btn btn-outline btn-sm" onClick={doPreview} disabled={!text}>{tt("research.reports.preview")}</button>
           {preview && (
             <>
@@ -109,8 +109,8 @@ export default function ReportImport({ batches, canAct }: { batches: ReportBatch
             </>
           )}
         </div>
-        {message && <p className="note note-success" style={{ marginTop: 10 }}>{message}</p>}
-        {error && <p className="note note-warn" style={{ marginTop: 10 }}>{error}</p>}
+        {message && <p role="status" className="note note-success" style={{ marginTop: 10 }}>{message}</p>}
+        {error && <p role="alert" className="note note-warn" style={{ marginTop: 10 }}>{error}</p>}
       </fieldset>
 
       {preview && (
@@ -129,16 +129,16 @@ export default function ReportImport({ batches, canAct }: { batches: ReportBatch
             {preview.rows.slice(0, 200).map((r) => (
               <div className="gt-row" key={r.row} style={{ opacity: r.ok ? 1 : 0.85 }}>
                 <span className="gt-muted">{r.row}</span>
-                <span className="rs-title-name">{r.data?.title_name ?? "–"}{r.data && !r.data.title_id && <small className="gt-muted"> · unlinked</small>}</span>
+                <span className="rs-title-name">{r.data?.title_name ?? "–"}{r.data && !r.data.title_id && <small className="gt-muted"> · {tt("ux.unlinked")}</small>}</span>
                 <span>{r.data?.platform ?? "–"}</span>
                 <span>{r.data ? `${r.data.period_start} → ${r.data.period_end}` : "–"}</span>
-                <span>{r.data?.metric ?? "–"}</span>
+                <span>{r.data ? tt(`research.metric.${r.data.metric}`) : "–"}</span>
                 <span className="gt-num">{r.data ? `${r.data.value}${r.data.currency ? ` ${r.data.currency}` : ""}` : "–"}</span>
                 <span>
                   {r.errors.map((e, i) => <span key={i} className="ev ev-inferred" style={{ color: "var(--error)" }}>{e}</span>)}
-                  {r.duplicate && <span className="state state-stale">duplicate</span>}
+                  {r.duplicate && <span className="state state-stale">{tt("ux.duplicate")}</span>}
                   {r.warnings.filter((w) => !w.startsWith("duplicate")).map((w, i) => <small key={i} className="gt-muted"> {w}</small>)}
-                  {r.ok && !r.duplicate && r.warnings.length === 0 && <span className="state state-available">ok</span>}
+                  {r.ok && !r.duplicate && r.warnings.length === 0 && <span className="state state-available">{tt("ux.valid")}</span>}
                 </span>
               </div>
             ))}

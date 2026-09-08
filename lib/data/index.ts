@@ -25,6 +25,8 @@ import type { MarketView } from "@/lib/research/snapshot";
 import type { ReportBatch, ReportRow, ResearchProfile, WatchRow } from "@/lib/research/types";
 import type {
   AdAngle,
+  CompanyAccount,
+  CreativeResult,
   AdaptTag,
   AdaptedLine,
   AuditChannel,
@@ -228,6 +230,26 @@ export type JobResult = {
   error?: string | null;
 };
 
+/** What the brief form posts for the structured experiment record. */
+export type ExperimentInput = {
+  budget_usd: number;
+  hypothesis: string;
+  audience: string;
+  first_batch: number;
+  signal: "views" | "clicks" | "landing";
+};
+
+export type CompanyAccountInput = {
+  id?: string;
+  provider: CompanyAccount["provider"];
+  kind: CompanyAccount["kind"];
+  name: string;
+  external_ref?: string | null;
+  state: CompanyAccount["state"];
+  access: CompanyAccount["access"];
+  note?: string | null;
+};
+
 export type CreatePromoCampaignInput = {
   title_id: string;
   name: string;
@@ -237,6 +259,7 @@ export type CreatePromoCampaignInput = {
   spoiler_level: PromoCampaign["spoiler_level"];
   creative_direction?: string | null;
   exclusions?: string | null;
+  experiment?: ExperimentInput | null;
 };
 
 export type PromoCreativeReviewInput = {
@@ -421,6 +444,17 @@ export interface DataLayer {
   revisePromoCreative(session: Session, creativeId: string, input: RevisePromoCreativeInput): Promise<PromoCreative>;
   advancePromoCampaign(session: Session, campaignId: string, input: AdvancePromoCampaignInput): Promise<PromoCampaignDetail>;
 
+  // experiments, results and customer-owned accounts (decision 2026-09-08)
+  /** Editors; refused once the campaign is submitted. Each save bumps the experiment version and clears approval. */
+  setExperiment(session: Session, campaignId: string, input: ExperimentInput): Promise<PromoCampaign>;
+  /** Producer approver only: signs the budget. Idempotent. */
+  approveExperiment(session: Session, campaignId: string): Promise<PromoCampaign>;
+  /** Fixture mode only: demo-labelled results for a submitted campaign. Supabase refuses (results come from Grow). */
+  simulateDemoResults(session: Session, campaignId: string): Promise<PromoCampaignDetail>;
+  listCreativeResults(session: Session, opts?: { titleId?: string }): Promise<CreativeResult[]>;
+  listCompanyAccounts(session: Session): Promise<CompanyAccount[]>;
+  upsertCompanyAccount(session: Session, input: CompanyAccountInput): Promise<CompanyAccount>;
+
   // exports and audit
   getExportSnapshot(session: Session, titleId: string, episodeNumber: number): Promise<ExportSnapshot>;
   listAuditEvents(session: Session, titleId: string): Promise<AuditEvent[]>;
@@ -430,6 +464,7 @@ export interface DataLayer {
   /** Any signed-in member. Never per-producer rows; nothing to leak. */
   getMarket(session: Session): Promise<MarketView>;
   /** The caller's own company's onboarding answers; staff previewing get null. */
+  getCompanyIdentity(session: Session): Promise<Pick<Producer, "id" | "external_id" | "name_zh" | "name_en"> | null>;
   getResearchProfile(session: Session): Promise<ResearchProfile | null>;
   /** Producer editors (approver/reviewer) only; staff and viewers are refused. */
   saveResearchProfile(session: Session, input: ResearchProfileInput): Promise<ResearchProfile>;

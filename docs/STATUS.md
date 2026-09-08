@@ -1,5 +1,11 @@
 # Session handoff — Pulsar Studio
 
+> **2026-09-08 (late): US launch workspace landed.** Five areas, a US
+> potential score with reasons, structured experiments with demo results,
+> company & accounts, and a demo catalog seeded by default in fixture mode
+> (`FIXTURE_SEED=empty` for the bare seed). Decision at the top of
+> `docs/decisions.md`; ledger phase 7 in `docs/market-desk-plan.md`.
+
 > **2026-09-07: market-intelligence rebuild landed** (ledger in
 > `docs/market-desk-plan.md`, decision at the top of `docs/decisions.md`).
 > Overview / Explore / My titles / Creative & tests / Data & Sources; runs

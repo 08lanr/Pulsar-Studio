@@ -1,3 +1,6 @@
+import MarketFilters from '@/components/producer/research/MarketFilters';
+import { parseMarketFilter, type Query } from '@/lib/research/navigation';
+import { filterTitles } from '@/lib/research/engine';
 import ExploreNav from "@/components/producer/research/ExploreNav";
 import { portalSession, producerLocale } from "@/components/producer/server";
 import { EvidenceTag, MetricLabel, TropeChip, platformName } from "@/components/producer/research/ui";
@@ -11,7 +14,7 @@ import { companyStats, scoreSnapshot, tropeStats } from "@/lib/research/engine";
 
 export const dynamic = "force-dynamic";
 
-export default async function ExploreCompanies() {
+export default async function ExploreCompanies({searchParams}:{searchParams:Query}) {
   const session = await portalSession("/producer/explore/companies");
   const locale = producerLocale();
   const data = getData();
@@ -24,8 +27,10 @@ export default async function ExploreCompanies() {
       </>
     );
   }
-  const snapshot = market.latest;
-  const scores = scoreSnapshot(snapshot);
+  const filter=parseMarketFilter(searchParams);
+  const visible=filterTitles(market.latest.titles,filter);
+  const snapshot = {...market.latest,titles:searchParams.mode==='company'&&profile&&!filter.trope?visible.filter(x=>x.tropes.some(tr=>profile.tropes.includes(tr.id))):visible};
+  const scores = scoreSnapshot(market.latest);
   const companies = companyStats(snapshot.titles, scores);
   const hot = new Set(tropeStats(snapshot.titles, scores, snapshot.taxonomy_version).slice(0, 10).map((s) => s.id));
   const mine = new Set(profile?.tropes ?? []);
@@ -34,7 +39,7 @@ export default async function ExploreCompanies() {
   return (
     <>
       <ExploreNav active="companies" locale={locale} />
-      <div className="rs-meta"><span>{t(locale, "research.section.companiesSub")}</span><span className="ev ev-inferred">{t(locale, "research.role.note")}</span></div>
+      <MarketFilters/><div className="rs-meta"><span>{t(locale, "research.section.companiesSub")}</span><span className="ev ev-inferred">{t(locale, "research.role.note")}</span></div>
       <section className="rs-panel">
         <div className="gtable gtable-flush rs-table" style={{ ["--cols" as string]: "minmax(0,1.8fr) 120px 110px 70px 80px minmax(0,1.6fr) minmax(0,1.6fr)" }}>
           <div className="gt-head">

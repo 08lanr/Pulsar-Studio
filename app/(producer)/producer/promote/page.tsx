@@ -1,47 +1,67 @@
 import { portalSession, producerLocale } from "@/components/producer/server";
-import { EvidenceTag, MetricLabel, TropeChip, platformName } from "@/components/producer/research/ui";
-import { getData } from "@/lib/data";
+import { StageStrip } from "@/components/producer/research/workspace-ui";
 import { t } from "@/lib/i18n";
-import { premiseExamples, scoreSnapshot, tropeStats } from "@/lib/research/engine";
+import { experimentStage, loadWorkspace } from "@/lib/research/workspace";
+
+// /producer/promote — Launch & experiments: every experiment with its stage,
+// budget, batch and best signal, and what it is waiting on. The loop:
+// generate broadly → select a small first batch → approve the budget →
+// submit → read results → decide the next spend.
 
 export const dynamic = "force-dynamic";
-const statusClass = (status: string) => status === "live" || status === "submitted" ? "pill-success" : status === "review" ? "pill-warning" : "pill-neutral";
 
-export default async function PromoteHome() {
-  const session = await portalSession("/producer/promote"); const locale = producerLocale();
-  const data = getData();
-  const [campaigns, market, profile] = await Promise.all([data.listPromoCampaigns(session), data.getMarket(session), data.getResearchProfile(session)]);
-  // Premise examples from prominent titles (docs/market-desk-plan.md): the
-  // opening sentence of prominent listings' blurbs for the producer's
-  // tropes. Examples of how a premise is stated, NOT tested hooks: no
-  // creative-outcome evidence exists in Studio.
-  const snapshot = market.latest;
-  const scores = snapshot ? scoreSnapshot(snapshot) : new Map();
-  const hot = new Set(snapshot ? tropeStats(snapshot.titles, scores, snapshot.taxonomy_version).slice(0, 10).map((s) => s.id) : []);
-  const examples = snapshot ? premiseExamples(profile?.tropes ?? [], snapshot.titles, scores, 6) : [];
-  const hooksPanel = examples.length > 0 ? (
-    <section className="rs-panel" style={{ marginBottom: 20 }}>
-      <div className="rs-panel-head">
+export default async function Experiments() {
+  const session = await portalSession("/producer/promote");
+  const locale = producerLocale();
+  const ws = await loadWorkspace(session);
+  const rows = ws.campaigns.map((c) => ({ c, ...experimentStage(c, ws.results), results: ws.results.filter((r) => r.campaign_id === c.id) }));
+  const order = ["decide", "budget", "batch", "concepts", "brief", "submitted", "results"];
+  rows.sort((a, b) => order.indexOf(a.stage) - order.indexOf(b.stage) || b.c.updated_at.localeCompare(a.c.updated_at));
+
+  return (
+    <>
+      <div className="page-head">
         <div>
-          <h3><MetricLabel metric="premise_examples" locale={locale}>{t(locale, "research.premise.title")}</MetricLabel></h3>
-          <p>{t(locale, "research.premise.sub")}</p>
+          <span className="page-kicker">{t(locale, "ws.exp.kicker")}</span>
+          <h2>{t(locale, "ws.exp.title")}</h2>
+          <p className="page-sub">{t(locale, "ws.exp.sub")}</p>
         </div>
-        <span className="rs-panel-aside">{profile?.tropes?.length ? t(locale, "research.premise.forYou") : t(locale, "research.premise.all")}</span>
+        <a className="btn btn-primary" href="/producer/promote/new">{t(locale, "ws.exp.new")}</a>
       </div>
-      <div className="rs-hooks">
-        {examples.map((h) => (
-          <div className="rs-hook" key={h.key}>
-            <q lang="en">{h.sentence}</q>
-            <footer>
-              <a href={`/producer/market/${h.key}`} lang="en">{h.title}</a>
-              <span>{platformName(h.platform)}</span>
-              <EvidenceTag evidence="observed" locale={locale} />
-              {h.tropes.slice(0, 3).map((id) => <TropeChip key={id} id={id} locale={locale} hot={hot.has(id)} />)}
-            </footer>
+      <p className="note note-info">{t(locale, "ws.exp.mock")}</p>
+
+      {rows.length === 0 ? (
+        <section className="rs-panel"><div className="rs-empty">{t(locale, "ws.exp.empty")} <a className="btn btn-outline btn-sm" href="/producer/titles">{t(locale, "ws.nav.catalog")}</a></div></section>
+      ) : (
+        <section className="rs-panel">
+          <div className="gtable gtable-flush rs-table" style={{ ["--cols" as string]: "minmax(0,2.4fr) minmax(0,2.6fr) 90px 90px 140px 150px" }}>
+            <div className="gt-head">
+              <span>{t(locale, "ws.exp.col.experiment")}</span>
+              <span>{t(locale, "ws.exp.col.stage")}</span>
+              <span className="gt-num">{t(locale, "ws.exp.col.budget")}</span>
+              <span className="gt-num">{t(locale, "ws.exp.col.batch")}</span>
+              <span>{t(locale, "ws.exp.col.signal")}</span>
+              <span>{t(locale, "ws.exp.col.waiting")}</span>
+            </div>
+            {rows.map(({ c, stage, waiting, results }) => {
+              const best = results.reduce<typeof results[number] | null>((b, r) => (!b || r.hook_hold_rate > b.hook_hold_rate ? r : b), null);
+              return (
+                <a className="gt-row" key={c.id} href={`/producer/promote/${c.id}`}>
+                  <span style={{ minWidth: 0 }}>
+                    <span className="rs-title-name">{c.name}</span>
+                    <span className="rs-title-sub">{t(locale, "ws.exp.forTitle", { title: c.title_name_en || c.title_name_zh })} · {c.updated_at.slice(0, 10)}</span>
+                  </span>
+                  <span><StageStrip stage={stage} locale={locale} /></span>
+                  <span className="gt-num">{c.experiment ? `$${c.experiment.budget_usd}${c.experiment.approved_at ? " ✓" : ""}` : "–"}</span>
+                  <span className="gt-num">{c.approved_count}/{c.creative_count || (c.experiment?.first_batch ?? "–")}</span>
+                  <span>{best ? <>{Math.round(best.hook_hold_rate * 100)}% · {best.impressions ? ((best.clicks / best.impressions) * 100).toFixed(2) : "0.00"}% {best.source === "demo" && <span className="state state-unavailable">{t(locale, "ws.state.demo")}</span>}</> : <span className="gt-muted">–</span>}</span>
+                  <span><span className={`state ${waiting === "results" ? "state-collecting_history" : waiting === "none" ? "state-available" : "state-requires_connection"}`}>{t(locale, `ws.exp.waiting.${waiting}`)}</span></span>
+                </a>
+              );
+            })}
           </div>
-        ))}
-      </div>
-    </section>
-  ) : null;
-  return <><div className="page-head"><div><span className="page-kicker">{t(locale, "promote.home.kicker")}</span><h2>{t(locale, "promote.home.title")}</h2><p className="page-sub">{t(locale, "promote.home.sub")}</p></div><a className="btn btn-primary" href="/producer/promote/new">{t(locale, "promote.home.new")}</a></div>{hooksPanel}{campaigns.length === 0 ? <section className="promo-empty"><span className="promo-empty-mark">▶</span><h3>{t(locale, "promote.home.emptyTitle")}</h3><p>{t(locale, "promote.home.emptyHint")}</p><a className="btn btn-primary" href="/producer/promote/new">{t(locale, "promote.home.emptyCta")}</a></section> : <section className="promo-campaign-grid">{campaigns.map((c) => <a href={`/producer/promote/${c.id}`} className="promo-campaign-card" key={c.id}><header><span className={`pill ${statusClass(c.status)}`}>{t(locale, `promote.status.${c.status}`)}</span><span>{c.target_market}</span></header><h3>{c.name}</h3><p className="bilingual">{c.title_name_en || c.title_name_zh}</p><footer><span>{t(locale, "promote.home.creatives", { n: c.creative_count })}</span><strong>{t(locale, "promote.home.approved", { n: c.approved_count })}</strong></footer></a>)}</section>}</>;
+        </section>
+      )}
+    </>
+  );
 }

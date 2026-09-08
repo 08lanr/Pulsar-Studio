@@ -554,8 +554,8 @@ export const METRICS: MetricEntry[] = [
   {
     key: "own_performance",
     group: "my_reports",
-    name_en: "Your US performance",
-    name_zh: "你的美国表现",
+    name_en: "Your reported performance",
+    name_zh: "你的报表表现",
     question_en: "How did our own launches perform?",
     question_zh: "我们的海外上线表现如何？",
     grain: "own_title",
@@ -729,6 +729,17 @@ export function platformStatuses(view: MarketView): { id: string; status: Regist
 
 export function metricByKey(key: string): MetricEntry | null {
   return METRICS.find((m) => m.key === key) ?? null;
+}
+
+/** A source's own availability; another platform or a company profile cannot make it available. */
+export function sourceStatus(source: SourceEntry, ctx: RegistryContext): RegistryStatus {
+  if (source.key === 'producer_reports') return ctx.hasReports ? 'available' : 'manual';
+  if (source.key === 'producer_input') return ctx.hasProfile ? 'available' : 'manual';
+  const run = ctx.view.latest?.platforms.find(p => `${p.id}_web` === source.key);
+  if (!run) return statusFor(source.status_rule, ctx);
+  if (run.status === 'failed') return 'failed';
+  const age = ((ctx.now ?? new Date()).getTime() - Date.parse(run.fetched_at)) / 86_400_000;
+  return run.status === 'stale' || run.status === 'partial' || age > STALE_AFTER_DAYS ? 'stale' : 'available';
 }
 
 export function sourceByKey(key: string): SourceEntry | null {

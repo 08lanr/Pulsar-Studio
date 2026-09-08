@@ -3,7 +3,7 @@
 // Watch / unwatch a market listing for the company. Editors only; the
 // server refuses viewers and staff, and the button is disabled for them.
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useT } from "@/components/locale";
 
@@ -13,6 +13,8 @@ export default function WatchButton({ listingKey, watching, canAct }: { listingK
   const [on, setOn] = useState(watching);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => setOn(watching), [watching]);
 
   async function toggle() {
     if (!canAct || busy) return;
@@ -42,7 +44,7 @@ export default function WatchButton({ listingKey, watching, canAct }: { listingK
       <button type="button" className={`btn btn-sm ${on ? "btn-primary" : "btn-outline"}`} onClick={toggle} disabled={!canAct || busy} title={canAct ? undefined : tt("research.watch.readOnly")} aria-pressed={on}>
         {on ? `✓ ${tt("research.watch.watching")}` : tt("research.watch.add")}
       </button>
-      {error && <span className="err">{error}</span>}
+      {error && <span className="err" role="alert">{error}</span>}
     </span>
   );
 }

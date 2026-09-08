@@ -1,9 +1,10 @@
+import { sourceCopy } from '@/lib/research/source-copy';
 import { notFound } from "next/navigation";
 import { portalSession, producerLocale } from "@/components/producer/server";
 import { EvidenceTag, StateBadge, fmtUtc, platformName } from "@/components/producer/research/ui";
 import { getData } from "@/lib/data";
 import { t } from "@/lib/i18n";
-import { GROUP_LABELS, METRICS, metricByKey, sourceByKey, statusFor } from "@/lib/research/registry";
+import { GROUP_LABELS, METRICS, metricByKey, sourceByKey, statusFor, sourceStatus } from "@/lib/research/registry";
 
 // /producer/sources/[key] — the methodology view a metric label opens:
 // business meaning, grain, source field, unit, denominator, window,
@@ -27,7 +28,7 @@ export default async function SourceEntryPage({ params }: { params: { key: strin
     <nav className="studio-crumbs" aria-label={t(locale, "v3.breadcrumbs")}>
       <a href="/producer/sources">{t(locale, "research.sources.title")}</a>
       <span>›</span>
-      <span>{metric ? (locale === "zh" ? metric.name_zh : metric.name_en) : source!.name}</span>
+      <span>{metric ? (locale === "zh" ? metric.name_zh : metric.name_en) : sourceCopy(source!,locale).name}</span>
     </nav>
   );
 
@@ -46,9 +47,9 @@ export default async function SourceEntryPage({ params }: { params: { key: strin
         </div>
         <div className="rs-detail">
           <section className="rs-panel">
-            <dl className="rs-kv">
+            <details className="brief-section"><summary>{t(locale,"ux.advancedData")}</summary><dl className="rs-kv">
               <dt>{t(locale, "research.sources.grain")}</dt><dd>{metric.grain}</dd>
-              <dt>{t(locale, "research.sources.source")}</dt><dd>{source ? <a href={`/producer/sources/${source.key}`}>{source.name}</a> : metric.source_key}</dd>
+              <dt>{t(locale, "research.sources.source")}</dt><dd>{source ? <a href={`/producer/sources/${source.key}`}>{sourceCopy(source,locale).name}</a> : metric.source_key}</dd>
               <dt>{t(locale, "research.sources.field")}</dt><dd>{metric.source_field ?? "–"}</dd>
               <dt>{t(locale, "research.sources.unit")}</dt><dd>{metric.unit}</dd>
               <dt>{t(locale, "research.sources.denominator")}</dt><dd>{metric.denominator ?? "–"}</dd>
@@ -58,7 +59,7 @@ export default async function SourceEntryPage({ params }: { params: { key: strin
               <dt>{t(locale, "research.sources.version")}</dt><dd>{metric.version}</dd>
               <dt>{t(locale, "research.sources.geo")}</dt><dd>{source ? t(locale, `research.geo.${source.audience_geography}`) : "–"}</dd>
               <dt>{t(locale, "research.sources.locale")}</dt><dd>{source?.collection_locale ?? "–"}</dd>
-            </dl>
+            </dl></details>
           </section>
           <section className="rs-panel">
             <div className="rs-panel-head"><div><h3>{t(locale, "research.sources.limits")}</h3></div></div>
@@ -78,7 +79,8 @@ export default async function SourceEntryPage({ params }: { params: { key: strin
   }
 
   const s = source!;
-  const status = statusFor(s.status_rule, ctx);
+  const copy = sourceCopy(s,locale);
+  const status = sourceStatus(s, ctx);
   const dependents = METRICS.filter((m) => m.source_key === s.key);
   const run = market.latest?.platforms.find((p) => `${p.id}_web` === s.key) ?? null;
   return (
@@ -87,18 +89,18 @@ export default async function SourceEntryPage({ params }: { params: { key: strin
       <div className="page-head">
         <div>
           <span className="page-kicker">{GROUP_LABELS[s.group][locale]}</span>
-          <h2>{s.name}</h2>
-          <p className="page-sub">{s.surface}</p>
+          <h2>{copy.name}</h2>
+          <p className="page-sub">{copy.description}</p>
         </div>
         <StateBadge status={status} locale={locale} />
       </div>
       <div className="rs-detail">
         <section className="rs-panel">
           <dl className="rs-kv">
-            <dt>{t(locale, "research.sources.access")}</dt><dd>{s.access}</dd>
+            <dt>{t(locale, "research.sources.access")}</dt><dd>{t(locale,`ux.access.${s.access}`)}</dd>
             <dt>{t(locale, "research.sources.locale")}</dt><dd>{s.collection_locale}</dd>
             <dt>{t(locale, "research.sources.geo")}</dt><dd>{t(locale, `research.geo.${s.audience_geography}`)}</dd>
-            <dt>{t(locale, "research.sources.refresh")}</dt><dd>{s.refresh_target}</dd>
+            <dt>{t(locale, "research.sources.refresh")}</dt><dd>{copy.refresh}</dd>
             {run && (
               <>
                 <dt>{t(locale, "research.sources.coverage")}</dt>
@@ -107,12 +109,11 @@ export default async function SourceEntryPage({ params }: { params: { key: strin
                 <dd>{run.source_urls.map((u) => <span key={u}>{u}<br /></span>)}</dd>
               </>
             )}
-            {s.review_note && <><dt>{t(locale, "research.sources.reviewNote")}</dt><dd>{s.review_note}</dd></>}
           </dl>
         </section>
         <section className="rs-panel">
           <div className="rs-panel-head"><div><h3>{t(locale, "research.sources.limits")}</h3></div></div>
-          <ul className="rs-list">{s.limitations.map((l, i) => <li key={i}>{l}</li>)}</ul>
+          <ul className="rs-list">{copy.limits.map((l, i) => <li key={i}>{l}</li>)}</ul>
           {dependents.length > 0 && (
             <>
               <div className="rs-panel-head" style={{ borderTop: "1px solid var(--border-light)" }}><div><h3>{t(locale, "research.sources.usedBy")}</h3></div></div>

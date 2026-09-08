@@ -137,6 +137,10 @@ export type ResearchProfile = {
   titles_per_year: number | null;
   distribution: ("licensed" | "self" | "youtube" | "none")[];
   target_markets: string[];
+  /** One sentence the company gave as its US goal; shown on Overview and Company. */
+  goal?: string | null;
+  /** What the company is willing to spend on tests per month; a brief, not a control. */
+  monthly_test_budget_usd?: number | null;
   updated_at: string;
 };
 

@@ -1,4 +1,5 @@
 import { LocaleProvider } from "@/components/locale";
+import { getData } from '@/lib/data';
 import PortalHeader from "@/components/producer/PortalHeader";
 import { isStaffPreview, portalSession, producerLocale } from "@/components/producer/server";
 import { t } from "@/lib/i18n";
@@ -15,9 +16,10 @@ export const dynamic = "force-dynamic";
 export default async function ProducerLayout({ children }: { children: React.ReactNode }) {
   const session = await portalSession();
   const locale = producerLocale();
+  const company = await getData().getCompanyIdentity(session);
   return (
     <LocaleProvider locale={locale}>
-      <PortalHeader />
+      <PortalHeader company={company} />
       <main className="producer-main">
         {isStaffPreview(session) && (
           <div className="producer-preview-note">

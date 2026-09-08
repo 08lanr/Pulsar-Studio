@@ -11,6 +11,8 @@
 
 import type {
   AdaptedLine,
+  CompanyAccount,
+  CreativeResult,
   Adaptation,
   AuditEvent,
   Character,
@@ -32,6 +34,7 @@ import type {
   Version,
 } from "@/lib/types";
 import type { ReportBatch, ReportRow, WatchRow } from "@/lib/research/types";
+import { buildDemoSeed } from "./demo-catalog";
 import { producer, profiles } from "./title";
 
 /** Table name -> rows; the key is the studio.* / core.* table name. */
@@ -59,6 +62,8 @@ export type FixtureDb = {
   research_watchlist: WatchRow[];
   report_batches: ReportBatch[];
   report_rows: ReportRow[];
+  promo_results: CreativeResult[];
+  company_accounts: CompanyAccount[];
 };
 
 export const fixtureDb: FixtureDb = {
@@ -85,11 +90,46 @@ export const fixtureDb: FixtureDb = {
   research_watchlist: [],
   report_batches: [],
   report_rows: [],
+  promo_results: [],
+  company_accounts: [],
 };
 
-/** A deep copy for a data layer that mutates in fixture mode. */
-export function cloneFixtureDb(): FixtureDb {
-  return structuredClone(fixtureDb);
+export type FixtureSeed = "demo" | "empty";
+
+/** FIXTURE_SEED=empty restores the bare seed; anything else seeds the demo catalog. */
+export function defaultFixtureSeed(): FixtureSeed {
+  return process.env.FIXTURE_SEED === "empty" ? "empty" : "demo";
+}
+
+/**
+ * A deep copy for a data layer that mutates in fixture mode. The demo seed
+ * (data/fixture/demo-catalog.ts) fills the studio's catalog, profile,
+ * watchlist, reports, experiments and accounts so every workspace screen
+ * has something to stand on; the empty seed is what the localization demo
+ * and the workflow tests expect.
+ */
+export function cloneFixtureDb(seed: FixtureSeed = defaultFixtureSeed()): FixtureDb {
+  const db = structuredClone(fixtureDb);
+  if (seed === "empty") return db;
+  const demo = buildDemoSeed();
+  db.producers[0] = { ...db.producers[0], research_profile: demo.profile };
+  db.titles.push(...demo.titles);
+  db.episodes.push(...demo.episodes);
+  db.adaptations.push(...demo.adaptations);
+  db.scenes.push(...demo.scenes);
+  db.lines.push(...demo.lines);
+  db.adapted_lines.push(...demo.adapted_lines);
+  db.versions.push(...demo.versions);
+  db.research_watchlist.push(...demo.watchlist);
+  db.report_batches.push(...demo.report_batches);
+  db.report_rows.push(...demo.report_rows);
+  db.promo_campaigns.push(...demo.campaigns);
+  db.promo_creatives.push(...demo.creatives);
+  db.promo_approvals.push(...demo.approvals);
+  db.promo_handoffs.push(...demo.handoffs);
+  db.promo_results.push(...demo.results);
+  db.company_accounts.push(...demo.accounts);
+  return db;
 }
 
 export { buildVersionSnapshot, snapshotSha256 } from "./snapshot";

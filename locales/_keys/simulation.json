@@ -1,0 +1,198 @@
+{
+  "sim.nav": {
+    "en": "Producer simulation",
+    "zh": "制片人模拟"
+  },
+  "sim.title": {
+    "en": "What should Harborlight produce next?",
+    "zh": "海光影业下一部应该拍什么？"
+  },
+  "sim.notice": {
+    "en": "Fictional company · AI-authored original scripts · No videos or performance data. This case is separate from your company and catalog.",
+    "zh": "虚构公司 · AI原创样例剧本 · 无视频或业绩数据。本案例独立于您的公司和剧库。"
+  },
+  "sim.brief": {
+    "en": "The assignment",
+    "zh": "本次任务"
+  },
+  "sim.mission": {
+    "en": "Choose one concept for a two-week development sprint, then decide whether to commission a pilot. Success today means a defensible shortlist and a specific test—not a prediction of a hit.",
+    "zh": "选一个项目进行两周开发，再决定是否制作试播集。今天的成功是有依据的候选方案和具体测试，而不是预测爆款。"
+  },
+  "sim.profile": {
+    "en": "Company & decision maker",
+    "zh": "公司与决策人"
+  },
+  "sim.identity": {
+    "en": "Harborlight Stories / 海光影业 · Hangzhou · Independent producer. Chen Lin, co-founder and development lead, prepares the slate; the founder approves production spend. A US freelance story editor reviews dialogue and cultural context.",
+    "zh": "海光影业 / Harborlight Stories · 杭州独立制作公司。联合创始人兼开发负责人陈琳准备片单，由创始人审批制作预算；美国自由职业故事编辑审核对白与文化语境。"
+  },
+  "sim.audience": {
+    "en": "Audience & distribution intent",
+    "zh": "目标受众与发行意向"
+  },
+  "sim.audienceBody": {
+    "en": "US English-speaking women aged 25–44; romance with capable heroines. Hypothetical audience intent, not measured demographics. Seek a platform licensing partner; no existing US distribution agreement or owned consumer app.",
+    "zh": "面向美国25–44岁英语女性，偏向有能力的女主与爱情题材。这是虚构定位，不是实测人口数据。计划寻求平台授权合作，尚无美国发行协议或自有消费者应用。"
+  },
+  "sim.resources": {
+    "en": "Production constraints",
+    "zh": "制作约束"
+  },
+  "sim.resourcesBody": {
+    "en": "Eight-person core team; strong contemporary romance experience, two controllable interiors and a bilingual script editor. No established US casting or location partner. Planning assumptions: $15k development cap, $180k production ceiling per title, 10 shoot days, 6 principal cast, no stunts/VFX. Budgets are invented case constraints, not market benchmarks.",
+    "zh": "8人核心团队；擅长现代爱情，拥有两处可控室内场景和一名双语编剧编辑。尚无美国选角或场地合作伙伴。案例假设：开发上限1.5万美元，单剧制作上限18万美元，拍摄10天，6名主要演员，不做特技或视效。这些是虚构约束，不是行业成本基准。"
+  },
+  "sim.slate": {
+    "en": "Slate & commercial guardrails",
+    "zh": "片单与商业边界"
+  },
+  "sim.slateBody": {
+    "en": "Three unproduced original concepts, no footage, no licenses sold. Working format: 40 × 90-second episodes, subject to buyer feedback. English originals are preferred over dubbing for this experiment. Avoid child performers, medical claims and expensive public locations. Buyer terms, acquisition costs and revenue are unknown.",
+    "zh": "三个未制作原创项目，无素材、无授权销售。暂定40集，每集90秒，须经买方反馈调整。本次实验优先英语原创。避免儿童演员、医疗功效宣称和昂贵公共场景。买方条款、获客成本及收入均未知。"
+  },
+  "sim.workflow": {
+    "en": "A realistic first session",
+    "zh": "一次真实的使用流程"
+  },
+  "sim.workflowBody": {
+    "en": "1. Read the company brief. 2. Compare the three concepts against those constraints. 3. Read two opening episodes. 4. Inspect relevant market titles and record what is actually observed. 5. Pick a development candidate and write the uncertainty that could reverse your decision.",
+    "zh": "1. 阅读公司简报。2. 按约束比较三个概念。3. 阅读前两集。4. 查看相关市场作品，记录真实观察。5. 选开发候选项目，写出可能推翻决定的不确定因素。"
+  },
+  "sim.concepts": {
+    "en": "Three concepts competing for one slot",
+    "zh": "三个项目竞争一个开发名额"
+  },
+  "sim.fit": {
+    "en": "Production implication",
+    "zh": "对制作的意义"
+  },
+  "sim.risk": {
+    "en": "What could break the concept?",
+    "zh": "什么可能使方案失效？"
+  },
+  "sim.test": {
+    "en": "Next validation step",
+    "zh": "下一步验证"
+  },
+  "sim.script": {
+    "en": "Read original opening scripts · 2 episodes",
+    "zh": "阅读原创开篇剧本 · 两集"
+  },
+  "sim.market": {
+    "en": "Inspect market evidence",
+    "zh": "查看市场证据"
+  },
+  "sim.choose": {
+    "en": "Choose for development",
+    "zh": "选入开发"
+  },
+  "sim.selected": {
+    "en": "Development candidate",
+    "zh": "开发候选"
+  },
+  "sim.decision": {
+    "en": "Your decision brief",
+    "zh": "您的决策简报"
+  },
+  "sim.reason": {
+    "en": "Why this title—and what would change your mind?",
+    "zh": "为什么选这部？什么会让您改变决定？"
+  },
+  "sim.placeholder": {
+    "en": "Example: Contained locations fit our team. Before greenlight, test whether viewers understand the contract twist without exposition.",
+    "zh": "例如：集中场景适合团队。立项前先测试观众能否在没有解释性对白的情况下理解合约反转。"
+  },
+  "sim.empty": {
+    "en": "Select a concept above to build a decision brief.",
+    "zh": "从上方选择一个项目，形成决策简报。"
+  },
+  "sim.download": {
+    "en": "Download decision brief",
+    "zh": "下载决策简报"
+  },
+  "sim.temporary": {
+    "en": "Exercise only. Selection and notes stay in this page until you leave or reload; download to keep them. No title is commissioned.",
+    "zh": "仅为练习。选择和笔记只保留到离开或刷新页面；下载可保存。不代表项目立项。"
+  },
+  "sim.inference": {
+    "en": "What the product should help you conclude",
+    "zh": "产品应该帮助您得出什么结论"
+  },
+  "sim.inferenceBody": {
+    "en": "A similar title is a research lead. Its synopsis can reveal a story device; its visible counters describe platform activity. Neither proves why audiences watched, US demand, profitability, or buyer appetite. A useful next step connects a specific story device to your script, your constraints, and a test that could reject the idea.",
+    "zh": "相似作品是研究线索。简介可以揭示叙事手法，公开计数反映平台活动；两者都不能证明观看原因、美国需求、盈利或买方意向。有效的下一步，应把具体叙事手法与您的剧本、制作约束及可证伪测试联系起来。"
+  },
+  "sim.contract.name": {
+    "en": "The Exit Clause",
+    "zh": "婚约退出条款"
+  },
+  "sim.contract.premise": {
+    "en": "An indebted event planner agrees to a staged engagement, then discovers the contract gives her control of the family business if the groom walks away.",
+    "zh": "负债的活动策划师答应假订婚，却发现合约规定：如果男方退出，她将获得家族企业控制权。"
+  },
+  "sim.contract.fit": {
+    "en": "Best first development candidate under these invented constraints: adult cast, office/apartment interiors, and a recurring negotiation engine. Her bargaining power needs to drive the romance.",
+    "zh": "按虚构约束，优先开发：成年演员、办公室和公寓场景、可重复推进的谈判冲突。女主的议价能力需要真正推动爱情。"
+  },
+  "sim.contract.risk": {
+    "en": "A legal twist may require too much explanation. A familiar billionaire setup needs a distinctive heroine goal; a synopsis cannot demonstrate audience appetite.",
+    "zh": "法律反转可能需要过多解释。常见霸总设定需要鲜明的女主目标；简介不能证明观众需求。"
+  },
+  "sim.contract.test": {
+    "en": "Table-read both openings with five target-language readers. Ask them to retell her leverage and choose which question makes them want episode 3. Small qualitative test, not demand validation.",
+    "zh": "请五名目标语言读者试读，复述女主筹码，指出最想在第三集获得答案的问题。这是小样本定性测试，不是需求验证。"
+  },
+  "sim.receipt.name": {
+    "en": "The Last Receipt",
+    "zh": "最后一张收据"
+  },
+  "sim.receipt.premise": {
+    "en": "A hotel bookkeeper framed for theft returns as the anonymous buyer of the hotel, but the only witness who can clear her is her former fiancé.",
+    "zh": "酒店会计被诬陷盗窃后，以匿名收购者身份归来；唯一能证明清白的人却是前未婚夫。"
+  },
+  "sim.receipt.fit": {
+    "en": "A concrete evidence trail gives each episode a reveal. A dressed office can double as hotel administration; a luxury lobby and crowds would exceed this case’s location plan.",
+    "zh": "证据链可为每集提供揭晓。办公室可改作酒店行政区；豪华大堂与人群会超出案例场景计划。"
+  },
+  "sim.receipt.risk": {
+    "en": "Revenge could crowd out the romance. Hotel scale may exceed the budget; buyer interest and production quotes remain unverified.",
+    "zh": "复仇可能挤压爱情线。酒店规模可能超预算；买方兴趣和制作报价尚未验证。"
+  },
+  "sim.receipt.test": {
+    "en": "Rewrite the pilot using only two interiors. Ask a line producer for a scene-level estimate and readers whether they believe her evidence is strong enough to act.",
+    "zh": "把试播剧本改为仅两处室内场景。请制片主任按场估价，并询问读者是否相信证据足以支持女主行动。"
+  },
+  "sim.midnight.name": {
+    "en": "Before Midnight, Again",
+    "zh": "再一次午夜之前"
+  },
+  "sim.midnight.premise": {
+    "en": "A night-shift concierge repeats the hour before a tenant disappears. Each reset saves a clue but erases one memory of the man helping her.",
+    "zh": "夜班礼宾不断重复住户失踪前的一小时。每次重置保留一条线索，却抹去一段关于帮助她的男人的记忆。"
+  },
+  "sim.midnight.fit": {
+    "en": "A contained supernatural romance offers a different slate option. Repeated sets help, but continuity and consistent reset rules require more development effort.",
+    "zh": "集中场景的超自然爱情提供差异化选择。复用布景有利制作，但连续性和重置规则需要更多开发工作。"
+  },
+  "sim.midnight.risk": {
+    "en": "The reset may confuse viewers in 90 seconds. Disappearance scenes must stay off-screen to avoid action costs; differentiation does not establish commercial potential.",
+    "zh": "90秒内的重置可能令人困惑。失踪动作须留在画外控制成本；差异化不等于商业潜力。"
+  },
+  "sim.midnight.test": {
+    "en": "Storyboard the reset without VFX. Test whether readers can state what persists and what is lost; hold production until the rules survive a cold read.",
+    "zh": "用无视效分镜呈现重置。测试读者能否说明保留和失去的内容；规则未通过首次阅读测试前暂缓制作。"
+  },
+  "sim.contract.script": {
+    "en": "EPISODE 1 — OFFICE, NIGHT\nMAYA places an unpaid invoice between herself and ADRIAN.\nMAYA: You want a fiancée. I want my crew paid. Those are different contracts.\nADRIAN: Thirty days. Two dinners. No one gets hurt.\nShe crosses out a paragraph.\nMAYA: Then why does this say I owe you if I leave?\nHe slides over a pen.\nADRIAN: Write something fair.\nMAYA: Whoever walks away loses control.\nHis smile disappears when she turns to the signature page.\nCUT: Both signatures sit beneath the company seal.\n\nEPISODE 2 — OFFICE, MORNING\nAdrian’s sister EVE reads the agreement.\nEVE: You used the shareholder template?\nMAYA: He said write something fair.\nEVE calls Adrian. Speakerphone.\nADRIAN: Last night was a mistake. We’re done.\nEve covers the phone and points to a clause.\nEVE: If he terminates, your proxy activates.\nMAYA looks at the invoice, then the board meeting invitation.\nMAYA: Tell him I’ll see him at nine.\nThe phone lights up: BOARD VOTE — REMOVE MAYA’S CREW.",
+    "zh": "原创英语试读稿（用于测试美国英语对白，尚未经本地编辑审核）\n\nEPISODE 1 — OFFICE, NIGHT\nMAYA places an unpaid invoice between herself and ADRIAN.\nMAYA: You want a fiancée. I want my crew paid. Those are different contracts.\nADRIAN: Thirty days. Two dinners. No one gets hurt.\nShe crosses out a paragraph.\nMAYA: Then why does this say I owe you if I leave?\nHe slides over a pen.\nADRIAN: Write something fair.\nMAYA: Whoever walks away loses control.\nHis smile disappears when she turns to the signature page.\nCUT: Both signatures sit beneath the company seal.\n\nEPISODE 2 — OFFICE, MORNING\nAdrian’s sister EVE reads the agreement.\nEVE: You used the shareholder template?\nMAYA: He said write something fair.\nEVE calls Adrian. Speakerphone.\nADRIAN: Last night was a mistake. We’re done.\nEve covers the phone and points to a clause.\nEVE: If he terminates, your proxy activates.\nMAYA looks at the invoice, then the board meeting invitation.\nMAYA: Tell him I’ll see him at nine.\nThe phone lights up: BOARD VOTE — REMOVE MAYA’S CREW."
+  },
+  "sim.receipt.script": {
+    "en": "EPISODE 1 — HOTEL ACCOUNTS OFFICE, DAY\nNORA returns her staff badge. Manager GRANT drops a receipt on the desk.\nGRANT: Your signature. Missing cash. Be grateful we’re keeping this quiet.\nNORA: That printer was replaced on Tuesday. This is dated Monday.\nHe tears the receipt in half.\nGRANT: Then prove it.\nNora pockets the lower half. Outside, her phone rings.\nLAWYER (PHONE): The purchase closed. Do you want the staff told who owns the hotel?\nNORA: Not yet.\n\nEPISODE 2 — SAME OFFICE, EVENING\nNora requests the archived printer log. Her former fiancé ELI blocks the cabinet.\nELI: If Grant sees you, you’re finished.\nNORA: He already finished me. Move.\nEli opens the cabinet. The folder is empty except for an envelope bearing his name.\nNORA: You signed the report?\nELI: I signed to keep you out of court.\nShe unfolds a copy. The timestamp matches the torn receipt.\nNORA: Then why did you sign it before the money disappeared?",
+    "zh": "原创英语试读稿（用于测试美国英语对白，尚未经本地编辑审核）\n\nEPISODE 1 — HOTEL ACCOUNTS OFFICE, DAY\nNORA returns her staff badge. Manager GRANT drops a receipt on the desk.\nGRANT: Your signature. Missing cash. Be grateful we’re keeping this quiet.\nNORA: That printer was replaced on Tuesday. This is dated Monday.\nHe tears the receipt in half.\nGRANT: Then prove it.\nNora pockets the lower half. Outside, her phone rings.\nLAWYER (PHONE): The purchase closed. Do you want the staff told who owns the hotel?\nNORA: Not yet.\n\nEPISODE 2 — SAME OFFICE, EVENING\nNora requests the archived printer log. Her former fiancé ELI blocks the cabinet.\nELI: If Grant sees you, you’re finished.\nNORA: He already finished me. Move.\nEli opens the cabinet. The folder is empty except for an envelope bearing his name.\nNORA: You signed the report?\nELI: I signed to keep you out of court.\nShe unfolds a copy. The timestamp matches the torn receipt.\nNORA: Then why did you sign it before the money disappeared?"
+  },
+  "sim.midnight.script": {
+    "en": "EPISODE 1 — APARTMENT CONCIERGE DESK, NIGHT\n11:59. JO finds a key with a red thread. BEN arrives, breathless.\nBEN: Don’t give that to room twelve.\nJO: You said that yesterday.\nBEN: No. I said it in the last hour.\nThe desk phone rings. A woman whispers: He’s outside my door.\nJo reaches for the emergency button. Midnight. Blackout.\n11:00. The lights return. The red thread is tied around Jo’s wrist.\nBen enters.\nJO: Do I know you?\n\nEPISODE 2 — CONCIERGE DESK, NIGHT\nBen sets down a notebook in Jo’s handwriting.\nJO reads: Objects in my pocket stay. Memories of Ben don’t.\nJO: Convenient story.\nShe tears a corner off a blank page and puts it in her pocket.\nBEN: We have fifty-eight minutes.\nJO: Then we use them to find her.\nThe phone rings early. Same woman.\nWOMAN: This time don’t trust the man at your desk.\nJo looks down. Ben has the matching red thread around his wrist.",
+    "zh": "原创英语试读稿（用于测试美国英语对白，尚未经本地编辑审核）\n\nEPISODE 1 — APARTMENT CONCIERGE DESK, NIGHT\n11:59. JO finds a key with a red thread. BEN arrives, breathless.\nBEN: Don’t give that to room twelve.\nJO: You said that yesterday.\nBEN: No. I said it in the last hour.\nThe desk phone rings. A woman whispers: He’s outside my door.\nJo reaches for the emergency button. Midnight. Blackout.\n11:00. The lights return. The red thread is tied around Jo’s wrist.\nBen enters.\nJO: Do I know you?\n\nEPISODE 2 — CONCIERGE DESK, NIGHT\nBen sets down a notebook in Jo’s handwriting.\nJO reads: Objects in my pocket stay. Memories of Ben don’t.\nJO: Convenient story.\nShe tears a corner off a blank page and puts it in her pocket.\nBEN: We have fifty-eight minutes.\nJO: Then we use them to find her.\nThe phone rings early. Same woman.\nWOMAN: This time don’t trust the man at your desk.\nJo looks down. Ben has the matching red thread around his wrist."
+  }
+}

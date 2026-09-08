@@ -1,3 +1,5 @@
+import MarketFilters from '@/components/producer/research/MarketFilters';
+import { parseMarketFilter, type Query } from '@/lib/research/navigation';
 import ExploreNav from "@/components/producer/research/ExploreNav";
 import { portalSession, producerLocale } from "@/components/producer/server";
 import { EvidenceTag, MetricLabel, StateBadge, TropeChip, exploreHref, fmtPct, marketHref, platformName } from "@/components/producer/research/ui";
@@ -15,7 +17,7 @@ import { PLATFORMS, type Audience, type Platform } from "@/lib/research/types";
 
 export const dynamic = "force-dynamic";
 
-type Search = { platform?: string; audience?: string };
+type Search = Query;
 const PLATFORM_IDS = new Set<string>(PLATFORMS.map((p) => p.id));
 
 export default async function ExploreTropes({ searchParams }: { searchParams: Search }) {
@@ -23,11 +25,8 @@ export default async function ExploreTropes({ searchParams }: { searchParams: Se
   const locale = producerLocale();
   const data = getData();
   const [market, profile] = await Promise.all([data.getMarket(session), data.getResearchProfile(session)]);
-  const filter: MarketFilter = {
-    platform: searchParams.platform && PLATFORM_IDS.has(searchParams.platform) ? (searchParams.platform as Platform) : "all",
-    audience: searchParams.audience === "female" || searchParams.audience === "male" ? (searchParams.audience as Audience) : "all",
-  };
-  const base = { platform: filter.platform, audience: filter.audience };
+  const filter = parseMarketFilter(searchParams);
+  const base = { ...searchParams, platform: filter.platform, audience: filter.audience };
   if (!market.latest) {
     return (
       <>
@@ -38,7 +37,8 @@ export default async function ExploreTropes({ searchParams }: { searchParams: Se
   }
   const snapshot = market.latest;
   const scores = scoreSnapshot(snapshot);
-  const titles = filterTitles(snapshot.titles, filter);
+  const all = filterTitles(snapshot.titles, filter);
+  const titles = searchParams.mode==='company'&&profile&&!filter.trope ? all.filter(x=>x.tropes.some(tr=>profile.tropes.includes(tr.id))) : all;
   const previous = market.previous ? { titles: filterTitles(market.previous.titles, filter), scores: scoreSnapshot(market.previous), taxonomy_version: market.previous.taxonomy_version } : null;
   const stats = tropeStats(titles, scores, snapshot.taxonomy_version, previous);
   const pairs = tropePairs(titles, scores, 12);
@@ -57,26 +57,14 @@ export default async function ExploreTropes({ searchParams }: { searchParams: Se
   return (
     <>
       <ExploreNav active="tropes" locale={locale} />
-      <div className="rs-toolbar">
-        <div className="filter-row">
-          <span className="rs-toolbar-label">{t(locale, "research.filter.platform")}</span>
-          <a className={`filter-chip${filter.platform === "all" ? " on" : ""}`} href={href({ platform: "all" })}>{t(locale, "research.filter.all")}</a>
-          {PLATFORMS.map((p) => <a key={p.id} className={`filter-chip${filter.platform === p.id ? " on" : ""}`} href={href({ platform: p.id })}>{p.name}</a>)}
-        </div>
-        <div className="filter-row">
-          <span className="rs-toolbar-label">{t(locale, "research.filter.audience")}</span>
-          <a className={`filter-chip${filter.audience === "all" ? " on" : ""}`} href={href({ audience: "all" })}>{t(locale, "research.filter.all")}</a>
-          <a className={`filter-chip${filter.audience === "female" ? " on" : ""}`} href={href({ audience: "female" })}>{t(locale, "research.audience.female")}</a>
-          <a className={`filter-chip${filter.audience === "male" ? " on" : ""}`} href={href({ audience: "male" })}>{t(locale, "research.audience.male")}</a>
-        </div>
-      </div>
+      <MarketFilters/>
       <div className="rs-meta">
         <span>{t(locale, "research.section.storyMixSub")}</span>
         <span>n={cohort}{Object.entries(byPlatform).map(([p, n]) => ` · ${platformName(p as Platform)} ${n}`).join("")} · {t(locale, "research.results", { n: titles.length })}</span>
         {!history && <StateBadge status={historyState} locale={locale} />}
       </div>
 
-      <section className="rs-panel" style={{ marginBottom: 20 }}>
+      <section className="brief-section"><div className="rs-bars brief-bars">{stats.map(s=><div key={s.id} className="brief-trope"><a className={`rs-bar${mine.has(s.id)?" is-mine":""}`} href={exploreHref(base,{trope:s.id,page:undefined})}><span>{tropeLabel(s.id,locale)}</span><span className="rs-bar-track"><span className="rs-bar-fill" style={{width:`${s.cohort_share*100}%`}}/></span><strong>{fmtPct(s.cohort_share)}</strong><small>{s.in_cohort}/{s.cohort}</small></a><div className="brief-examples">{s.examples.slice(0,2).map(k=><a key={k} href={`/producer/market/${k}?returnTo=${encodeURIComponent(href({}))}`}>{snapshot.titles.find(x=>x.key===k)?.title}</a>)}</div></div>)}</div></section><details className="brief-section"><summary>{t(locale,"ux.advancedData")}</summary><section className="rs-panel" style={{ marginBottom: 20 }}>
         <div className="gtable gtable-flush rs-table" style={{ ["--cols" as string]: "minmax(0,1.6fr) 90px 100px 90px 100px 70px 90px minmax(0,1.6fr)" }}>
           <div className="gt-head">
             <span>{t(locale, "research.filter.trope")}</span>
@@ -90,7 +78,7 @@ export default async function ExploreTropes({ searchParams }: { searchParams: Se
           </div>
           {stats.map((s) => (
             <div className="gt-row" key={s.id}>
-              <span><TropeChip id={s.id} locale={locale} mine={mine.has(s.id)} href={marketHref(base, { trope: s.id })} /> <small className="gt-muted">{fmtPct(s.observed_share)} {t(locale, "research.evidence.observed").toLowerCase()}</small></span>
+              <span><TropeChip id={s.id} locale={locale} mine={mine.has(s.id)} href={exploreHref(base, { trope: s.id })} /> <small className="gt-muted">{fmtPct(s.observed_share)} {t(locale, "research.evidence.observed").toLowerCase()}</small></span>
               <span className="gt-num">{s.in_cohort}/{s.cohort}</span>
               <span className="gt-num strong">{fmtPct(s.cohort_share)}</span>
               <span className="gt-num">{s.titles}/{s.sample}</span>
@@ -131,7 +119,7 @@ export default async function ExploreTropes({ searchParams }: { searchParams: Se
         </div>
       </section>
 
-      <div className="rs-legend">
+      </details><div className="rs-legend">
         <a href={exploreHref(base, {})}>{t(locale, "research.explore.titles")} ›</a>
         <span className="gt-muted">{tropeLabel(stats[0]?.id ?? "revenge", locale)}</span>
       </div>

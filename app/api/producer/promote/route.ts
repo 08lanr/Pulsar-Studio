@@ -13,6 +13,16 @@ const createSchema = z.object({
   spoiler_level: z.enum(["low", "medium", "high"]),
   creative_direction: z.string().trim().max(1000).nullable().optional(),
   exclusions: z.string().trim().max(1000).nullable().optional(),
+  experiment: z
+    .object({
+      budget_usd: z.number().finite().min(1).max(100_000),
+      hypothesis: z.string().trim().min(10).max(400),
+      audience: z.string().trim().min(3).max(200),
+      first_batch: z.number().int().min(1).max(10),
+      signal: z.enum(["views", "clicks", "landing"]),
+    })
+    .nullable()
+    .optional(),
 });
 
 export async function GET(req: NextRequest) {

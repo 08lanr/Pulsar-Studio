@@ -1,3 +1,7 @@
+import Cover from '@/components/producer/research/Cover';
+import { Counter } from '@/components/producer/research/DramaCard';
+import { safeReturn } from '@/lib/research/navigation';
+import { exploreHref } from '@/components/producer/research/ui';
 import { notFound } from "next/navigation";
 import WatchButton from "@/components/producer/research/WatchButton";
 import { isStaffPreview, portalSession, producerLocale } from "@/components/producer/server";
@@ -18,10 +22,10 @@ import type { MarketTitle } from "@/lib/research/types";
 
 export const dynamic = "force-dynamic";
 
-type Tab = "overview" | "trends" | "story" | "creative" | "comparables" | "sources";
-const TABS: Tab[] = ["overview", "trends", "story", "creative", "comparables", "sources"];
+type Tab = "overview" | "trends" | "sources";
+const TABS: Tab[] = ["overview", "trends", "sources"];
 
-export default async function MarketTitlePage({ params, searchParams }: { params: { key: string }; searchParams: { tab?: string } }) {
+export default async function MarketTitlePage({ params, searchParams }: { params: { key: string }; searchParams: { tab?: string; returnTo?: string } }) {
   const session = await portalSession(`/producer/market/${params.key}`);
   const locale = producerLocale();
   const data = getData();
@@ -50,14 +54,16 @@ export default async function MarketTitlePage({ params, searchParams }: { params
     .filter((c) => c.overlap.length > 0)
     .sort((a, b) => b.overlap.length - a.overlap.length)
     .slice(0, 6);
-  const tabHref = (x: Tab) => (x === "overview" ? `/producer/market/${title.key}` : `/producer/market/${title.key}?tab=${x}`);
+  const returnTo=safeReturn(searchParams.returnTo);
+  const base=Object.fromEntries(new URL(returnTo,'https://studio.local').searchParams);
+  const tabHref=(x:Tab)=>`/producer/market/${title.key}?tab=${x}&returnTo=${encodeURIComponent(returnTo)}`;
 
   return (
     <>
       <nav className="studio-crumbs" aria-label={t(locale, "v3.breadcrumbs")}>
         <a href="/producer">{t(locale, "research.nav.overview")}</a>
         <span>›</span>
-        <a href="/producer/explore/titles">{t(locale, "research.explore.titles")}</a>
+        <a href={returnTo}>{t(locale, "research.explore.titles")}</a>
         <span>›</span>
         <span lang="en">{title.title}</span>
       </nav>
@@ -65,7 +71,7 @@ export default async function MarketTitlePage({ params, searchParams }: { params
       <section className="rs-panel" style={{ padding: 18, marginBottom: 16 }}>
         <div className="rs-detail-hero">
           {/* eslint-disable-next-line @next/next/no-img-element -- third-party cover, not proxied */}
-          {title.cover ? <img className="rs-cover rs-cover-lg" src={title.cover} alt="" referrerPolicy="no-referrer" /> : <span className="rs-cover rs-cover-lg" />}
+          <Cover src={title.cover} title={title.title} className="rs-cover rs-cover-lg"/>
           <div style={{ minWidth: 0, flex: 1 }}>
             <span className="page-kicker">
               {platformName(title.platform)}
@@ -75,14 +81,9 @@ export default async function MarketTitlePage({ params, searchParams }: { params
             </span>
             <h2 lang="en">{title.title}</h2>
             <div className="rs-tropes">
-              {title.tropes.map((x) => <TropeChip key={x.id} id={x.id} locale={locale} hot={hot.has(x.id)} mine={mine.has(x.id)} evidence={x.evidence} href={`/producer?trope=${x.id}`} />)}
+              {title.tropes.map((x) => <TropeChip key={x.id} id={x.id} locale={locale} hot={hot.has(x.id)} mine={mine.has(x.id)} evidence={x.evidence} href={exploreHref(base,{trope:x.id,page:undefined})} />)}
             </div>
-            <div className="rs-hero-stats">
-              <span><MetricLabel metric="prominence" locale={locale}>{t(locale, "research.col.prominence")}</MetricLabel> <Prominence value={score.prominence} locale={locale} /></span>
-              <span><MetricLabel metric="chart_visibility" locale={locale}>{t(locale, "research.col.chartRank")}</MetricLabel> <b>{score.best_chart_rank != null ? `#${score.best_chart_rank}` : "–"}</b></span>
-              <span><MetricLabel metric="views_counter" locale={locale}>{title.metrics.views ? unitLabel("views", locale) : t(locale, "research.col.views")}</MetricLabel> <b><ObservationCell o={title.metrics.views} locale={locale} /></b>{title.metrics.views && <EvidenceTag evidence={title.metrics.views.evidence} locale={locale} />}</span>
-              <span><MetricLabel metric="saves_counter" locale={locale}>{title.metrics.saves ? unitLabel(title.metrics.saves.unit, locale) : t(locale, "research.col.saves")}</MetricLabel> <b><ObservationCell o={title.metrics.saves} locale={locale} /></b>{title.metrics.saves && <EvidenceTag evidence={title.metrics.saves.evidence} locale={locale} />}</span>
-            </div>
+            <div className="rs-hero-stats"><Counter title={title} kind="views" locale={locale}/><Counter title={title} kind="saves" locale={locale}/></div>
             <p style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
               <a className="btn btn-outline btn-sm" href={title.url} target="_blank" rel="noreferrer noopener">{t(locale, "research.title.open", { platform: platformName(title.platform) })}</a>
               <WatchButton listingKey={title.key} watching={watchlist.some((w) => w.listing_key === title.key)} canAct={canAct} />
@@ -97,6 +98,7 @@ export default async function MarketTitlePage({ params, searchParams }: { params
         ))}
       </nav>
 
+      <div className="brief-detail-body">
       {tab === "overview" && (
         <div className="rs-detail">
           <div>
@@ -109,11 +111,11 @@ export default async function MarketTitlePage({ params, searchParams }: { params
               <ul className="rs-list">
                 {similar.slice(0, 5).map((s) => (
                   <li key={s.title.key}>
-                    <a href={`/producer/market/${s.title.key}`} className="rs-title-name" lang="en">{s.title.title}</a>
+                    <a href={`/producer/market/${s.title.key}?returnTo=${encodeURIComponent(returnTo)}`} className="rs-title-name" lang="en">{s.title.title}</a>
                     <span className="rs-platform">{platformName(s.title.platform)}</span>
                     <span className="rs-tropes clip">{s.overlap.slice(0, 3).map((id) => <TropeChip key={id} id={id} locale={locale} hot={hot.has(id)} />)}</span>
                     <span className="spacer" />
-                    <Prominence value={scores.get(s.title.key)?.prominence ?? null} locale={locale} />
+
                   </li>
                 ))}
               </ul>
@@ -126,7 +128,7 @@ export default async function MarketTitlePage({ params, searchParams }: { params
                 <dt><MetricLabel metric="paywall_episode" locale={locale}>{t(locale, "research.col.paywall")}</MetricLabel></dt><dd>{title.paywall_episode ?? "–"}</dd>
                 <dt><MetricLabel metric="episode_length" locale={locale}>{t(locale, "research.stat.episodeSeconds")}</MetricLabel></dt><dd>{fmtSeconds(title.episode_seconds)}{title.episode_seconds_basis ? <small className="gt-muted"> ({t(locale, `research.basis.${title.episode_seconds_basis}`)})</small> : null}</dd>
                 {title.released_at && <><dt>{t(locale, "research.col.released")}</dt><dd>{title.released_at} <EvidenceTag evidence="observed" locale={locale} /></dd></>}
-                <dt>{t(locale, "research.title.firstSeen")}</dt><dd>{seen ?? <StateBadge status={historyState} locale={locale} />}</dd>
+                {seen && <><dt>{t(locale, "research.title.firstSeen")}</dt><dd>{seen}</dd></>}
                 {title.metrics.rating && <><dt>{t(locale, "research.col.rating")}</dt><dd>{title.metrics.rating.value} <EvidenceTag evidence="observed" locale={locale} /></dd></>}
                 <dt><MetricLabel metric="company_role" locale={locale}>{t(locale, "research.col.company")}</MetricLabel></dt>
                 <dd>{title.companies.length === 0 ? <span className="gt-muted">{t(locale, "research.state.notShown")}</span> : title.companies.map((c) => <span key={`${c.role}|${c.name}`}>{c.name} <small className="gt-muted">({t(locale, `research.role.${c.role}`)})</small> <EvidenceTag evidence={c.evidence} locale={locale} /></span>)}</dd>
@@ -184,62 +186,8 @@ export default async function MarketTitlePage({ params, searchParams }: { params
         </section>
       )}
 
-      {tab === "story" && (
+      {tab === "overview" && (
         <div className="rs-detail">
-          <section className="rs-panel">
-            <div className="rs-panel-head"><div><h3>{t(locale, "research.col.tropes")}</h3><p>{t(locale, "research.evidence.legend")}</p></div></div>
-            <ul className="rs-list">
-              {title.tropes.map((x) => (
-                <li key={x.id}>
-                  <TropeChip id={x.id} locale={locale} hot={hot.has(x.id)} href={`/producer/explore/titles?trope=${x.id}`} />
-                  <span className="spacer" />
-                  <span className="gt-muted">{t(locale, "research.title.tagVia", { via: x.via })}</span>
-                  <EvidenceTag evidence={x.evidence} locale={locale} />
-                </li>
-              ))}
-              <li className="gt-muted" style={{ flexWrap: "wrap" }}>{title.platform_tags.join(" · ")}</li>
-            </ul>
-          </section>
-          <section className="rs-panel">
-            <dl className="rs-kv">
-              <dt><MetricLabel metric="audience_positioning" locale={locale}>{t(locale, "research.col.audience")}</MetricLabel></dt><dd>{title.audience ? t(locale, `research.audience.${title.audience}`) : "–"} <small className="gt-muted">{t(locale, "research.audience.note")}</small></dd>
-              <dt>{t(locale, "research.col.episodes")}</dt><dd>{title.episode_count ?? "–"}</dd>
-              <dt>{t(locale, "research.col.paywall")}</dt><dd>{title.paywall_episode ?? "–"}</dd>
-              <dt>{t(locale, "research.stat.episodeSeconds")}</dt><dd>{fmtSeconds(title.episode_seconds)} {title.episode_seconds_basis && <small className="gt-muted">{t(locale, `research.basis.${title.episode_seconds_basis}`)}</small>}</dd>
-            </dl>
-          </section>
-        </div>
-      )}
-
-      {tab === "creative" && (
-        <section className="rs-panel">
-          <div className="rs-panel-head"><div><h3>{t(locale, "research.tab.creative")}</h3><p>{t(locale, "research.title.creativeEmpty")}</p></div><span className="rs-panel-aside"><StateBadge status="requires_connection" locale={locale} /> <a href="/producer/sources/ad_observations">{t(locale, "research.nav.sources")} ›</a></span></div>
-          <div className="rs-hooks">
-            <div className="rs-hook"><q lang="en">{firstSentence(title.blurb)}</q><footer><MetricLabel metric="premise_examples" locale={locale}>{t(locale, "research.premise.title")}</MetricLabel><EvidenceTag evidence="observed" locale={locale} /></footer></div>
-            {similar.slice(0, 4).map((s) => (
-              <div className="rs-hook" key={s.title.key}><q lang="en">{firstSentence(s.title.blurb)}</q><footer><a href={`/producer/market/${s.title.key}`} lang="en">{s.title.title}</a><span>{platformName(s.title.platform)}</span></footer></div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {tab === "comparables" && (
-        <div className="rs-detail">
-          <section className="rs-panel">
-            <div className="rs-panel-head"><div><h3>{t(locale, "research.title.similar")}</h3><p>{t(locale, "research.title.similarNote")}</p></div></div>
-            <ul className="rs-list">
-              {similar.map((s) => (
-                <li key={s.title.key}>
-                  <a href={`/producer/market/${s.title.key}`} className="rs-title-name" lang="en">{s.title.title}</a>
-                  <span className="rs-platform">{platformName(s.title.platform)}</span>
-                  <span className="rs-tropes clip">{s.overlap.slice(0, 3).map((id) => <TropeChip key={id} id={id} locale={locale} hot={hot.has(id)} />)}</span>
-                  <span className="spacer" />
-                  <small className="gt-muted">{Math.round(s.score * 100)}%</small>
-                  <Prominence value={scores.get(s.title.key)?.prominence ?? null} locale={locale} />
-                </li>
-              ))}
-            </ul>
-          </section>
           <section className="rs-panel">
             <div className="rs-panel-head"><div><h3>{t(locale, "research.title.yourMatches")}</h3><p>{t(locale, "research.section.yourTitlesSub")}</p></div></div>
             {catalog.total === 0 ? (
@@ -291,6 +239,7 @@ export default async function MarketTitlePage({ params, searchParams }: { params
           </dl>
         </section>
       )}
+      </div>
     </>
   );
 }

@@ -6,6 +6,61 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-09-08 · The US launch workspace: a number, a demo catalog, five areas
+
+Decided by the founders (Ruobin): "show a number", "generate a test / demo
+for everything so we can stress-test it", "make everything usable". The
+product is a US launch workspace for Chinese mini-drama catalogs, with the
+market desk as supporting evidence. Central journey: choose a title →
+understand its US potential → generate campaign concepts → approve
+variations and budget → launch (mock until a provider is connected) → learn
+what deserves more investment.
+
+- **Navigation is five areas** plus "Add title" as an action: 总览 Overview
+  (recommended titles, decisions waiting, results, setup gaps), 我的剧库 My
+  catalog (every title scored, readiness, tests, next action), 美国市场洞察
+  US market insights (the market brief, explorer, title detail, sources),
+  发行与实验 Launch & experiments, 公司与账户 Company & accounts (goals &
+  profile, owned accounts, permissions & billing, reports).
+- **US potential is a number** (`lib/research/assessment.ts`, v1.0): 0–100,
+  a composite of what Studio actually holds — story match 0–35, market
+  signal 0–10 (needs history; 0 and says so until then), readiness 0–25,
+  own evidence 0–25 (demo results count at half), fit 0–5 — with every
+  fact, its evidence label, its points and "what would raise it" shown next
+  to the number, plus a band (test first / prepare / not now / not enough).
+  It is our evidence summarized, never a probability of success or an
+  audience measurement, and the page says so.
+- **Experiments are structured records.** `promote.campaigns.experiment`
+  holds budget, hypothesis, audience, first batch, signal, and the
+  approver's budget sign-off, versioned; a save clears approval. Results
+  (`promote.results`) are per creative and window with an explicit source;
+  in fixture mode "simulate demo results" produces demo-labelled rows so
+  the results → next-spend loop can be exercised. The next-spend decision
+  creates a new round. Submission stays a mock handoff.
+- **Customer ownership is recorded, not fabricated.**
+  `core.company_accounts` holds the accounts the customer owns and the
+  state they reported (unconnected / invited / connected / revoked) and
+  what access Studio has. No account creation, no credentials. Billing is
+  "not configured" until a provider is connected.
+- **The demo catalog** (`data/fixture/demo-catalog.ts`) seeds fixture mode
+  by default: 14 titles in different states of readiness, profile,
+  watchlist, imported reports, four experiments at different stages (one
+  with demo results), and the account inventory. `FIXTURE_SEED=empty`
+  restores the bare seed; the test runner uses it.
+- Migration 0006 carries the Supabase side; no project is provisioned.
+  Tests: `tests/workspace.test.ts`.
+
+## 2026-09-08 · A focused producer market brief
+
+This supersedes the four-summary-card homepage and the expanded dashboard layout. The existing research collection, evidence rules, and tenant boundaries stay in place.
+
+- Overview has three sections: up to six concrete drama examples; six story-share bars; and up to three owned titles with a comparable, recorded materials and an action. Company relevance is visible and optional. The story bars describe the selected market, with company interests highlighted, rather than measuring only the company's preferred tropes.
+- My titles has one catalog, with Company profile and Reports as permanent sibling tabs. Company identity is loaded through a minimal tenant-scoped data method. Profiles reuse the existing research record; saving returns to Overview with refreshed recommendations and confirmation. Distribution informs next actions; annual volume remains descriptive. Target markets express intent, not viewer geography.
+- Filters apply immediately, search covers existing Chinese/English taxonomy and publisher names, and scope travels into detail return links. Raw views/saves sorts require a single platform. Mobile navigation uses a modal menu with focus containment and Escape support.
+- Ordinary views prioritize readable titles, named charts and platform-specific counters. An information dialog gives exact values and read dates without leaving the results; full methodology remains in Sources. Available data and planned connections are separated. Missing covers have a local visual fallback.
+- Market detail uses Summary, Trends and Sources; legacy Story/Creative/Comparables tab URLs resolve to the summary. Saved titles have a dedicated navigation link.
+- No US rights or whole-title readiness is inferred from generic dates or partial approvals. Existing company reports and recorded license/episode facts remain in catalog disclosures. Promote remains review/approval; Grow owns execution.
+
 ## 2026-09-07 · Trust in the numbers: run artifacts, provenance, registry, Data & Sources
 
 Decided by the founders (Ruobin) via the market-intelligence review

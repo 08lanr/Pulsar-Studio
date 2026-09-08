@@ -88,3 +88,18 @@ partner-reported. Tests: `tests/research-phase4.test.ts`.
 
 Status: **not started**. Each listed in Data & Sources with its real state
 (`requires_connection` / `manual`), with the review's source corrections.
+
+## Phase 7 · US launch workspace (2026-09-08)
+
+Status: **done in fixture mode.** Five-area navigation; US potential score
+with explained components on the assessment page, catalog and overview;
+structured experiments with budget approval, demo-labelled results and a
+next-spend decision that opens a new round; company & accounts with owned
+account inventory, permissions and billing state; demo catalog seeding 14
+titles, 4 experiments, reports, watchlist and accounts. Supabase paths
+coded (migration 0006), not exercised. Verified in the browser on port
+3200 (zh and en, desktop and 375px, no hydration errors). 141 tests.
+
+Not done: provider connections (TikTok/Meta), real results (Grow readback),
+scheduled market collection (founder decision), history-based market
+signal (turns on with a second crawl).

@@ -1,0 +1,23 @@
+import { getData } from '@/lib/data';
+import type { Session } from '@/lib/auth';
+import { t, type Locale } from '@/lib/i18n';
+import { catalogMatches, scoreSnapshot, tagCatalogTitle, tropeStats } from '@/lib/research/engine';
+import { summarizeReports } from '@/lib/research/reports';
+import { tropeLabel } from '@/lib/research/taxonomy';
+import { EvidenceTag, platformName } from './ui';
+export default async function OwnTitles({session,locale,limit}:{session:Session;locale:Locale;limit?:number}) {
+ const data=getData(); const [titles,market,catalog,reports,profile]=await Promise.all([data.listTitles(session),data.getMarket(session),data.listCatalogForMatching(session),data.listReportRows(session),data.getResearchProfile(session)]);
+ const snapshot=market.latest; const scores=snapshot?scoreSnapshot(snapshot):new Map(); const stats=snapshot?tropeStats(snapshot.titles,scores,snapshot.taxonomy_version):[];
+ const matches=snapshot?catalogMatches(catalog.rows.map(r=>({id:r.id,tropes:tagCatalogTitle(r)})),stats,snapshot.titles,scores):[];
+ const perf=summarizeReports(reports);
+ const details=new Map(!limit ? await Promise.all(titles.map(async row=>[row.id,await data.getTitle(session,row.id)] as const)) : []);
+ if(!titles.length)return <div className="rs-empty">{t(locale,'research.mine.empty')} <a className="btn btn-primary" href="/producer/titles/new">{t(locale,'research.nav.addTitle')}</a></div>;
+ return <div className="brief-own-list">{titles.slice(0,limit).map(row=>{
+   const m=matches.find(x=>x.title_id===row.id); const comps=(m?.comparable_keys??[]).map(k=>snapshot?.titles.find(x=>x.key===k)).filter(x=>!!x);
+   const detail=details.get(row.id);const china=(detail?.title.china_metrics??{}) as {views?:number;completion_rate?:number;paying_rate?:number};
+   const self=profile?.distribution.some(d=>d==='self'||d==='youtube');
+   return <article key={row.id} className="brief-own"><div><a className="brief-own-name" href={`/producer/titles/${row.id}`} lang="zh-CN">{row.name_zh}</a>{row.name_en&&<p lang="en">{row.name_en}</p>}<small>{row.external_id} · {t(locale,`admin.titleStatus.${row.status}`)}</small></div><div><small>{t(locale,'ux.comparable')}</small>{comps[0]?<a className="brief-own-comparable" href={`/producer/market/${comps[0].key}`} lang="en">{comps[0].title}<small>{platformName(comps[0].platform)}</small></a>:<p>{t(locale,'ux.noComparable')}</p>}</div><div><small>{t(locale,'ux.readiness')}</small><p>{t(locale,row.episode_count>0?'ux.episodesKnown':'ux.episodesUnknownTotal',{n:row.episodes_ingested,total:row.episode_count})}</p><a className="btn btn-outline btn-sm" href={self&&row.episodes_ingested>0?`/producer/promote/new?title=${row.id}`:`/producer/titles/${row.id}`}>{t(locale,self&&row.episodes_ingested>0?'research.mine.test':row.episodes_ingested===0?'ux.addMaterials':'ux.reviewMaterials')} →</a></div>
+   {!limit&&<details className="brief-own-detail"><summary>{t(locale,'ux.moreTitle')}</summary><div className="brief-own-detail-grid"><div><h4>{t(locale,'ux.relevance')}</h4><p>{m?.tropes.map(id=>tropeLabel(id,locale)).join(' · ')||t(locale,'research.mine.untagged')}</p><EvidenceTag evidence="inferred" locale={locale}/><p>{t(locale,'research.mine.marketScoreNote')}</p>{comps.slice(1,4).map(x=><p key={x.key}><a href={`/producer/market/${x.key}`}>{x.title}</a></p>)}</div><div><h4>{t(locale,'research.reports.title')}</h4>{perf.get(row.id)?.length?perf.get(row.id)!.map(r=><p key={`${r.platform}-${r.metric}`}>{t(locale,`research.metric.${r.metric}`)} · {r.platform}: {r.value.toLocaleString('en-US')} {r.currency}<small>{r.period_start} → {r.period_end}</small><EvidenceTag evidence="partner_reported" locale={locale}/></p>):<a href="/producer/reports">{t(locale,'ux.importReport')}</a>}{detail&&<><h4>{t(locale,'ux.knownFacts')}</h4><p>{t(locale,'ux.approvedEpisodes',{n:detail.episodes.filter(e=>e.version_status==='approved').length,total:detail.episodes.length})}</p><p>{t(locale,'ux.licenseWindow')}: {detail.title.license_start??'–'} → {detail.title.license_end??'–'}</p>{Object.entries(china).filter(([k,v])=>['views','completion_rate','paying_rate'].includes(k)&&typeof v==='number').map(([k,v])=><p key={k}>{t(locale,k==='views'?'research.mine.views':k==='completion_rate'?'research.mine.completion':'research.mine.paying')}: {k==='views'?v?.toLocaleString('en-US'):`${Math.round(v!*100)}%`} <EvidenceTag evidence="partner_reported" locale={locale}/></p>)}</>}<p>{t(locale,'ux.rights.note')}</p></div></div></details>}
+   </article>;
+ })}{!limit&&catalog.truncated&&<p className="rs-empty">{t(locale,'research.mine.truncated',{shown:catalog.rows.length,total:catalog.total})}</p>}</div>;
+}

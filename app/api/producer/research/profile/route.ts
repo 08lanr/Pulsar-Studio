@@ -1,3 +1,4 @@
+import { normalizeMarkets } from '@/lib/research/navigation';
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { requireProducer } from "@/lib/auth";
@@ -16,7 +17,7 @@ const profileSchema = z.object({
   tropes: z.array(z.enum(tropeIds)).max(12),
   audience: z.enum(["female", "male", "both"]).nullable(),
   titles_per_year: z.number().int().min(0).max(1000).nullable(),
-  distribution: z.array(z.enum(["licensed", "self", "youtube", "none"])).max(4),
+  distribution: z.array(z.enum(["licensed", "self", "youtube", "none"])).max(4).refine(v => !v.includes("none") || v.length === 1, "Choose either Not yet or your distribution methods"),
   target_markets: z.array(z.string().trim().min(2).max(24)).max(8),
 });
 
@@ -36,6 +37,7 @@ export async function PUT(req: NextRequest) {
     if (parsed.response) return parsed.response;
     const profile = await getData().saveResearchProfile(g.session, {
       ...parsed.data,
+      target_markets: normalizeMarkets(parsed.data.target_markets),
       tropes: parsed.data.tropes as typeof TROPES[number]["id"][],
     });
     return NextResponse.json({ profile });

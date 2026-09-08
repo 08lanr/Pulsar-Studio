@@ -1,98 +1,69 @@
 "use client";
 
+// The partner portal's chrome: five areas of the US launch workspace plus
+// "Add title" as an action (decision 2026-09-08). Overview · My catalog ·
+// US market insights · Launch & experiments · Company & accounts. Mobile
+// gets a native dialog with focus return.
+
+import { useRef } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import LangToggle from "@/components/LangToggle";
 import { useT } from "@/components/locale";
-import { usePathname } from "next/navigation";
+import type { Producer } from "@/lib/types";
 import { IconCompass, IconLibrary, IconLogout, IconMarket, IconPlus, IconPromote, IconSources } from "./icons";
 
-// The partner portal's whole chrome: brand, portal name, language, sign out.
-// The product sidebar keeps the shared drama library and the two separate
-// workflows legible. Sign-out is a plain GET link on purpose: it
-// works before hydration and gets a phone out of any stuck state
-// (app/api/auth/logout accepts GET for exactly this reason).
+type Item = { href: string; key: string; Icon: (p: { size?: number }) => JSX.Element; match: (path: string) => boolean };
 
-export default function PortalHeader() {
-  const { tt } = useT();
-  const pathname = usePathname() ?? "/producer";
-  // The desk's order (docs/market-desk-plan.md): Overview, Explore, My
-  // titles (Adapt lives behind each title), Creative & tests (Promote), Data
-  // & Sources. "Add title" stays an action.
-  const inOverview = pathname === "/producer" || pathname.startsWith("/producer/market") || pathname === "/producer/onboarding";
-  const inExplore = pathname.startsWith("/producer/explore");
-  const inNew = pathname === "/producer/titles/new";
-  const inLibrary = !inNew && (pathname === "/producer/titles" || pathname.startsWith("/producer/titles/") || pathname === "/producer/reports");
-  const inPromote = pathname === "/producer/promote" || pathname.startsWith("/producer/promote/");
-  const inSources = pathname.startsWith("/producer/sources");
-  const section = inPromote
-    ? tt("research.nav.creative")
-    : inSources
-      ? tt("research.nav.sources")
-      : inExplore
-        ? tt("research.nav.explore")
-        : pathname.includes("/episodes/")
-          ? tt("v3.nav.episode")
-          : inNew
-            ? tt("v3.nav.newTitle")
-            : pathname.startsWith("/producer/titles/")
-              ? tt("v3.nav.title")
-              : pathname === "/producer/reports"
-                ? tt("research.reports.title")
-                : inLibrary
-                  ? tt("research.nav.titles")
-                : pathname === "/producer/onboarding"
-                  ? tt("research.onboard.title")
-                  : tt("research.nav.overview");
+const ITEMS: Item[] = [
+  { href: "/producer", key: "ws.nav.overview", Icon: IconMarket, match: (p) => p === "/producer" },
+  { href: "/producer/titles", key: "ws.nav.catalog", Icon: IconLibrary, match: (p) => p.startsWith("/producer/titles") || p === "/producer/library" },
+  { href: "/producer/insights", key: "ws.nav.insights", Icon: IconCompass, match: (p) => ["/producer/insights", "/producer/market", "/producer/explore", "/producer/sources"].some((x) => p.startsWith(x)) },
+  { href: "/producer/promote", key: "ws.nav.launch", Icon: IconPromote, match: (p) => p.startsWith("/producer/promote") },
+  { href: "/producer/company", key: "ws.nav.company", Icon: IconSources, match: (p) => ["/producer/company", "/producer/accounts", "/producer/onboarding", "/producer/reports", "/producer/simulation"].some((x) => p.startsWith(x)) },
+];
+
+export default function PortalHeader({ company }: { company: Pick<Producer, "name_zh" | "name_en"> | null }) {
+  const { tt, locale } = useT();
+  const path = usePathname() ?? "/producer";
+  const dialog = useRef<HTMLDialogElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const name = company ? (locale === "en" ? company.name_en || company.name_zh : company.name_zh) : tt("portal.name");
+  const close = () => dialog.current?.close();
+  const active = ITEMS.find((i) => i.match(path));
+  const links = ITEMS.map(({ href, key, Icon, match }) => (
+    <Link key={href} href={href} onClick={close} className={match(path) ? "is-active" : ""} aria-current={match(path) ? "page" : undefined}>
+      <Icon />
+      {tt(key)}
+    </Link>
+  ));
+
   return (
     <>
       <aside className="producer-sidebar">
-        <a href="/producer" className="producer-brand" aria-label="Pulsar Studio">
-          <span className="producer-brandmark" aria-hidden><i /></span>
-          <span>Pulsar <b>Studio</b></span>
-        </a>
-        <span className="producer-workspace-label">{tt("v3.workspace")}</span>
-        <nav className="producer-nav" aria-label={tt("v3.primaryNav")}>
-          <a href="/producer" className={inOverview ? "is-active" : ""} aria-current={inOverview ? "page" : undefined}>
-            <IconMarket />
-            {tt("research.nav.overview")}
-          </a>
-          <a href="/producer/explore/titles" className={inExplore ? "is-active" : ""} aria-current={inExplore ? "page" : undefined}>
-            <IconCompass />
-            {tt("research.nav.explore")}
-          </a>
-          <a href="/producer/titles" className={inLibrary ? "is-active" : ""} aria-current={inLibrary ? "page" : undefined}>
-            <IconLibrary />
-            {tt("research.nav.titles")}
-          </a>
-          <a href="/producer/promote" className={inPromote ? "is-active" : ""} aria-current={inPromote ? "page" : undefined}>
-            <IconPromote />
-            {tt("research.nav.creative")}
-          </a>
-          <a href="/producer/sources" className={inSources ? "is-active" : ""} aria-current={inSources ? "page" : undefined}>
-            <IconSources />
-            {tt("research.nav.sources")}
-          </a>
-          <a href="/producer/titles/new" className={inNew ? "is-active" : ""} aria-current={inNew ? "page" : undefined}>
-            <IconPlus />
-            {tt("research.nav.addTitle")}
-          </a>
-        </nav>
+        <Link href="/producer" className="producer-brand"><span className="producer-brandmark" aria-hidden><i /></span><span>Pulsar <b>Studio</b></span></Link>
+        <span className="producer-workspace-label">{tt("ws.overview.kicker")}</span>
+        <nav className="producer-nav" aria-label={tt("v3.primaryNav")}>{links}</nav>
+        <Link className="btn btn-outline brief-add" href="/producer/titles/new"><IconPlus />{tt("research.nav.addTitle")}</Link>
         <div className="producer-sidebar-foot">
-          <div className="producer-org">
-            <span>PS</span>
-            <div><strong>{tt("portal.name")}</strong><small>{tt("v3.role.producer")}</small></div>
-          </div>
-          <a href="/api/auth/logout" className="producer-signout" aria-label={tt("portal.signOut")}>
-            <IconLogout />
-          </a>
+          <Link className="producer-org" href="/producer/company"><span>{name.slice(0, 2)}</span><div><strong>{name}</strong><small>{tt("ws.nav.company")}</small></div></Link>
+          <a href="/api/auth/logout" className="producer-signout" aria-label={tt("portal.signOut")}><IconLogout /></a>
         </div>
       </aside>
       <header className="producer-topbar">
-        <a href="/producer" className="producer-mobile-brand"><span className="producer-brandmark" aria-hidden><i /></span>Pulsar</a>
-        <span className="producer-section">{section}</span>
+        <button ref={trigger} className="btn btn-outline brief-menu" aria-label={tt("ux.menu")} aria-haspopup="dialog" onClick={() => dialog.current?.showModal()}>☰</button>
+        <span className="producer-section">{tt(active?.key ?? "ws.nav.overview")}</span>
         <span className="spacer" />
         <LangToggle />
-        <a href="/api/auth/logout" className="producer-mobile-signout" aria-label={tt("portal.signOut")}><IconLogout /></a>
       </header>
+      <dialog className="brief-nav-dialog" ref={dialog} aria-label={tt("v3.primaryNav")} onClose={() => trigger.current?.focus()} onClick={(e) => { if (e.target === e.currentTarget) close(); }}>
+        <div className="brief-dialog-head"><strong>Pulsar Studio</strong><button className="btn btn-outline" onClick={close} autoFocus>{tt("ux.close")}</button></div>
+        <nav className="producer-nav">
+          {links}
+          <Link href="/producer/titles/new" onClick={close}><IconPlus />{tt("research.nav.addTitle")}</Link>
+          <a href="/api/auth/logout"><IconLogout />{tt("portal.signOut")}</a>
+        </nav>
+      </dialog>
     </>
   );
 }

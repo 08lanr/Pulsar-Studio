@@ -2,6 +2,8 @@
 // a trope chip, the prominence meter, state badges, metric labels that link
 // to their registry entry, number formatting. No client state here.
 
+import MetricInfo from './MetricInfo';
+import { metricByKey } from '@/lib/research/registry';
 import type { Locale } from "@/lib/i18n";
 import { t } from "@/lib/i18n";
 import type { RegistryStatus } from "@/lib/research/registry";
@@ -32,11 +34,8 @@ export function StateBadge({ status, locale }: { status: RegistryStatus; locale:
 
 /** A metric name that opens its methodology entry. */
 export function MetricLabel({ metric, locale, children }: { metric: string; locale: Locale; children: React.ReactNode }) {
-  return (
-    <a className="metric-label" href={`/producer/sources/${metric}`} title={t(locale, "research.title.methodology")}>
-      {children}
-    </a>
-  );
+  const m=metricByKey(metric);
+  return <MetricInfo name={m ? (locale==='zh'?m.name_zh:m.name_en) : metric} question={m ? (locale==='zh'?m.question_zh:m.question_en) : ''} limitations={m ? (locale==='zh'?m.limitations_zh:m.limitations_en) : []} href={`/producer/sources/${metric}`}>{children}</MetricInfo>;
 }
 
 export function TropeChip({
@@ -130,7 +129,7 @@ export function fmtUtc(iso: string | null | undefined): string {
 export function hrefWith(path: string, base: Record<string, string | undefined | null>, patch: Record<string, string | undefined | null>): string {
   const params = new URLSearchParams();
   const merged = { ...base, ...patch };
-  for (const [k, v] of Object.entries(merged)) if (v && v !== "all") params.set(k, v);
+  for (const [k, v] of Object.entries(merged)) if (v) params.set(k, v);
   const q = params.toString();
   return q ? `${path}?${q}` : path;
 }

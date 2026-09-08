@@ -1,3 +1,5 @@
+"use client";
+import { useSearchParams } from 'next/navigation';
 import { t } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n";
 
@@ -11,6 +13,8 @@ const TABS: { id: "titles" | "tropes" | "platforms" | "companies"; key: string }
 ];
 
 export default function ExploreNav({ active, locale }: { active: (typeof TABS)[number]["id"]; locale: Locale }) {
+  const params=useSearchParams();
+  const scoped=new URLSearchParams(params.toString()); scoped.delete("page"); for(const key of ["watched","newonly","sort"]) scoped.delete(key);
   return (
     <>
       <div className="page-head">
@@ -21,7 +25,7 @@ export default function ExploreNav({ active, locale }: { active: (typeof TABS)[n
       </div>
       <nav className="tabs rs-tabs" aria-label={t(locale, "research.explore.title")}>
         {TABS.map((tab) => (
-          <a key={tab.id} className={`tab${tab.id === active ? " is-active" : ""}`} href={`/producer/explore/${tab.id}`} aria-current={tab.id === active ? "page" : undefined}>
+          <a key={tab.id} className={`tab${tab.id === active ? " is-active" : ""}`} href={`/producer/explore/${tab.id}?${scoped}`} aria-current={tab.id === active ? "page" : undefined}>
             {t(locale, tab.key)}
           </a>
         ))}

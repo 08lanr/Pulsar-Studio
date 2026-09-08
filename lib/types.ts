@@ -569,6 +569,70 @@ export type Job = {
 
 // ---- promote.* rows ----------------------------------------------------------
 
+/**
+ * The structured experiment behind a campaign (decision 2026-09-08, "US
+ * launch workspace"): budget, hypothesis, audience, first batch and signal
+ * are typed fields, not prose. `approved_*` is the producer approver's
+ * budget sign-off. Nothing here spends money: a provider connection enforces
+ * budgets; until one exists the record is a brief with an approval history.
+ */
+export type ExperimentSpec = {
+  budget_usd: number;
+  currency: "USD";
+  hypothesis: string;
+  audience: string;
+  /** How many creatives go into the first paid batch (generate broadly, select a few). */
+  first_batch: number;
+  /** The signal the first batch is judged on. */
+  signal: "views" | "clicks" | "landing";
+  approved_by: string | null;
+  approved_at: string | null;
+  version: number;
+  updated_at: string;
+};
+
+/** Measured (or, in fixture mode, demo-labelled) outcome of one creative in one window. */
+export type CreativeResult = {
+  id: string;
+  campaign_id: string;
+  creative_id: string;
+  /** `demo` rows are generated for the fixture and say so everywhere; `grow` rows come from the launch system. */
+  source: "demo" | "grow";
+  window_start: string;
+  window_end: string;
+  impressions: number;
+  video_views: number;
+  /** Share of viewers still watching at 3 s (0-1). */
+  hook_hold_rate: number;
+  clicks: number;
+  spend_usd: number;
+  landing_actions: number | null;
+  observed_at: string;
+};
+
+export type CompanyAccountProvider = "tiktok" | "meta" | "youtube";
+export type CompanyAccountKind = "business_center" | "ad_account" | "channel" | "pixel";
+export type CompanyAccountState = "unconnected" | "invited" | "connected" | "revoked";
+
+/**
+ * A customer-owned account Studio may be granted access to. The customer
+ * owns identity, billing and assets; Studio records the state it was told
+ * or verified, never a fabricated connection.
+ */
+export type CompanyAccount = {
+  id: string;
+  producer_id: string;
+  provider: CompanyAccountProvider;
+  kind: CompanyAccountKind;
+  name: string;
+  external_ref: string | null;
+  state: CompanyAccountState;
+  /** What Studio may do: nothing, revocable partner access, or the customer operates it themselves. */
+  access: "none" | "partner" | "owner_operated";
+  note: string | null;
+  updated_at: string;
+};
+
 export type PromoCampaign = {
   id: string;
   external_id: string;
@@ -581,6 +645,7 @@ export type PromoCampaign = {
   spoiler_level: PromoSpoilerLevel;
   creative_direction: string | null;
   exclusions: string | null;
+  experiment: ExperimentSpec | null;
   status: PromoCampaignStatus;
   grow_campaign_id: string | null;
   created_by: string;
@@ -661,6 +726,7 @@ export type PromoCampaignDetail = {
   creatives: PromoCreative[];
   approval: PromoApproval | null;
   handoffs: PromoHandoff[];
+  results: CreativeResult[];
 };
 
 // ---- the frozen snapshot ----------------------------------------------------------

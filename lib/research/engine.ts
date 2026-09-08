@@ -108,7 +108,11 @@ export function filterTitles(titles: MarketTitle[], f: MarketFilter): MarketTitl
     if (f.platform && f.platform !== "all" && t.platform !== f.platform) return false;
     if (f.audience && f.audience !== "all" && t.audience !== f.audience) return false;
     if (f.trope && !t.tropes.some((x) => x.id === f.trope)) return false;
-    if (q && !t.title.toLowerCase().includes(q) && !t.blurb.toLowerCase().includes(q)) return false;
+    if (q) {
+      const text = [t.title, t.blurb, ...t.companies.map(c => c.name), ...t.platform_tags,
+        ...t.tropes.flatMap(x => { const label = TROPES.find(tr => tr.id === x.id); return [x.id, label?.zh ?? '', label?.en ?? '']; })].join(' ').normalize('NFKC').toLowerCase();
+      if (!text.includes(q.normalize('NFKC'))) return false;
+    }
     return true;
   });
 }

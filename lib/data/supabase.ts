@@ -24,6 +24,8 @@ import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/serv
 import { buildVersionSnapshot } from "@/data/fixture/snapshot";
 import type {
   AdaptedLine,
+  CompanyAccount,
+  CreativeResult,
   Adaptation,
   AuditEvent,
   Character,
@@ -193,14 +195,15 @@ async function snapshotOf(c: Db, v: Version): Promise<VersionSnapshot> {
 }
 
 async function loadPromoDetail(c: Db, campaign: PromoCampaign): Promise<PromoCampaignDetail> {
-  const [title, episodes, creatives, approvals, handoffs] = await Promise.all([
+  const [title, episodes, creatives, approvals, handoffs, results] = await Promise.all([
     one<Title>(core(c).from("titles").select("*").eq("id", campaign.title_id).maybeSingle(), "title", campaign.title_id),
     many<Episode>(core(c).from("episodes").select("*").eq("title_id", campaign.title_id).order("number")),
     many<PromoCreative>(promote(c).from("creatives").select("*").eq("campaign_id", campaign.id).order("created_at")),
     many<PromoApproval>(promote(c).from("approvals").select("*").eq("campaign_id", campaign.id).order("created_at", { ascending: false }).limit(1)),
     many<PromoHandoff>(promote(c).from("handoffs").select("*").eq("campaign_id", campaign.id).order("attempted_at", { ascending: false })),
+    many<CreativeResult>(promote(c).from("results").select("*").eq("campaign_id", campaign.id).order("window_start")),
   ]);
-  return { campaign, title, episodes, creatives, approval: approvals[0] ?? null, handoffs };
+  return { campaign, title, episodes, creatives, approval: approvals[0] ?? null, handoffs, results };
 }
 
 // ---- the implementation ------------------------------------------------------------------------------
@@ -1084,7 +1087,7 @@ export const supabaseData: DataLayer = {
     }
     const title = await one<Title>(core(c).from("titles").select("*").eq("id", input.title_id).maybeSingle(), "title", input.title_id);
     return one<PromoCampaign>(
-      promote(c).from("campaigns").insert({ title_id: title.id, producer_id: title.producer_id, name: input.name.trim(), target_market: input.target_market.trim(), destination_url: input.destination_url?.trim() || null, objective: input.objective, spoiler_level: input.spoiler_level, creative_direction: input.creative_direction?.trim() || null, exclusions: input.exclusions?.trim() || null, created_by: session.userId }).select("*").single(),
+      promote(c).from("campaigns").insert({ title_id: title.id, producer_id: title.producer_id, name: input.name.trim(), target_market: input.target_market.trim(), destination_url: input.destination_url?.trim() || null, objective: input.objective, spoiler_level: input.spoiler_level, creative_direction: input.creative_direction?.trim() || null, exclusions: input.exclusions?.trim() || null, experiment: input.experiment ? { ...input.experiment, currency: "USD", approved_by: null, approved_at: null, version: 1, updated_at: new Date().toISOString() } : null, created_by: session.userId }).select("*").single(),
       "promotion campaign"
     );
   },
@@ -1203,6 +1206,57 @@ export const supabaseData: DataLayer = {
   async listAuditEvents(_session, titleId) {
     return many<AuditEvent>(core(db()).from("audit_events").select("*").eq("title_id", titleId).order("id", { ascending: false }));
   },
+  // ---- experiments, results, company accounts (decision 2026-09-08) ---------------------
+
+  async setExperiment(session, campaignId, input) {
+    requireEditor(session);
+    const c = db();
+    const campaign = await one<PromoCampaign>(promote(c).from("campaigns").select("*").eq("id", campaignId).maybeSingle(), "promotion campaign", campaignId);
+    if (["submitted", "launching", "live"].includes(campaign.status)) throw new DataError("frozen", "a submitted experiment cannot be edited; start a new round");
+    const at = new Date().toISOString();
+    const experiment = { ...input, currency: "USD" as const, approved_by: null, approved_at: null, version: (campaign.experiment?.version ?? 0) + 1, updated_at: at };
+    return one<PromoCampaign>(promote(c).from("campaigns").update({ experiment, updated_at: at }).eq("id", campaignId).select("*").maybeSingle(), "promotion campaign", campaignId);
+  },
+
+  async approveExperiment(session, campaignId) {
+    if (session.kind !== "producer" || session.producerRole !== "approver") throw new DataError("forbidden", "budget approval needs the approver role");
+    const c = db();
+    const campaign = await one<PromoCampaign>(promote(c).from("campaigns").select("*").eq("id", campaignId).maybeSingle(), "promotion campaign", campaignId);
+    if (!campaign.experiment) throw invalid("set the experiment (budget, hypothesis, audience) before approving it");
+    if (campaign.experiment.approved_at) return campaign;
+    const at = new Date().toISOString();
+    const experiment = { ...campaign.experiment, approved_by: session.userId, approved_at: at, updated_at: at };
+    return one<PromoCampaign>(promote(c).from("campaigns").update({ experiment, updated_at: at }).eq("id", campaignId).select("*").maybeSingle(), "promotion campaign", campaignId);
+  },
+
+  async simulateDemoResults() {
+    throw new DataError("conflict", "demo results exist only in fixture mode; measured results arrive from Grow");
+  },
+
+  async listCreativeResults(session, opts) {
+    if (session.kind !== "producer" || !session.producerId) return [];
+    let q = promote(db()).from("campaigns").select("id").eq("producer_id", session.producerId);
+    if (opts?.titleId) q = q.eq("title_id", opts.titleId);
+    const campaigns = await many<{ id: string }>(q);
+    if (!campaigns.length) return [];
+    return many<CreativeResult>(promote(db()).from("results").select("*").in("campaign_id", campaigns.map((x) => x.id)));
+  },
+
+  async listCompanyAccounts(session) {
+    if (session.kind !== "producer" || !session.producerId) return [];
+    return many<CompanyAccount>(core(db()).from("company_accounts").select("*").eq("producer_id", session.producerId).order("provider"));
+  },
+
+  async upsertCompanyAccount(session, input) {
+    requireEditor(session);
+    if (blank(input.name)) throw invalid("account name is required");
+    const row = { producer_id: session.producerId, provider: input.provider, kind: input.kind, name: input.name.trim(), external_ref: input.external_ref?.trim() || null, state: input.state, access: input.access, note: input.note?.trim() || null, updated_at: new Date().toISOString() };
+    const q = input.id
+      ? core(db()).from("company_accounts").update(row).eq("id", input.id).eq("producer_id", session.producerId!).select("*").maybeSingle()
+      : core(db()).from("company_accounts").insert(row).select("*").maybeSingle();
+    return one<CompanyAccount>(q, "company account", input.id);
+  },
+
   // ---- the market desk ----------------------------------------------------------------
 
   async getMarket(_session) {
@@ -1212,6 +1266,10 @@ export const supabaseData: DataLayer = {
     return marketView();
   },
 
+  async getCompanyIdentity(session) {
+    if (session.kind !== 'producer' || !session.producerId) return null;
+    return one<Pick<Producer, 'id' | 'external_id' | 'name_zh' | 'name_en'>>(core(db()).from('producers').select('id,external_id,name_zh,name_en').eq('id', session.producerId).maybeSingle(), 'producer', session.producerId);
+  },
   async getResearchProfile(session) {
     if (session.kind !== "producer" || !session.producerId) return null;
     const row = await one<Pick<Producer, "research_profile">>(

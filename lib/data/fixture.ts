@@ -23,8 +23,9 @@ import { splitSpeaker } from "@/lib/ingest/text";
 import { isLlmAvailable } from "@/lib/llm";
 import { marketView } from "@/lib/research/snapshot";
 import type { ReportBatch, WatchRow } from "@/lib/research/types";
+import type { CompanyAccount } from "@/lib/types";
 import { examplesFromApprovedVersions } from "@/lib/translation-memory";
-import { cloneFixtureDb, type FixtureDb } from "@/data/fixture";
+import { cloneFixtureDb, type FixtureDb, type FixtureSeed } from "@/data/fixture";
 import { buildVersionSnapshot, snapshotSha256 } from "@/data/fixture/snapshot";
 import type {
   AdaptedLine,
@@ -78,16 +79,22 @@ type Store = {
   db: FixtureDb;
   /** core.audit_events.id is a bigserial; keep counting from the seed. */
   auditSeq: number;
+  /** Which seed shape built this store; a hot reload that changed the seed rebuilds it. */
+  seedVersion?: string;
 };
+
+/** Bump when the fixture seed shape changes, so a dev server's parked store is rebuilt on hot reload. */
+const SEED_VERSION = "demo-2026-09-08.2";
 
 const STORE_KEY = "__pulsarStudioFixtureStore";
 
 function store(): Store {
   const g = globalThis as unknown as Record<string, Store | undefined>;
   let s = g[STORE_KEY];
-  if (!s) {
-    const db = cloneFixtureDb();
-    s = { db, auditSeq: db.audit_events.reduce((m, e) => Math.max(m, e.id), 0) };
+  if (!s || s.seedVersion !== SEED_VERSION) {
+    const seed = (globalThis as unknown as Record<string, FixtureSeed | undefined>)[`${STORE_KEY}Seed`];
+    const db = cloneFixtureDb(seed);
+    s = { db, auditSeq: db.audit_events.reduce((m, e) => Math.max(m, e.id), 0), seedVersion: SEED_VERSION };
     g[STORE_KEY] = s;
   }
   // A store parked on globalThis survives a dev-server hot reload that added
@@ -95,12 +102,16 @@ function store(): Store {
   s.db.research_watchlist ??= [];
   s.db.report_batches ??= [];
   s.db.report_rows ??= [];
+  s.db.promo_results ??= [];
+  s.db.company_accounts ??= [];
   return s;
 }
 
 /** Tests only: drop the process-wide store so the next call reseeds from data/fixture. */
-export function resetFixtureStore(): void {
+export function resetFixtureStore(seed?: FixtureSeed): void {
   delete (globalThis as unknown as Record<string, unknown>)[STORE_KEY];
+  if (seed) (globalThis as unknown as Record<string, unknown>)[`${STORE_KEY}Seed`] = seed;
+  else delete (globalThis as unknown as Record<string, unknown>)[`${STORE_KEY}Seed`];
 }
 
 const clone = <T>(v: T): T => structuredClone(v);
@@ -207,6 +218,7 @@ function promoDetail(db: FixtureDb, campaign: PromoCampaign): PromoCampaignDetai
     creatives: clone(db.promo_creatives.filter((c) => c.campaign_id === campaign.id).sort((a, b) => a.created_at.localeCompare(b.created_at))),
     approval: clone(db.promo_approvals.find((a) => a.campaign_id === campaign.id) ?? null),
     handoffs: clone(db.promo_handoffs.filter((h) => h.campaign_id === campaign.id).sort((a, b) => b.attempted_at.localeCompare(a.attempted_at))),
+    results: clone((db.promo_results ?? []).filter((r) => r.campaign_id === campaign.id).sort((a, b) => a.window_start.localeCompare(b.window_start))),
   };
 }
 
@@ -1798,6 +1810,7 @@ export const fixtureData: DataLayer = {
       spoiler_level: input.spoiler_level,
       creative_direction: input.creative_direction?.trim() || null,
       exclusions: input.exclusions?.trim() || null,
+      experiment: input.experiment ? { ...input.experiment, currency: "USD", approved_by: null, approved_at: null, version: 1, updated_at: at } : null,
       status: "draft",
       grow_campaign_id: null,
       created_by: session.userId,
@@ -2024,6 +2037,94 @@ export const fixtureData: DataLayer = {
         .sort((a, b) => b.id - a.id)
     );
   },
+  // ---- experiments, results, company accounts (decision 2026-09-08) ---------------------
+
+  async setExperiment(session, campaignId, input) {
+    const { db } = store();
+    const campaign = readablePromoCampaign(db, session, campaignId);
+    requireTitleEditor(db, session, campaign.title_id);
+    if (["submitted", "launching", "live"].includes(campaign.status)) throw frozen("a submitted experiment cannot be edited; start a new round");
+    const at = now();
+    const prev = campaign.experiment;
+    campaign.experiment = { ...input, currency: "USD", approved_by: null, approved_at: null, version: (prev?.version ?? 0) + 1, updated_at: at };
+    campaign.updated_at = at;
+    audit(store(), session, "set_experiment", "promote.campaigns", campaign.id, campaign.title_id, prev, campaign.experiment);
+    return clone(campaign);
+  },
+
+  async approveExperiment(session, campaignId) {
+    const { db } = store();
+    const campaign = readablePromoCampaign(db, session, campaignId);
+    const title = requireTitleEditor(db, session, campaign.title_id);
+    if (!isProducerApprover(session, title)) throw forbidden("budget approval needs the approver role");
+    if (!campaign.experiment) throw invalid("set the experiment (budget, hypothesis, audience) before approving it");
+    if (campaign.experiment.approved_at) return clone(campaign);
+    const at = now();
+    campaign.experiment = { ...campaign.experiment, approved_by: session.userId, approved_at: at, updated_at: at };
+    campaign.updated_at = at;
+    audit(store(), session, "approve_experiment", "promote.campaigns", campaign.id, campaign.title_id, null, { budget_usd: campaign.experiment.budget_usd });
+    return clone(campaign);
+  },
+
+  async simulateDemoResults(session, campaignId) {
+    // Fixture mode only: produce demo-labelled results for a submitted
+    // campaign so the results-to-decision loop can be exercised. The
+    // Supabase layer refuses; real results come from Grow.
+    const { db } = store();
+    const campaign = readablePromoCampaign(db, session, campaignId);
+    if (session.kind !== "producer") throw forbidden("the producer's editors simulate demo results; staff preview cannot act");
+    requireTitleEditor(db, session, campaign.title_id);
+    if (campaign.status !== "submitted" && campaign.status !== "live") throw conflict("results follow a submitted campaign");
+    const selected = db.promo_creatives.filter((c) => c.campaign_id === campaign.id && c.status === "approved");
+    if (!selected.length) throw invalid("no approved creatives to report on");
+    if ((db.promo_results ?? []).some((r) => r.campaign_id === campaign.id)) return promoDetail(db, campaign);
+    const at = now();
+    const budget = campaign.experiment?.budget_usd ?? 100;
+    selected.forEach((c, i) => {
+      // Deterministic per creative: the first selected concept does better, so the decision is legible.
+      const seed = (parseInt(c.id.replace(/-/g, "").slice(0, 6), 16) % 1000) / 1000;
+      const impressions = Math.round(30_000 + seed * 12_000);
+      const hold = Math.round((0.22 + (i === 0 ? 0.16 : 0.04) + seed * 0.06) * 100) / 100;
+      const views = Math.round(impressions * (0.45 + seed * 0.15));
+      const clicks = Math.round(impressions * (0.008 + (i === 0 ? 0.008 : 0.002) + seed * 0.004));
+      db.promo_results.push({ id: randomUUID(), campaign_id: campaign.id, creative_id: c.id, source: "demo", window_start: at.slice(0, 10), window_end: at.slice(0, 10), impressions, video_views: views, hook_hold_rate: hold, clicks, spend_usd: Math.round((budget / selected.length) * (0.9 + seed * 0.1) * 100) / 100, landing_actions: Math.round(clicks * (0.1 + seed * 0.1)), observed_at: at });
+    });
+    campaign.status = "live";
+    campaign.updated_at = at;
+    audit(store(), session, "simulate_demo_results", "promote.results", campaign.id, campaign.title_id, null, { creatives: selected.length, source: "demo" });
+    return promoDetail(db, campaign);
+  },
+
+  async listCreativeResults(session, opts) {
+    requireMemberSession(session);
+    if (session.kind !== "producer" || !session.producerId) return [];
+    const { db } = store();
+    const mine = new Set(db.promo_campaigns.filter((c) => c.producer_id === session.producerId && (!opts?.titleId || c.title_id === opts.titleId)).map((c) => c.id));
+    return clone((db.promo_results ?? []).filter((r) => mine.has(r.campaign_id)));
+  },
+
+  async listCompanyAccounts(session) {
+    requireMemberSession(session);
+    if (session.kind !== "producer" || !session.producerId) return [];
+    return clone((store().db.company_accounts ?? []).filter((a) => a.producer_id === session.producerId));
+  },
+
+  async upsertCompanyAccount(session, input) {
+    requireProducerEditor(session);
+    const s = store();
+    if (blank(input.name)) throw invalid("account name is required");
+    const at = now();
+    const existing = input.id ? s.db.company_accounts.find((a) => a.id === input.id && a.producer_id === session.producerId) : null;
+    if (input.id && !existing) throw notFound("company account", input.id);
+    if (existing) {
+      Object.assign(existing, { provider: input.provider, kind: input.kind, name: input.name.trim(), external_ref: input.external_ref?.trim() || null, state: input.state, access: input.access, note: input.note?.trim() || null, updated_at: at });
+      return clone(existing);
+    }
+    const row: CompanyAccount = { id: randomUUID(), producer_id: session.producerId!, provider: input.provider, kind: input.kind, name: input.name.trim(), external_ref: input.external_ref?.trim() || null, state: input.state, access: input.access, note: input.note?.trim() || null, updated_at: at };
+    s.db.company_accounts.push(row);
+    return clone(row);
+  },
+
   // ---- the market desk ----------------------------------------------------------------
 
   async getMarket(session) {
@@ -2031,6 +2132,12 @@ export const fixtureData: DataLayer = {
     return marketView();
   },
 
+  async getCompanyIdentity(session) {
+    requireMemberSession(session);
+    if (session.kind !== 'producer' || !session.producerId) return null;
+    const p = store().db.producers.find(x => x.id === session.producerId);
+    return p ? {id:p.id, external_id:p.external_id, name_zh:p.name_zh, name_en:p.name_en} : null;
+  },
   async getResearchProfile(session) {
     requireMemberSession(session);
     if (session.kind !== "producer" || !session.producerId) return null;

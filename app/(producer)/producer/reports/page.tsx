@@ -1,3 +1,4 @@
+import CompanyNav from '@/components/producer/research/CompanyNav';
 import ReportImport from "@/components/producer/research/ReportImport";
 import { isStaffPreview, portalSession, producerLocale } from "@/components/producer/server";
 import { EvidenceTag, StateBadge } from "@/components/producer/research/ui";
@@ -33,6 +34,7 @@ export default async function ReportsPage() {
         </div>
         <span><EvidenceTag evidence="partner_reported" locale={locale} /> <StateBadge status={rows.length ? "available" : "requires_connection"} locale={locale} /></span>
       </div>
+      <CompanyNav active="reports" locale={locale}/><a className="btn btn-outline" href="/report-template.csv" download>{t(locale,"ux.reportTemplate")}</a>
       <p className="note note-info">{t(locale, "research.reports.columns", { metrics: REPORT_METRICS.join(", ") })}</p>
       <ReportImport batches={batches} canAct={canAct} />
     </>
