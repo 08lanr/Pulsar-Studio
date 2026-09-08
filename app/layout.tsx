@@ -8,6 +8,7 @@ import "./workflow-campaign.css";
 import "./desk-refinement.css";
 import "./catalog-refinement.css";
 import "./analytics.css";
+import "./title-workspace.css";
 import { cookies } from "next/headers";
 import { LocaleProvider } from "@/components/locale";
 import { LOCALE_COOKIE, parseLocale } from "@/lib/i18n";

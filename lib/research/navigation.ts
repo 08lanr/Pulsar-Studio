@@ -15,7 +15,7 @@ export function safeReturn(value?: string): string {
   if (!value) return '/producer/explore/titles';
   try {
     const url = new URL(value, 'https://studio.local');
-    return url.origin === 'https://studio.local' && (url.pathname === '/producer' || url.pathname === '/producer/insights' || /^\/producer\/titles\/[a-f0-9-]+\/potential$/.test(url.pathname) || /^\/producer\/explore\/(titles|tropes|platforms|companies)$/.test(url.pathname)) ? url.pathname + url.search : '/producer/explore/titles';
+    return url.origin === 'https://studio.local' && (url.pathname === '/producer' || url.pathname === '/producer/insights' || /^\/producer\/titles\/[a-f0-9-]+(\/potential|\/preparation)?$/.test(url.pathname) || /^\/producer\/explore\/(titles|tropes|platforms|companies)$/.test(url.pathname)) ? url.pathname + url.search : '/producer/explore/titles';
   } catch { return '/producer/explore/titles'; }
 }
 export function safeSort(sort: string | undefined, platform: MarketFilter['platform']): string {

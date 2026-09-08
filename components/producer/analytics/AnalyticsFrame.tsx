@@ -1,6 +1,7 @@
 import { t } from "@/lib/i18n";
 import type { AnalyticsRange } from "@/lib/analytics/types";
 import { ANALYTICS_VERSION } from "@/lib/analytics/compute";
+import TitleShell from "@/components/producer/TitleShell";
 import { DemoChip, FreshnessLine, RangeControl, StateChip } from "./bits";
 import type { AnalyticsPageData, View } from "./load";
 
@@ -18,7 +19,7 @@ const VIEWS: { id: View; key: string; sub: string }[] = [
 ];
 
 export default function AnalyticsFrame({ data, view, children }: { data: AnalyticsPageData; view: View; children: React.ReactNode }) {
-  const { locale, record: a, range, base, query, canEdit } = data;
+  const { locale, record: a, range, base, query, canEdit, platform, ads } = data;
   const name = locale === "en" ? a.title.name_en || a.title.name_zh : a.title.name_zh;
   const lang = locale === "en" && a.title.name_en ? "en" : "zh-CN";
   const secondary = locale === "en" ? (a.title.name_en ? a.title.name_zh : null) : a.title.name_en;
@@ -27,37 +28,15 @@ export default function AnalyticsFrame({ data, view, children }: { data: Analyti
   const state = a.analytics_state;
   const linkHref = `${base}/link${query}`;
 
+  const adStep = ads.flow ? t(locale, `workflow.step.${ads.flow.step}`) : null;
   return (
-    <div className="an-page">
-      <nav className="studio-crumbs" aria-label={t(locale, "v3.breadcrumbs")}>
-        <a href={`/producer/titles?view=performance&range=${range}`}>{t(locale, "ws.nav.catalog")}</a>
-        <span aria-hidden>›</span>
-        <a href={`/producer/titles/${a.title.id}`} lang={lang}>{name}</a>
-        <span aria-hidden>›</span>
-        <span>{t(locale, "an.title")}</span>
-      </nav>
-
-      <div className="page-head an-head">
-        <div>
-          <span className="page-kicker">{t(locale, "an.title")} · v{ANALYTICS_VERSION}</span>
-          <h1 className="bilingual" lang={lang}>{name}</h1>
-          {secondary && <p className="page-sub" lang={lang === "en" ? "zh-CN" : "en"}>{secondary}</p>}
-          <div className="rs-tool-row an-chips">
-            <StateChip state={state} locale={locale} />
-            {a.source === "demo" && <DemoChip locale={locale} />}
-            {a.listing && <span className="ev ev-partner_reported" title={a.listing.id}>{a.listing.platform_label} · {a.listing.name}</span>}
-          </div>
-        </div>
-        <div className="page-head-actions an-actions">
-          {canEdit ? (
-            <a className="btn btn-outline btn-sm" href={linkHref}>{t(locale, a.listing ? "an.link.change" : "an.link.cta")}</a>
-          ) : (
-            <span className="ev ev-inferred">{t(locale, "an.readOnly")}</span>
-          )}
-          <a className="btn btn-ghost btn-sm" href={`/producer/titles/${a.title.id}`}>{t(locale, "an.backToTitle")}</a>
-        </div>
+    <TitleShell locale={locale} titleId={a.title.id} name_zh={a.title.name_zh} name_en={a.title.name_en} platform={platform} ads={ads.status} adStep={adStep} section="tiktok" tiktokQuery={query} catalogHref={`/producer/titles?range=${range}`}
+      actions={canEdit ? <a className="btn btn-outline btn-sm" href={linkHref}>{t(locale, a.listing ? "an.link.change" : "an.link.cta")}</a> : <span className="ev ev-inferred">{t(locale, "an.readOnly")}</span>}>
+      <div className="rs-tool-row an-chips">
+        <StateChip state={state} locale={locale} />
+        {a.source === "demo" && <DemoChip locale={locale} />}
+        {a.listing && <span className="ev ev-partner_reported" title={a.listing.id}>{a.listing.platform_label} · {a.listing.name}</span>}
       </div>
-
       <div className="an-controls">
         <RangeControl range={range} hrefFor={hrefFor} locale={locale} />
         <nav className="tabs rs-tabs an-nav" aria-label={t(locale, "an.title")}>
@@ -96,6 +75,6 @@ export default function AnalyticsFrame({ data, view, children }: { data: Analyti
         <span>{t(locale, "an.demo.legend")}</span>
         <a href="/producer/sources">{t(locale, "research.nav.sources")} ›</a>
       </p>
-    </div>
+    </TitleShell>
   );
 }

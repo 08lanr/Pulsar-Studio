@@ -64,7 +64,7 @@ test.describe("title analytics", () => {
     await page.locator(".an-link-actions button").click();
     await expect(page).toHaveURL(new RegExp(`/producer/titles/${T(3)}/analytics\\?range=30d$`));
     await expect(page.locator(".an-headlines")).toBeVisible();
-    await expect(page.locator(".an-chips .state").first()).toContainText(/Analytics available|数据可用/);
+    await expect(page.locator(".an-chips .state").first()).toContainText(/data available|数据可用/);
 
     // The demo journey title: overview → revenue → episodes → acquisition → campaign → back.
     await page.goto(`/producer/titles/${T(1)}/analytics?range=30d`);
@@ -93,7 +93,7 @@ test.describe("title analytics", () => {
     const ws = page.locator(".an-ep-table tbody tr").first().locator('a[href*="/episodes/1"]');
     await expect(ws).toHaveAttribute("href", /returnTo=/);
 
-    await page.locator(".an-nav a", { hasText: /Acquisition|获客/ }).click();
+    await page.locator(".an-nav a", { hasText: /Ad attribution|广告归因|Acquisition/ }).click();
     await expect(page).toHaveURL(/\/analytics\/acquisition\?range=30d/);
     await expect(page.locator(".an-campaign")).toHaveCount(1);
     await expect(page.locator(".an-campaign")).toContainText(/ROAS/);
@@ -132,7 +132,7 @@ test.describe("title analytics", () => {
     await expect(page).toHaveURL(/\/episodes\?range=90d/);
     await expect(page.locator(".an-range a.on")).toContainText(/90/);
     await page.locator(".studio-crumbs a").first().click();
-    await expect(page).toHaveURL(/view=performance&range=90d/);
+    await expect(page).toHaveURL(/\/producer\/titles\?range=90d/);
   });
 
   test("performance view search with zero results keeps the view usable", async ({ page }) => {

@@ -90,20 +90,46 @@ test("market signal → matching owned title → its campaign", async ({ page })
 
   await page.goto("/producer?view=opportunities");
   await page.locator(".desk-signal", { hasText: "CEO & billionaire" }).getByRole("link", { name: "Reborn as the CEO's First Love" }).click();
-  await expect(page).toHaveURL(new RegExp(`/producer/titles/${T1}/potential`));
+  await expect(page).toHaveURL(new RegExp(`/producer/titles/${T1}$`));
+  await expect(page.locator(".tw-chips")).toContainText(/On TikTok/);
+  await expect(page.locator(".tw-chips")).toContainText(/results in/);
+  await shot(page, "title-overview");
+  // The title workspace: Preparation keeps the full assessment; the campaign is one section away and comes back.
+  await page.locator(".tw-nav a", { hasText: "Preparation" }).click();
+  await expect(page).toHaveURL(new RegExp(`/producer/titles/${T1}/preparation`));
   await expect(page.locator(".ps-score b").first()).toHaveText(/\d+/);
-  await shot(page, "title-potential");
-  await page.getByRole("link", { name: "Review results" }).first().click();
+  await page.locator(".tw-nav a", { hasText: "Ad campaigns" }).click();
+  await expect(page).toHaveURL(new RegExp(`/producer/titles/${T1}/campaigns`));
+  await page.locator(".tw-table").getByRole("link", { name: "Review ad results" }).click();
   await expect(page).toHaveURL(new RegExp(`/producer/promote/${C1}`));
+  await expect(page.locator(".studio-crumbs")).toContainText("Ad campaigns");
+  await page.getByRole("link", { name: /Back to Ad campaigns/ }).click();
+  await expect(page).toHaveURL(new RegExp(`/producer/titles/${T1}/campaigns`));
+  // Old deep links still resolve.
+  await page.goto(`/producer/titles/${T1}/potential`);
+  await expect(page).toHaveURL(new RegExp(`/producer/titles/${T1}/preparation`));
+  await page.goto(`/producer/promote/${C1}`);
   await expect(page.getByRole("heading", { name: "What the results say" })).toBeVisible();
 });
 
 test("catalog: search, band filter and the zero-result recovery", async ({ page }) => {
   await resetDemo(page);
   await page.goto("/producer/titles?q=reborn");
-  await expect(page.locator(".rs-meta")).toContainText("1 titles");
+  await expect(page.locator(".pf-foot")).toContainText("1 titles");
   await expect(page.getByRole("link", { name: "Reborn as the CEO's First Love" }).first()).toBeVisible();
   await page.goto("/producer/titles");
+  await expect(page.locator(".pf-table tbody tr")).toHaveCount(14);
+  // Quick filters use the two statuses and may overlap.
+  await page.getByRole("link", { name: /^On TikTok/ }).click();
+  await expect(page).toHaveURL(/filter=on_tiktok/);
+  await expect(page.locator(".pf-table tbody tr")).toHaveCount(8);
+  await page.getByRole("link", { name: /^Ads active/ }).click();
+  await expect(page.locator(".pf-table tbody tr")).toHaveCount(1);
+  await page.getByRole("link", { name: /^Preparing/ }).click();
+  await expect(page.locator(".pf-table tbody tr")).toHaveCount(6);
+  await expect(page.locator(".pf-table tbody")).not.toContainText("On TikTok");
+  // The preparation checklist keeps the assessment bands.
+  await page.goto("/producer/titles?view=preparation");
   await page.getByRole("link", { name: /Higher priority/ }).first().click();
   await expect(page).toHaveURL(/band=test_first/);
   await expect(page.locator("tbody tr").first()).toContainText("Higher priority");
@@ -156,11 +182,11 @@ test("ads → approvals → budget → launch → demo results → next round", 
 
   // Refresh persistence: the results and the stage survive a reload.
   await page.reload();
-  await expect(page.locator(".ws-stages [aria-current=step]")).toContainText("Review results");
+  await expect(page.locator(".ws-stages [aria-current=step]")).toContainText("Review ad results");
   await expect(page.locator(".rd-table tbody tr")).toHaveCount(4);
   const winnerRow = page.locator(".rd-table tr.is-winner");
   if (await winnerRow.count()) {
-    await expect(page.locator(".rd-findings li.is-met").first()).toContainText("met both benchmarks");
+    await expect(page.locator(".rd-findings li.is-met").first()).toContainText(/met both/);
     await expect(page.getByRole("button", { name: /Test the best ad with \$300/ })).toBeVisible();
   } else {
     await expect(page.getByText("No ad met both benchmarks")).toBeVisible();

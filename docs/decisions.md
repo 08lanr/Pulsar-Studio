@@ -6,6 +6,18 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-09-09 (later) · One title workspace; the catalog is the portfolio home
+
+Decided by the founders (Ruobin): "reframe the items; the information is good, it is missing presentation." A title had four unrelated homes (episode console, assessment, analytics, campaign) and the catalog mixed preparation with operating results. The reorganization moves presentation only; every calculation, permission and provenance rule stays where it was.
+
+- **My catalog is the portfolio.** One row per title: TikTok status, ad status, TikTok earnings (publisher earnings, USD, one visible range; a gross-sales basis is tagged, never substituted), ad spend to date, ad CTR to date against the benchmark, open. Quick filters *All · On TikTok · Ads active · Preparing* are defined in the UI and may overlap. The US potential score is no longer a headline; the readiness comparison survives as the **Preparation checklist** view and the analytics comparison as the **TikTok comparison** view (old `?view=` values resolve).
+- **Two statuses, two sources** (`lib/research/title-status.ts`). Platform status comes from the linked listing's analytics state: data delivered = on TikTok; a link alone = awaiting data; no link = unknown, never "unpublished". Ad status comes from the latest campaign record and its results: submitted is a demo handoff, only a `live` record is running. Neither proves the other.
+- **One title workspace** (`components/producer/TitleShell.tsx`, `lib/research/title-workspace.ts`): Overview · TikTok revenue & audience · Ad campaigns · Preparation · Materials, with the shared identity, both statuses, section nav and the route back to the catalog. `/producer/titles/[id]` is the overview; the episode console moved to `/materials`; `/potential` redirects to `/preparation`; analytics routes are unchanged and framed by the shell; campaign detail stays at `/producer/promote/[id]` with a title breadcrumb and a return route.
+- **Vocabulary** (`docs/terminology.md`, applied through `locales/_keys/zz-terminology.json`, which merges last): revenue and viewers always carry "TikTok", spend/CTR/results always carry "ad"; "Review ad results" outside the campaign strip; "View assessment" instead of "Score & story evidence"; "Data sources & definitions". The composite keeps its name, US potential assessment, inside Preparation.
+- **Less text.** Results cells show the benchmark once in the header and ✓/✗ in the cell; the demo note appears once; findings are one line per ad; next-round options are one line each.
+
+Checks: `npm test`, typecheck, lint, build, `npm run test:e2e` (updated for the workspace: catalog → overview → preparation → campaigns → campaign → back, quick filters, old deep links).
+
 ## 2026-09-09 · MVP pass: one demo journey, results that explain the next decision, what to make next as a decision table
 
 Decided by the founders (Ruobin): "get this to an MVP state" overnight. Four things changed; none of them touches approvals, spend controls or the evidence rules.

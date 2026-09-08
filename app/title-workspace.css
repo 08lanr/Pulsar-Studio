@@ -1,0 +1,104 @@
+/* The title workspace shell and the portfolio catalog (decision 2026-09-09).
+   Two domains, two restrained hues alongside explicit labels: TikTok
+   monetization uses the success/teal family, advertising uses the brand blue.
+   Color never carries meaning alone; every chip has text. */
+.tw-page { display: grid; gap: 16px; min-width: 0; }
+.tw-page > * { min-width: 0; max-width: 100%; }
+.studio-crumbs { flex-wrap: wrap; }
+.tw-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; }
+.tw-identity h1 { margin: 0; font-size: 28px; line-height: 1.25; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.tw-secondary { margin: 4px 0 0; color: var(--text-muted); font-size: 14px; }
+.tw-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.tw-actions { display: flex; gap: 8px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+.tw-chip { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+.tw-chip i { width: 7px; height: 7px; border-radius: 50%; background: var(--text-faint); flex-shrink: 0; }
+.tw-chip small { font-weight: 400; color: var(--text-muted); }
+.tw-chip.is-live { background: var(--success-bg); border-color: transparent; color: var(--success); }
+.tw-chip.is-live i { background: var(--success); }
+.tw-chip.is-warn { background: var(--warning-bg); border-color: transparent; color: var(--warning); }
+.tw-chip.is-warn i { background: var(--warning); }
+.tw-chip.is-bad { background: var(--error-bg); border-color: transparent; color: var(--error); }
+.tw-chip.is-bad i { background: var(--error); }
+.tw-chip.is-wait { color: var(--accent-text); background: var(--brand-tint); border-color: transparent; }
+.tw-chip.is-wait i { background: var(--brand); }
+.tw-chip.is-none { color: var(--text-muted); border-style: dashed; }
+.tw-chip-ads.is-live { background: var(--brand-tint); color: var(--accent-text); }
+.tw-chip-ads.is-live i { background: var(--brand); }
+.tw-nav { display: flex; gap: 4px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+.tw-nav a { padding: 12px 14px; font-size: 14px; font-weight: 600; color: var(--text-muted); text-decoration: none; border-bottom: 3px solid transparent; white-space: nowrap; margin-bottom: -1px; }
+.tw-nav a:hover { color: var(--text); }
+.tw-nav a.is-active { color: var(--text); border-color: var(--brand); }
+.tw-nav a:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; border-radius: 4px; }
+.tw-next-hint { margin: -4px 0 0; color: var(--text-muted); font-size: 13px; }
+.tw-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.tw-card { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 18px 20px; min-width: 0; display: grid; gap: 14px; align-content: start; }
+.tw-card > header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.tw-card h2 { margin: 0; font-size: 16px; }
+.tw-card > header a { font-size: 13px; font-weight: 600; text-decoration: none; color: var(--accent-text); white-space: nowrap; }
+.tw-card > header a:hover { text-decoration: underline; }
+.tw-card-tiktok { border-top: 3px solid var(--success); }
+.tw-card-ads { border-top: 3px solid var(--brand); }
+.tw-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; margin: 0; }
+.tw-facts > div { min-width: 0; }
+.tw-facts dt { font-size: 12px; color: var(--text-muted); margin-bottom: 3px; }
+.tw-facts dd { margin: 0; font-size: 14px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.tw-facts dd small { font-size: 12px; color: var(--text-muted); }
+.tw-facts dd.tw-big { font-size: 24px; font-weight: 600; line-height: 1.15; }
+.tw-steps { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.5; }
+.tw-empty { display: grid; gap: 10px; justify-items: start; }
+.tw-empty p { margin: 0; font-size: 13px; color: var(--text-muted); max-width: 48ch; }
+.tw-muted { color: var(--text-muted); }
+.tw-demo { margin: 0; font-size: 11px; color: var(--text-faint); border-top: 1px dashed var(--border-light); padding-top: 8px; }
+.tw-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--border); border-radius: 12px; background: var(--surface); overflow: hidden; }
+.tw-strip > div { padding: 14px 18px; border-right: 1px solid var(--border-light); display: grid; gap: 4px; }
+.tw-strip > div:last-child { border-right: 0; }
+.tw-strip span { font-size: 12px; color: var(--text-muted); }
+.tw-strip strong { font-size: 20px; font-variant-numeric: tabular-nums; }
+.tw-strip strong small { font-size: 12px; font-weight: 400; color: var(--text-muted); }
+.tw-strip strong a { font-size: 14px; text-decoration: none; color: var(--accent-text); }
+.tw-note { margin: 0; font-size: 12px; color: var(--text-muted); }
+.tw-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tw-table th, .tw-table td { padding: 14px 16px; text-align: left; vertical-align: top; border-top: 1px solid var(--border-light); }
+.tw-table thead th { border-top: 0; font-size: 12px; color: var(--text-muted); font-weight: 600; background: var(--surface-2); }
+.tw-table tbody th { font-weight: 600; }
+.tw-table tbody th a { color: var(--text); text-decoration: none; }
+.tw-table tbody th a:hover { text-decoration: underline; }
+.tw-table small { display: block; font-size: 11px; color: var(--text-muted); font-weight: 400; margin-top: 3px; }
+.tw-table .tw-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tw-table .tw-action { text-align: right; }
+.tw-hero .ws-hero-next h2 { font-size: 14px; }
+
+/* Portfolio catalog */
+.pf-views { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 16px; overflow-x: auto; }
+.pf-views a { padding: 10px 14px; font-size: 14px; font-weight: 600; color: var(--text-muted); text-decoration: none; border-bottom: 3px solid transparent; white-space: nowrap; margin-bottom: -1px; }
+.pf-views a[aria-current] { color: var(--text); border-color: var(--brand); }
+.pf-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 12px; }
+.pf-filters form { display: flex; gap: 8px; flex-wrap: wrap; }
+.pf-filters .input { min-width: 240px; }
+.pf-quick { display: flex; flex-wrap: wrap; gap: 6px; }
+.pf-legend { font-size: 12px; color: var(--text-muted); margin: 0 0 12px; }
+.pf-table-wrap { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); overflow-x: auto; }
+.pf-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 860px; table-layout: auto; }
+.pf-table th, .pf-table td { padding: 12px 10px; text-align: left; vertical-align: middle; border-top: 1px solid var(--border-light); }
+.pf-table thead th { border-top: 0; font-size: 12px; font-weight: 600; color: var(--text-muted); background: var(--surface-2); vertical-align: bottom; }
+.pf-table thead th small { display: block; font-weight: 400; font-size: 11px; margin-top: 2px; white-space: normal; max-width: 150px; margin-left: auto; }
+.pf-table th:first-child, .pf-table td:first-child { padding-left: 18px; }
+.pf-table th:last-child, .pf-table td:last-child { padding-right: 18px; }
+.pf-table tbody tr:hover { background: var(--surface-2); }
+.pf-table .pf-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pf-table .pf-num b { font-size: 15px; font-weight: 600; }
+.pf-table .pf-num small, .pf-title small { display: block; font-size: 11px; color: var(--text-muted); font-weight: 400; margin-top: 2px; }
+.pf-title { font-weight: 400; min-width: 180px; max-width: 300px; }
+.pf-title a { font-size: 14px; font-weight: 600; color: var(--text); text-decoration: none; overflow-wrap: anywhere; }
+.pf-title a:hover { text-decoration: underline; }
+.pf-table .tw-chip { white-space: nowrap; }
+.pf-table .tw-chip small { display: none; }
+@media (min-width: 1500px) { .pf-table .tw-chip small { display: inline; } }
+.pf-basis { display: inline-block; font-size: 10px; font-weight: 600; color: var(--warning); border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent); border-radius: 4px; padding: 0 4px; margin-left: 4px; vertical-align: middle; }
+.pf-missing { color: var(--text-faint); font-style: italic; }
+.pf-foot { padding: 10px 18px; font-size: 12px; color: var(--text-muted); border-top: 1px solid var(--border-light); display: flex; flex-wrap: wrap; gap: 6px 24px; }
+.pf-empty { padding: 32px 24px; text-align: center; display: grid; gap: 8px; justify-items: center; }
+.pf-empty h2 { margin: 0; font-size: 18px; }
+.pf-empty p { margin: 0; color: var(--text-muted); font-size: 13px; }
+@media (max-width: 1100px) { .tw-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tw-strip > div:nth-child(2) { border-right: 0; } .tw-strip > div:nth-child(n+3) { border-top: 1px solid var(--border-light); } }
+@media (max-width: 800px) { .tw-grid { grid-template-columns: 1fr; } .tw-head { flex-direction: column; } .tw-actions { justify-content: flex-start; } .tw-identity h1 { font-size: 24px; } .tw-facts { grid-template-columns: 1fr; } .tw-table { display: block; overflow-x: auto; } }

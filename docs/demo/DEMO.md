@@ -64,3 +64,7 @@ request leaves localhost while demo actions run. Two projects: `desktop`
 
 The unit side (`npm test`) covers the seed's shape, media linking, the reset,
 the results reading and round naming (`tests/results-decision.test.ts`).
+
+## Title workspace (2026-09-09, later)
+
+Every title has one home: `/producer/titles/[id]` (Overview) with the sections TikTok revenue & audience (`/analytics`), Ad campaigns (`/campaigns`), Preparation (`/preparation`; the old `/potential` redirects) and Materials (`/materials`, the episode console). My catalog defaults to the portfolio row (TikTok status, ad status, TikTok earnings, ad spend, ad CTR); `?view=tiktok` and `?view=preparation` keep the two comparisons. Before/after screenshots: `docs/demo/before/` and `docs/demo/after/`. Terminology and the old-to-new map: `docs/terminology.md`.

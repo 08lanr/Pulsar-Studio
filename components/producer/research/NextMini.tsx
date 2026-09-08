@@ -98,7 +98,7 @@ export default function NextMini({ market, locale, catalog = [] }: { market: Mar
                   {mine.length ? (
                     <>
                       <a className="desk-match-count" href={`/producer/titles?trope=${s.id}`}>{t(locale, mine.length === 1 ? "desk.oneTitle" : "next.mine.count", { n: mine.length })} →</a>
-                      {mine.slice(0, 2).map((x) => <a key={x.summary.id} href={`/producer/titles/${x.summary.id}/potential`}>{nameOf(x)}</a>)}
+                      {mine.slice(0, 2).map((x) => <a key={x.summary.id} href={`/producer/titles/${x.summary.id}`}>{nameOf(x)}</a>)}
                     </>
                   ) : (
                     <small>{t(locale, "next.recipe.mineNone")}</small>

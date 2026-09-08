@@ -12,7 +12,7 @@ export default async function LaunchCatalog({session, locale, limit}: {session:S
     return <article className="rs-panel" key={row.id}><span className="pill pill-neutral">{t(locale,'launch.unknown')}</span>
       <h3>{locale==='en' ? row.name_en || row.name_zh : row.name_zh}</h3>
       <p>{t(locale,!assessment.hasSynopsis?'launch.missing':assessment.comparables.length?'launch.matched':'launch.noMatch')}</p>
-      <a className="btn btn-primary" href={`/producer/titles/${row.id}/potential`}>{t(locale,'launch.assess')} →</a>
+      <a className="btn btn-primary" href={`/producer/titles/${row.id}/preparation`}>{t(locale,'launch.assess')} →</a>
     </article>;
   })}{catalog.truncated&&<p>{t(locale,'research.mine.truncated',{shown:catalog.rows.length,total:catalog.total})}</p>}</div>;
 }

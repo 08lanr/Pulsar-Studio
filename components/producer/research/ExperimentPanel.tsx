@@ -189,8 +189,8 @@ export default function ExperimentPanel({ campaign, creatives, results, canEdit,
                           <span className="rd-ad-hypothesis">{x.creative?.hypothesis ?? r.creative_id}</span>
                           {x.creative && <span className="rd-ad-kind">{tt(`promote.kind.${x.creative.kind}`)} · {x.creative.hook}</span>}
                         </th>
-                        <td className={`rd-num ${x.hold_met ? "rd-met" : "rd-miss"}`}><b>{pct(r.hook_hold_rate)}</b><small>{x.hold_met ? "✓" : "✗"} {tt("rd.benchHold", { n: bh })}</small></td>
-                        <td className={`rd-num ${x.ctr == null ? "" : x.ctr_met ? "rd-met" : "rd-miss"}`}><b>{pct(x.ctr, 2)}</b><small>{x.ctr == null ? tt("rd.verdict.no_impressions") : `${x.ctr_met ? "✓" : "✗"} ${tt("rd.benchCtr", { n: bc })}`}</small></td>
+                        <td className={`rd-num ${x.hold_met ? "rd-met" : "rd-miss"}`}><b>{pct(r.hook_hold_rate)}</b><small>{x.hold_met ? "✓" : "✗"} {tt("rd.benchShort", { n: bh })}</small></td>
+                        <td className={`rd-num ${x.ctr == null ? "" : x.ctr_met ? "rd-met" : "rd-miss"}`}><b>{pct(x.ctr, 2)}</b><small>{x.ctr == null ? tt("rd.verdict.no_impressions") : `${x.ctr_met ? "✓" : "✗"} ${tt("rd.benchShort", { n: bc })}`}</small></td>
                         <td className="rd-num"><b>{num(r.video_views)}</b><small>{x.view_rate != null ? tt("rd.viewRate", { pct: pct(x.view_rate) }) : "–"}</small></td>
                         <td className="rd-num"><b>{num(r.impressions)}</b><small>{x.cpm != null ? tt("rd.cpm", { n: x.cpm.toFixed(2) }) : "–"}</small></td>
                         <td className="rd-num"><b>{num(r.clicks)}</b><small>{x.cpc != null ? tt("rd.cpc", { n: x.cpc.toFixed(2) }) : "–"}</small></td>
@@ -227,13 +227,11 @@ export default function ExperimentPanel({ campaign, creatives, results, canEdit,
                     {x.verdict === "met_both"
                       ? tt("rd.winnerLine", { n: x.ad_number ?? "?", hold: Math.round(x.result.hook_hold_rate * 100), bh, ctr: x.ctr == null ? "–" : (x.ctr * 100).toFixed(2), bc })
                       : tt("rd.missedLine", { n: x.ad_number ?? "?", what: missedWhat(x), hold: Math.round(x.result.hook_hold_rate * 100), ctr: x.ctr == null ? "–" : (x.ctr * 100).toFixed(2) })}
-                    {x.creative && <small> — {x.creative.hypothesis}</small>}
                   </span>
                 </li>
               ))}
             </ul>
             {!winner && <p className="note note-warn">{tt("rd.noWinner")}</p>}
-            {reading.demo_only && <p className="rd-demo-note">{tt("rd.demoNote")}</p>}
             {analyticsHref && <p className="rd-analytics"><a href={analyticsHref}>{tt("rd.analyticsLink")} →</a></p>}
 
             <h3 className="rd-next-title">{tt("rd.nextTitle")}</h3>

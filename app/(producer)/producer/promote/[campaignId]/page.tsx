@@ -19,7 +19,7 @@ import { nextRoundName } from "@/lib/research/results";
 
 export const dynamic = "force-dynamic";
 
-export default async function ExperimentPage({ params }: { params: { campaignId: string } }) {
+export default async function ExperimentPage({ params, searchParams }: { params: { campaignId: string }; searchParams: { returnTo?: string } }) {
   const session = await portalSession(`/producer/promote/${params.campaignId}`);
   const locale = producerLocale();
   const data = getData();
@@ -39,6 +39,10 @@ export default async function ExperimentPage({ params }: { params: { campaignId:
   const titleName = locale === "en" ? detail.title.name_en || detail.title.name_zh : detail.title.name_zh;
   const flow = summary ? campaignWorkflow(summary, detail.results) : { step: workflowStepForStage[st.stage], hint: `workflow.hint.${workflowStepForStage[st.stage]}`, waiting: false };
   const launched = ["submitted", "launching", "live"].includes(detail.campaign.status);
+  // Where "back" goes: the title's campaigns section unless the caller said otherwise (a local path only).
+  const raw = searchParams.returnTo ?? "";
+  const returnTo = raw.startsWith("/producer/") && !raw.startsWith("//") ? raw : `/producer/titles/${detail.title.id}/campaigns`;
+  const returnLabel = returnTo.startsWith("/producer/promote") ? t(locale, "ws.exp.title") : returnTo.includes("/analytics") ? t(locale, "tw.nav.tiktok") : returnTo === "/producer" ? t(locale, "ws.nav.overview") : t(locale, "tw.nav.campaigns");
   const panelFirst = ["prepare", "budget", "results"].includes(flow.step) || launched;
   // The next round is a new campaign on the same title: numbered after every round the title already has.
   const roundNumber = summaries.filter((c) => c.title_id === detail.title.id).length + 1;
@@ -50,7 +54,11 @@ export default async function ExperimentPage({ params }: { params: { campaignId:
   return (
     <div className="fc-campaign">
       <nav className="studio-crumbs" aria-label={t(locale, "v3.breadcrumbs")}>
-        <a href="/producer/promote">{t(locale, "ws.nav.launch")}</a>
+        <a href="/producer/titles">{t(locale, "ws.nav.catalog")}</a>
+        <span>›</span>
+        <a href={`/producer/titles/${detail.title.id}`}>{titleName}</a>
+        <span>›</span>
+        <a href={`/producer/titles/${detail.title.id}/campaigns`}>{t(locale, "tw.nav.campaigns")}</a>
         <span>›</span>
         <span>{detail.campaign.name}</span>
       </nav>
@@ -61,7 +69,7 @@ export default async function ExperimentPage({ params }: { params: { campaignId:
           {!flow.waiting && <p className="page-sub">{t(locale, flow.hint)}</p>}
         </div>
         <span className="rs-tool-row">
-          <a className="btn btn-outline btn-sm" href={`/producer/titles/${detail.title.id}/potential`}>{t(locale, "ws.actions.assess")}</a>
+          <a className="btn btn-outline btn-sm" href={returnTo}>{t(locale, "tw.backTo", { section: returnLabel })}</a>
         </span>
       </div>
       <StageStrip stage={st.stage} step={flow.step} locale={locale} />
