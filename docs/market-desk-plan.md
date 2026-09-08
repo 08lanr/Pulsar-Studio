@@ -122,6 +122,6 @@ queue, launch shortlist, assessment facts) were misaligning across rows and
 now use fixed columns; flush tables inside panels are inset to the panel
 padding; the results and accounts tables got proportional columns.
 
-Not done: a scheduled daily collection (founder decision on terms of
-service); the ReelShort New shelf pagination change (27 rows per page,
+Daily collection scheduled the same evening (`.github/workflows/research-crawl.yml`,
+04:30 UTC, commits the run to `main`). Not done: the ReelShort New shelf pagination change (27 rows per page,
 page 2 repeats page 1) is recorded, not worked around.

@@ -1,0 +1,58 @@
+# Daily market collection (decision 2026-09-08: the founder scheduled it).
+#
+# Runs the same command a person runs locally, `npm run research:crawl`:
+# both collectors write an immutable run under data/research/runs/<id>/,
+# the builder validates and publishes a snapshot, and published.json moves
+# only after validation. A failed platform is carried forward as stale, so
+# the job commits whatever was published and never rewrites an earlier run.
+#
+# Manual trigger: Actions → "Market collection" → Run workflow.
+name: Market collection
+
+on:
+  schedule:
+    # 04:30 UTC daily = 12:30 Beijing / 21:30 US Pacific (previous day).
+    - cron: "30 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: research-crawl
+  cancel-in-progress: false
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Collect, build, publish
+        id: crawl
+        run: npm run research:crawl
+
+      - name: Commit the run and the published snapshot
+        if: always() && steps.crawl.outcome != 'skipped'
+        run: |
+          git config user.name "market-collection[bot]"
+          git config user.email "market-collection@users.noreply.github.com"
+          git add data/research/runs data/research/snapshots data/research/published.json
+          if git diff --cached --quiet; then
+            echo "nothing published"
+            exit 0
+          fi
+          run_id="$(node -e 'console.log(JSON.parse(require("fs").readFileSync("data/research/published.json","utf8")).latest_run_id)')"
+          git commit -m "Market collection ${run_id}" -m "Automated daily run of npm run research:crawl (builder exit ${{ steps.crawl.outcome }})."
+          git pull --rebase origin main
+          git push origin HEAD:main

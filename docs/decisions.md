@@ -6,6 +6,27 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-09-08 (evening) · The market collection runs daily
+
+Decided by the founders (Ruobin): "schedule a daily crawl". The
+terms-of-service posture that was left open on 2026-09-06 is now settled
+in favour of one collection a day of the same public catalog pages a
+browser loads, at a fixed hour, from one runner.
+
+- `.github/workflows/research-crawl.yml` runs `npm run research:crawl` at
+  04:30 UTC daily (12:30 Beijing) and on manual dispatch, then commits
+  `data/research/runs/<id>/`, the snapshot and `published.json` to `main`.
+  Same command, same immutability and atomic-publication rules as a local
+  run; a failed platform is carried forward as stale by the builder.
+- The repo is the data store for now: each day adds roughly 0.5–1 MB of
+  run artifacts plus a snapshot. Move the artifacts to object storage when
+  that becomes a burden, keeping the snapshot and pointer in the repo.
+- Watch the first runs: if the platforms refuse GitHub's datacenter
+  addresses, the fallback is the same command on a Windows scheduled task
+  on a founder's machine, committing the same paths.
+- A local `npm run research:crawl` still works and publishes a second run
+  for the day; the loader follows the newest validated run per day.
+
 ## 2026-09-08 (later) · What to make next: launches, not just prominence
 
 Decided by the founders (Ruobin): the workspace judged the catalog a studio
