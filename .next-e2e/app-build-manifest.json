@@ -1,3 +1,120 @@
 {
-  "pages": {}
+  "pages": {
+    "/login/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/login/page.js"
+    ],
+    "/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/css/app/layout.css",
+      "static/chunks/app/layout.js"
+    ],
+    "/(producer)/producer/tiktok/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(producer)/producer/tiktok/page.js"
+    ],
+    "/(producer)/producer/error": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(producer)/producer/error.js"
+    ],
+    "/(producer)/producer/loading": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(producer)/producer/loading.js"
+    ],
+    "/(producer)/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(producer)/layout.js"
+    ],
+    "/(producer)/producer/titles/[id]/analytics/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(producer)/producer/titles/[id]/analytics/page.js"
+    ],
+    "/(producer)/producer/titles/[id]/analytics/loading": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(producer)/producer/titles/[id]/analytics/loading.js"
+    ],
+    "/(producer)/producer/titles/[id]/analytics/link/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(producer)/producer/titles/[id]/analytics/link/page.js"
+    ],
+    "/(producer)/producer/titles/[id]/analytics/revenue/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(producer)/producer/titles/[id]/analytics/revenue/page.js"
+    ],
+    "/(producer)/producer/titles/[id]/analytics/episodes/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(producer)/producer/titles/[id]/analytics/episodes/page.js"
+    ],
+    "/(producer)/producer/titles/[id]/analytics/acquisition/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(producer)/producer/titles/[id]/analytics/acquisition/page.js"
+    ],
+    "/(producer)/producer/promote/[campaignId]/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(producer)/producer/promote/[campaignId]/page.js"
+    ],
+    "/(producer)/producer/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(producer)/producer/page.js"
+    ],
+    "/(producer)/producer/titles/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(producer)/producer/titles/page.js"
+    ],
+    "/(producer)/producer/insights/next/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(producer)/producer/insights/next/page.js"
+    ],
+    "/(producer)/producer/explore/titles/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(producer)/producer/explore/titles/page.js"
+    ],
+    "/(producer)/producer/titles/[id]/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(producer)/producer/titles/[id]/page.js"
+    ],
+    "/(producer)/producer/titles/[id]/preparation/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(producer)/producer/titles/[id]/preparation/page.js"
+    ],
+    "/(producer)/producer/titles/[id]/campaigns/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(producer)/producer/titles/[id]/campaigns/page.js"
+    ],
+    "/(producer)/producer/titles/[id]/potential/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(producer)/producer/titles/[id]/potential/page.js"
+    ],
+    "/(producer)/producer/promote/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(producer)/producer/promote/page.js"
+    ],
+    "/(producer)/producer/promote/new/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(producer)/producer/promote/new/page.js"
+    ]
+  }
 }
