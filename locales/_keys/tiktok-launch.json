@@ -622,5 +622,33 @@
   "promote.status.launching": {
     "en": "Launching",
     "zh": "投放创建中"
+  },
+  "promote.new.missing": {
+    "en": "Fill in {fields} to save the brief.",
+    "zh": "请填写{fields}后再保存简报。"
+  },
+  "promote.new.field.name": {
+    "en": "the campaign name",
+    "zh": "活动名称"
+  },
+  "promote.new.field.audience": {
+    "en": "the target audience (at least 3 characters)",
+    "zh": "目标受众（至少 3 个字符）"
+  },
+  "promote.new.field.hypothesis": {
+    "en": "the test idea (at least 10 characters)",
+    "zh": "测试想法（至少 10 个字符）"
+  },
+  "promote.new.field.destination": {
+    "en": "the destination link",
+    "zh": "去向链接"
+  },
+  "promote.new.field.destinationInvalid": {
+    "en": "a valid destination link starting with https://",
+    "zh": "以 https:// 开头的有效去向链接"
+  },
+  "promote.new.field.budget": {
+    "en": "a budget of at least $20",
+    "zh": "不低于 $20 的预算"
   }
 }

@@ -2565,5 +2565,12 @@
   "admin.tiktok.loading": "正在读取连接…",
   "admin.tiktok.state.READY": "就绪",
   "admin.tiktok.state.ACTION_REQUIRED": "需要处理",
-  "admin.tiktok.state.BLOCKED": "已阻止"
+  "admin.tiktok.state.BLOCKED": "已阻止",
+  "promote.new.missing": "请填写{fields}后再保存简报。",
+  "promote.new.field.name": "活动名称",
+  "promote.new.field.audience": "目标受众（至少 3 个字符）",
+  "promote.new.field.hypothesis": "测试想法（至少 10 个字符）",
+  "promote.new.field.destination": "去向链接",
+  "promote.new.field.destinationInvalid": "以 https:// 开头的有效去向链接",
+  "promote.new.field.budget": "不低于 $20 的预算"
 }

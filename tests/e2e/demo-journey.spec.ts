@@ -225,18 +225,26 @@ test("error feedback: the API refuses out-of-order actions and invalid input", a
   expect((await bad.json()).error).toBe("Invalid request");
   const foreign = await page.request.get(`/api/producer/promote/${C1.replace(/1$/, "9")}/results`);
   expect(foreign.status()).toBe(404);
-  // The new-campaign form keeps its submit disabled until the brief is complete.
+  // The new-campaign form answers an incomplete brief with the missing fields by name, never a dead button.
   await page.goto(`/producer/promote/new?title=${T1}`);
   const cta = page.locator(".promo-brief-side button.btn-primary");
-  await expect(cta).toBeDisabled();
+  const err = page.locator(".promo-brief-side .err");
+  await expect(cta).toBeEnabled();
+  await cta.click();
+  await expect(err).toContainText("the target audience");
+  await expect(err).toContainText("the destination link");
+  await expect(page.getByLabel("Target audience")).toBeFocused();
   await page.getByLabel("What do you want to test?").fill("Short");
   await page.getByLabel("Target audience").fill("US women 25-44");
-  await expect(cta).toBeDisabled();
+  await cta.click();
+  await expect(err).toContainText("the test idea");
+  await expect(err).not.toContainText("the target audience");
   await page.getByLabel("What do you want to test?").fill("The rebirth opening beats the romance opening for US women 25-44.");
-  // The destination link is required too (TikTok needs a landing page).
-  await expect(cta).toBeDisabled();
+  await cta.click();
+  await expect(err).toContainText("the destination link");
   await page.getByLabel("Where viewers should go (required)").fill("https://www.reelshort.com/");
-  await expect(cta).toBeEnabled();
+  await expect(err).toHaveCount(0);
+  await expect(page.url()).toContain("/producer/promote/new");
   await shot(page, "new-campaign-validation");
 });
 

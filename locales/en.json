@@ -2565,5 +2565,12 @@
   "admin.tiktok.loading": "Reading the connection…",
   "admin.tiktok.state.READY": "Ready",
   "admin.tiktok.state.ACTION_REQUIRED": "Action required",
-  "admin.tiktok.state.BLOCKED": "Blocked"
+  "admin.tiktok.state.BLOCKED": "Blocked",
+  "promote.new.missing": "Fill in {fields} to save the brief.",
+  "promote.new.field.name": "the campaign name",
+  "promote.new.field.audience": "the target audience (at least 3 characters)",
+  "promote.new.field.hypothesis": "the test idea (at least 10 characters)",
+  "promote.new.field.destination": "the destination link",
+  "promote.new.field.destinationInvalid": "a valid destination link starting with https://",
+  "promote.new.field.budget": "a budget of at least $20"
 }
