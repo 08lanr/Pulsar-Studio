@@ -8,8 +8,17 @@ import { assessTitle, BENCHMARK, type AssessmentInput } from "@/lib/research/ass
 import { experimentStage, loadWorkspace } from "@/lib/research/workspace";
 import { campaignWorkflow } from "@/lib/research/workflow";
 import { resetMarketCache } from "@/lib/research/snapshot";
+import { FIXTURE_PRODUCER_ID } from "@/lib/auth";
+import { pickLaunchAccount } from "@/lib/tiktok/business-centers";
 import { resetFakeTikTok } from "@/lib/tiktok/fake";
 import { runLaunch } from "@/lib/tiktok/launch";
+
+/** The demo studio is assigned a Business Center; the route picks an account inside it before submitting. */
+async function demoPick() {
+  const pick = await pickLaunchAccount(producer(), FIXTURE_PRODUCER_ID);
+  if (!pick.ok) throw new Error(pick.reason);
+  return pick.pick;
+}
 
 afterEach(() => {
   resetFixtureStore();
@@ -122,7 +131,7 @@ test("demo results are labelled, idempotent, and only follow a submitted campaig
   assert.equal((await fixtureData.listCreativeResults(producer())).length, before);
   // A fresh submitted campaign gets deterministic demo rows, one per selected creative.
   resetFakeTikTok();
-  const c4 = await fixtureData.submitPromoCampaign(producer(), demoCampaignId(4));
+  const c4 = await fixtureData.submitPromoCampaign(producer(), demoCampaignId(4), await demoPick());
   assert.equal(c4.campaign.status, "launching");
   await runLaunch(c4.launch!.id);
   assert.equal((await fixtureData.getPromoCampaign(producer(), demoCampaignId(4))).campaign.status, "submitted");
@@ -163,7 +172,7 @@ test("workflow actions follow actual approval and handoff transitions", async ()
   assert.equal((await flow()).step,"launch");
   assert.equal((await flow()).waiting,false,"ready for a real user action");
   resetFakeTikTok();
-  const sent = await fixtureData.submitPromoCampaign(producer(),id);
+  const sent = await fixtureData.submitPromoCampaign(producer(),id, await demoPick());
   assert.equal((await flow()).waiting,true,"a launching campaign must not request another approval");
   assert.equal((await flow()).hint,"workflow.hint.launching");
   await runLaunch(sent.launch!.id);

@@ -10,8 +10,10 @@
 //   - every chosen creative rendered with a checksum — in the live modes; the
 //     fake transport accepts the source episode file in its place, so a
 //     fixture demo without ffmpeg still walks the pipeline
-//   - a ready launch account: a connected TikTok ad account with an
-//     advertiser id and a publishing identity assigned by Pulsar staff
+//   - a launch assignment by Pulsar staff: a Business Center (the launch
+//     picks a ready account with a linked handle inside it, decision
+//     2026-09-09 "assign a BC, not an ad account") or, as an explicit
+//     override, one ad account with its publishing identity
 
 import type { CompanyAccount, PromoApproval, PromoCampaign, PromoCreative } from "@/lib/types";
 
@@ -37,14 +39,22 @@ export function isReadyLaunchAccount(a: CompanyAccount | null | undefined): a is
   return !!a && a.provider === "tiktok" && a.kind === "ad_account" && a.state === "connected" && !!a.assigned_by && !!a.external_ref && /^\d{5,}$/.test(a.external_ref);
 }
 
+/** A staff-assigned Business Center: the vendor's launches pick an account inside it. */
+export function isAssignedBusinessCenter(a: CompanyAccount | null | undefined): a is CompanyAccount {
+  return !!a && a.provider === "tiktok" && a.kind === "business_center" && a.state === "connected" && !!a.assigned_by && !!a.external_ref && /^\d{5,}$/.test(a.external_ref);
+}
+
 export function launchReadiness(input: {
   campaign: PromoCampaign;
   approval: PromoApproval | null;
   creatives: PromoCreative[];
   account: CompanyAccount | null;
+  /** The assigned Business Center, when the vendor has one instead of (or beside) an explicit account. */
+  businessCenter?: CompanyAccount | null;
   mode: "fake" | "sandbox" | "production";
 }): LaunchReadiness {
   const { campaign, approval, creatives, account, mode } = input;
+  const businessCenter = input.businessCenter ?? null;
   const blockers: LaunchBlocker[] = [];
   if (campaign.status !== "approved" || !approval) blockers.push("not_approved");
   const e = campaign.experiment;
@@ -53,8 +63,10 @@ export function launchReadiness(input: {
   if (!campaign.destination_url) blockers.push("no_destination");
   const chosen = creatives.filter((c) => c.status === "approved");
   if (mode !== "fake" && chosen.some((c) => !c.render_path || !c.render_sha256)) blockers.push("unrendered_creatives");
-  if (!isReadyLaunchAccount(account)) blockers.push("no_launch_account");
-  else if (!account.identity_id || !account.identity_type) blockers.push("no_identity");
+  if (isReadyLaunchAccount(account)) {
+    // An explicit account must already carry its handle; a BC pick resolves one at launch.
+    if (!account.identity_id || !account.identity_type) blockers.push("no_identity");
+  } else if (!isAssignedBusinessCenter(businessCenter)) blockers.push("no_launch_account");
   return { ready: blockers.length === 0, blockers };
 }
 
@@ -72,7 +84,7 @@ export function blockerMessage(b: LaunchBlocker): string {
     case "unrendered_creatives":
       return "every chosen ad must be rendered before launch; generate the ads again";
     case "no_launch_account":
-      return "no TikTok ad account is assigned to this company yet; ask Pulsar to set one up";
+      return "no TikTok Business Center or ad account is assigned to this company yet; ask Pulsar to set one up";
     case "no_identity":
       return "the assigned ad account has no TikTok handle (identity) linked; Pulsar staff must link one";
   }

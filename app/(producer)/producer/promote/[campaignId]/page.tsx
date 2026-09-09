@@ -32,7 +32,7 @@ export default async function ExperimentPage({ params, searchParams }: { params:
     if (isDataError(e) && (e.code === "not_found" || e.code === "forbidden")) notFound();
     throw e;
   }
-  const [summaries, account] = await Promise.all([data.listPromoCampaigns(session), data.getLaunchAccount(session, detail.campaign.producer_id)]);
+  const [summaries, account, businessCenter] = await Promise.all([data.listPromoCampaigns(session), data.getLaunchAccount(session, detail.campaign.producer_id), data.getLaunchBusinessCenter(session, detail.campaign.producer_id)]);
   const summary = summaries.find((c) => c.id === detail.campaign.id);
   const st = summary ? experimentStage(summary, detail.results) : { stage: "brief" as const, waiting: "generate" as const };
   const media = Object.fromEntries(detail.episodes.map((e) => [e.id, mediaUrl(e.video_path)]));
@@ -43,7 +43,7 @@ export default async function ExperimentPage({ params, searchParams }: { params:
   const flow = summary ? campaignWorkflow(summary, detail.results) : { step: workflowStepForStage[st.stage], hint: `workflow.hint.${workflowStepForStage[st.stage]}`, waiting: false };
   const launched = LAUNCHED_STATUSES.includes(detail.campaign.status) && detail.campaign.status !== "failed";
   const mode = launchMode();
-  const readiness = launchReadiness({ campaign: detail.campaign, approval: detail.approval, creatives: detail.creatives.filter((c) => c.status !== "superseded"), account, mode });
+  const readiness = launchReadiness({ campaign: detail.campaign, approval: detail.approval, creatives: detail.creatives.filter((c) => c.status !== "superseded"), account, businessCenter, mode });
   // Where "back" goes: the title's campaigns section unless the caller said otherwise (a local path only).
   const raw = searchParams.returnTo ?? "";
   const returnTo = raw.startsWith("/producer/") && !raw.startsWith("//") ? raw : `/producer/titles/${detail.title.id}/campaigns`;
@@ -65,7 +65,8 @@ export default async function ExperimentPage({ params, searchParams }: { params:
       <div className="rs-panel-head"><div><h2>{t(locale, "promote.launch.title")}</h2><p>{t(locale, flow.hint)}</p></div><span className="rs-panel-aside"><span className={`pill ${c.status === "live" ? "status-live" : c.status === "failed" ? "pill-error" : c.status === "paused" ? "pill-warning" : "pill-accent"}`}>{t(locale, `promote.status.${c.status}`)}</span></span></div>
       <dl className="rs-kv">
         <dt>{t(locale, "promote.launch.campaignId")}</dt><dd className="pd-mono">{c.grow_campaign_id ?? "—"}</dd>
-        <dt>{t(locale, "promote.launch.account")}</dt><dd>{account ? `${account.name} · ${account.external_ref}` : c.advertiser_id ?? "—"}</dd>
+        <dt>{t(locale, "promote.launch.account")}</dt><dd className="pd-mono">{c.advertiser_id ?? detail.launch?.advertiser_id ?? "—"}{account && account.external_ref === (c.advertiser_id ?? detail.launch?.advertiser_id) && <> · {account.name}</>}</dd>
+        {businessCenter && <><dt>{t(locale, "promote.launch.bc")}</dt><dd>{businessCenter.name} · <span className="pd-mono">{businessCenter.external_ref}</span></dd></>}
         <dt>{t(locale, "promote.launch.budget")}</dt><dd>{detail.launch ? `$${detail.launch.budget_usd}` : c.experiment ? `$${c.experiment.budget_usd}` : "—"} · {t(locale, `promote.launch.mode.${detail.launch?.mode ?? mode}`)}</dd>
         <dt>{t(locale, "promote.launch.launchedAt")}</dt><dd>{c.launched_at ? c.launched_at.slice(0, 16).replace("T", " ") + " UTC" : "—"}</dd>
         {c.status_note && <><dt>{t(locale, "promote.launch.note")}</dt><dd>{c.status_note}</dd></>}

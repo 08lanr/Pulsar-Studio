@@ -60,7 +60,7 @@ import type { ReportBatch, ReportRow, ResearchProfile, WatchRow } from "@/lib/re
 import type { CatalogRow } from "@/lib/research/engine";
 import { examplesFromApprovedVersions } from "@/lib/translation-memory";
 import { isSystemSession } from "@/lib/auth";
-import { blockerMessage, isReadyLaunchAccount, launchReadiness } from "@/lib/promote/launch-gate";
+import { blockerMessage, isAssignedBusinessCenter, isReadyLaunchAccount, launchReadiness } from "@/lib/promote/launch-gate";
 import { launchMode } from "@/lib/tiktok";
 import type { AccountRequest, PromoLaunch } from "@/lib/types";
 import { DataError, conflict, invalid, notFound } from "./errors";
@@ -226,6 +226,11 @@ const campaignById = (c: Db, id: string) => one<PromoCampaign>(promote(c).from("
 async function launchAccountOf(c: Db, producerId: string): Promise<CompanyAccount | null> {
   const rows = await many<CompanyAccount>(core(c).from("company_accounts").select("*").eq("producer_id", producerId).eq("provider", "tiktok").eq("kind", "ad_account"));
   return rows.find((a) => isReadyLaunchAccount(a)) ?? null;
+}
+
+async function launchBcOf(c: Db, producerId: string): Promise<CompanyAccount | null> {
+  const rows = await many<CompanyAccount>(core(c).from("company_accounts").select("*").eq("producer_id", producerId).eq("provider", "tiktok").eq("kind", "business_center"));
+  return rows.find((a) => isAssignedBusinessCenter(a)) ?? null;
 }
 
 function requireSystemOrStaff(session: Session): void {
@@ -1164,16 +1169,22 @@ export const supabaseData: DataLayer = {
     return loadPromoDetail(c, campaign);
   },
 
-  async submitPromoCampaign(session, campaignId) {
+  async submitPromoCampaign(session, campaignId, resolved) {
     if (session.kind !== "producer" || session.producerRole !== "approver") throw new DataError("forbidden", "launch needs the approver role");
     const c = db();
     const detail = await loadPromoDetail(c, await campaignById(c, campaignId));
     const { campaign } = detail;
     if (["launching", "submitted", "live", "paused", "ended"].includes(campaign.status)) return detail;
-    const account = await launchAccountOf(c, campaign.producer_id);
+    const [explicit, bc] = await Promise.all([launchAccountOf(c, campaign.producer_id), launchBcOf(c, campaign.producer_id)]);
     const mode = launchMode();
-    const readiness = launchReadiness({ campaign, approval: detail.approval, creatives: detail.creatives.filter((x) => x.status !== "superseded"), account, mode });
+    const readiness = launchReadiness({ campaign, approval: detail.approval, creatives: detail.creatives.filter((x) => x.status !== "superseded"), account: explicit, businessCenter: bc, mode });
     if (!readiness.ready) throw conflict(blockerMessage(readiness.blockers[0]));
+    const account = explicit
+      ? { external_ref: explicit.external_ref!, identity_id: explicit.identity_id, identity_type: explicit.identity_type }
+      : resolved && resolved.bc_id && bc && resolved.bc_id === bc.external_ref
+        ? { external_ref: resolved.advertiser_id, identity_id: resolved.identity_id, identity_type: resolved.identity_type }
+        : null;
+    if (!account) throw conflict("no ready ad account could be picked inside the assigned Business Center");
     const idempotency_key = `studio:${campaign.external_id}:${detail.approval!.manifest_sha256}`;
     // The launch row is written by the service role (only the engine writes launches; RLS has no producer insert on purpose).
     const s = createServiceSupabase();
@@ -1185,7 +1196,7 @@ export const supabaseData: DataLayer = {
       launch = await one<PromoLaunch>(
         promote(s).from("launches").insert({
           campaign_id: campaign.id, idempotency_key, manifest_sha256: detail.approval!.manifest_sha256, status: "pending", mode,
-          advertiser_id: account!.external_ref, identity_id: account!.identity_id, identity_type: account!.identity_type,
+          advertiser_id: account.external_ref, identity_id: account.identity_id, identity_type: account.identity_type,
           budget_usd: campaign.experiment!.budget_usd, destination_url: campaign.destination_url, created_by: session.userId,
         }).select("*").single(),
         "launch"
@@ -1337,6 +1348,28 @@ export const supabaseData: DataLayer = {
   async getLaunchAccount(session, producerId) {
     if (session.kind === "producer" && session.producerId !== producerId) return null;
     return launchAccountOf(dbFor(session), producerId);
+  },
+
+  async getLaunchBusinessCenter(session, producerId) {
+    if (session.kind === "producer" && session.producerId !== producerId) return null;
+    return launchBcOf(dbFor(session), producerId);
+  },
+
+  async assignBusinessCenter(session, producerId, input) {
+    if (session.kind !== "staff" || session.staffRole !== "admin") throw new DataError("forbidden", "Admin only");
+    if (!/^\d{5,}$/.test(input.bc_id.trim())) throw invalid("Business Center id must be TikTok's numeric bc_id");
+    if (blank(input.name)) throw invalid("Business Center name is required");
+    const c = db();
+    const at = now();
+    const fields = { name: input.name.trim(), external_ref: input.bc_id.trim(), state: "connected", access: "partner", note: input.note?.trim() || null, identity_id: null, identity_type: null, assigned_by: session.userId, assigned_at: at, updated_at: at };
+    const existing = await many<CompanyAccount>(core(c).from("company_accounts").select("*").eq("producer_id", producerId).eq("provider", "tiktok").eq("kind", "business_center").limit(1));
+    const row = existing[0]
+      ? await one<CompanyAccount>(core(c).from("company_accounts").update(fields).eq("id", existing[0].id).select("*").maybeSingle(), "company account", existing[0].id)
+      : await one<CompanyAccount>(core(c).from("company_accounts").insert({ producer_id: producerId, provider: "tiktok", kind: "business_center", ...fields }).select("*").maybeSingle(), "company account");
+    if (input.request_id) {
+      await one<AccountRequest>(core(c).from("account_requests").update({ status: "assigned", account_id: row.id, resolved_by: session.userId, resolved_at: at }).eq("id", input.request_id).eq("producer_id", producerId).select("*").maybeSingle(), "account request", input.request_id);
+    }
+    return row;
   },
 
   async assignLaunchAccount(session, producerId, input) {

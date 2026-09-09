@@ -19,7 +19,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { copyFileSync, existsSync, linkSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { canReadTitle, isSystemSession, type Session } from "@/lib/auth";
-import { blockerMessage, isReadyLaunchAccount, launchReadiness } from "@/lib/promote/launch-gate";
+import { blockerMessage, isAssignedBusinessCenter, isReadyLaunchAccount, launchReadiness } from "@/lib/promote/launch-gate";
 import { launchMode } from "@/lib/tiktok";
 import { LAST_CUE_MS, liftStamp, MAX_DERIVED_CUE_MS, SAMPLE_LATENCY_MS, type IngestResult } from "@/lib/ingest";
 import { applyGlobalOffset, assertValidCue } from "@/lib/subtitle-timing";
@@ -276,6 +276,11 @@ function latestLaunch(db: FixtureDb, campaignId: string): PromoLaunch | null {
 /** The producer's ready TikTok launch account, if any (decision 2026-09-09). */
 function launchAccountOf(db: FixtureDb, producerId: string): CompanyAccount | null {
   return (db.company_accounts ?? []).find((a) => a.producer_id === producerId && isReadyLaunchAccount(a)) ?? null;
+}
+
+/** The producer's staff-assigned Business Center, if any. */
+function launchBcOf(db: FixtureDb, producerId: string): CompanyAccount | null {
+  return (db.company_accounts ?? []).find((a) => a.producer_id === producerId && isAssignedBusinessCenter(a)) ?? null;
 }
 
 /** The engine and the scheduler (system) or Pulsar staff. */
@@ -1992,7 +1997,7 @@ export const fixtureData: DataLayer = {
     return promoDetail(db, campaign);
   },
 
-  async submitPromoCampaign(session, campaignId) {
+  async submitPromoCampaign(session, campaignId, resolved) {
     const { db } = store();
     const campaign = readablePromoCampaign(db, session, campaignId);
     const title = requireTitleEditor(db, session, campaign.title_id);
@@ -2001,10 +2006,19 @@ export const fixtureData: DataLayer = {
     if (["launching", "submitted", "live", "paused", "ended"].includes(campaign.status)) return promoDetail(db, campaign);
     const approval = db.promo_approvals.find((a) => a.campaign_id === campaign.id) ?? null;
     const creatives = db.promo_creatives.filter((c) => c.campaign_id === campaign.id && c.status !== "superseded");
-    const account = launchAccountOf(db, campaign.producer_id);
+    const explicit = launchAccountOf(db, campaign.producer_id);
+    const bc = launchBcOf(db, campaign.producer_id);
     const mode = launchMode();
-    const readiness = launchReadiness({ campaign, approval, creatives, account, mode });
+    const readiness = launchReadiness({ campaign, approval, creatives, account: explicit, businessCenter: bc, mode });
     if (!readiness.ready) throw conflict(blockerMessage(readiness.blockers[0]));
+    // The account the launch goes into: the explicit assignment, or the route's pick inside the assigned BC.
+    // A pick may never name an account outside the vendor's assignment.
+    const account = explicit
+      ? { external_ref: explicit.external_ref!, identity_id: explicit.identity_id, identity_type: explicit.identity_type }
+      : resolved && resolved.bc_id && bc && resolved.bc_id === bc.external_ref
+        ? { external_ref: resolved.advertiser_id, identity_id: resolved.identity_id, identity_type: resolved.identity_type }
+        : null;
+    if (!account) throw conflict("no ready ad account could be picked inside the assigned Business Center");
     const idempotency_key = `studio:${campaign.external_id}:${approval!.manifest_sha256}`;
     const at = now();
     let launch = db.promo_launches.find((l) => l.idempotency_key === idempotency_key);
@@ -2014,7 +2028,7 @@ export const fixtureData: DataLayer = {
     } else {
       launch = {
         id: randomUUID(), campaign_id: campaign.id, idempotency_key, manifest_sha256: approval!.manifest_sha256, status: "pending", mode,
-        advertiser_id: account!.external_ref!, identity_id: account!.identity_id, identity_type: account!.identity_type,
+        advertiser_id: account.external_ref, identity_id: account.identity_id, identity_type: account.identity_type,
         budget_usd: campaign.experiment!.budget_usd, destination_url: campaign.destination_url!,
         uploaded_videos: {}, covers: {}, tiktok_campaign_id: null, tiktok_adgroup_id: null, ad_ids: {}, error: null, attempts: 0,
         created_by: session.userId, created_at: at, started_at: null, heartbeat_at: null, finished_at: null,
@@ -2215,6 +2229,37 @@ export const fixtureData: DataLayer = {
     requireMemberSession(session);
     if (session.kind === "producer" && session.producerId !== producerId) return null;
     return clone(launchAccountOf(store().db, producerId));
+  },
+
+  async getLaunchBusinessCenter(session, producerId) {
+    requireMemberSession(session);
+    if (session.kind === "producer" && session.producerId !== producerId) return null;
+    return clone(launchBcOf(store().db, producerId));
+  },
+
+  async assignBusinessCenter(session, producerId, input) {
+    requireStaffAdmin(session);
+    const { db } = store();
+    if (!db.producers.some((p) => p.id === producerId)) throw notFound("producer", producerId);
+    if (!/^\d{5,}$/.test(input.bc_id.trim())) throw invalid("Business Center id must be TikTok's numeric bc_id");
+    if (blank(input.name)) throw invalid("Business Center name is required");
+    const at = now();
+    const fields = { name: input.name.trim(), external_ref: input.bc_id.trim(), state: "connected" as const, access: "partner" as const, note: input.note?.trim() || null, identity_id: null, identity_type: null, assigned_by: session.userId, assigned_at: at, updated_at: at };
+    const existing = db.company_accounts.find((a) => a.producer_id === producerId && a.provider === "tiktok" && a.kind === "business_center");
+    let row: CompanyAccount;
+    if (existing) {
+      Object.assign(existing, fields);
+      row = existing;
+    } else {
+      row = { id: randomUUID(), producer_id: producerId, provider: "tiktok", kind: "business_center", ...fields };
+      db.company_accounts.push(row);
+    }
+    if (input.request_id) {
+      const request = db.account_requests.find((r) => r.id === input.request_id && r.producer_id === producerId);
+      if (request) Object.assign(request, { status: "assigned", account_id: row.id, resolved_by: session.userId, resolved_at: at });
+    }
+    audit(store(), session, "assign_business_center", "core.company_accounts", row.id, null, null, { producer_id: producerId, bc_id: row.external_ref });
+    return clone(row);
   },
 
   async assignLaunchAccount(session, producerId, input) {

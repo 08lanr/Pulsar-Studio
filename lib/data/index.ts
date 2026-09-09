@@ -325,7 +325,24 @@ export type RenderInput = {
   render_settings?: Json;
 };
 
-/** Staff assign a launch account from Pulsar's Business Center to a producer. */
+/** Staff assign a Business Center to a producer: launches pick a ready account inside it. */
+export type AssignBusinessCenterInput = {
+  bc_id: string;
+  name: string;
+  note?: string | null;
+  request_id?: string | null;
+};
+
+/** The account the launch resolved for this campaign (lib/tiktok/business-centers.ts pickLaunchAccount). */
+export type ResolvedLaunchAccount = {
+  advertiser_id: string;
+  identity_id: string;
+  identity_type: "BC_AUTH_TT" | "TT_USER";
+  source: "account" | "business_center";
+  bc_id: string | null;
+};
+
+/** Staff assign a launch account from Pulsar's Business Center to a producer (explicit override of the BC pick). */
 export type AssignLaunchAccountInput = {
   advertiser_id: string;
   name: string;
@@ -514,7 +531,7 @@ export interface DataLayer {
    * retry returns the same row) and moves the campaign to `launching`. The
    * route then runs the engine (lib/tiktok/launch.ts).
    */
-  submitPromoCampaign(session: Session, campaignId: string): Promise<PromoCampaignDetail>;
+  submitPromoCampaign(session: Session, campaignId: string, resolved?: ResolvedLaunchAccount | null): Promise<PromoCampaignDetail>;
   // Pulsar's Promote desk (staff only): answer change requests; override launch status when troubleshooting.
   revisePromoCreative(session: Session, creativeId: string, input: RevisePromoCreativeInput): Promise<PromoCreative>;
   advancePromoCampaign(session: Session, campaignId: string, input: AdvancePromoCampaignInput): Promise<PromoCampaignDetail>;
@@ -538,8 +555,12 @@ export interface DataLayer {
   setCreativeRender(session: Session, creativeId: string, render: RenderInput): Promise<PromoCreative>;
   /** Generation finished (renders done or skipped): generating -> review. */
   finishPromoGeneration(session: Session, campaignId: string, note?: string | null): Promise<PromoCampaign>;
-  /** The producer's ready TikTok launch account (connected ad account with an advertiser id), or null. */
+  /** The producer's explicit TikTok launch account (staff-assigned, connected, with an advertiser id), or null. */
   getLaunchAccount(session: Session, producerId: string): Promise<CompanyAccount | null>;
+  /** The producer's staff-assigned Business Center, or null. */
+  getLaunchBusinessCenter(session: Session, producerId: string): Promise<CompanyAccount | null>;
+  /** Staff admin: assign a Business Center to a producer. */
+  assignBusinessCenter(session: Session, producerId: string, input: AssignBusinessCenterInput): Promise<CompanyAccount>;
   /** Staff admin: assign an ad account from Pulsar's Business Center to a producer. */
   assignLaunchAccount(session: Session, producerId: string, input: AssignLaunchAccountInput): Promise<CompanyAccount>;
   /** Staff: every request; producer: their own. */

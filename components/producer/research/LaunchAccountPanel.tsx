@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 import { useT } from "@/components/locale";
 import type { AccountRequest, CompanyAccount } from "@/lib/types";
 
-export default function LaunchAccountPanel({ account, requests, canAct }: { account: CompanyAccount | null; requests: AccountRequest[]; canAct: boolean }) {
+export default function LaunchAccountPanel({ account, businessCenter = null, requests, canAct }: { account: CompanyAccount | null; businessCenter?: CompanyAccount | null; requests: AccountRequest[]; canAct: boolean }) {
   const { tt } = useT();
   const router = useRouter();
   const open = requests.find((r) => r.status === "requested" || r.status === "provisioning") ?? null;
@@ -25,7 +25,9 @@ export default function LaunchAccountPanel({ account, requests, canAct }: { acco
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
-  const ready = !!account?.identity_id;
+  // Ready when a Business Center is assigned (the launch picks an account inside it) or an explicit account carries its handle.
+  const ready = !!businessCenter || !!account?.identity_id;
+  const assigned = !!businessCenter || !!account;
 
   async function submit(ev: React.FormEvent) {
     ev.preventDefault();
@@ -43,16 +45,24 @@ export default function LaunchAccountPanel({ account, requests, canAct }: { acco
 
   return (
     <section className="rs-panel" id="launch-account">
-      <div className="rs-panel-head"><div><h2>{tt("ws.launchAccount.title")}</h2><p>{tt("ws.launchAccount.sub")}</p></div><span className="rs-panel-aside"><span className={`state ${ready ? "state-available" : account ? "state-collecting_history" : "state-requires_connection"}`}>{tt(account ? "ws.launchAccount.ready" : "ws.launchAccount.notReady")}</span></span></div>
+      <div className="rs-panel-head"><div><h2>{tt("ws.launchAccount.title")}</h2><p>{tt("ws.launchAccount.sub")}</p></div><span className="rs-panel-aside"><span className={`state ${ready ? "state-available" : assigned ? "state-collecting_history" : "state-requires_connection"}`}>{tt(assigned ? "ws.launchAccount.ready" : "ws.launchAccount.notReady")}</span></span></div>
+      {businessCenter && (
+        <dl className="rs-kv">
+          <dt>{tt("ws.launchAccount.bc")}</dt><dd>{businessCenter.name} · <span className="pd-mono">{businessCenter.external_ref}</span></dd>
+          <dt>{tt("ws.launchAccount.assignedAt")}</dt><dd>{businessCenter.assigned_at?.slice(0, 10) ?? "—"}</dd>
+          <dt />{/* one line of explanation, not a field */}<dd className="gt-muted">{tt("ws.launchAccount.bcSub")}</dd>
+          {businessCenter.note && <><dt>{tt("ws.accounts.note")}</dt><dd>{businessCenter.note}</dd></>}
+        </dl>
+      )}
       {account ? (
         <dl className="rs-kv">
-          <dt>{tt("ws.accounts.name")}</dt><dd>{account.name}</dd>
+          <dt>{tt(businessCenter ? "ws.launchAccount.explicit" : "ws.accounts.name")}</dt><dd>{account.name}</dd>
           <dt>{tt("ws.launchAccount.advertiser")}</dt><dd className="pd-mono">{account.external_ref}</dd>
           <dt>{tt("ws.launchAccount.identity")}</dt><dd>{account.identity_id ? <span className="pd-mono">{account.identity_id}</span> : <span className="gt-muted">{tt("ws.launchAccount.noIdentity")}</span>}</dd>
           <dt>{tt("ws.launchAccount.assignedAt")}</dt><dd>{account.assigned_at?.slice(0, 10) ?? "—"}</dd>
           {account.note && <><dt>{tt("ws.accounts.note")}</dt><dd>{account.note}</dd></>}
         </dl>
-      ) : open || sent ? (
+      ) : businessCenter ? null : open || sent ? (
         <div className="rs-panel-body">
           <p><strong>{tt("ws.launchAccount.requestStatus")}</strong> · <span className="state state-collecting_history">{tt(`ws.launchAccount.status.${open?.status ?? "requested"}`)}</span>{open?.payment && <> · <span className="gt-muted">{tt("ws.launchAccount.paymentOnFile")}: {open.payment.brand} •••• {open.payment.last4}</span></>}</p>
           {sent && <p className="note note-success" role="status">{tt("ws.launchAccount.sent")}</p>}

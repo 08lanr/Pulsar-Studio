@@ -23,6 +23,10 @@
 
 import type { TikTokResponse, TikTokTransport, UploadField } from "./transport";
 
+/** The fake Business Center and the two ad accounts inside it (the seed assigns the BC to the demo studio). */
+export const FAKE_BC_ID = "7000000000000000000";
+export const FAKE_BC_ACCOUNTS = ["7000000000000000001", "7000000000000000002"];
+
 type FakeAd = { adId: string; adgroupId: string; campaignId: string; advertiserId: string; polls: number; adName: string };
 type FakeCampaign = { campaignId: string; advertiserId: string; status: "ENABLE" | "DISABLE"; createdAt: number; budget: number };
 type FakeState = {
@@ -171,7 +175,11 @@ export const fakeTransport: TikTokTransport = {
         return ok({ list: reportRows(cids, String(params.start_date), String(params.end_date), level) });
       }
       case "/bc/get/":
-        return ok({ list: [{ bc_info: { bc_id: "7000000000000000000", name: "Pulsar (fake)" } }] });
+        return ok({ list: [{ bc_info: { bc_id: FAKE_BC_ID, name: "Pulsar Business Center (fake)", company: "Pulsar", verification_status: "VERIFIED" } }], page_info: { total_page: 1 } });
+      case "/bc/asset/get/": {
+        if (String(params.bc_id) !== FAKE_BC_ID) return refuse("Business Center not found");
+        return ok({ list: FAKE_BC_ACCOUNTS.map((id, i) => ({ asset_id: id, asset_name: `Fake ad account ${i + 1}` })), page_info: { total_page: 1 } });
+      }
       default:
         return refuse(`fake TikTok does not model GET ${pathname}`);
     }

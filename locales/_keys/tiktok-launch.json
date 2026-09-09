@@ -56,8 +56,8 @@
     "zh": "每条已选广告都需要成品视频，请重新生成广告"
   },
   "promote.block.no_launch_account": {
-    "en": "no TikTok ad account is assigned to your company yet",
-    "zh": "你的公司尚未分配 TikTok 广告账户"
+    "en": "no TikTok Business Center or ad account is assigned to your company yet",
+    "zh": "你的公司尚未分配 TikTok 商务中心或广告账户"
   },
   "promote.block.no_identity": {
     "en": "the assigned ad account has no TikTok handle linked; Pulsar is on it",
@@ -448,8 +448,8 @@
     "zh": "TikTok 设置"
   },
   "admin.tiktok.sub": {
-    "en": "The operator connection to Pulsar's Business Center, the ad accounts it reaches, and which producer each launches from.",
-    "zh": "Pulsar 商务中心的运营方连接、可用的广告账户，以及各制片方使用的投放账户。"
+    "en": "Pulsar's TikTok authorizations, the Business Centers they reach, and which producer each Business Center launches for. Ads run from an account inside the producer's Business Center.",
+    "zh": "Pulsar 的 TikTok 授权、可访问的商务中心，以及每个商务中心对应的制片方。广告从制片方商务中心内的账户投放。"
   },
   "admin.tiktok.connection": {
     "en": "Connection",
@@ -650,5 +650,85 @@
   "promote.new.field.budget": {
     "en": "a budget of at least $20",
     "zh": "不低于 $20 的预算"
+  },
+  "admin.tiktok.connectionAccounts": {
+    "en": "{n} ad accounts granted",
+    "zh": "授权 {n} 个广告账户"
+  },
+  "admin.tiktok.reconnectHint": {
+    "en": "Each Business Center needs its own authorization: press Add another authorization and pick that Business Center on TikTok's consent screen. Authorizations accumulate; re-authorizing the same accounts replaces the old one.",
+    "zh": "每个商务中心都需要单独授权：点击“添加另一个授权”，在 TikTok 授权页选择该商务中心。授权会累加；对同一批账户重新授权会替换旧授权。"
+  },
+  "admin.tiktok.businessCenters": {
+    "en": "Business Centers",
+    "zh": "商务中心"
+  },
+  "admin.tiktok.businessCentersSub": {
+    "en": "Assign a Business Center to a producer; their launches pick a ready ad account with a linked TikTok handle inside it. Load accounts to see health, check a handle, or assign one account as an explicit override.",
+    "zh": "将商务中心分配给制片方，投放时会在其中自动选择状态正常且已关联 TikTok 账号的广告账户。可加载账户查看健康状态、检查账号，或单独指定某个广告账户。"
+  },
+  "admin.tiktok.noBusinessCenters": {
+    "en": "No Business Center reachable yet. Connect TikTok and pick a Business Center on the consent screen.",
+    "zh": "尚无可访问的商务中心。请连接 TikTok 并在授权页选择商务中心。"
+  },
+  "admin.tiktok.refresh": {
+    "en": "Refresh from TikTok",
+    "zh": "从 TikTok 刷新"
+  },
+  "admin.tiktok.loadAccounts": {
+    "en": "Load accounts",
+    "zh": "加载账户"
+  },
+  "admin.tiktok.hideAccounts": {
+    "en": "Hide accounts",
+    "zh": "收起账户"
+  },
+  "admin.tiktok.noAccountsInBc": {
+    "en": "No ad account in this Business Center.",
+    "zh": "该商务中心内没有广告账户。"
+  },
+  "admin.tiktok.assignBc": {
+    "en": "Assign to producer",
+    "zh": "分配给制片方"
+  },
+  "admin.tiktok.assignAccount": {
+    "en": "Assign this account",
+    "zh": "指定此账户"
+  },
+  "admin.tiktok.assignBcTitle": {
+    "en": "Assign Business Center {id} to a producer",
+    "zh": "将商务中心 {id} 分配给制片方"
+  },
+  "admin.tiktok.assignBcHint": {
+    "en": "Launches pick the first ready account with a linked handle inside this Business Center. Assign a single account below only when a specific one must be used.",
+    "zh": "投放时会在该商务中心内选择第一个状态正常且已关联账号的广告账户。只有需要固定使用某个账户时，才在下方单独指定。"
+  },
+  "admin.tiktok.assignedPill": {
+    "en": "assigned to {producer}",
+    "zh": "已分配给 {producer}"
+  },
+  "admin.tiktok.request.fulfilBc": {
+    "en": "Fulfil with Business Center…",
+    "zh": "以商务中心完成…"
+  },
+  "ws.launchAccount.bc": {
+    "en": "Business Center",
+    "zh": "商务中心"
+  },
+  "ws.launchAccount.bcSub": {
+    "en": "Your launches run from a ready ad account inside this Business Center; the account used is recorded on each campaign.",
+    "zh": "你的投放会使用该商务中心内状态正常的广告账户，每个广告活动都会记录实际使用的账户。"
+  },
+  "ws.launchAccount.explicit": {
+    "en": "Fixed ad account",
+    "zh": "固定广告账户"
+  },
+  "promote.launch.bc": {
+    "en": "Business Center",
+    "zh": "商务中心"
+  },
+  "promote.block.no_ready_account": {
+    "en": "no ad account in your Business Center is ready to launch",
+    "zh": "你的商务中心内没有可投放的广告账户"
   }
 }

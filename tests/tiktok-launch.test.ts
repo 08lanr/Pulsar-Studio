@@ -12,7 +12,8 @@ import { fixtureData, resetFixtureStore } from "@/lib/data/fixture";
 import { putStoredBytes } from "@/lib/data/storage";
 import { blockerMessage, isReadyLaunchAccount, launchReadiness } from "@/lib/promote/launch-gate";
 import { launchMode } from "@/lib/tiktok";
-import { fakeTikTokSnapshot, resetFakeTikTok } from "@/lib/tiktok/fake";
+import { invalidateBusinessCenters, listBcAccounts, listBusinessCenters, pickLaunchAccount } from "@/lib/tiktok/business-centers";
+import { FAKE_BC_ACCOUNTS, FAKE_BC_ID, fakeTikTokSnapshot, resetFakeTikTok } from "@/lib/tiktok/fake";
 import { runLaunch, scheduleDays } from "@/lib/tiktok/launch";
 import { resultsFromReport, syncCampaignResults } from "@/lib/tiktok/metrics";
 import { normalizeReview, pollCampaignReview } from "@/lib/tiktok/review";
@@ -68,7 +69,7 @@ test("the launch gate names every blocker, and a producer-recorded account is ne
   const detail = await fixtureData.getPromoCampaign(producer(), campaign.id);
   const r = launchReadiness({ campaign: detail.campaign, approval: detail.approval, creatives: detail.creatives, account: null, mode: "production" });
   assert.deepEqual(r.blockers, ["budget_below_minimum", "no_destination", "unrendered_creatives", "no_launch_account"]);
-  assert.match(blockerMessage("no_launch_account"), /no TikTok ad account/);
+  assert.match(blockerMessage("no_launch_account"), /no TikTok Business Center or ad account/);
   // The producer records a "connected" ad account themselves: it must not route Pulsar's token anywhere.
   const self = await fixtureData.upsertCompanyAccount(producer(), { provider: "tiktok", kind: "ad_account", name: "Mine", external_ref: "7009999999999999999", state: "connected", access: "owner_operated" });
   assert.equal(isReadyLaunchAccount(self), false);
@@ -77,6 +78,44 @@ test("the launch gate names every blocker, and a producer-recorded account is ne
   // In fake mode unrendered creatives pass (the source file stands in); everything else still gates.
   const fake = launchReadiness({ campaign: detail.campaign, approval: detail.approval, creatives: detail.creatives, account: self, mode: "fake" });
   assert.deepEqual(fake.blockers, ["budget_below_minimum", "no_destination", "no_launch_account"]);
+});
+
+test("a Business Center is assigned to the vendor and the launch picks a ready account inside it", async () => {
+  invalidateBusinessCenters();
+  const { campaign } = await prepared();
+  // Nothing assigned: no pick, and the gate says so.
+  const none = await pickLaunchAccount(producer(), FIXTURE_PRODUCER_ID);
+  assert.equal(none.ok, false);
+  if (!none.ok) assert.equal(none.blocker, "no_launch_account");
+  await assert.rejects(fixtureData.assignBusinessCenter(producer(), FIXTURE_PRODUCER_ID, { bc_id: FAKE_BC_ID, name: "Pulsar BC" }), (e: Error & { code?: string }) => e.code === "forbidden");
+  const bc = await fixtureData.assignBusinessCenter(staff(), FIXTURE_PRODUCER_ID, { bc_id: FAKE_BC_ID, name: "Pulsar BC" });
+  assert.equal(bc.kind, "business_center");
+  assert.equal(bc.assigned_by, staff().userId);
+  assert.equal((await fixtureData.getLaunchBusinessCenter(producer(), FIXTURE_PRODUCER_ID))?.id, bc.id);
+  assert.equal(await fixtureData.getLaunchAccount(producer(), FIXTURE_PRODUCER_ID), null, "no explicit account: the BC decides");
+  // The fake BC lists two accounts; the pick is the first ready one with a handle.
+  const bcs = await listBusinessCenters();
+  assert.equal(bcs.businessCenters[0].bcId, FAKE_BC_ID);
+  const accounts = await listBcAccounts(FAKE_BC_ID);
+  assert.deepEqual(accounts.accounts.map((a) => a.id), FAKE_BC_ACCOUNTS);
+  const pick = await pickLaunchAccount(producer(), FIXTURE_PRODUCER_ID);
+  assert.equal(pick.ok, true);
+  if (!pick.ok) return;
+  assert.equal(pick.pick.source, "business_center");
+  assert.equal(pick.pick.advertiser_id, FAKE_BC_ACCOUNTS[0]);
+  assert.equal(pick.pick.bc_id, FAKE_BC_ID);
+  assert.ok(pick.pick.identity_id);
+  // The data layer refuses a pick that names an account outside the vendor's assignment.
+  await assert.rejects(fixtureData.submitPromoCampaign(producer(), campaign.id, { ...pick.pick, bc_id: "7009999999999999999" }), /inside the assigned Business Center/);
+  await assert.rejects(fixtureData.submitPromoCampaign(producer(), campaign.id, null), /inside the assigned Business Center/);
+  const sent = await fixtureData.submitPromoCampaign(producer(), campaign.id, pick.pick);
+  assert.equal(sent.launch?.advertiser_id, FAKE_BC_ACCOUNTS[0]);
+  assert.equal((await runLaunch(sent.launch!.id)).status, "done");
+  assert.equal((await fixtureData.getPromoCampaign(producer(), campaign.id)).campaign.advertiser_id, FAKE_BC_ACCOUNTS[0]);
+  // An explicit account assignment overrides the BC pick.
+  await assign();
+  const explicit = await pickLaunchAccount(producer(), FIXTURE_PRODUCER_ID);
+  assert.equal(explicit.ok && explicit.pick.source, "account");
 });
 
 test("staff assign the launch account; the producer cannot edit it afterwards", async () => {

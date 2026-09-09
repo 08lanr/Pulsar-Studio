@@ -41,6 +41,7 @@ import { buildVersionSnapshot, snapshotSha256 } from "./snapshot";
 const B = { title: 0x30, episode: 0x31, scene: 0x32, line: 0x33, adapted: 0x34, version: 0x35, adaptation: 0x36, campaign: 0x37, creative: 0x38, result: 0x39, account: 0x3a, batch: 0x3b, row: 0x3c, approval: 0x3d, handoff: 0x3e, launch: 0x3f } as const;
 
 /** The demo studio's TikTok ad account (assigned by staff from Pulsar's Business Center; a fake advertiser id, never a real one). */
+export const DEMO_BC_ID = "7000000000000000000";
 export const DEMO_ADVERTISER_ID = "7000000000000000001";
 export const DEMO_IDENTITY_ID = "7000000000000000101";
 
@@ -404,9 +405,12 @@ export function buildDemoSeed(): DemoSeed {
 
   const noIdentity = { identity_id: null, identity_type: null, assigned_by: null, assigned_at: null } as const;
   const accounts: CompanyAccount[] = [
-    { id: uuid(B.account, 1), producer_id: PRODUCER_ID, provider: "tiktok", kind: "business_center", name: "Pulsar Business Center", external_ref: null, state: "connected", access: "partner", note: "The studio's ads run from an ad account inside Pulsar's Business Center (demo).", ...noIdentity, updated_at: AT2 },
-    // The launch account: assigned by Pulsar staff, ready to launch (demo ids; the fake transport accepts them).
-    { id: uuid(B.account, 2), producer_id: PRODUCER_ID, provider: "tiktok", kind: "ad_account", name: "Xinghai US Ads (Pulsar BC)", external_ref: DEMO_ADVERTISER_ID, state: "connected", access: "partner", note: "Assigned from Pulsar's Business Center. Demo account: nothing here reaches TikTok.", identity_id: DEMO_IDENTITY_ID, identity_type: "BC_AUTH_TT", assigned_by: STAFF_USER_ID, assigned_at: AT2, updated_at: AT2 },
+    // The launch assignment (decision 2026-09-09, "assign a BC, not an ad account"): Pulsar staff assigned
+    // the demo Business Center; a launch picks a ready account with a linked handle inside it (the fake
+    // TikTok holds two). Demo ids: nothing here reaches TikTok.
+    { id: uuid(B.account, 1), producer_id: PRODUCER_ID, provider: "tiktok", kind: "business_center", name: "Pulsar Business Center (demo)", external_ref: DEMO_BC_ID, state: "connected", access: "partner", note: "Assigned by Pulsar. The studio's ads run from an ad account inside this Business Center.", identity_id: null, identity_type: null, assigned_by: STAFF_USER_ID, assigned_at: AT2, updated_at: AT2 },
+    // The account campaign 1 launched into, recorded (not staff-assigned: the BC pick chose it).
+    { id: uuid(B.account, 2), producer_id: PRODUCER_ID, provider: "tiktok", kind: "ad_account", name: "Xinghai US Ads (Pulsar BC)", external_ref: DEMO_ADVERTISER_ID, state: "connected", access: "partner", note: "Inside Pulsar's Business Center; used by round 1.", ...noIdentity, updated_at: AT2 },
     { id: uuid(B.account, 3), producer_id: PRODUCER_ID, provider: "youtube", kind: "channel", name: "Xinghai Drama (YouTube)", external_ref: "@xinghaidrama", state: "connected", access: "owner_operated", note: "Demo state: the customer uploads and reads analytics themselves.", ...noIdentity, updated_at: AT2 },
     { id: uuid(B.account, 4), producer_id: PRODUCER_ID, provider: "meta", kind: "ad_account", name: "Meta ad account", external_ref: null, state: "unconnected", access: "none", note: null, ...noIdentity, updated_at: AT3 },
   ];

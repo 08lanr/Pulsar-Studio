@@ -25,7 +25,7 @@ export default async function CompanyPage({ searchParams }: { searchParams: { ta
   const locale = producerLocale();
   const data = getData();
   const [company, profile, accounts, batches, rows, requests] = await Promise.all([data.getCompanyIdentity(session), data.getResearchProfile(session), data.listCompanyAccounts(session), data.listReportBatches(session), data.listReportRows(session), data.listAccountRequests(session)]);
-  const launchAccount = company ? await data.getLaunchAccount(session, company.id) : null;
+  const [launchAccount, launchBc] = company ? await Promise.all([data.getLaunchAccount(session, company.id), data.getLaunchBusinessCenter(session, company.id)]) : [null, null];
   const tab: Tab = TABS.includes(searchParams.tab as Tab) ? (searchParams.tab as Tab) : "profile";
   const canAct = !isStaffPreview(session) && (session.producerRole === "approver" || session.producerRole === "reviewer");
   const edit = searchParams.edit === "1" || !profile;
@@ -66,7 +66,7 @@ export default async function CompanyPage({ searchParams }: { searchParams: { ta
 
       {tab === "accounts" && (
         <>
-          <LaunchAccountPanel account={launchAccount} requests={requests} canAct={canAct} />
+          <LaunchAccountPanel account={launchAccount} businessCenter={launchBc} requests={requests} canAct={canAct} />
           <section className="rs-panel">
             <div className="rs-panel-head"><div><h2>{t(locale, "ws.company.tab.accounts")}</h2><p>{t(locale, "ws.accounts.sub")}</p></div></div>
             <AccountsForm accounts={accounts} canAct={canAct} />
