@@ -62,6 +62,13 @@ grant usage on schema research to authenticated, service_role;
 create type research.platform as enum ('reelshort', 'dramabox');
 create type research.evidence as enum ('observed', 'inferred', 'estimated', 'partner_reported');
 
+-- An enum-to-text cast is only STABLE to Postgres, which refuses it in a
+-- generated column ("generation expression is not immutable", hit on the
+-- first real project, 2026-09-09). The enum's labels never change, so the
+-- cast is wrapped in a function declared immutable.
+create or replace function research.platform_text(p research.platform)
+returns text language sql immutable strict as $$ select p::text $$;
+
 create table research.crawls (
   id uuid primary key default gen_random_uuid(),
   platform research.platform not null,
@@ -78,7 +85,7 @@ create table research.title_observations (
   crawl_id uuid not null references research.crawls(id) on delete cascade,
   platform research.platform not null,
   platform_id text not null,
-  key text generated always as (platform::text || '-' || platform_id) stored,
+  key text generated always as (research.platform_text(platform) || '-' || platform_id) stored,
   title text not null,
   blurb text not null default '',
   cover text,
