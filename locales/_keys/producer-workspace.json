@@ -1,1274 +1,320 @@
 {
-  "v3.breadcrumbs": {
-    "en": "Breadcrumbs",
-    "zh": "页面路径"
-  },
-  "v3.complete": {
-    "en": "Complete",
-    "zh": "已完成"
-  },
-  "v3.episode.stages": {
-    "en": "Episode stages",
-    "zh": "单集阶段"
-  },
-  "v3.episode.workspace": {
-    "en": "Episode workspace",
-    "zh": "单集工作台"
-  },
-  "v3.nav.episode": {
-    "en": "Episode studio",
-    "zh": "单集工作室"
-  },
-  "v3.nav.library": {
-    "en": "Drama library",
-    "zh": "剧集库"
-  },
-  "v3.nav.newTitle": {
-    "en": "New drama",
-    "zh": "上传新剧"
-  },
-  "v3.nav.title": {
-    "en": "Title workspace",
-    "zh": "剧集工作台"
-  },
-  "v3.primaryNav": {
-    "en": "Primary navigation",
-    "zh": "主导航"
-  },
-  "v3.role.producer": {
-    "en": "Producer",
-    "zh": "制片方"
-  },
-  "v3.stage.script": {
-    "en": "Script adaptation",
-    "zh": "台词改编"
-  },
-  "v3.stage.timingDelivery": {
-    "en": "Timing & delivery",
-    "zh": "对轴与交付"
-  },
-  "v3.version.draft": {
-    "en": "Working draft",
-    "zh": "工作草稿"
-  },
-  "v3.version.final": {
-    "en": "Finalized",
-    "zh": "已定稿"
-  },
-  "v3.workspace": {
-    "en": "Producer workspace",
-    "zh": "制片方工作台"
-  },
-  "v3.line.save": {
-    "en": "Save line",
-    "zh": "保存本句"
-  },
-  "v3.line.saved": {
-    "en": "Line saved",
-    "zh": "本句已保存"
-  },
-  "v3.finalize.cta": {
-    "en": "Finalize",
-    "zh": "定稿"
-  },
-  "v3.finalize.go": {
-    "en": "Confirm finalize",
-    "zh": "确认定稿"
-  },
-  "v3.finalize.submitted": {
-    "en": "Finalize as submitted",
-    "zh": "按提交版本定稿"
-  },
-  "v3.revise.cta": {
-    "en": "Create a new draft",
-    "zh": "创建新修订稿"
-  },
-  "v3.revise.help": {
-    "en": "The approved version stays archived. Your edits continue in a new version.",
-    "zh": "已批准版本会保留存档，新的修改将在新版本中继续。"
-  },
-  "pw.alts.cta": {
-    "en": "Try another way",
-    "zh": "换个说法"
-  },
-  "pw.alts.none": {
-    "en": "No more alternatives for this line.",
-    "zh": "这句暂无更多备选。"
-  },
-  "pw.ep.back": {
-    "en": "Back to title",
-    "zh": "返回剧集"
-  },
-  "pw.ep.sub": {
-    "en": "Original on top, adaptation below; every change explains itself.",
-    "zh": "原文在上，改编在下；每一处改动都写明了理由。"
-  },
-  "pw.epStatus.adapting": {
-    "en": "Adapting",
-    "zh": "改编中"
-  },
-  "pw.epStatus.approved": {
-    "en": "Finalized",
-    "zh": "已定稿"
-  },
-  "pw.epStatus.in_review": {
-    "en": "Awaiting review",
-    "zh": "待审核"
-  },
-  "pw.epStatus.ingested": {
-    "en": "Not started",
-    "zh": "待改编"
-  },
-  "pw.export.csv": {
-    "en": "CSV",
-    "zh": "CSV"
-  },
-  "pw.export.diff": {
-    "en": "Bilingual diff",
-    "zh": "双语对照"
-  },
-  "pw.export.hint": {
-    "en": "Export the finalized files any time",
-    "zh": "定稿文件可随时导出"
-  },
-  "pw.export.srt": {
-    "en": "English SRT",
-    "zh": "英文字幕 SRT"
-  },
-  "pw.final.banner": {
-    "en": "This episode is finalized and archived",
-    "zh": "本集已定稿并存档"
-  },
-  "pw.finalize.blocked": {
-    "en": "Confirm every scene first",
-    "zh": "请先确认所有场景"
-  },
-  "pw.finalize.confirm": {
-    "en": "Save this version as final? Later edits will start a new draft and keep this approved version intact.",
-    "zh": "将当前版本定稿？后续编辑将创建新草稿，保留此已批准版本。"
-  },
-  "pw.finalize.cta": {
-    "en": "Finalize episode",
-    "zh": "确认定稿"
-  },
-  "pw.finalize.go": {
-    "en": "Yes, finalize",
-    "zh": "确定定稿"
-  },
-  "pw.gen.body": {
-    "en": "The AI rewrites each line in natural American English — not a translation, but a rewrite of rhythm and tone for U.S. viewers. Every change carries a Chinese explanation, and you can edit any line afterwards.",
-    "zh": "AI 将逐句改写为地道的美式表达——不是翻译，而是为美国观众重写台词的节奏与语气。每一处改动都附中文说明，生成后您可以逐句修改。"
-  },
-  "pw.gen.cta": {
-    "en": "Generate U.S. adaptation",
-    "zh": "一键生成美式改编"
-  },
-  "pw.gen.hint": {
-    "en": "{n} lines in this episode",
-    "zh": "本集共 {n} 句台词"
-  },
-  "pw.gen.step1": {
-    "en": "Parsing the script and timecodes",
-    "zh": "解析剧本与时间码"
-  },
-  "pw.gen.step2": {
-    "en": "Understanding the story and characters",
-    "zh": "理解剧情与人物"
-  },
-  "pw.gen.step3": {
-    "en": "Adapting each line for U.S. viewers",
-    "zh": "逐句改编为美式表达"
-  },
-  "pw.gen.step4": {
-    "en": "Writing back-translations and rationale",
-    "zh": "生成回译与改编说明"
-  },
-  "pw.gen.title": {
-    "en": "Generate the U.S. adaptation",
-    "zh": "生成美式改编"
-  },
-  "pw.gen.unmatched": {
-    "en": "{n} line(s) have no pre-authored translation (demo mode covers the bundled scripts only).",
-    "zh": "有 {n} 句暂无预置译文（演示模式仅覆盖内置剧本）。"
-  },
-  "pw.home.episodes": {
-    "en": "{n} episodes",
-    "zh": "{n} 集"
-  },
-  "pw.home.new": {
-    "en": "New title",
-    "zh": "新建剧集"
-  },
-  "pw.home.percent": {
-    "en": "{pct}% adapted",
-    "zh": "已改编 {pct}%"
-  },
-  "pw.home.sub": {
-    "en": "Localize subtitles, refine the English adaptation, and deliver timed files.",
-    "zh": "上传字幕，生成自然的英文改编，校准时间轴并交付。"
-  },
-  "pw.home.title": {
-    "en": "My titles",
-    "zh": "作品管理"
-  },
-  "pw.line.back": {
-    "en": "Back-translation",
-    "zh": "回译"
-  },
-  "pw.line.cut": {
-    "en": "(line cut)",
-    "zh": "（此句删去）"
-  },
-  "pw.line.edited": {
-    "en": "Edited",
-    "zh": "已修改"
-  },
-  "pw.line.enLabel": {
-    "en": "English line",
-    "zh": "英文台词"
-  },
-  "pw.line.major": {
-    "en": "Major change",
-    "zh": "重大改动"
-  },
-  "pw.line.pending": {
-    "en": "This line has not been adapted yet.",
-    "zh": "此句尚未改编。"
-  },
-  "pw.line.blank": {
-    "en": "(English not written yet)",
-    "zh": "（英文待填写）"
-  },
-  "pw.new.creating": {
-    "en": "Creating the title…",
-    "zh": "正在创建剧集…"
-  },
-  "pw.new.cta": {
-    "en": "Add title",
-    "zh": "新增作品"
-  },
-  "pw.new.genre": {
-    "en": "Genre (optional)",
-    "zh": "题材（选填）"
-  },
-  "pw.new.genreHint": {
-    "en": "e.g. Romance · mini drama",
-    "zh": "例如：爱情 · 微短剧"
-  },
-  "pw.new.info": {
-    "en": "Title info",
-    "zh": "剧集信息"
-  },
-  "pw.new.nameEn": {
-    "en": "English name (optional)",
-    "zh": "英文名（可选）"
-  },
-  "pw.new.nameZh": {
-    "en": "Chinese title (required)",
-    "zh": "中文剧名（必填）"
-  },
-  "pw.new.notes": {
-    "en": "Character notes (optional)",
-    "zh": "人物设定（可选）"
-  },
-  "pw.new.notesHint": {
-    "en": "Main characters' names, roles and relationships; the adaptation uses this.",
-    "zh": "主要角色的姓名、身份与关系，改编时会参考。"
-  },
-  "pw.new.sub": {
-    "en": "Add a drama series to your catalog. Only its Chinese name is required. You can upload episode videos and subtitles now or add them later.",
-    "zh": "将短剧加入剧库，只需填写中文剧名。分集视频和字幕可以现在上传，也可以稍后补充。"
-  },
-  "pw.new.synopsis": {
-    "en": "Synopsis (optional)",
-    "zh": "剧情简介（可选）"
-  },
-  "pw.new.title": {
-    "en": "New title",
-    "zh": "新建剧集"
-  },
-  "pw.new.uploadingEp": {
-    "en": "Uploading episode {n}…",
-    "zh": "正在上传第 {n} 集…"
-  },
-  "pw.progress": {
-    "en": "{x} / {n} scenes confirmed",
-    "zh": "已确认 {x} / {n} 场"
-  },
-  "pw.scene.confirm": {
-    "en": "Confirm scene {n}",
-    "zh": "确认第 {n} 场"
-  },
-  "pw.scene.confirmed": {
-    "en": "Confirmed",
-    "zh": "已确认"
-  },
-  "pw.scene.editing": {
-    "en": "To confirm",
-    "zh": "待确认"
-  },
-  "pw.scene.n": {
-    "en": "Scene {n}",
-    "zh": "第 {n} 场"
-  },
-  "pw.scene.reopen": {
-    "en": "Reopen",
-    "zh": "重新修改"
-  },
-  "pw.steps.confirm": {
-    "en": "Review & edit",
-    "zh": "审阅修改"
-  },
-  "pw.steps.final": {
-    "en": "Finalized",
-    "zh": "定稿"
-  },
-  "pw.steps.generate": {
-    "en": "AI adaptation",
-    "zh": "AI 改编"
-  },
-  "pw.steps.label": {
-    "en": "Workflow",
-    "zh": "流程"
-  },
-  "pw.steps.upload": {
-    "en": "Upload script",
-    "zh": "上传剧本"
-  },
-  "pw.title.continue": {
-    "en": "Continue editing subtitles",
-    "zh": "继续编辑字幕"
-  },
-  "pw.title.lines": {
-    "en": "English lines ready: {done} / {total}",
-    "zh": "已完成英文台词：{done} / {total}"
-  },
-  "pw.title.noEpisodes": {
-    "en": "No episodes yet. Add video or subtitles below.",
-    "zh": "暂无分集，请在下方添加视频或字幕。"
-  },
-  "pw.title.review": {
-    "en": "Review English subtitles",
-    "zh": "审阅英文字幕"
-  },
-  "pw.title.start": {
-    "en": "Adapt English subtitles",
-    "zh": "改编英文字幕"
-  },
-  "pw.title.view": {
-    "en": "View",
-    "zh": "查看"
-  },
-  "pw.upload.addRow": {
-    "en": "Add another episode",
-    "zh": "再加一集"
-  },
-  "pw.upload.cta": {
-    "en": "Upload",
-    "zh": "上传"
-  },
-  "pw.upload.done": {
-    "en": "Imported",
-    "zh": "已导入"
-  },
-  "pw.upload.episodeN": {
-    "en": "Episode",
-    "zh": "集数"
-  },
-  "pw.upload.file": {
-    "en": "Script / subtitle file",
-    "zh": "剧本 / 字幕文件"
-  },
-  "pw.upload.hint": {
-    "en": "SRT / VTT / ASS subtitle files or a TXT script; one file per episode.",
-    "zh": "支持 SRT / VTT / ASS 字幕文件或 TXT 剧本；一集一个文件。"
-  },
-  "pw.upload.title": {
-    "en": "Upload scripts",
-    "zh": "上传剧本"
-  },
-  "pw.upload.uploading": {
-    "en": "Uploading…",
-    "zh": "上传中…"
-  },
-  "pw.review.banner": {
-    "zh": "Pulsar 已提交这一版。您可以直接定稿，或自己修改后再定稿。",
-    "en": "Pulsar submitted this version. Finalize it as is, or edit it yourself first."
-  },
-  "pw.review.editMyself": {
-    "zh": "自己修改",
-    "en": "Edit it myself"
-  },
-  "pw.alts.suggested": {
-    "zh": "备选说法——点击即可替换",
-    "en": "Suggested alternatives — tap to use one"
-  },
-  "pw.panel.title": {
-    "zh": "审阅与修改",
-    "en": "Review & edit"
-  },
-  "pw.cmd.confirm.title": {
-    "zh": "还有 {n} 场待确认",
-    "en": "{n} scene(s) left to confirm"
-  },
-  "pw.cmd.confirm.body": {
-    "zh": "点击任意时间码审阅译文——需要就直接改，或换一个说法；每场确认后即可定稿。",
-    "en": "Click any timestamp to review a line — edit it directly or take an alternative; confirm each scene, then finalize."
-  },
-  "pw.cmd.ready.title": {
-    "zh": "可以定稿了",
-    "en": "Ready to finalize"
-  },
-  "pw.cmd.ready.body": {
-    "zh": "所有场景已确认。定稿后本集冻结存档，可随时导出。",
-    "en": "Every scene is confirmed. Finalizing freezes and archives this episode; export any time."
-  },
-  "pw.cmd.review.title": {
-    "zh": "Pulsar 已提交这一版",
-    "en": "Pulsar submitted this version"
-  },
-  "pw.cmd.review.body": {
-    "zh": "您可以直接定稿，或自己修改后再定稿。",
-    "en": "Finalize it as is, or edit it yourself first."
-  },
-  "pw.cmd.done.title": {
-    "zh": "本集已定稿",
-    "en": "This episode is finalized"
-  },
-  "pw.cmd.done.body": {
-    "zh": "内容已冻结存档，右侧可导出定稿文件。",
-    "en": "Content is frozen and archived; export the finalized files on the right."
-  },
-  "pw.count.confirmed": {
-    "zh": "已确认 {x} / {n} 场",
-    "en": "{x} / {n} scenes confirmed"
-  },
-  "pw.count.edited": {
-    "zh": "已修改 {n} 句",
-    "en": "{n} lines edited"
-  },
-  "pw.count.major": {
-    "zh": "重大改动 {n} 处",
-    "en": "{n} major changes"
-  },
-  "pw.scene.savedConfirm": {
-    "zh": "第 {n} 场已确认",
-    "en": "Scene {n} confirmed"
-  },
-  "pw.alts.used": {
-    "zh": "已替换为所选说法",
-    "en": "Replaced with the selected version"
-  },
-  "pw.panel.editLabel": {
-    "zh": "英文台词——可直接修改",
-    "en": "English line — edit it directly"
-  },
-  "pw.alts.view": {
-    "zh": "查看备选说法",
-    "en": "View alternatives"
-  },
-  "pw.alts.hide": {
-    "zh": "收起备选",
-    "en": "Hide alternatives"
-  },
-  "pw.confirm.cta": {
-    "zh": "确认修改",
-    "en": "Confirm changes"
-  },
-  "pw.confirm.done": {
-    "zh": "已更新，左侧剧本已同步。",
-    "en": "Updated — the script on the left reflects it."
-  },
-  "pw.confirm.hint": {
-    "zh": "修改或选中备选后，点击“保存本句”生效。",
-    "en": "Edit the line or pick an alternative, then Save line to apply."
-  },
-  "pw.confirm.clean": {
-    "zh": "可直接修改上方英文，或查看备选说法。",
-    "en": "Edit the English above, or view the alternatives."
-  },
-  "pw.upload.video": {
-    "zh": "视频（可选）",
-    "en": "Video (optional)"
-  },
-  "pw.video.attach": {
-    "zh": "上传视频",
-    "en": "Upload video"
-  },
-  "pw.video.replace": {
-    "zh": "更换视频",
-    "en": "Replace video"
-  },
-  "pw.video.uploading": {
-    "zh": "视频上传中…",
-    "en": "Uploading video…"
-  },
-  "pw.video.attached": {
-    "zh": "视频已就绪。",
-    "en": "Video attached."
-  },
-  "pw.col.original": {
-    "zh": "原文",
-    "en": "Original"
-  },
-  "pw.col.adapted": {
-    "zh": "改编",
-    "en": "Adapted"
-  },
-  "pw.cmd2.lines.title": {
-    "zh": "还有 {n} 句待改编",
-    "en": "{n} line(s) left to adapt"
-  },
-  "pw.cmd2.lines.body": {
-    "zh": "点击任意时间码：直接改英文，或换一个说法。全部就绪后即可定稿。",
-    "en": "Click any timestamp — edit the English directly or take an alternative. Finalize once every line is ready."
-  },
-  "pw.cmd2.ready.body": {
-    "zh": "全部台词已改编。定稿后即可导出英文剧本与带字幕视频。",
-    "en": "Every line is adapted. Finalize to export the English script and the subtitled video."
-  },
-  "pw.cmd2.done.body": {
-    "zh": "内容已冻结存档。右侧可下载英文剧本与带字幕视频。",
-    "en": "Frozen and archived. Download the English script and the subtitled video from the rail."
-  },
-  "pw.count.lines": {
-    "zh": "已改编 {x} / {n} 句",
-    "en": "{x} / {n} lines adapted"
-  },
-  "pw.finalize.blocked2": {
-    "zh": "请先完成所有台词的改编",
-    "en": "Adapt every line first"
-  },
-  "pw.export.script": {
-    "zh": "下载英文剧本",
-    "en": "Download English script"
-  },
-  "pw.subvid.cta": {
-    "zh": "下载带字幕视频",
-    "en": "Download subtitled video"
-  },
-  "pw.subvid.busy": {
-    "zh": "字幕合成中…",
-    "en": "Rendering subtitles…"
-  },
-  "pw.subvid.done": {
-    "zh": "已生成带字幕视频（{n} 句），已在新窗口打开。",
-    "en": "Subtitled video ready ({n} cues) — opened in a new tab."
-  },
-  "pw.upload.title2": {
-    "zh": "添加剧集",
-    "en": "Add episodes"
-  },
-  "pw.upload.hint2": {
-    "zh": "一集一行：填集数，选这一集的字幕/剧本文件，视频可选。",
-    "en": "One row per episode: set the number, pick that episode's subtitle/script file; video optional."
-  },
-  "qc.title": {
-    "zh": "交付预检",
-    "en": "Delivery preflight"
-  },
-  "qc.pass": {
-    "zh": "全部通过（{n} 句已检查）",
-    "en": "All clear ({n} lines checked)"
-  },
-  "qc.errors": {
-    "zh": "必须修复：{n}",
-    "en": "Must fix: {n}"
-  },
-  "qc.warnings": {
-    "zh": "建议优化：{n}",
-    "en": "Suggestions: {n}"
-  },
-  "qc.missing_translation": {
-    "zh": "缺少英文改编",
-    "en": "Missing translation"
-  },
-  "qc.empty_line": {
-    "zh": "英文为空",
-    "en": "Empty English line"
-  },
-  "qc.reading_speed": {
-    "zh": "阅读速度 {value} 字符/秒（上限 {limit}）",
-    "en": "Reading speed {value} cps (limit {limit})"
-  },
-  "qc.line_too_long": {
-    "zh": "单行 {value} 字符（建议 ≤ {limit}）",
-    "en": "{value} chars on one line (≤ {limit} advised)"
-  },
-  "qc.too_many_lines": {
-    "zh": "{value} 行字幕（上限 {limit} 行）",
-    "en": "{value} rendered lines (limit {limit})"
-  },
-  "qc.cue_too_short": {
-    "zh": "字幕仅 {value} 毫秒",
-    "en": "Cue only {value}ms"
-  },
-  "qc.cue_too_long": {
-    "zh": "字幕长达 {value} 毫秒",
-    "en": "Cue runs {value}ms"
-  },
-  "qc.overlap": {
-    "zh": "与上一句重叠 {value} 毫秒",
-    "en": "Overlaps previous cue by {value}ms"
-  },
-  "qc.tiny_gap": {
-    "zh": "与上一句间隔仅 {value} 毫秒",
-    "en": "Only {value}ms gap after previous cue"
-  },
-  "qc.missing_rationale": {
-    "zh": "缺少改编说明",
-    "en": "Missing rationale"
-  },
-  "qc.name_inconsistent": {
-    "zh": "人名写法不一致（{detail}）",
-    "en": "Name spelling drifts ({detail})"
-  },
-  "pw.upload.hint3": {
-    "zh": "现在可暂不上传文件。制作广告需要分集视频；改编英文字幕需要剧本或字幕文件。相同集数的文件名（如 ep1.mp4 和 ep1.srt）会分到同一集。",
-    "en": "Files are optional now. Ad generation needs episode video; English subtitle adaptation needs a script or subtitle file. Matching filenames, such as ep1.mp4 and ep1.srt, go into the same episode."
-  },
-  "pw.upload.pick": {
-    "zh": "把所有文件拖到这里，或点击选择",
-    "en": "Drop all your files here, or click to choose"
-  },
-  "pw.upload.pickHint": {
-    "zh": "字幕和视频一起拖：按文件名自动归到对应剧集（第1集.srt、第1集.mp4 …）",
-    "en": "Subtitles and videos together — matched to episodes by filename (ep1.srt, ep1.mp4 …)"
-  },
-  "pw.upload.ctaN": {
-    "zh": "创建 {n} 集",
-    "en": "Create {n} episode(s)"
-  },
-  "pw.upload.remove": {
-    "zh": "移除",
-    "en": "Remove"
-  },
-  "pw.upload.dupe": {
-    "zh": "集数重复",
-    "en": "Duplicate episode number"
-  },
-  "pw.slots.count": {
-    "zh": "本次上传几集？",
-    "en": "Episodes in this batch"
-  },
-  "pw.slots.ep": {
-    "zh": "第",
-    "en": "Ep"
-  },
-  "pw.slots.sub": {
-    "zh": "字幕 / 剧本（可稍后补）",
-    "en": "Subtitles / script (can add later)"
-  },
-  "pw.slots.missingSub": {
-    "zh": "这一集还缺字幕文件",
-    "en": "This episode still needs its subtitle file"
-  },
-  "pw.slots.epSuffix": {
-    "zh": "集",
-    "en": ""
-  },
-  "pw.gen.nomatch": {
-    "zh": "这部剧本不在演示语料中，演示模式无法自动改编。请联系 Pulsar 为您的工作区开启 AI 改编。",
-    "en": "This script isn't in the demo bank, so demo mode can't adapt it. Ask Pulsar to enable AI adaptation for your workspace."
-  },
-  "pw.gen.elapsed": {
-    "zh": "已用 {t}",
-    "en": "Elapsed {t}"
-  },
-  "pw.gen.remaining": {
-    "zh": "预计还需约 {t}",
-    "en": "about {t} remaining (est.)"
-  },
-  "pw.gen.overrun": {
-    "zh": "比预计更久，仍在生成…",
-    "en": "taking longer than estimated — still generating…"
-  },
-  "st.back": {
-    "zh": "返回剧集工作台",
-    "en": "Back to episode studio"
-  },
-  "st.stage": {
-    "zh": "字幕制作",
-    "en": "Subtitle studio"
-  },
-  "st.notFinal.pill": {
-    "zh": "剧本未定稿",
-    "en": "Script not finalized"
-  },
-  "st.notFinal.title": {
-    "zh": "先定稿剧本，再制作字幕",
-    "en": "Finalize the script first, then style the subtitles"
-  },
-  "st.notFinal.body": {
-    "zh": "字幕基于定稿后的英文剧本制作，这样改动不会再影响成片。回到剧集工作台完成审阅并定稿，这里就会解锁。",
-    "en": "Subtitles are built from the frozen, finalized script so later edits can't drift into the delivered video. Finish reviewing and finalize in the episode studio, and this page unlocks."
-  },
-  "st.notFinal.cta": {
-    "zh": "回到剧集工作台",
-    "en": "Go to the episode studio"
-  },
-  "st.untimed.title": {
-    "zh": "这一集没有时间轴",
-    "en": "This episode has no timecodes"
-  },
-  "st.untimed.body": {
-    "zh": "字幕需要每句台词的起止时间。这一集是纯文本剧本（或没有可用台词），无法生成字幕；上传 SRT/VTT/ASS 字幕文件的剧集才支持。英文剧本报告仍可下载。",
-    "en": "Subtitles need a start and end time for every line. This episode came from a plain-text script (or has no usable lines), so cues can't be generated — episodes ingested from SRT/VTT/ASS files support subtitles. The English script report is still available."
-  },
-  "st.noVideo": {
-    "zh": "未上传视频 — 预览以样式示意",
-    "en": "No video attached — previewing style only"
-  },
-  "st.cues": {
-    "zh": "字幕轴",
-    "en": "Cue sheet"
-  },
-  "st.cues.hint": {
-    "zh": "{n} 条字幕 · 点击跳转",
-    "en": "{n} cues · click to seek"
-  },
-  "st.style": {
-    "zh": "字幕样式",
-    "en": "Subtitle style"
-  },
-  "st.style.hint": {
-    "zh": "所见即所得，成片同款",
-    "en": "Styled live — the burn matches"
-  },
-  "st.layout": {
-    "zh": "内容",
-    "en": "Content"
-  },
-  "st.layout.en": {
-    "zh": "仅英文",
-    "en": "English only"
-  },
-  "st.layout.enzh": {
-    "zh": "中英双语",
-    "en": "English + Chinese"
-  },
-  "st.font": {
-    "zh": "字体",
-    "en": "Font"
-  },
-  "st.font.sans": {
-    "zh": "无衬线",
-    "en": "Sans"
-  },
-  "st.font.serif": {
-    "zh": "衬线",
-    "en": "Serif"
-  },
-  "st.size": {
-    "zh": "字号",
-    "en": "Size"
-  },
-  "st.size.s": {
-    "zh": "小",
-    "en": "S"
-  },
-  "st.size.m": {
-    "zh": "中",
-    "en": "M"
-  },
-  "st.size.l": {
-    "zh": "大",
-    "en": "L"
-  },
-  "st.deliver": {
-    "zh": "交付",
-    "en": "Deliver"
-  },
-  "st.deliver.hint": {
-    "zh": "成片与字幕文件",
-    "en": "The video and the files"
-  },
-  "st.render.cta": {
-    "zh": "生成带字幕视频",
-    "en": "Render subtitled video"
-  },
-  "st.render.busy": {
-    "zh": "渲染中… {t}",
-    "en": "Rendering… {t}"
-  },
-  "st.render.failed": {
-    "zh": "视频渲染失败：{detail}",
-    "en": "Video render failed: {detail}"
-  },
-  "st.render.note": {
-    "zh": "一分钟 720p 视频约需 20–40 秒。",
-    "en": "About 20–40s for a minute of 720p."
-  },
-  "st.render.download": {
-    "zh": "下载带字幕视频（{n} 条字幕）",
-    "en": "Download subtitled video ({n} cues)"
-  },
-  "st.render.noVideo": {
-    "zh": "这一集还没有视频：回剧集工作台上传后，即可在此渲染带字幕成片。SRT/VTT 文件不受影响，可直接下载。",
-    "en": "No video on this episode yet — attach one in the episode studio to render the burned video here. The SRT/VTT files below work regardless."
-  },
-  "st.dl.srt": {
-    "zh": "下载 SRT 字幕",
-    "en": "Download SRT"
-  },
-  "st.dl.vtt": {
-    "zh": "下载 VTT 字幕",
-    "en": "Download VTT"
-  },
-  "pw.steps.subs": {
-    "zh": "字幕交付",
-    "en": "Subtitles & delivery"
-  },
-  "pw.title.subs": {
-    "zh": "制作字幕",
-    "en": "Make subtitles"
-  },
-  "st.retime.body": {
-    "zh": "检测到每句台词开头带有 [时:分:秒] 时间戳 —— 这是修复前的导入把时间码留在了文本里。一键修复即可提取时间轴（结束时间取自下一句），若该集已定稿会自动重新定稿。",
-    "en": "Each line here starts with an [hh:mm:ss] stamp — an earlier ingest left the timecodes inside the text. One click lifts them into a real timeline (end times from the following line) and, if this episode was finalized, refinalizes it automatically."
-  },
-  "st.retime.cta": {
-    "zh": "修复时间轴",
-    "en": "Repair the timeline"
-  },
-  "st.retime.review": {
-    "zh": "时间轴已修复，但质检发现需要处理的问题：请回剧集工作台检查后重新定稿。",
-    "en": "Timeline repaired, but QC found issues to address — review in the episode studio, then finalize again."
-  },
-  "qc.fix.busy": {
-    "zh": "AI 修复中…",
-    "en": "AI fixing…"
-  },
-  "qc.fix.done": {
-    "zh": "已修复 {n} 处；剩余 {m} 处必须修复。",
-    "en": "Fixed {n}; {m} must-fix issue(s) remain."
-  },
-  "pw.alts.busyN": {
-    "zh": "生成备选 {i}/2…",
-    "en": "Writing option {i}/2…"
-  },
-  "st.t.panel": {
-    "zh": "时间轴",
-    "en": "Timing"
-  },
-  "st.t.panelHint": {
-    "zh": "全局偏移与逐句微调",
-    "en": "Global offset and per-cue trim"
-  },
-  "st.t.offset": {
-    "zh": "全局偏移（毫秒）",
-    "en": "Global offset (ms)"
-  },
-  "st.t.exact": {
-    "zh": "精确毫秒…",
-    "en": "Exact ms…"
-  },
-  "st.t.offsetPending": {
-    "zh": "待应用：{v} 毫秒",
-    "en": "Pending: {v} ms"
-  },
-  "st.t.offsetNone": {
-    "zh": "无待应用偏移",
-    "en": "No pending offset"
-  },
-  "st.t.offsetHint": {
-    "zh": "负值让所有字幕提前（画面说话早于字幕时用负值）。应用后立即生效，且只应用一次。",
-    "en": "Negative shifts every subtitle earlier (use negative when the audio runs ahead of the subs). Applied once, immediately."
-  },
-  "st.t.offsetApply": {
-    "zh": "应用偏移",
-    "en": "Apply offset"
-  },
-  "st.t.offsetDone": {
-    "zh": "时间轴已整体平移。",
-    "en": "Timeline shifted."
-  },
-  "st.t.cue": {
-    "zh": "选中字幕",
-    "en": "Selected cue"
-  },
-  "st.t.pickCue": {
-    "zh": "先在下方字幕表里点一句台词，再回到这里调整它的出现和消失时间。",
-    "en": "Click a line in the cue sheet below first - then adjust when it appears and disappears here."
-  },
-  "st.t.start": {
-    "zh": "开始 (ms)",
-    "en": "Start (ms)"
-  },
-  "st.t.end": {
-    "zh": "结束 (ms)",
-    "en": "End (ms)"
-  },
-  "st.t.dur": {
-    "zh": "时长 {t}",
-    "en": "Duration {t}"
-  },
-  "st.t.setStart": {
-    "zh": "从当前画面开始",
-    "en": "Start at this frame"
-  },
-  "st.t.setEnd": {
-    "zh": "到当前画面结束",
-    "en": "End at this frame"
-  },
-  "st.t.resetCue": {
-    "zh": "撤销本句",
-    "en": "Undo this cue"
-  },
-  "st.t.resetAll": {
-    "zh": "全部撤销",
-    "en": "Undo all"
-  },
-  "st.t.save": {
-    "zh": "保存时间轴（{n} 句）",
-    "en": "Save timing ({n} cue(s))"
-  },
-  "st.t.saved": {
-    "zh": "时间轴已保存。",
-    "en": "Timing saved."
-  },
-  "st.t.keys": {
-    "zh": "快捷键：, 和 . 移动选中句 ∓100ms；按住 Shift 为 500ms。",
-    "en": "Keys: , and . nudge the selected cue by 100 ms; hold Shift for 500 ms."
-  },
-  "st.t.warn.overlap": {
-    "zh": "第 {n} 句与上一句重叠 {v} 毫秒",
-    "en": "Cue {n} overlaps the previous by {v} ms"
-  },
-  "st.t.warn.reversed": {
-    "zh": "第 {n} 句结束早于开始",
-    "en": "Cue {n} ends before it starts"
-  },
-  "st.t.warn.too_short": {
-    "zh": "第 {n} 句仅 {v} 毫秒",
-    "en": "Cue {n} lasts only {v} ms"
-  },
-  "st.t.warn.beyond_video": {
-    "zh": "第 {n} 句超出视频 {v} 毫秒",
-    "en": "Cue {n} runs {v} ms past the video"
-  },
-  "st.t.loop": {
-    "zh": "循环本句",
-    "en": "Loop cue"
-  },
-  "st.t.before": {
-    "zh": "提前 2 秒播放",
-    "en": "Play from 2s before"
-  },
-  "st.t.speed": {
-    "zh": "速度",
-    "en": "Speed"
-  },
-  "st.t.autosync": {
-    "zh": "从音频自动对轴",
-    "en": "Auto-sync from audio"
-  },
-  "st.t.autosyncOff": {
-    "zh": "暂不可用——请联系 Pulsar 为您的工作区开通自动对轴。",
-    "en": "Not available yet — contact Pulsar to enable auto-sync for your workspace."
-  },
-  "st.t.proposals": {
-    "zh": "建议调整 {n} 处",
-    "en": "{n} proposed change(s)"
-  },
-  "st.t.acceptAll": {
-    "zh": "全部接受",
-    "en": "Accept all"
-  },
-  "st.t.accept": {
-    "zh": "接受",
-    "en": "Accept"
-  },
-  "st.t.reject": {
-    "zh": "忽略",
-    "en": "Reject"
-  },
-  "st.t.conf": {
-    "zh": "置信 {v}%",
-    "en": "conf {v}%"
-  },
-  "st.t.applyProposals": {
-    "zh": "把接受的调整加入待保存",
-    "en": "Stage accepted changes"
-  },
-  "v3.subtitle.workspace": {
-    "zh": "字幕工作区",
-    "en": "Subtitle workspace"
-  },
-  "v3.subtitle.timing": {
-    "zh": "时间轴",
-    "en": "Timing"
-  },
-  "v3.subtitle.delivery": {
-    "zh": "样式与交付",
-    "en": "Style & delivery"
-  },
-  "v3.subtitle.timingHint": {
-    "zh": "调整字幕出现时间并解决时间轴问题",
-    "en": "Adjust cue timing and resolve timeline issues"
-  },
-  "v3.subtitle.deliveryHint": {
-    "zh": "预览字幕样式并导出最终文件",
-    "en": "Preview subtitle styling and export final files"
-  },
-  "v3.library.kicker": {
-    "zh": "本地化项目",
-    "en": "Localization projects"
-  },
-  "v3.title.workspace": {
-    "zh": "剧集工作区",
-    "en": "Series workspace"
-  },
-  "v3.title.overview": {
-    "zh": "项目概览",
-    "en": "Project overview"
-  },
-  "v3.title.progress": {
-    "zh": "字幕已定稿",
-    "en": "Subtitles finalized"
-  },
-  "v3.title.approvedCount": {
-    "zh": "{done} / {total} 集",
-    "en": "{done} of {total} episodes"
-  },
-  "v3.title.inProgress": {
-    "zh": "处理中",
-    "en": "In progress"
-  },
-  "v3.title.episodes": {
-    "zh": "剧集",
-    "en": "Episodes"
-  },
-  "v3.title.actionHint": {
-    "zh": "此处状态表示字幕准备进度，与广告审批无关。",
-    "en": "These statuses track subtitle preparation, not ad approval."
-  },
-  "v3.title.addEpisodes": {
-    "zh": "添加剧集",
-    "en": "Add episodes"
-  },
-  "v3.title.addEpisodesHint": {
-    "zh": "上传新的字幕或视频文件",
-    "en": "Upload new subtitle or video files"
-  },
-  "v3.done.next": {
-    "zh": "下一步：时间轴与交付",
-    "en": "Next: timing and delivery"
-  },
-  "v3.done.body": {
-    "zh": "台词已定稿。需要更改可创建新修订稿；要继续，请打开上方的对轴与交付。",
-    "en": "The script is finalized. Create a new draft to revise it, or continue in Timing & delivery above."
-  },
-  "qc.fix.progress": {
-    "zh": "修复中 {i}/{n}（第 {p} 轮）",
-    "en": "Fixing {i}/{n} (pass {p})"
-  },
-  "qc.fix.allclear": {
-    "zh": "已修复 {n} 处，预检全部通过。",
-    "en": "Fixed {n} - preflight is all clear."
-  },
-  "pw.alts.picked": {
-    "zh": "已填入所选备选，点击下方保存按钮确认。",
-    "en": "Alternative applied - press the save button below to confirm."
-  },
-  "qc.fix.none": {
-    "zh": "AI 修复 — 目前没有可修复项",
-    "en": "Fix with AI - nothing to fix right now"
-  },
-  "qc.fix.all": {
-    "zh": "AI 修复全部",
-    "en": "Fix all with AI"
-  },
-  "qc.fix.polishAll": {
-    "zh": "AI 润色全部建议",
-    "en": "Polish all suggestions with AI"
-  },
-  "qc.fix.row": {
-    "zh": "修复",
-    "en": "Fix"
-  },
-  "v3.goSubtitles": {
-    "zh": "前往字幕与交付",
-    "en": "Go to subtitles & delivery"
-  },
-  "st.acc.timing": {
-    "zh": "校准时间轴",
-    "en": "Fix the timing"
-  },
-  "st.acc.timing.sub": {
-    "zh": "字幕早了或晚了？在这里对齐",
-    "en": "Subtitles early or late? Line them up here"
-  },
-  "st.acc.style": {
-    "zh": "字幕样式",
-    "en": "Subtitle style"
-  },
-  "st.acc.style.sub": {
-    "zh": "内容、字体、大小、位置",
-    "en": "Content, font, size, position"
-  },
-  "st.acc.deliver": {
-    "zh": "下载与交付",
-    "en": "Download & deliver"
-  },
-  "st.acc.deliver.sub": {
-    "zh": "带字幕视频与字幕文件",
-    "en": "The subtitled video and the files"
-  },
-  "st.suggest.body": {
-    "zh": "字幕看起来整体偏晚：时间戳按整秒取整（抽帧提取的典型痕迹）。建议整体提前 0.5 秒。",
-    "en": "The subtitles look uniformly late: the timestamps are rounded to whole seconds (a frame-sampling artifact). Recommended: shift everything 0.5s earlier."
-  },
-  "st.suggest.cta": {
-    "zh": "一键提前 0.5 秒",
-    "en": "Shift 0.5s earlier"
-  },
-  "st.suggest.dismiss": {
-    "zh": "忽略",
-    "en": "Dismiss"
-  },
-  "st.t.cue2": {
-    "zh": "微调单句",
-    "en": "Fine-tune one line"
-  },
-  "st.t.cue.tip": {
-    "zh": "在下方字幕表点一句台词后，可在这里精确调整它出现和消失的时间。",
-    "en": "Click a line in the cue sheet below, then adjust exactly when it appears and disappears here."
-  },
-  "st.t.cueSel": {
-    "zh": "第 {n} 句",
-    "en": "Line {n}"
-  },
-  "st.t.setStart.tip": {
-    "zh": "把这一句的出现时间改为播放器当前时刻",
-    "en": "Make this line appear at the player's current moment"
-  },
-  "st.t.setEnd.tip": {
-    "zh": "把这一句的消失时间改为播放器当前时刻",
-    "en": "Make this line disappear at the player's current moment"
-  },
-  "st.t.offset.tip": {
-    "zh": "所有字幕一起提前或推后",
-    "en": "Shift every subtitle earlier or later together"
-  },
-  "st.t.loop.tip": {
-    "zh": "反复播放选中的这一句",
-    "en": "Replay the selected line on repeat"
-  },
-  "st.t.before.tip": {
-    "zh": "从选中句前 2 秒开始播放，听清入点",
-    "en": "Play from 2s before the selected line to hear the entry"
-  },
-  "st.pos": {
-    "zh": "位置",
-    "en": "Position"
-  },
-  "st.pos.bottom": {
-    "zh": "底部",
-    "en": "Bottom"
-  },
-  "st.pos.top": {
-    "zh": "顶部",
-    "en": "Top"
-  },
-  "st.merge": {
-    "zh": "短句合并双行",
-    "en": "Pair short lines"
-  },
-  "st.merge.hint": {
-    "zh": "相邻的两条短字幕合成上下两行同时显示，停留更久、闪烁更少。仅限纯英文内容。",
-    "en": "Two short neighboring cues display together as two rows - on screen longer, less flicker. English-only content."
-  },
-  "st.on": {
-    "zh": "开启",
-    "en": "On"
-  },
-  "st.off": {
-    "zh": "关闭",
-    "en": "Off"
-  },
-  "pw.alts.dir.title": {
-    "zh": "都不合适？换个方向再写一版",
-    "en": "Neither one? Take it another direction"
-  },
-  "pw.alts.dir.busy": {
-    "zh": "正在按「{tag}」的方向改写…",
-    "en": "Writing a take that leans {tag}…"
-  },
-  "pw.alts.dir.none": {
-    "zh": "该方向暂无新说法。",
-    "en": "Nothing new in that direction."
-  },
-  "pw.cmd.blocked.title": {
-    "zh": "还有 {n} 处必须修复",
-    "en": "{n} issue(s) to fix before finalizing"
-  },
-  "pw.cmd.blocked.body": {
-    "zh": "交付预检发现问题。用右侧的「修复」或「AI 修复全部」处理，完成后即可定稿。",
-    "en": "Preflight found blocking issues. Use Fix or Fix all with AI in the panel, then finalize."
-  },
-  "pw.cmd.explain.title": {
-    "zh": "还有 {n} 句缺少改编说明",
-    "en": "{n} line(s) missing their adaptation notes"
-  },
-  "pw.cmd.explain.body": {
-    "zh": "这些 AI 改写还没有中文说明或回译，暂时无法定稿。点击对应台词，改用备选说法或手动修改一次即可。",
-    "en": "These AI rewrites lack their Chinese rationale or back-translation, so finalize is held. Open each line and pick an alternative or edit it once by hand."
-  },
-  "pw.err.aiOff": {
-    "zh": "演示模式下无法使用 AI 改写。请联系 Pulsar 为您的工作区开启 AI 改编。",
-    "en": "AI rewriting is not available in demo mode. Contact Pulsar to enable AI adaptation for your workspace."
-  },
-  "qc.fix.timingDone": {
-    "zh": "已修正 {n} 处时间重叠。",
-    "en": "Fixed {n} overlapping cue(s)."
-  },
-  "qc.fix.timingRow": {
-    "zh": "修正时间",
-    "en": "Fix timing"
-  },
-  "pw.titleStatus.candidate": {
-    "zh": "新建",
-    "en": "New"
-  },
-  "pw.titleStatus.selected": {
-    "zh": "新建",
-    "en": "New"
-  },
-  "pw.titleStatus.ingesting": {
-    "zh": "已上传",
-    "en": "Uploaded"
-  },
-  "pw.titleStatus.adapting": {
-    "zh": "改编中",
-    "en": "Adapting"
-  },
-  "pw.titleStatus.in_review": {
-    "zh": "待确认",
-    "en": "Awaiting your confirmation"
-  },
-  "pw.titleStatus.approved": {
-    "zh": "已定稿",
-    "en": "Finalized"
-  },
-  "v3.nav.studio": {
-    "en": "Studio",
-    "zh": "工作室"
-  },
-  "v3.dramaLibrary.kicker": {
-    "en": "All titles",
-    "zh": "全部剧目"
-  },
-  "v3.dramaLibrary.sub": {
-    "en": "Every title you have in contact with Pulsar. Connect with Stage, our streaming platform, to see how they perform.",
-    "zh": "您与 Pulsar 接洽中的全部剧目。连接我们的播出平台 Stage，即可查看播出表现。"
-  },
-  "v3.dramaLibrary.emptyTitle": {
-    "en": "No titles here yet",
-    "zh": "暂无剧目"
-  },
-  "v3.dramaLibrary.emptyHint": {
-    "en": "Once connected with Stage, this page lists your titles with us and their viewing metrics.",
-    "zh": "连接 Stage 后，此页将展示您与我们合作中的剧目及其播出数据。"
-  }
+  "v3.breadcrumbs": { "en": "Breadcrumbs", "zh": "页面路径" },
+  "v3.complete": { "en": "Complete", "zh": "已完成" },
+  "v3.episode.stages": { "en": "Episode stages", "zh": "分集阶段" },
+  "v3.episode.workspace": { "en": "Episode workspace", "zh": "分集工作台" },
+  "v3.nav.episode": { "en": "Episode studio", "zh": "单集工作室" },
+  "v3.nav.library": { "en": "Drama library", "zh": "剧集库" },
+  "v3.nav.newTitle": { "en": "New drama", "zh": "上传新剧" },
+  "v3.nav.title": { "en": "Title workspace", "zh": "剧集工作台" },
+  "v3.primaryNav": { "en": "Primary navigation", "zh": "主导航" },
+  "v3.role.producer": { "en": "Producer", "zh": "制片方" },
+  "v3.stage.script": { "en": "Script adaptation", "zh": "台词改编" },
+  "v3.stage.timingDelivery": { "en": "Timing & delivery", "zh": "对轴与交付" },
+  "v3.version.draft": { "en": "Working draft", "zh": "工作草稿" },
+  "v3.version.final": { "en": "Finalized", "zh": "已定稿" },
+  "v3.workspace": { "en": "Producer workspace", "zh": "制片方工作台" },
+  "v3.line.save": { "en": "Save line", "zh": "保存本句" },
+  "v3.line.saved": { "en": "Line saved", "zh": "本句已保存" },
+  "v3.finalize.cta": { "en": "Finalize", "zh": "定稿" },
+  "v3.finalize.go": { "en": "Confirm finalize", "zh": "确认定稿" },
+  "v3.finalize.submitted": { "en": "Finalize as submitted", "zh": "按提交版本定稿" },
+  "v3.revise.cta": { "en": "Create a new draft", "zh": "新建修订稿" },
+  "v3.revise.help": { "en": "The approved version stays archived. Your edits continue in a new version.", "zh": "已批准版本会保留存档，新的修改将在新版本中继续。" },
+  "pw.alts.cta": { "en": "Try another way", "zh": "换个说法" },
+  "pw.alts.none": { "en": "No more alternatives for this line.", "zh": "这句暂无更多备选。" },
+  "pw.ep.back": { "en": "Back to title", "zh": "返回剧集" },
+  "pw.ep.sub": { "en": "Original on top, adaptation below; every change explains itself.", "zh": "原文在上，改编在下；每一处改动都写明了理由。" },
+  "pw.epStatus.adapting": { "en": "Adapting", "zh": "改编中" },
+  "pw.epStatus.approved": { "en": "Finalized", "zh": "已定稿" },
+  "pw.epStatus.in_review": { "en": "Awaiting review", "zh": "待审核" },
+  "pw.epStatus.ingested": { "en": "Not started", "zh": "待改编" },
+  "pw.export.csv": { "en": "CSV", "zh": "CSV" },
+  "pw.export.diff": { "en": "Bilingual diff", "zh": "双语对照" },
+  "pw.export.hint": { "en": "Export the finalized files any time", "zh": "定稿文件可随时导出" },
+  "pw.export.srt": { "en": "English SRT", "zh": "英文字幕 SRT" },
+  "pw.final.banner": { "en": "This episode is finalized and archived", "zh": "本集已定稿并存档" },
+  "pw.finalize.blocked": { "en": "Confirm every scene first", "zh": "请先确认所有场景" },
+  "pw.finalize.confirm": { "en": "Save this version as final? Later edits will start a new draft and keep this approved version intact.", "zh": "将当前版本定稿？后续编辑将创建新草稿，保留此已批准版本。" },
+  "pw.finalize.cta": { "en": "Finalize episode", "zh": "确认定稿" },
+  "pw.finalize.go": { "en": "Yes, finalize", "zh": "确定定稿" },
+  "pw.gen.body": { "en": "The AI rewrites each line in natural American English — not a translation, but a rewrite of rhythm and tone for U.S. viewers. Every change carries a Chinese explanation, and you can edit any line afterwards.", "zh": "AI 将逐句改写为地道美式表达——不是翻译，而是为美国观众重写节奏与语气。每处改动附中文说明，生成后你可逐句修改。" },
+  "pw.gen.cta": { "en": "Generate U.S. adaptation", "zh": "生成美式改编" },
+  "pw.gen.hint": { "en": "{n} lines in this episode", "zh": "本集共 {n} 句台词" },
+  "pw.gen.step1": { "en": "Parsing the script and timecodes", "zh": "解析剧本与时间码" },
+  "pw.gen.step2": { "en": "Understanding the story and characters", "zh": "理解剧情与人物" },
+  "pw.gen.step3": { "en": "Adapting each line for U.S. viewers", "zh": "逐句改编为美式表达" },
+  "pw.gen.step4": { "en": "Writing back-translations and rationale", "zh": "生成回译与改编说明" },
+  "pw.gen.title": { "en": "Generate the U.S. adaptation", "zh": "生成美式改编" },
+  "pw.gen.unmatched": { "en": "{n} line(s) have no pre-authored translation (demo mode covers the bundled scripts only).", "zh": "有 {n} 句暂无预置译文（演示模式仅覆盖内置剧本）。" },
+  "pw.home.episodes": { "en": "{n} episodes", "zh": "{n} 集" },
+  "pw.home.new": { "en": "New title", "zh": "新建剧集" },
+  "pw.home.percent": { "en": "{pct}% adapted", "zh": "已改编 {pct}%" },
+  "pw.home.sub": { "en": "Localize subtitles, refine the English adaptation, and deliver timed files.", "zh": "上传字幕，生成自然的英文改编，校准时间轴并交付。" },
+  "pw.home.title": { "en": "My titles", "zh": "作品管理" },
+  "pw.line.back": { "en": "Back-translation", "zh": "回译" },
+  "pw.line.cut": { "en": "(line cut)", "zh": "（此句删去）" },
+  "pw.line.edited": { "en": "Edited", "zh": "已修改" },
+  "pw.line.enLabel": { "en": "English line", "zh": "英文台词" },
+  "pw.line.major": { "en": "Major change", "zh": "重大改动" },
+  "pw.line.pending": { "en": "This line has not been adapted yet.", "zh": "此句尚未改编。" },
+  "pw.line.blank": { "en": "(English not written yet)", "zh": "（英文待填写）" },
+  "pw.new.creating": { "en": "Creating the title…", "zh": "正在创建剧集…" },
+  "pw.new.cta": { "en": "Add title", "zh": "新增剧集" },
+  "pw.new.genre": { "en": "Genre (optional)", "zh": "题材（选填）" },
+  "pw.new.genreHint": { "en": "e.g. Romance · mini drama", "zh": "例如：爱情 · 微短剧" },
+  "pw.new.info": { "en": "Title info", "zh": "剧集信息" },
+  "pw.new.nameEn": { "en": "English name (optional)", "zh": "英文名（可选）" },
+  "pw.new.nameZh": { "en": "Chinese title (required)", "zh": "中文剧名（必填）" },
+  "pw.new.notes": { "en": "Character notes (optional)", "zh": "人物设定（可选）" },
+  "pw.new.notesHint": { "en": "Main characters' names, roles and relationships; the adaptation uses this.", "zh": "主要角色的姓名、身份与关系，改编时会参考。" },
+  "pw.new.sub": { "en": "Add a drama series to your catalog. Only its Chinese name is required. You can upload episode videos and subtitles now or add them later.", "zh": "将短剧加入剧库，只需填写中文剧名。分集视频和字幕可以现在上传，也可以稍后补充。" },
+  "pw.new.synopsis": { "en": "Synopsis (optional)", "zh": "剧情简介（可选）" },
+  "pw.new.title": { "en": "New title", "zh": "新建剧集" },
+  "pw.new.uploadingEp": { "en": "Uploading episode {n}…", "zh": "正在上传第 {n} 集…" },
+  "pw.progress": { "en": "{x} / {n} scenes confirmed", "zh": "已确认 {x} / {n} 场" },
+  "pw.scene.confirm": { "en": "Confirm scene {n}", "zh": "确认第 {n} 场" },
+  "pw.scene.confirmed": { "en": "Confirmed", "zh": "已确认" },
+  "pw.scene.editing": { "en": "To confirm", "zh": "待确认" },
+  "pw.scene.n": { "en": "Scene {n}", "zh": "第 {n} 场" },
+  "pw.scene.reopen": { "en": "Reopen", "zh": "重新修改" },
+  "pw.steps.confirm": { "en": "Review & edit", "zh": "审阅修改" },
+  "pw.steps.final": { "en": "Finalized", "zh": "定稿" },
+  "pw.steps.generate": { "en": "AI adaptation", "zh": "AI 改编" },
+  "pw.steps.label": { "en": "Workflow", "zh": "流程" },
+  "pw.steps.upload": { "en": "Upload script", "zh": "上传剧本" },
+  "pw.title.continue": { "en": "Continue editing subtitles", "zh": "继续编辑字幕" },
+  "pw.title.lines": { "en": "English lines ready: {done} / {total}", "zh": "已完成英文台词：{done} / {total}" },
+  "pw.title.noEpisodes": { "en": "No episodes yet. Add video or subtitles below.", "zh": "暂无分集，请在下方添加视频或字幕。" },
+  "pw.title.review": { "en": "Review English subtitles", "zh": "审阅英文字幕" },
+  "pw.title.start": { "en": "Adapt English subtitles", "zh": "改编英文字幕" },
+  "pw.title.view": { "en": "View", "zh": "查看" },
+  "pw.upload.addRow": { "en": "Add another episode", "zh": "再加一集" },
+  "pw.upload.cta": { "en": "Upload", "zh": "上传" },
+  "pw.upload.done": { "en": "Imported", "zh": "已导入" },
+  "pw.upload.episodeN": { "en": "Episode", "zh": "集数" },
+  "pw.upload.file": { "en": "Script / subtitle file", "zh": "剧本 / 字幕文件" },
+  "pw.upload.hint": { "en": "SRT / VTT / ASS subtitle files or a TXT script; one file per episode.", "zh": "支持 SRT / VTT / ASS 字幕文件或 TXT 剧本；一集一个文件。" },
+  "pw.upload.title": { "en": "Upload scripts", "zh": "上传剧本" },
+  "pw.upload.uploading": { "en": "Uploading…", "zh": "上传中…" },
+  "pw.review.banner": { "en": "Pulsar submitted this version. Finalize it as is, or edit it yourself first.", "zh": "Pulsar 已提交这一版。可直接定稿，或先自行修改。" },
+  "pw.review.editMyself": { "en": "Edit it myself", "zh": "自行修改" },
+  "pw.alts.suggested": { "en": "Suggested alternatives — tap to use one", "zh": "备选说法——点击即可替换" },
+  "pw.panel.title": { "en": "Review & edit", "zh": "审阅与修改" },
+  "pw.cmd.confirm.title": { "en": "{n} scene(s) left to confirm", "zh": "还有 {n} 场待确认" },
+  "pw.cmd.confirm.body": { "en": "Click any timestamp to review a line — edit it directly or take an alternative; confirm each scene, then finalize.", "zh": "点击任意时间码审阅译文——需要就直接改，或换一个说法；每场确认后即可定稿。" },
+  "pw.cmd.ready.title": { "en": "Ready to finalize", "zh": "可以定稿了" },
+  "pw.cmd.ready.body": { "en": "Every scene is confirmed. Finalizing freezes and archives this episode; export any time.", "zh": "所有场景已确认。定稿后本集冻结存档，可随时导出。" },
+  "pw.cmd.review.title": { "en": "Pulsar submitted this version", "zh": "Pulsar 已提交这一版" },
+  "pw.cmd.review.body": { "en": "Finalize it as is, or edit it yourself first.", "zh": "你可以直接定稿，或自己修改后再定稿。" },
+  "pw.cmd.done.title": { "en": "This episode is finalized", "zh": "本集已定稿" },
+  "pw.cmd.done.body": { "en": "Content is frozen and archived; export the finalized files on the right.", "zh": "内容已冻结存档，右侧可导出定稿文件。" },
+  "pw.count.confirmed": { "en": "{x} / {n} scenes confirmed", "zh": "已确认 {x} / {n} 场" },
+  "pw.count.edited": { "en": "{n} lines edited", "zh": "已修改 {n} 句" },
+  "pw.count.major": { "en": "{n} major changes", "zh": "重大改动 {n} 处" },
+  "pw.scene.savedConfirm": { "en": "Scene {n} confirmed", "zh": "第 {n} 场已确认" },
+  "pw.alts.used": { "en": "Replaced with the selected version", "zh": "已替换为所选说法" },
+  "pw.panel.editLabel": { "en": "English line — edit it directly", "zh": "英文台词，可直接修改" },
+  "pw.alts.view": { "en": "View alternatives", "zh": "查看备选" },
+  "pw.alts.hide": { "en": "Hide alternatives", "zh": "收起备选" },
+  "pw.confirm.cta": { "en": "Confirm changes", "zh": "确认修改" },
+  "pw.confirm.done": { "en": "Updated — the script on the left reflects it.", "zh": "已更新，左侧剧本已同步。" },
+  "pw.confirm.hint": { "en": "Edit the line or pick an alternative, then Save line to apply.", "zh": "修改或选中备选后，点击“保存本句”生效。" },
+  "pw.confirm.clean": { "en": "Edit the English above, or view the alternatives.", "zh": "可直接修改上方英文，或查看备选说法。" },
+  "pw.upload.video": { "en": "Video (optional)", "zh": "视频（可选）" },
+  "pw.video.attach": { "en": "Upload video", "zh": "上传视频" },
+  "pw.video.replace": { "en": "Replace video", "zh": "更换视频" },
+  "pw.video.uploading": { "en": "Uploading video…", "zh": "视频上传中…" },
+  "pw.video.attached": { "en": "Video attached.", "zh": "视频已上传" },
+  "pw.col.original": { "en": "Original", "zh": "原文" },
+  "pw.col.adapted": { "en": "Adapted", "zh": "改编后" },
+  "pw.cmd2.lines.title": { "en": "{n} line(s) left to adapt", "zh": "还有 {n} 句待改编" },
+  "pw.cmd2.lines.body": { "en": "Click any timestamp — edit the English directly or take an alternative. Finalize once every line is ready.", "zh": "点击任意时间码：直接改英文，或换一个说法。全部就绪后即可定稿。" },
+  "pw.cmd2.ready.body": { "en": "Every line is adapted. Finalize to export the English script and the subtitled video.", "zh": "全部台词已改编。定稿后即可导出英文剧本与带字幕视频。" },
+  "pw.cmd2.done.body": { "en": "Frozen and archived. Download the English script and the subtitled video from the rail.", "zh": "内容已冻结存档。右侧可下载英文剧本与带字幕视频。" },
+  "pw.count.lines": { "en": "{x} / {n} lines adapted", "zh": "已改编 {x} / {n} 句" },
+  "pw.finalize.blocked2": { "en": "Adapt every line first", "zh": "请先完成所有台词改编" },
+  "pw.export.script": { "en": "Download English script", "zh": "下载英文剧本" },
+  "pw.subvid.cta": { "en": "Download subtitled video", "zh": "下载带字幕视频" },
+  "pw.subvid.busy": { "en": "Rendering subtitles…", "zh": "字幕合成中…" },
+  "pw.subvid.done": { "en": "Subtitled video ready ({n} cues) — opened in a new tab.", "zh": "已生成带字幕视频（{n} 句），已在新窗口打开。" },
+  "pw.upload.title2": { "en": "Add episodes", "zh": "添加分集" },
+  "pw.upload.hint2": { "en": "One row per episode: set the number, pick that episode's subtitle/script file; video optional.", "zh": "一集一行：填集数，选这一集的字幕/剧本文件，视频可选。" },
+  "qc.title": { "en": "Delivery preflight", "zh": "交付预检" },
+  "qc.pass": { "en": "All clear ({n} lines checked)", "zh": "全部通过（{n} 句已检查）" },
+  "qc.errors": { "en": "Must fix: {n}", "zh": "必须修复：{n}" },
+  "qc.warnings": { "en": "Suggestions: {n}", "zh": "建议优化：{n}" },
+  "qc.missing_translation": { "en": "Missing translation", "zh": "缺少英文改编" },
+  "qc.empty_line": { "en": "Empty English line", "zh": "英文为空" },
+  "qc.reading_speed": { "en": "Reading speed {value} cps (limit {limit})", "zh": "阅读速度 {value} 字符/秒（上限 {limit}）" },
+  "qc.line_too_long": { "en": "{value} chars on one line (≤ {limit} advised)", "zh": "单行 {value} 字符（建议 ≤ {limit}）" },
+  "qc.too_many_lines": { "en": "{value} rendered lines (limit {limit})", "zh": "{value} 行字幕（上限 {limit} 行）" },
+  "qc.cue_too_short": { "en": "Cue only {value}ms", "zh": "字幕仅 {value} 毫秒" },
+  "qc.cue_too_long": { "en": "Cue runs {value}ms", "zh": "字幕时长 {value} 毫秒" },
+  "qc.overlap": { "en": "Overlaps previous cue by {value}ms", "zh": "与上一句重叠 {value} 毫秒" },
+  "qc.tiny_gap": { "en": "Only {value}ms gap after previous cue", "zh": "与上一句间隔仅 {value} 毫秒" },
+  "qc.missing_rationale": { "en": "Missing rationale", "zh": "缺少改编说明" },
+  "qc.name_inconsistent": { "en": "Name spelling drifts ({detail})", "zh": "人名写法不一致（{detail}）" },
+  "pw.upload.hint3": { "en": "Files are optional now. Ad generation needs episode video; English subtitle adaptation needs a script or subtitle file. Matching filenames, such as ep1.mp4 and ep1.srt, go into the same episode.", "zh": "现在可暂不上传文件。制作广告需要分集视频；改编英文字幕需要剧本或字幕文件。相同集数的文件名（如 ep1.mp4 和 ep1.srt）会分到同一集。" },
+  "pw.upload.pick": { "en": "Drop all your files here, or click to choose", "zh": "把所有文件拖到这里，或点击选择" },
+  "pw.upload.pickHint": { "en": "Subtitles and videos together — matched to episodes by filename (ep1.srt, ep1.mp4 …)", "zh": "字幕和视频一起拖：按文件名自动归到对应剧集（第1集.srt、第1集.mp4 …）" },
+  "pw.upload.ctaN": { "en": "Create {n} episode(s)", "zh": "创建 {n} 集" },
+  "pw.upload.remove": { "en": "Remove", "zh": "移除" },
+  "pw.upload.dupe": { "en": "Duplicate episode number", "zh": "集数重复" },
+  "pw.slots.count": { "en": "Episodes in this batch", "zh": "本次上传几集？" },
+  "pw.slots.ep": { "en": "Ep", "zh": "第" },
+  "pw.slots.sub": { "en": "Subtitles / script (can add later)", "zh": "字幕 / 剧本（可稍后补）" },
+  "pw.slots.missingSub": { "en": "This episode still needs its subtitle file", "zh": "这一集还缺字幕文件" },
+  "pw.slots.epSuffix": { "en": "", "zh": "集" },
+  "pw.gen.nomatch": { "en": "This script isn't in the demo bank, so demo mode can't adapt it. Ask Pulsar to enable AI adaptation for your workspace.", "zh": "该剧本不在演示语料中，演示模式无法自动改编。请联系 Pulsar 为你的工作区开启 AI 改编。" },
+  "pw.gen.elapsed": { "en": "Elapsed {t}", "zh": "已用时 {t}" },
+  "pw.gen.remaining": { "en": "about {t} remaining (est.)", "zh": "预计还需约 {t}" },
+  "pw.gen.overrun": { "en": "taking longer than estimated — still generating…", "zh": "比预计更久，仍在生成…" },
+  "st.back": { "en": "Back to episode studio", "zh": "返回剧集工作台" },
+  "st.stage": { "en": "Subtitle studio", "zh": "字幕制作" },
+  "st.notFinal.pill": { "en": "Script not finalized", "zh": "剧本未定稿" },
+  "st.notFinal.title": { "en": "Finalize the script first, then style the subtitles", "zh": "先定稿剧本，再制作字幕" },
+  "st.notFinal.body": { "en": "Subtitles are built from the frozen, finalized script so later edits can't drift into the delivered video. Finish reviewing and finalize in the episode studio, and this page unlocks.", "zh": "字幕基于定稿后的英文剧本制作，这样改动不会再影响成片。回到剧集工作台完成审阅并定稿，这里就会解锁。" },
+  "st.notFinal.cta": { "en": "Go to the episode studio", "zh": "回到剧集工作台" },
+  "st.untimed.title": { "en": "This episode has no timecodes", "zh": "这一集没有时间轴" },
+  "st.untimed.body": { "en": "Subtitles need a start and end time for every line. This episode came from a plain-text script (or has no usable lines), so cues can't be generated — episodes ingested from SRT/VTT/ASS files support subtitles. The English script report is still available.", "zh": "字幕需要每句台词的起止时间。这一集是纯文本剧本（或没有可用台词），无法生成字幕；上传 SRT/VTT/ASS 字幕文件的剧集才支持。英文剧本报告仍可下载。" },
+  "st.noVideo": { "en": "No video attached — previewing style only", "zh": "未上传视频 — 仅预览样式" },
+  "st.cues": { "en": "Cue sheet", "zh": "字幕表" },
+  "st.cues.hint": { "en": "{n} cues · click to seek", "zh": "{n} 条字幕 · 点击跳转" },
+  "st.style": { "en": "Subtitle style", "zh": "字幕样式" },
+  "st.style.hint": { "en": "Styled live — the burn matches", "zh": "所见即所得，成片同款" },
+  "st.layout": { "en": "Content", "zh": "内容" },
+  "st.layout.en": { "en": "English only", "zh": "仅英文" },
+  "st.layout.enzh": { "en": "English + Chinese", "zh": "中英双语" },
+  "st.font": { "en": "Font", "zh": "字体" },
+  "st.font.sans": { "en": "Sans", "zh": "无衬线" },
+  "st.font.serif": { "en": "Serif", "zh": "衬线" },
+  "st.size": { "en": "Size", "zh": "字号" },
+  "st.size.s": { "en": "S", "zh": "小" },
+  "st.size.m": { "en": "M", "zh": "中" },
+  "st.size.l": { "en": "L", "zh": "大" },
+  "st.deliver": { "en": "Deliver", "zh": "交付" },
+  "st.deliver.hint": { "en": "The video and the files", "zh": "成片与字幕文件" },
+  "st.render.cta": { "en": "Render subtitled video", "zh": "生成带字幕视频" },
+  "st.render.busy": { "en": "Rendering… {t}", "zh": "渲染中… {t}" },
+  "st.render.failed": { "en": "Video render failed: {detail}", "zh": "视频渲染失败：{detail}" },
+  "st.render.note": { "en": "About 20–40s for a minute of 720p.", "zh": "一分钟 720p 视频约需 20–40 秒。" },
+  "st.render.download": { "en": "Download subtitled video ({n} cues)", "zh": "下载带字幕视频（{n} 条）" },
+  "st.render.noVideo": { "en": "No video on this episode yet — attach one in the episode studio to render the burned video here. The SRT/VTT files below work regardless.", "zh": "本集暂无视频，请在剧集工作台上传后在此渲染。SRT/VTT 文件不受影响，可直接下载。" },
+  "st.dl.srt": { "en": "Download SRT", "zh": "下载 SRT" },
+  "st.dl.vtt": { "en": "Download VTT", "zh": "下载 VTT" },
+  "pw.steps.subs": { "en": "Subtitles & delivery", "zh": "字幕交付" },
+  "pw.title.subs": { "en": "Make subtitles", "zh": "制作字幕" },
+  "st.retime.body": { "en": "Each line here starts with an [hh:mm:ss] stamp — an earlier ingest left the timecodes inside the text. One click lifts them into a real timeline (end times from the following line) and, if this episode was finalized, refinalizes it automatically.", "zh": "检测到每句台词开头带有 [时:分:秒] 时间戳，这是导入时把时间码留在了文本里。一键修复即可提取时间轴（结束时间取自下一句），若该集已定稿会自动重新定稿。" },
+  "st.retime.cta": { "en": "Repair the timeline", "zh": "修复时间轴" },
+  "st.retime.review": { "en": "Timeline repaired, but QC found issues to address — review in the episode studio, then finalize again.", "zh": "时间轴已修复，但质检发现需要处理的问题：请回剧集工作台检查后重新定稿。" },
+  "qc.fix.busy": { "en": "AI fixing…", "zh": "AI 修复中…" },
+  "qc.fix.done": { "en": "Fixed {n}; {m} must-fix issue(s) remain.", "zh": "已修复 {n} 处；剩余 {m} 处必须修复。" },
+  "pw.alts.busyN": { "en": "Writing option {i}/2…", "zh": "正在生成备选 {i}/2…" },
+  "st.t.panel": { "en": "Timing", "zh": "时间轴" },
+  "st.t.panelHint": { "en": "Global offset and per-cue trim", "zh": "全局偏移与逐句微调" },
+  "st.t.offset": { "en": "Global offset (ms)", "zh": "全局偏移（毫秒）" },
+  "st.t.exact": { "en": "Exact ms…", "zh": "精确毫秒…" },
+  "st.t.offsetPending": { "en": "Pending: {v} ms", "zh": "待应用：{v} 毫秒" },
+  "st.t.offsetNone": { "en": "No pending offset", "zh": "无待应用偏移" },
+  "st.t.offsetHint": { "en": "Negative shifts every subtitle earlier (use negative when the audio runs ahead of the subs). Applied once, immediately.", "zh": "负值让所有字幕提前（音频早于字幕时用负值）。应用后立即生效，仅一次。" },
+  "st.t.offsetApply": { "en": "Apply offset", "zh": "应用偏移" },
+  "st.t.offsetDone": { "en": "Timeline shifted.", "zh": "时间轴已整体平移。" },
+  "st.t.cue": { "en": "Selected cue", "zh": "选中字幕" },
+  "st.t.pickCue": { "en": "Click a line in the cue sheet below first - then adjust when it appears and disappears here.", "zh": "先在下方字幕表点选一句台词，再回来调整它的出现和消失时间。" },
+  "st.t.start": { "en": "Start (ms)", "zh": "开始（毫秒）" },
+  "st.t.end": { "en": "End (ms)", "zh": "结束 (ms)" },
+  "st.t.dur": { "en": "Duration {t}", "zh": "时长 {t}" },
+  "st.t.setStart": { "en": "Start at this frame", "zh": "从当前画面开始" },
+  "st.t.setEnd": { "en": "End at this frame", "zh": "到当前画面结束" },
+  "st.t.resetCue": { "en": "Undo this cue", "zh": "撤销本句" },
+  "st.t.resetAll": { "en": "Undo all", "zh": "全部撤销" },
+  "st.t.save": { "en": "Save timing ({n} cue(s))", "zh": "保存时间轴（{n} 句）" },
+  "st.t.saved": { "en": "Timing saved.", "zh": "时间轴已保存。" },
+  "st.t.keys": { "en": "Keys: , and . nudge the selected cue by 100 ms; hold Shift for 500 ms.", "zh": "快捷键：, 和 . 移动选中句 100ms；按住 Shift 为 500ms。" },
+  "st.t.warn.overlap": { "en": "Cue {n} overlaps the previous by {v} ms", "zh": "第 {n} 句与上一句重叠 {v} 毫秒" },
+  "st.t.warn.reversed": { "en": "Cue {n} ends before it starts", "zh": "第 {n} 句结束早于开始" },
+  "st.t.warn.too_short": { "en": "Cue {n} lasts only {v} ms", "zh": "第 {n} 句仅 {v} 毫秒" },
+  "st.t.warn.beyond_video": { "en": "Cue {n} runs {v} ms past the video", "zh": "第 {n} 句超出视频 {v} 毫秒" },
+  "st.t.loop": { "en": "Loop cue", "zh": "循环本句" },
+  "st.t.before": { "en": "Play from 2s before", "zh": "提前 2 秒播放" },
+  "st.t.speed": { "en": "Speed", "zh": "速度" },
+  "st.t.autosync": { "en": "Auto-sync from audio", "zh": "音频自动对轴" },
+  "st.t.autosyncOff": { "en": "Not available yet — contact Pulsar to enable auto-sync for your workspace.", "zh": "暂不可用，请联系 Pulsar 为你的工作区开通自动对轴。" },
+  "st.t.proposals": { "en": "{n} proposed change(s)", "zh": "建议调整 {n} 处" },
+  "st.t.acceptAll": { "en": "Accept all", "zh": "全部接受" },
+  "st.t.accept": { "en": "Accept", "zh": "接受" },
+  "st.t.reject": { "en": "Reject", "zh": "忽略" },
+  "st.t.conf": { "en": "conf {v}%", "zh": "置信 {v}%" },
+  "st.t.applyProposals": { "en": "Stage accepted changes", "zh": "应用更改" },
+  "v3.subtitle.workspace": { "en": "Subtitle workspace", "zh": "字幕工作台" },
+  "v3.subtitle.timing": { "en": "Timing", "zh": "时间轴" },
+  "v3.subtitle.delivery": { "en": "Style & delivery", "zh": "样式与交付" },
+  "v3.subtitle.timingHint": { "en": "Adjust cue timing and resolve timeline issues", "zh": "调整字幕出现时间并解决时间轴问题" },
+  "v3.subtitle.deliveryHint": { "en": "Preview subtitle styling and export final files", "zh": "预览字幕样式并导出最终文件" },
+  "v3.library.kicker": { "en": "Localization projects", "zh": "本地化项目" },
+  "v3.title.workspace": { "en": "Series workspace", "zh": "剧集工作区" },
+  "v3.title.overview": { "en": "Project overview", "zh": "剧集概览" },
+  "v3.title.progress": { "en": "Subtitles finalized", "zh": "字幕定稿进度" },
+  "v3.title.approvedCount": { "en": "{done} of {total} episodes", "zh": "{done} / {total} 集" },
+  "v3.title.inProgress": { "en": "In progress", "zh": "处理中" },
+  "v3.title.episodes": { "en": "Episodes", "zh": "分集" },
+  "v3.title.actionHint": { "en": "These statuses track subtitle preparation, not ad approval.", "zh": "此处状态表示字幕准备进度，与广告批准无关。" },
+  "v3.title.addEpisodes": { "en": "Add episodes", "zh": "添加分集" },
+  "v3.title.addEpisodesHint": { "en": "Upload new subtitle or video files", "zh": "上传新的字幕或视频文件" },
+  "v3.done.next": { "en": "Next: timing and delivery", "zh": "下一步：对轴与交付" },
+  "v3.done.body": { "en": "The script is finalized. Create a new draft to revise it, or continue in Timing & delivery above.", "zh": "台词已定稿。如需修改，可新建修订稿；或在上方继续对轴与交付。" },
+  "qc.fix.progress": { "en": "Fixing {i}/{n} (pass {p})", "zh": "修复中 {i}/{n}（第 {p} 轮）" },
+  "qc.fix.allclear": { "en": "Fixed {n} - preflight is all clear.", "zh": "已修复 {n} 处，预检通过。" },
+  "pw.alts.picked": { "en": "Alternative applied - press the save button below to confirm.", "zh": "已填入所选备选，点击下方保存按钮确认。" },
+  "qc.fix.none": { "en": "Fix with AI - nothing to fix right now", "zh": "AI 修复 — 暂无可修复项" },
+  "qc.fix.all": { "en": "Fix all with AI", "zh": "AI 全部修复" },
+  "qc.fix.polishAll": { "en": "Polish all suggestions with AI", "zh": "AI 润色全部建议" },
+  "qc.fix.row": { "en": "Fix", "zh": "修复" },
+  "v3.goSubtitles": { "en": "Go to subtitles & delivery", "zh": "前往字幕与交付" },
+  "st.acc.timing": { "en": "Fix the timing", "zh": "校准时间轴" },
+  "st.acc.timing.sub": { "en": "Subtitles early or late? Line them up here", "zh": "字幕早了或晚了？在这里对齐" },
+  "st.acc.style": { "en": "Subtitle style", "zh": "字幕样式" },
+  "st.acc.style.sub": { "en": "Content, font, size, position", "zh": "内容、字体、大小、位置" },
+  "st.acc.deliver": { "en": "Download & deliver", "zh": "下载交付" },
+  "st.acc.deliver.sub": { "en": "The subtitled video and the files", "zh": "带字幕视频与字幕文件" },
+  "st.suggest.body": { "en": "The subtitles look uniformly late: the timestamps are rounded to whole seconds (a frame-sampling artifact). Recommended: shift everything 0.5s earlier.", "zh": "字幕整体偏晚：时间戳按整秒取整（抽帧提取的典型痕迹）。建议整体提前 0.5 秒。" },
+  "st.suggest.cta": { "en": "Shift 0.5s earlier", "zh": "提前 0.5 秒" },
+  "st.suggest.dismiss": { "en": "Dismiss", "zh": "忽略" },
+  "st.t.cue2": { "en": "Fine-tune one line", "zh": "微调单句" },
+  "st.t.cue.tip": { "en": "Click a line in the cue sheet below, then adjust exactly when it appears and disappears here.", "zh": "在下方字幕表点选一句，可在此精确调整出现和消失时间。" },
+  "st.t.cueSel": { "en": "Line {n}", "zh": "第 {n} 句" },
+  "st.t.setStart.tip": { "en": "Make this line appear at the player's current moment", "zh": "将本句出现时间设为播放器当前时刻" },
+  "st.t.setEnd.tip": { "en": "Make this line disappear at the player's current moment", "zh": "将本句消失时间设为播放器当前时刻" },
+  "st.t.offset.tip": { "en": "Shift every subtitle earlier or later together", "zh": "所有字幕整体提前或延后" },
+  "st.t.loop.tip": { "en": "Replay the selected line on repeat", "zh": "循环播放选中台词" },
+  "st.t.before.tip": { "en": "Play from 2s before the selected line to hear the entry", "zh": "从选中句前 2 秒播放，听清入点" },
+  "st.pos": { "en": "Position", "zh": "位置" },
+  "st.pos.bottom": { "en": "Bottom", "zh": "底部" },
+  "st.pos.top": { "en": "Top", "zh": "顶部" },
+  "st.merge": { "en": "Pair short lines", "zh": "合并短句" },
+  "st.merge.hint": { "en": "Two short neighboring cues display together as two rows - on screen longer, less flicker. English-only content.", "zh": "相邻的两条短字幕合成上下两行同时显示，停留更久、闪烁更少。仅限纯英文内容。" },
+  "st.on": { "en": "On", "zh": "开启" },
+  "st.off": { "en": "Off", "zh": "关闭" },
+  "pw.alts.dir.title": { "en": "Neither one? Take it another direction", "zh": "都不合适？换个方向再写一版" },
+  "pw.alts.dir.busy": { "en": "Writing a take that leans {tag}…", "zh": "正在按「{tag}」的方向改写…" },
+  "pw.alts.dir.none": { "en": "Nothing new in that direction.", "zh": "该方向暂无新说法。" },
+  "pw.cmd.blocked.title": { "en": "{n} issue(s) to fix before finalizing", "zh": "还有 {n} 处必须修复" },
+  "pw.cmd.blocked.body": { "en": "Preflight found blocking issues. Use Fix or Fix all with AI in the panel, then finalize.", "zh": "交付预检发现问题。用右侧的「修复」或「AI 修复全部」处理，完成后即可定稿。" },
+  "pw.cmd.explain.title": { "en": "{n} line(s) missing their adaptation notes", "zh": "还有 {n} 句缺少改编说明" },
+  "pw.cmd.explain.body": { "en": "These AI rewrites lack their Chinese rationale or back-translation, so finalize is held. Open each line and pick an alternative or edit it once by hand.", "zh": "这些 AI 改写还没有中文说明或回译，暂时无法定稿。点击对应台词，改用备选说法或手动修改一次即可。" },
+  "pw.err.aiOff": { "en": "AI rewriting is not available in demo mode. Contact Pulsar to enable AI adaptation for your workspace.", "zh": "演示模式下无法使用 AI 改写。请联系 Pulsar 为你的工作区开启 AI 改编。" },
+  "qc.fix.timingDone": { "en": "Fixed {n} overlapping cue(s).", "zh": "已修正 {n} 处时间重叠。" },
+  "qc.fix.timingRow": { "en": "Fix timing", "zh": "修正时间" },
+  "pw.titleStatus.candidate": { "en": "New", "zh": "新建" },
+  "pw.titleStatus.selected": { "en": "New", "zh": "新建" },
+  "pw.titleStatus.ingesting": { "en": "Uploaded", "zh": "已上传" },
+  "pw.titleStatus.adapting": { "en": "Adapting", "zh": "改编中" },
+  "pw.titleStatus.in_review": { "en": "Awaiting your confirmation", "zh": "待确认" },
+  "pw.titleStatus.approved": { "en": "Finalized", "zh": "已定稿" },
+  "v3.nav.studio": { "en": "Studio", "zh": "工作室" },
+  "v3.dramaLibrary.kicker": { "en": "All titles", "zh": "全部剧目" },
+  "v3.dramaLibrary.sub": { "en": "Every title you have in contact with Pulsar. Connect with Stage, our streaming platform, to see how they perform.", "zh": "您与 Pulsar 接洽中的全部剧目。连接我们的播出平台 Stage，即可查看播出表现。" },
+  "v3.dramaLibrary.emptyTitle": { "en": "No titles here yet", "zh": "暂无剧目" },
+  "v3.dramaLibrary.emptyHint": { "en": "Once connected with Stage, this page lists your titles with us and their viewing metrics.", "zh": "连接 Stage 后，此页将展示您与我们合作中的剧目及其播出数据。" }
 }

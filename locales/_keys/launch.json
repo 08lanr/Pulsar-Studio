@@ -1,170 +1,44 @@
 {
-  "launch.title": {
-    "en": "Find the US launch priority in your catalog",
-    "zh": "发现剧库中的美国市场潜力"
-  },
-  "launch.sub": {
-    "en": "Choose existing titles, prepare a focused audience test, and decide where to invest next.",
-    "zh": "筛选已有作品，准备聚焦的受众测试，再决定下一笔投入。"
-  },
-  "launch.insights": {
-    "en": "US market insights",
-    "zh": "美国市场洞察"
-  },
-  "launch.catalog": {
-    "en": "My catalog",
-    "zh": "我的剧库"
-  },
-  "launch.experiments": {
-    "en": "Launch & experiments",
-    "zh": "发行与实验"
-  },
-  "launch.accounts": {
-    "en": "Company & accounts",
-    "zh": "公司与账户"
-  },
-  "launch.candidates": {
-    "en": "Titles to assess",
-    "zh": "待评估作品"
-  },
-  "launch.assess": {
-    "en": "Assess US launch priority",
-    "zh": "评估美国发行优先级"
-  },
-  "launch.test": {
-    "en": "Prepare a $100 test",
-    "zh": "准备100美元测试"
-  },
-  "launch.unknown": {
-    "en": "US audience response: untested",
-    "zh": "美国受众反应：未测试"
-  },
-  "launch.basis": {
-    "en": "Market relevance · inferred",
-    "zh": "市场相关性 · 推断"
-  },
-  "launch.basisNote": {
-    "en": "Shared story tags identify research leads, not US demand or a success probability.",
-    "zh": "共同题材标签提供研究线索，不代表美国需求或成功概率。"
-  },
-  "launch.noMatch": {
-    "en": "Insufficient comparable evidence",
-    "zh": "相似作品证据不足"
-  },
-  "launch.matched": {
-    "en": "Comparable evidence available",
-    "zh": "有可参考的相似作品"
-  },
-  "launch.ready": {
-    "en": "Launch readiness",
-    "zh": "发行准备度"
-  },
-  "launch.readyNote": {
-    "en": "Check US rights, English promotional assets, destination and customer-owned ad account before launch. Uploaded video alone does not establish readiness.",
-    "zh": "投放前检查美国权益、英语推广素材、落地页及客户自有广告账户。已有视频不等于可发行。"
-  },
-  "launch.campaigns": {
-    "en": "Experiments needing attention",
-    "zh": "需要关注的实验"
-  },
-  "launch.none": {
-    "en": "No campaigns yet. Start with a title assessment.",
-    "zh": "暂无活动，先评估一部作品。"
-  },
-  "launch.all": {
-    "en": "All experiments",
-    "zh": "全部实验"
-  },
-  "launch.evidence": {
-    "en": "Inspect the evidence",
-    "zh": "查看证据"
-  },
-  "launch.date": {
-    "en": "Market snapshot",
-    "zh": "市场快照"
-  },
-  "launch.plan": {
-    "en": "Prepare a concept-test brief",
-    "zh": "准备概念测试简报"
-  },
-  "launch.planNote": {
-    "en": "Save a US campaign brief even before footage is available. Video creative generation still requires footage.",
-    "zh": "暂无视频也可以保存美国活动简报；生成视频广告仍需要素材。"
-  },
-  "launch.mock": {
-    "en": "Launch integration is not connected. Briefs and approvals work; submission is a demo handoff and spends no money.",
-    "zh": "尚未连接投放集成。可准备简报与审批；提交为演示交接，不会产生广告支出。"
-  },
-  "launch.budget": {
-    "en": "Proposed total budget (USD)",
-    "zh": "计划总预算（美元）"
-  },
-  "launch.budgetNote": {
-    "en": "Planning amount only, not an enforced spend cap. Platform minimums and delivery eligibility must be checked before a paid launch. A small test can be inconclusive.",
-    "zh": "仅为计划金额，不是已执行的支出上限。付费投放前须检查平台最低预算及资格。小额测试可能无法得出结论。"
-  },
-  "launch.hypothesis": {
-    "en": "What response are you testing?",
-    "zh": "要测试什么受众反应？"
-  },
-  "launch.audience": {
-    "en": "US audience hypothesis",
-    "zh": "美国受众假设"
-  },
-  "launch.destination": {
-    "en": "Destination URL (optional while drafting)",
-    "zh": "落地页网址（草稿可留空）"
-  },
-  "launch.save": {
-    "en": "Save test brief",
-    "zh": "保存测试简报"
-  },
-  "launch.variants": {
-    "en": "First batch: two packaging angles for one title and one audience. Hold other conditions consistent; delivery may be uneven. Compare response to the packaging, not whole-series commercial potential.",
-    "zh": "首批：同一作品、同一受众的两个包装角度。尽量保持其他条件一致；流量分配可能不均。比较包装反应，而非整部剧的商业潜力。"
-  },
-  "launch.accountTitle": {
-    "en": "Your accounts. Your audience.",
-    "zh": "您的账户，您的受众。"
-  },
-  "launch.accountBody": {
-    "en": "Your company owns its TikTok identity, Business Center, advertising account and billing relationship. Pulsar should receive revocable partner access to operate approved campaigns.",
-    "zh": "您的公司拥有TikTok身份、商务中心、广告账户及账单关系。Pulsar应通过可撤销的合作伙伴权限管理已批准活动。"
-  },
-  "launch.accountSteps": {
-    "en": "1. Create or confirm your own Business Center and administrator. 2. Complete TikTok business and billing requirements. 3. Authorize the relevant ad account and TikTok identity separately. 4. Review partner permissions and retain the ability to revoke them.",
-    "zh": "1. 创建或确认自有商务中心及管理员。2. 完成TikTok商业及账单要求。3. 分别授权相关广告账户与TikTok身份。4. 审查合作伙伴权限，并保留撤销能力。"
-  },
-  "launch.setup": {
-    "en": "Open TikTok Business Center",
-    "zh": "打开TikTok商务中心"
-  },
-  "launch.permissions": {
-    "en": "Account permissions guide",
-    "zh": "账户权限指南"
-  },
-  "launch.revoke": {
-    "en": "Revoke partner access",
-    "zh": "撤销合作伙伴权限"
-  },
-  "launch.back": {
-    "en": "Back to launch overview",
-    "zh": "返回发行概览"
-  },
-  "launch.empty": {
-    "en": "Add an existing title and synopsis to start assessing your catalog.",
-    "zh": "添加已有作品及简介，开始评估剧库。"
-  },
-  "launch.missing": {
-    "en": "Add a synopsis before drawing market comparisons.",
-    "zh": "先补充简介，再进行市场比较。"
-  },
-  "launch.draftName": {
-    "en": "US concept test",
-    "zh": "美国概念测试"
-  },
-  "launch.signal": {
-    "en": "Initial signal: video views. Clicks, landing actions and paid conversion require their own tracking; this brief does not claim they are measured.",
-    "zh": "初始信号：视频观看。点击、落地页行为及付费转化需另行追踪；本简报不代表已测量这些指标。"
-  }
+  "launch.title": { "en": "Find the US launch priority in your catalog", "zh": "发现剧库中的美国市场潜力" },
+  "launch.sub": { "en": "Choose existing titles, prepare a focused audience test, and decide where to invest next.", "zh": "筛选已有作品，准备聚焦的受众测试，再决定下一笔投入。" },
+  "launch.insights": { "en": "US market insights", "zh": "美国市场洞察" },
+  "launch.catalog": { "en": "My catalog", "zh": "我的剧库" },
+  "launch.experiments": { "en": "Launch & experiments", "zh": "发行与实验" },
+  "launch.accounts": { "en": "Company & accounts", "zh": "公司与账户" },
+  "launch.candidates": { "en": "Titles to assess", "zh": "待评估作品" },
+  "launch.assess": { "en": "Assess US launch priority", "zh": "评估美国发行优先级" },
+  "launch.test": { "en": "Prepare a $100 test", "zh": "准备100美元测试" },
+  "launch.unknown": { "en": "US audience response: untested", "zh": "美国受众反应：未测试" },
+  "launch.basis": { "en": "Market relevance · inferred", "zh": "市场相关性 · 推断" },
+  "launch.basisNote": { "en": "Shared story tags identify research leads, not US demand or a success probability.", "zh": "共同题材标签提供研究线索，不代表美国需求或成功概率。" },
+  "launch.noMatch": { "en": "Insufficient comparable evidence", "zh": "相似剧集证据不足" },
+  "launch.matched": { "en": "Comparable evidence available", "zh": "有可参考的相似剧集" },
+  "launch.ready": { "en": "Launch readiness", "zh": "发行准备度" },
+  "launch.readyNote": { "en": "Check US rights, English promotional assets, destination and customer-owned ad account before launch. Uploaded video alone does not establish readiness.", "zh": "投放前检查美国权益、英语推广素材、落地页及客户自有广告账户。已有视频不等于可发行。" },
+  "launch.campaigns": { "en": "Experiments needing attention", "zh": "需要关注的实验" },
+  "launch.none": { "en": "No campaigns yet. Start with a title assessment.", "zh": "暂无活动，先评估一部作品。" },
+  "launch.all": { "en": "All experiments", "zh": "全部实验" },
+  "launch.evidence": { "en": "Inspect the evidence", "zh": "查看证据" },
+  "launch.date": { "en": "Market snapshot", "zh": "市场快照" },
+  "launch.plan": { "en": "Prepare a concept-test brief", "zh": "准备概念测试简报" },
+  "launch.planNote": { "en": "Save a US campaign brief even before footage is available. Video creative generation still requires footage.", "zh": "暂无视频也可保存美国活动简报；生成视频广告仍需素材。" },
+  "launch.mock": { "en": "Launch integration is not connected. Briefs and approvals work; submission is a demo handoff and spends no money.", "zh": "投放集成未连接。可准备简报与审批；提交为演示交接，不会产生广告支出。" },
+  "launch.budget": { "en": "Proposed total budget (USD)", "zh": "计划总预算（USD）" },
+  "launch.budgetNote": { "en": "Planning amount only, not an enforced spend cap. Platform minimums and delivery eligibility must be checked before a paid launch. A small test can be inconclusive.", "zh": "仅为计划金额，非支出上限。付费投放前需确认平台最低预算及资格。小额测试可能无法得出结论。" },
+  "launch.hypothesis": { "en": "What response are you testing?", "zh": "要测试什么受众反应？" },
+  "launch.audience": { "en": "US audience hypothesis", "zh": "美国受众假设" },
+  "launch.destination": { "en": "Destination URL (optional while drafting)", "zh": "落地页网址（草稿可留空）" },
+  "launch.save": { "en": "Save test brief", "zh": "保存测试简报" },
+  "launch.variants": { "en": "First batch: two packaging angles for one title and one audience. Hold other conditions consistent; delivery may be uneven. Compare response to the packaging, not whole-series commercial potential.", "zh": "首批：同一剧集、同一受众的两个包装角度。尽量保持其他条件一致；流量分配可能不均。比较包装反应，而非整部剧的商业潜力。" },
+  "launch.accountTitle": { "en": "Your accounts. Your audience.", "zh": "您的账户，您的受众。" },
+  "launch.accountBody": { "en": "Your company owns its TikTok identity, Business Center, advertising account and billing relationship. Pulsar should receive revocable partner access to operate approved campaigns.", "zh": "您的公司拥有TikTok身份、商务中心、广告账户及账单关系。Pulsar应通过可撤销的合作伙伴权限管理已批准活动。" },
+  "launch.accountSteps": { "en": "1. Create or confirm your own Business Center and administrator. 2. Complete TikTok business and billing requirements. 3. Authorize the relevant ad account and TikTok identity separately. 4. Review partner permissions and retain the ability to revoke them.", "zh": "1. 创建或确认自有商务中心及管理员。2. 完成TikTok商业及账单要求。3. 分别授权相关广告账户与TikTok身份。4. 审查合作伙伴权限，并保留撤销能力。" },
+  "launch.setup": { "en": "Open TikTok Business Center", "zh": "打开TikTok商务中心" },
+  "launch.permissions": { "en": "Account permissions guide", "zh": "账户权限指南" },
+  "launch.revoke": { "en": "Revoke partner access", "zh": "撤销合作伙伴权限" },
+  "launch.back": { "en": "Back to launch overview", "zh": "返回发行概览" },
+  "launch.empty": { "en": "Add an existing title and synopsis to start assessing your catalog.", "zh": "添加已有剧集及简介，开始评估剧库。" },
+  "launch.missing": { "en": "Add a synopsis before drawing market comparisons.", "zh": "先补充简介，再进行市场比较。" },
+  "launch.draftName": { "en": "US concept test", "zh": "美国概念测试" },
+  "launch.signal": { "en": "Initial signal: video views. Clicks, landing actions and paid conversion require their own tracking; this brief does not claim they are measured.", "zh": "初始信号：视频观看。点击、落地页行为及付费转化需另行追踪；本简报不代表已测量这些指标。" }
 }

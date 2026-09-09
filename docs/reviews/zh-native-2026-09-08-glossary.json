@@ -1,0 +1,419 @@
+{
+  "terms": [
+    {
+      "concept_en": "Title / Project",
+      "zh": "剧集",
+      "why": "国内短剧行业通用，避免'作品'歧义",
+      "avoid": [
+        "作品",
+        "项目"
+      ]
+    },
+    {
+      "concept_en": "Catalog",
+      "zh": "剧库",
+      "why": "符合'剧库'习惯，简洁",
+      "avoid": [
+        "作品库",
+        "片库"
+      ]
+    },
+    {
+      "concept_en": "Ad campaign",
+      "zh": "广告活动",
+      "why": "行业标准术语",
+      "avoid": [
+        "推广活动",
+        "投放活动"
+      ]
+    },
+    {
+      "concept_en": "Round",
+      "zh": "轮次",
+      "why": "测试轮次，简洁",
+      "avoid": [
+        "回合"
+      ]
+    },
+    {
+      "concept_en": "Prepare",
+      "zh": "准备",
+      "why": "步骤名，动宾短语",
+      "avoid": [
+        "筹备"
+      ]
+    },
+    {
+      "concept_en": "Choose ads",
+      "zh": "选择广告",
+      "why": "步骤名，动宾短语",
+      "avoid": [
+        "挑选广告"
+      ]
+    },
+    {
+      "concept_en": "Approve ads",
+      "zh": "批准广告",
+      "why": "步骤名，动宾短语",
+      "avoid": [
+        "审核广告"
+      ]
+    },
+    {
+      "concept_en": "Approve budget",
+      "zh": "批准预算",
+      "why": "步骤名，动宾短语",
+      "avoid": [
+        "预算审批"
+      ]
+    },
+    {
+      "concept_en": "Submit for launch",
+      "zh": "提交投放",
+      "why": "步骤名，动宾短语",
+      "avoid": [
+        "提交上线"
+      ]
+    },
+    {
+      "concept_en": "Review ad results",
+      "zh": "查看广告结果",
+      "why": "步骤名，动宾短语",
+      "avoid": [
+        "广告结果回顾"
+      ]
+    },
+    {
+      "concept_en": "Budget",
+      "zh": "预算",
+      "why": "通用",
+      "avoid": []
+    },
+    {
+      "concept_en": "Ad spend",
+      "zh": "广告花费",
+      "why": "必须带'广告'前缀",
+      "avoid": [
+        "花费",
+        "消耗"
+      ]
+    },
+    {
+      "concept_en": "Click-through rate",
+      "zh": "点击率",
+      "why": "可简称，但需上下文带'广告'",
+      "avoid": [
+        "CTR"
+      ]
+    },
+    {
+      "concept_en": "Hook hold",
+      "zh": "开场留存",
+      "why": "短剧术语，清晰",
+      "avoid": [
+        "钩子留存"
+      ]
+    },
+    {
+      "concept_en": "Benchmark",
+      "zh": "基准",
+      "why": "通用",
+      "avoid": [
+        "标准"
+      ]
+    },
+    {
+      "concept_en": "Met",
+      "zh": "达标",
+      "why": "简洁",
+      "avoid": [
+        "达到"
+      ]
+    },
+    {
+      "concept_en": "TikTok earnings",
+      "zh": "TikTok 收入",
+      "why": "必须带'TikTok'",
+      "avoid": [
+        "收入"
+      ]
+    },
+    {
+      "concept_en": "TikTok viewers",
+      "zh": "TikTok 观众",
+      "why": "必须带'TikTok'",
+      "avoid": [
+        "观众",
+        "观看用户"
+      ]
+    },
+    {
+      "concept_en": "Payer conversion",
+      "zh": "付费转化率",
+      "why": "通用",
+      "avoid": [
+        "付费转换"
+      ]
+    },
+    {
+      "concept_en": "Retention",
+      "zh": "留存",
+      "why": "通用",
+      "avoid": [
+        "保留"
+      ]
+    },
+    {
+      "concept_en": "Ad attribution",
+      "zh": "广告归因",
+      "why": "必须带'广告'",
+      "avoid": [
+        "归因"
+      ]
+    },
+    {
+      "concept_en": "US launch priority",
+      "zh": "美国发行优先级",
+      "why": "保留'美国'，强调非成功概率",
+      "avoid": [
+        "美国发行评分"
+      ]
+    },
+    {
+      "concept_en": "Assessment",
+      "zh": "评估",
+      "why": "通用",
+      "avoid": [
+        "评分"
+      ]
+    },
+    {
+      "concept_en": "Preparation checklist",
+      "zh": "准备清单",
+      "why": "简洁",
+      "avoid": [
+        "下一步行动"
+      ]
+    },
+    {
+      "concept_en": "Materials",
+      "zh": "素材",
+      "why": "通用",
+      "avoid": [
+        "物料"
+      ]
+    },
+    {
+      "concept_en": "Episode",
+      "zh": "分集",
+      "why": "区分'剧集'，指单集",
+      "avoid": [
+        "集"
+      ]
+    },
+    {
+      "concept_en": "Subtitles",
+      "zh": "字幕",
+      "why": "通用",
+      "avoid": [
+        "标题"
+      ]
+    },
+    {
+      "concept_en": "Finalize",
+      "zh": "定稿",
+      "why": "行业常用",
+      "avoid": [
+        "完成"
+      ]
+    },
+    {
+      "concept_en": "Approve",
+      "zh": "批准",
+      "why": "审核流程用'批准'",
+      "avoid": [
+        "审核通过"
+      ]
+    },
+    {
+      "concept_en": "Observed",
+      "zh": "实测",
+      "why": "证据标签，固定译法",
+      "avoid": [
+        "观测"
+      ]
+    },
+    {
+      "concept_en": "Inferred",
+      "zh": "推断",
+      "why": "证据标签，固定译法",
+      "avoid": [
+        "推测"
+      ]
+    },
+    {
+      "concept_en": "Estimated",
+      "zh": "估算",
+      "why": "证据标签，固定译法",
+      "avoid": [
+        "估计"
+      ]
+    },
+    {
+      "concept_en": "Partner-reported",
+      "zh": "合作方上报",
+      "why": "证据标签，固定译法",
+      "avoid": [
+        "合作方报告"
+      ]
+    },
+    {
+      "concept_en": "Available",
+      "zh": "可用",
+      "why": "数据状态",
+      "avoid": [
+        "有效"
+      ]
+    },
+    {
+      "concept_en": "Collecting history",
+      "zh": "积累历史中",
+      "why": "数据状态",
+      "avoid": [
+        "收集历史"
+      ]
+    },
+    {
+      "concept_en": "Requires connection",
+      "zh": "需要接入",
+      "why": "数据状态",
+      "avoid": [
+        "需要连接"
+      ]
+    },
+    {
+      "concept_en": "Manual",
+      "zh": "人工导入",
+      "why": "数据状态",
+      "avoid": [
+        "手动"
+      ]
+    },
+    {
+      "concept_en": "Unavailable",
+      "zh": "不可用",
+      "why": "数据状态",
+      "avoid": [
+        "无法使用"
+      ]
+    },
+    {
+      "concept_en": "Stale",
+      "zh": "过期",
+      "why": "数据状态",
+      "avoid": [
+        "陈旧"
+      ]
+    },
+    {
+      "concept_en": "Failed",
+      "zh": "失败",
+      "why": "数据状态",
+      "avoid": [
+        "采集失败"
+      ]
+    },
+    {
+      "concept_en": "Demo data",
+      "zh": "演示数据",
+      "why": "必须标明演示",
+      "avoid": [
+        "模拟数据"
+      ]
+    },
+    {
+      "concept_en": "Demo results",
+      "zh": "演示结果",
+      "why": "必须标明演示",
+      "avoid": [
+        "模拟结果"
+      ]
+    },
+    {
+      "concept_en": "Chart",
+      "zh": "榜单",
+      "why": "通用",
+      "avoid": [
+        "排行榜"
+      ]
+    },
+    {
+      "concept_en": "Prominence",
+      "zh": "显著度",
+      "why": "专业术语",
+      "avoid": [
+        "突出度"
+      ]
+    },
+    {
+      "concept_en": "Trope / Story type",
+      "zh": "题材",
+      "why": "统一用'题材'",
+      "avoid": [
+        "故事类型"
+      ]
+    },
+    {
+      "concept_en": "New listing",
+      "zh": "新上架",
+      "why": "简洁",
+      "avoid": [
+        "新作品"
+      ]
+    },
+    {
+      "concept_en": "Growth",
+      "zh": "增长",
+      "why": "通用",
+      "avoid": [
+        "成长"
+      ]
+    },
+    {
+      "concept_en": "Data sources & definitions",
+      "zh": "数据来源与定义",
+      "why": "固定页面名",
+      "avoid": [
+        "数据与来源"
+      ]
+    }
+  ],
+  "register_notes": "当前中文整体偏直译，如'打开其下一步操作'、'没有什么在等你'等句式不符合国内产品文案习惯。术语不统一，如'作品'与'剧集'混用，'审核'与'批准'混用，'证据'标签译法不一致。国内平台更倾向简洁、直接的表达，避免'您'等敬语，使用'你'。",
+  "problems_seen": [
+    "an.acq.noRecord 无 Studio 广告活动记录，'Studio'应保留",
+    "an.acq.sourceDemo demo results 译'演示结果'，但'演示'需强调",
+    "an.catalog.col.conversion 付费转化率，应统一为'付费转化率'",
+    "an.ep.episode 剧集，与'分集'混淆",
+    "an.ep.notInStudio 未上传到 Studio，'Studio'应保留",
+    "an.link.accounts 公司与账户，应统一为'公司与账户'",
+    "an.nav.revenue Revenue & LTV 译'收入与 LTV'，但需带'TikTok'",
+    "an.ov.headlines 核心指标，可接受",
+    "an.state.linked_awaiting_data 已关联，等待数据，应统一",
+    "auth.dev.producer 以制片方身份进入，'制片方'可",
+    "demo.badge Demo dataset 演示数据集，需强调演示",
+    "launch.assess 评估美国发行优先级，应统一",
+    "next.col.trope Story type 题材，应统一",
+    "research.evidence.observed 观测，应统一为'实测'",
+    "research.mine.marketScoreNote 相似度，不是成功概率，需保留",
+    "research.state.available 可用，可接受",
+    "rd.benchCtr CTR ≥ {n}% 点击率 ≥ {n}%，需带'广告'",
+    "rd.col.hold Opening retention 开场留存率，应统一",
+    "rd.sourceDemo Demo results (simulated) 演示结果（模拟），需统一",
+    "sim.decision 您的决策简报，'您'应改为'你'",
+    "tw.nav.preparation US launch priority 美国发行优先级，应统一",
+    "ux.market.US United States 美国，应保留",
+    "workflow.step.budget Approve budget 批准预算，应统一",
+    "ws.accounts.access.owner_operated Customer operates 客户自行操作，可接受",
+    "ws.score.label US launch priority score 美国发行优先级评分，应统一"
+  ]
+}

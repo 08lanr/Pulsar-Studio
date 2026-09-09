@@ -1,358 +1,91 @@
 {
-  "ux.company": {
-    "en": "Company profile",
-    "zh": "公司资料"
-  },
-  "ux.company.sub": {
-    "en": "Your story interests guide the market brief. Your catalog and reports stay within your company.",
-    "zh": "用公司的题材方向找到相关海外作品。剧库和报表仅对本公司可见。"
-  },
-  "ux.edit": {
-    "en": "Edit profile",
-    "zh": "编辑资料"
-  },
-  "ux.cancel": {
-    "en": "Cancel",
-    "zh": "取消"
-  },
-  "ux.close": {
-    "en": "Close",
-    "zh": "关闭"
-  },
-  "ux.menu": {
-    "en": "Open navigation",
-    "zh": "打开导航"
-  },
-  "ux.loading": {
-    "en": "Updating…",
-    "zh": "更新中…"
-  },
-  "ux.unknown": {
-    "en": "Not recorded",
-    "zh": "未记录"
-  },
-  "ux.forCompany": {
-    "en": "For your company",
-    "zh": "与我公司相关"
-  },
-  "ux.allTitles": {
-    "en": "All tracked titles",
-    "zh": "全部追踪作品"
-  },
-  "ux.savedTitles": {
-    "en": "Saved titles",
-    "zh": "已收藏作品"
-  },
-  "ux.overview.sub": {
-    "en": "Find overseas dramas worth studying, and connect them to your next release.",
-    "zh": "发现值得研究的海外短剧，为你的下一部作品寻找方向。"
-  },
-  "ux.profileSaved": {
-    "en": "Company profile saved. Your recommendations are up to date.",
-    "zh": "公司资料已保存，相关作品已更新。"
-  },
-  "ux.filters.more": {
-    "en": "Audience & more filters",
-    "zh": "受众与更多筛选"
-  },
-  "ux.filters.counter": {
-    "en": "Choose a platform to sort by views or saves.",
-    "zh": "先选择一个平台，再按观看或收藏排序。"
-  },
-  "ux.scope": {
-    "en": "English public catalogs · viewer location unknown",
-    "zh": "英文公开剧库 · 观众地域未知"
-  },
-  "ux.dramas": {
-    "en": "Dramas to examine",
-    "zh": "值得研究的作品"
-  },
-  "ux.dramas.personal": {
-    "en": "Examples matching your company’s story interests and the filters above.",
-    "zh": "根据公司题材方向与当前筛选，挑选值得参考的作品。"
-  },
-  "ux.dramas.all": {
-    "en": "A selection based on within-platform visibility, not a global ranking.",
-    "zh": "按各平台内的可见度挑选参考作品，并非跨平台排行榜。"
-  },
-  "ux.exploreAll": {
-    "en": "Explore matching titles",
-    "zh": "探索相关作品"
-  },
-  "ux.catalogListing": {
-    "en": "Public catalog listing",
-    "zh": "公开上架作品"
-  },
-  "ux.matches": {
-    "en": "Your interests: {tropes}",
-    "zh": "匹配方向：{tropes}"
-  },
-  "ux.stories": {
-    "en": "Story types to explore",
-    "zh": "探索故事题材"
-  },
-  "ux.storyBasis": {
-    "en": "Among prominent titles in the selected market filters. Your company’s interests are highlighted; titles can have several story types.",
-    "zh": "当前市场筛选下的显著作品题材占比。高亮标记公司关注的题材；一部剧可以包含多个题材。"
-  },
-  "ux.howCalculated": {
-    "en": "How this is calculated",
-    "zh": "如何计算"
-  },
-  "ux.allStories": {
-    "en": "All story types",
-    "zh": "全部题材"
-  },
-  "ux.nextStep": {
-    "en": "Your next step",
-    "zh": "你的下一步"
-  },
-  "ux.nextStep.sub": {
-    "en": "Connect a title in your catalog to a useful next action.",
-    "zh": "从自己的剧库出发，找到下一项具体行动。"
-  },
-  "ux.catalog.sub": {
-    "en": "Your titles, comparable overseas stories, and the materials you have ready.",
-    "zh": "在一个剧库里查看相关海外作品、已上传素材与下一步行动。"
-  },
-  "ux.comparable": {
-    "en": "A comparable story",
-    "zh": "相似故事参考"
-  },
-  "ux.noComparable": {
-    "en": "Add a synopsis to find story comparisons.",
-    "zh": "完善简介，以找到相似故事参考。"
-  },
-  "ux.readiness": {
-    "en": "Known materials",
-    "zh": "已有素材"
-  },
-  "ux.episodesKnown": {
-    "en": "{n} of {total} episodes uploaded",
-    "zh": "已上传 {n} / {total} 集"
-  },
-  "ux.addMaterials": {
-    "en": "Add materials",
-    "zh": "上传素材"
-  },
-  "ux.reviewMaterials": {
-    "en": "Review materials",
-    "zh": "查看素材"
-  },
-  "ux.moreTitle": {
-    "en": "Comparisons & performance details",
-    "zh": "展开对比与表现详情"
-  },
-  "ux.relevance": {
-    "en": "Story relevance",
-    "zh": "题材相关性"
-  },
-  "ux.importReport": {
-    "en": "Import a performance report",
-    "zh": "导入表现报表"
-  },
-  "ux.rights.note": {
-    "en": "Check territory rights and episode approvals on the title before planning a release. Uploads alone do not establish release readiness.",
-    "zh": "筹备发行前，请在作品中核实地区版权和各集审批。已上传素材不代表已经具备发行条件。"
-  },
-  "ux.market.intent": {
-    "en": "Your target markets express intent; public catalog counters do not measure these audiences.",
-    "zh": "目标市场代表公司的发行意向，不代表公开剧库计数的观众地域。"
-  },
-  "ux.volume.note": {
-    "en": "Descriptive company information; not used to score recommendations.",
-    "zh": "用于描述公司规模，不参与推荐评分。"
-  },
-  "ux.counter.note": {
-    "en": "A counter observed on this platform’s public listing.",
-    "zh": "从该平台公开作品页面读取的计数。"
-  },
-  "ux.counter.limit": {
-    "en": "Counters use each platform’s own definitions. Compare within the same platform; these are not unique viewers or verified US audiences.",
-    "zh": "各平台计数口径不同，请在同一平台内比较。这些数字不等于独立观众人数，也不代表已核实的美国观众。"
-  },
-  "ux.fullSource": {
-    "en": "Open full source in a new tab",
-    "zh": "在新标签页查看完整来源"
-  },
-  "ux.searchMatch": {
-    "en": "Matching “{q}” in titles, synopses, story types and company names",
-    "zh": "在标题、简介、题材与公司名称中匹配“{q}”"
-  },
-  "ux.platformCounters": {
-    "en": "Platform counters",
-    "zh": "平台计数"
-  },
-  "ux.advancedData": {
-    "en": "Detailed statistics",
-    "zh": "详细统计"
-  },
-  "ux.reportTemplate": {
-    "en": "Download CSV example",
-    "zh": "下载 CSV 示例"
-  },
-  "ux.unlinked": {
-    "en": "Not linked to a catalog title",
-    "zh": "未关联剧库作品"
-  },
-  "ux.duplicate": {
-    "en": "Duplicate",
-    "zh": "重复"
-  },
-  "ux.valid": {
-    "en": "Ready to import",
-    "zh": "可以导入"
-  },
-  "ux.sources.connected": {
-    "en": "Sources in use",
-    "zh": "正在使用的数据来源"
-  },
-  "ux.sources.planned": {
-    "en": "Other sources & connection requirements",
-    "zh": "其他来源与接入条件"
-  },
-  "ux.sources.metrics": {
-    "en": "Definitions for the data you see",
-    "zh": "页面指标说明"
-  },
-  "ux.sources.refresh": {
-    "en": "Collected on demand; see the read date below.",
-    "zh": "按需采集，以以下读取时间为准。"
-  },
-  "ux.sources.connection": {
-    "en": "Not connected. No data from this source is shown.",
-    "zh": "尚未接入，页面不展示此来源的数据。"
-  },
-  "ux.sources.derived": {
-    "en": "Calculated from the published catalog and your own inputs.",
-    "zh": "根据已发布剧库与公司填写的信息计算。"
-  },
-  "ux.sources.manual": {
-    "en": "Updated when you import a report or edit company information.",
-    "zh": "导入报表或修改公司信息时更新。"
-  },
-  "ux.sourceLimits": {
-    "en": "Coverage is partial. Confirm details on the original source before making a release decision.",
-    "zh": "采集覆盖并不完整。做出发行决策前，请核实原始来源。"
-  },
-  "ux.market.US": {
-    "en": "United States",
-    "zh": "美国"
-  },
-  "ux.market.CA": {
-    "en": "Canada",
-    "zh": "加拿大"
-  },
-  "ux.market.GB": {
-    "en": "United Kingdom",
-    "zh": "英国"
-  },
-  "ux.market.AU": {
-    "en": "Australia",
-    "zh": "澳大利亚"
-  },
-  "ux.market.SG": {
-    "en": "Singapore",
-    "zh": "新加坡"
-  },
-  "ux.market.MY": {
-    "en": "Malaysia",
-    "zh": "马来西亚"
-  },
-  "ux.market.JP": {
-    "en": "Japan",
-    "zh": "日本"
-  },
-  "ux.market.KR": {
-    "en": "South Korea",
-    "zh": "韩国"
-  },
-  "research.watch.add": {
-    "en": "Save title",
-    "zh": "收藏作品"
-  },
-  "research.watch.watching": {
-    "en": "Saved",
-    "zh": "已收藏"
-  },
-  "research.watch.remove": {
-    "en": "Remove from saved",
-    "zh": "取消收藏"
-  },
-  "research.onboard.marketsHint": {
-    "en": "Choose your target release markets (up to 8).",
-    "zh": "选择计划发行的市场（最多 8 个）。"
-  },
-  "research.onboard.title": {
-    "en": "Company profile",
-    "zh": "公司资料"
-  },
-  "research.onboard.saved": {
-    "en": "Company profile saved",
-    "zh": "公司资料已保存"
-  },
-  "research.title.similarNote": {
-    "en": "Shared story types from platform tags and synopsis classification. Similarity does not establish that two listings are the same drama.",
-    "zh": "根据平台标签与简介分类找到相似题材。题材相似并不表示两条记录是同一部剧。"
-  },
-  "ux.access.public_web": {
-    "en": "Public web catalog",
-    "zh": "公开网页"
-  },
-  "ux.access.public_api": {
-    "en": "Public API",
-    "zh": "公开接口"
-  },
-  "ux.access.authorized_api": {
-    "en": "Authorized account",
-    "zh": "授权账户"
-  },
-  "ux.access.import": {
-    "en": "Company report import",
-    "zh": "公司报表导入"
-  },
-  "ux.access.producer_input": {
-    "en": "Company information",
-    "zh": "公司填写"
-  },
-  "ux.access.derived": {
-    "en": "Calculated from existing data",
-    "zh": "由已有数据计算"
-  },
-  "ux.access.licensed": {
-    "en": "Licensed source",
-    "zh": "授权数据来源"
-  },
-  "ux.episodesUnknownTotal": {
-    "en": "{n} episodes uploaded · total not recorded",
-    "zh": "已上传 {n} 集 · 总集数未记录"
-  },
-  "research.onboard.tropesHint": {
-    "en": "Choose 1–12 story types. You can change these later.",
-    "zh": "选择 1–12 个题材，之后可以随时修改。"
-  },
-  "ux.knownFacts": {
-    "en": "Recorded facts",
-    "zh": "已记录信息"
-  },
-  "ux.approvedEpisodes": {
-    "en": "{n} of {total} uploaded episodes have a current approved version.",
-    "zh": "已上传的 {total} 集中，{n} 集的当前版本已获批。"
-  },
-  "ux.licenseWindow": {
-    "en": "Recorded license dates (territory not established)",
-    "zh": "已记录授权日期（不代表地区版权）"
-  },
-  "ux.error.title": {
-    "en": "This page could not be loaded",
-    "zh": "暂时无法加载此页面"
-  },
-  "ux.error.body": {
-    "en": "Try again, or return to the market overview. Your saved company information is unchanged.",
-    "zh": "请重试，或返回市场概览。已保存的公司资料不会丢失。"
-  },
-  "ux.retry": {
-    "en": "Try again",
-    "zh": "重试"
-  }
+  "ux.company": { "en": "Company profile", "zh": "公司资料" },
+  "ux.company.sub": { "en": "Your story interests guide the market brief. Your catalog and reports stay within your company.", "zh": "用公司的题材方向找到相关海外作品。剧库和报表仅对本公司可见。" },
+  "ux.edit": { "en": "Edit profile", "zh": "编辑资料" },
+  "ux.cancel": { "en": "Cancel", "zh": "取消" },
+  "ux.close": { "en": "Close", "zh": "关闭" },
+  "ux.menu": { "en": "Open navigation", "zh": "打开导航" },
+  "ux.loading": { "en": "Updating…", "zh": "更新中…" },
+  "ux.unknown": { "en": "Not recorded", "zh": "未记录" },
+  "ux.forCompany": { "en": "For your company", "zh": "本公司相关" },
+  "ux.allTitles": { "en": "All tracked titles", "zh": "全部追踪剧集" },
+  "ux.savedTitles": { "en": "Saved titles", "zh": "已收藏剧集" },
+  "ux.overview.sub": { "en": "Find overseas dramas worth studying, and connect them to your next release.", "zh": "发现值得研究的海外短剧，为你的下一部剧集寻找方向。" },
+  "ux.profileSaved": { "en": "Company profile saved. Your recommendations are up to date.", "zh": "公司资料已保存，推荐已更新。" },
+  "ux.filters.more": { "en": "Audience & more filters", "zh": "受众与更多筛选" },
+  "ux.filters.counter": { "en": "Choose a platform to sort by views or saves.", "zh": "先选择平台，再按观看或收藏排序。" },
+  "ux.scope": { "en": "English public catalogs · viewer location unknown", "zh": "英文公开剧库 · 观众地域未知" },
+  "ux.dramas": { "en": "Dramas to examine", "zh": "值得研究的剧集" },
+  "ux.dramas.personal": { "en": "Examples matching your company’s story interests and the filters above.", "zh": "根据公司题材方向与当前筛选，挑选值得参考的剧集。" },
+  "ux.dramas.all": { "en": "A selection based on within-platform visibility, not a global ranking.", "zh": "按各平台内的可见度挑选参考剧集，并非跨平台排行榜。" },
+  "ux.exploreAll": { "en": "Explore matching titles", "zh": "查看相关剧集" },
+  "ux.catalogListing": { "en": "Public catalog listing", "zh": "公开上架剧集" },
+  "ux.matches": { "en": "Your interests: {tropes}", "zh": "匹配方向：{tropes}" },
+  "ux.stories": { "en": "Story types to explore", "zh": "探索故事题材" },
+  "ux.storyBasis": { "en": "Among prominent titles in the selected market filters. Your company’s interests are highlighted; titles can have several story types.", "zh": "当前市场筛选下的显著剧集题材占比。高亮标记公司关注的题材；一部剧可以包含多个题材。" },
+  "ux.howCalculated": { "en": "How this is calculated", "zh": "如何计算" },
+  "ux.allStories": { "en": "All story types", "zh": "全部题材" },
+  "ux.nextStep": { "en": "Your next step", "zh": "下一步" },
+  "ux.nextStep.sub": { "en": "Connect a title in your catalog to a useful next action.", "zh": "从剧库中选择剧集，找到下一步行动。" },
+  "ux.catalog.sub": { "en": "Your titles, comparable overseas stories, and the materials you have ready.", "zh": "在一个剧库里查看相关海外作品、已上传素材与下一步行动。" },
+  "ux.comparable": { "en": "A comparable story", "zh": "相似故事参考" },
+  "ux.noComparable": { "en": "Add a synopsis to find story comparisons.", "zh": "完善简介，以找到相似故事参考。" },
+  "ux.readiness": { "en": "Known materials", "zh": "已有素材" },
+  "ux.episodesKnown": { "en": "{n} of {total} episodes uploaded", "zh": "已上传 {n} / {total} 集" },
+  "ux.addMaterials": { "en": "Add materials", "zh": "上传素材" },
+  "ux.reviewMaterials": { "en": "Review materials", "zh": "查看素材" },
+  "ux.moreTitle": { "en": "Comparisons & performance details", "zh": "对比与表现详情" },
+  "ux.relevance": { "en": "Story relevance", "zh": "题材相关性" },
+  "ux.importReport": { "en": "Import a performance report", "zh": "导入表现报表" },
+  "ux.rights.note": { "en": "Check territory rights and episode approvals on the title before planning a release. Uploads alone do not establish release readiness.", "zh": "发行前，请先核实剧集的地区版权与分集审批。仅上传素材不代表已具备发行条件。" },
+  "ux.market.intent": { "en": "Your target markets express intent; public catalog counters do not measure these audiences.", "zh": "目标市场代表公司的发行意向，不代表公开剧库计数的观众地域。" },
+  "ux.volume.note": { "en": "Descriptive company information; not used to score recommendations.", "zh": "用于描述公司规模，不参与推荐评分。" },
+  "ux.counter.note": { "en": "A counter observed on this platform’s public listing.", "zh": "从该平台公开剧集页面读取的计数。" },
+  "ux.counter.limit": { "en": "Counters use each platform’s own definitions. Compare within the same platform; these are not unique viewers or verified US audiences.", "zh": "各平台计数口径不同，请在同一平台内比较。这些数字不等于独立观众人数，也不代表已核实的美国观众。" },
+  "ux.fullSource": { "en": "Open full source in a new tab", "zh": "在新标签页查看完整来源" },
+  "ux.searchMatch": { "en": "Matching “{q}” in titles, synopses, story types and company names", "zh": "在标题、简介、题材与公司名称中匹配“{q}”" },
+  "ux.platformCounters": { "en": "Platform counters", "zh": "平台计数" },
+  "ux.advancedData": { "en": "Detailed statistics", "zh": "详细统计" },
+  "ux.reportTemplate": { "en": "Download CSV example", "zh": "下载 CSV 示例" },
+  "ux.unlinked": { "en": "Not linked to a catalog title", "zh": "未关联剧库剧集" },
+  "ux.duplicate": { "en": "Duplicate", "zh": "重复" },
+  "ux.valid": { "en": "Ready to import", "zh": "可以导入" },
+  "ux.sources.connected": { "en": "Sources in use", "zh": "正在使用的数据来源" },
+  "ux.sources.planned": { "en": "Other sources & connection requirements", "zh": "其他来源与接入条件" },
+  "ux.sources.metrics": { "en": "Definitions for the data you see", "zh": "页面指标说明" },
+  "ux.sources.refresh": { "en": "Collected on demand; see the read date below.", "zh": "按需采集，以读取时间为准。" },
+  "ux.sources.connection": { "en": "Not connected. No data from this source is shown.", "zh": "尚未接入，不展示此来源的数据。" },
+  "ux.sources.derived": { "en": "Calculated from the published catalog and your own inputs.", "zh": "根据已发布剧库与公司填写的信息计算。" },
+  "ux.sources.manual": { "en": "Updated when you import a report or edit company information.", "zh": "导入报表或修改公司信息时更新。" },
+  "ux.sourceLimits": { "en": "Coverage is partial. Confirm details on the original source before making a release decision.", "zh": "采集覆盖不完整。做发行决策前，请核实原始来源。" },
+  "ux.market.US": { "en": "United States", "zh": "美国" },
+  "ux.market.CA": { "en": "Canada", "zh": "加拿大" },
+  "ux.market.GB": { "en": "United Kingdom", "zh": "英国" },
+  "ux.market.AU": { "en": "Australia", "zh": "澳大利亚" },
+  "ux.market.SG": { "en": "Singapore", "zh": "新加坡" },
+  "ux.market.MY": { "en": "Malaysia", "zh": "马来西亚" },
+  "ux.market.JP": { "en": "Japan", "zh": "日本" },
+  "ux.market.KR": { "en": "South Korea", "zh": "韩国" },
+  "research.watch.add": { "en": "Save title", "zh": "收藏剧集" },
+  "research.watch.watching": { "en": "Saved", "zh": "已收藏" },
+  "research.watch.remove": { "en": "Remove from saved", "zh": "取消收藏" },
+  "research.onboard.marketsHint": { "en": "Choose your target release markets (up to 8).", "zh": "选择发行市场（最多 8 个）" },
+  "research.onboard.title": { "en": "Company profile", "zh": "公司资料" },
+  "research.onboard.saved": { "en": "Company profile saved", "zh": "公司资料已保存" },
+  "research.title.similarNote": { "en": "Shared story types from platform tags and synopsis classification. Similarity does not establish that two listings are the same drama.", "zh": "根据平台标签与简介分类，题材相似不代表是同一部剧。" },
+  "ux.access.public_web": { "en": "Public web catalog", "zh": "公开网页" },
+  "ux.access.public_api": { "en": "Public API", "zh": "公开接口" },
+  "ux.access.authorized_api": { "en": "Authorized account", "zh": "授权账户" },
+  "ux.access.import": { "en": "Company report import", "zh": "公司报表导入" },
+  "ux.access.producer_input": { "en": "Company information", "zh": "公司填写" },
+  "ux.access.derived": { "en": "Calculated from existing data", "zh": "由已有数据计算" },
+  "ux.access.licensed": { "en": "Licensed source", "zh": "授权数据来源" },
+  "ux.episodesUnknownTotal": { "en": "{n} episodes uploaded · total not recorded", "zh": "已上传 {n} 集 · 总集数未记录" },
+  "research.onboard.tropesHint": { "en": "Choose 1–12 story types. You can change these later.", "zh": "选择 1–12 个题材，之后可修改" },
+  "ux.knownFacts": { "en": "Recorded facts", "zh": "已记录信息" },
+  "ux.approvedEpisodes": { "en": "{n} of {total} uploaded episodes have a current approved version.", "zh": "已上传 {total} 集，其中 {n} 集已批准。" },
+  "ux.licenseWindow": { "en": "Recorded license dates (territory not established)", "zh": "已记录授权日期（不代表地区版权）" },
+  "ux.error.title": { "en": "This page could not be loaded", "zh": "暂时无法加载此页面" },
+  "ux.error.body": { "en": "Try again, or return to the market overview. Your saved company information is unchanged.", "zh": "请重试，或返回市场概览。已保存的公司资料不会丢失。" },
+  "ux.retry": { "en": "Try again", "zh": "重试" }
 }

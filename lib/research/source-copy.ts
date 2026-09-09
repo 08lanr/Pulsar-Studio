@@ -1,9 +1,9 @@
 import { t, type Locale } from '@/lib/i18n';
 import type { SourceEntry } from './registry';
-const names: Record<string,string>={reelshort_web:'ReelShort 公开剧库',dramabox_web:'DramaBox 公开剧库',youtube_public:'YouTube 公开视频计数',youtube_owned:'YouTube 自有频道分析',google_trends:'Google Trends 美国搜索热度',meta_ad_library:'Meta 广告资料库',tiktok_top_ads:'TikTok 创意中心优秀广告',grow_results:'Pulsar Grow 测试结果',app_store_charts:'美国应用商店榜单与评分',storefront_pricing:'订阅与代币价格',producer_reports:'公司发行与平台报表',producer_input:'公司资料与作品信息',engine:'题材分类与可比作品分析'};
+const names: Record<string,string>={reelshort_web:'ReelShort 公开剧库',dramabox_web:'DramaBox 公开剧库',youtube_public:'YouTube 公开视频计数',youtube_owned:'YouTube 自有频道分析',google_trends:'Google Trends 美国搜索热度',meta_ad_library:'Meta 广告资料库',tiktok_top_ads:'TikTok 创意中心优秀广告',grow_results:'Pulsar Grow 测试结果',app_store_charts:'美国应用商店榜单与评分',storefront_pricing:'订阅与代币价格',producer_reports:'公司发行与平台报表',producer_input:'公司资料与剧集信息',engine:'题材分类与可比剧集分析'};
 const limits:Record<string,string[]>={
- reelshort_web:['英文公开剧库，无法确认观众地域。采集首页榜单和部分上架作品，不代表整个市场。','观看和收藏是平台自有计数，完整统计口径未公开。平台自制标记不等于独立制作公司。'],
- dramabox_web:['英文公开剧库，无法确认观众地域。首页推荐与详情页覆盖有限，不代表整个市场。','观看和追剧计数来自作品详情页，不能与其他平台直接比较。出版方名称不等于制作公司。'],
+ reelshort_web:['英文公开剧库，无法确认观众地域。采集首页榜单和部分上架剧集，不代表整个市场。','观看和收藏是平台自有计数，完整统计口径未公开。平台自制标记不等于独立制作公司。'],
+ dramabox_web:['英文公开剧库，无法确认观众地域。首页推荐与详情页覆盖有限，不代表整个市场。','观看和追剧计数来自剧集详情页，不能与其他平台直接比较。出版方名称不等于制作公司。'],
  youtube_public:['公开播放、点赞和评论不是付费转化或完播率。视频与剧目的关联需要核实。'],
  youtube_owned:['需要公司授权自有频道。指标只反映该频道及报表覆盖的观众。'],
  google_trends:['搜索热度是按查询范围归一化的相对值，不是搜索人数。不同导出窗口不能直接比较。'],

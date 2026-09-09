@@ -107,7 +107,7 @@ test.describe("title analytics", () => {
 
   test("a title with analytics but no campaign, and a title with no analytics", async ({ page }) => {
     await page.goto(`/producer/titles/${T(7)}/analytics/acquisition?range=7d`);
-    await expect(page.locator(".rs-empty h2")).toContainText(/No campaign|尚未运行/);
+    await expect(page.locator(".rs-empty h2")).toContainText(/No campaign|尚未投放/);
     await expect(page.locator(`a[href="/producer/promote/new?title=${T(7)}"]`).first()).toBeVisible();
     await page.goto(`/producer/titles/${T(5)}/analytics`);
     await expect(page.locator(".an-chips .state").first()).toContainText(/Needs listing link|需关联平台条目/);

@@ -1,286 +1,79 @@
 {
-  "tw.nav.label": {
-    "en": "Title sections",
-    "zh": "作品分区"
-  },
-  "tw.nav.overview": {
-    "en": "Overview",
-    "zh": "概览"
-  },
-  "tw.nav.tiktok": {
-    "en": "TikTok revenue & audience",
-    "zh": "TikTok 收入与观众"
-  },
-  "tw.nav.campaigns": {
-    "en": "Ad campaigns",
-    "zh": "广告活动"
-  },
-  "tw.nav.preparation": {
-    "en": "US launch priority",
-    "zh": "美国发行优先级"
-  },
-  "tw.nav.materials": {
-    "en": "Episodes & subtitles",
-    "zh": "分集与字幕"
-  },
-  "tw.open": {
-    "en": "Open",
-    "zh": "打开"
-  },
-  "tw.platform.reporting": {
-    "en": "On TikTok · reporting",
-    "zh": "已上 TikTok · 有数据"
-  },
-  "tw.platform.stale": {
-    "en": "On TikTok · data stale",
-    "zh": "已上 TikTok · 数据过期"
-  },
-  "tw.platform.sync_failed": {
-    "en": "On TikTok · sync failed",
-    "zh": "已上 TikTok · 同步失败"
-  },
-  "tw.platform.awaiting_data": {
-    "en": "Linked · awaiting data",
-    "zh": "已关联 · 等待数据"
-  },
-  "tw.platform.not_linked": {
-    "en": "Not linked to TikTok",
-    "zh": "未关联 TikTok"
-  },
-  "tw.ads.none": {
-    "en": "No ad campaign",
-    "zh": "无广告活动"
-  },
-  "tw.ads.preparing": {
-    "en": "Ads · preparing",
-    "zh": "广告 · 准备中"
-  },
-  "tw.ads.awaiting_approval": {
-    "en": "Ads · awaiting approval",
-    "zh": "广告 · 待批准"
-  },
-  "tw.ads.ready_to_launch": {
-    "en": "Ads · ready to launch",
-    "zh": "广告 · 可投放"
-  },
-  "tw.ads.submitted": {
-    "en": "Ads · submitted",
-    "zh": "广告 · 已提交"
-  },
-  "tw.ads.running": {
-    "en": "Ads · running",
-    "zh": "广告 · 投放中"
-  },
-  "tw.ads.results": {
-    "en": "Ads · results in",
-    "zh": "广告 · 已有结果"
-  },
-  "tw.ads.failed": {
-    "en": "Ads · launch failed",
-    "zh": "广告 · 投放失败"
-  },
-  "tw.ads.spendToDate": {
-    "en": "Ad spend to date",
-    "zh": "累计广告花费"
-  },
-  "tw.ads.ctrToDate": {
-    "en": "Ad CTR to date",
-    "zh": "累计广告点击率"
-  },
-  "tw.ads.rounds": {
-    "en": "Rounds",
-    "zh": "轮次"
-  },
-  "tw.ads.attributed": {
-    "en": "Attributed outcomes",
-    "zh": "可归因结果"
-  },
-  "tw.ads.noSpend": {
-    "en": "nothing reported yet",
-    "zh": "尚无上报"
-  },
-  "tw.ads.noResults": {
-    "en": "no results yet",
-    "zh": "尚无结果"
-  },
-  "tw.ads.noneYet": {
-    "en": "No ad campaign on this title yet.",
-    "zh": "此作品尚无广告活动。"
-  },
-  "tw.ads.roundN": {
-    "en": "Round {n}",
-    "zh": "第 {n} 轮"
-  },
-  "tw.ads.metCount": {
-    "en": "{met} of {total} ads met both benchmarks",
-    "zh": "{total} 条广告中 {met} 条两项基准达标"
-  },
-  "tw.tiktok.notLinked": {
-    "en": "Link this title to its TikTok listing to see earnings and viewers.",
-    "zh": "将此作品关联到 TikTok 作品后即可查看收入与观众。"
-  },
-  "tw.tiktok.awaiting": {
-    "en": "Linked. The first report has not arrived yet.",
-    "zh": "已关联，第一份报告尚未到达。"
-  },
-  "tw.tiktok.noValue": {
-    "en": "No earnings value in this period.",
-    "zh": "本期无收入数据。"
-  },
-  "tw.prep.band": {
-    "en": "US launch priority band",
-    "zh": "美国发行优先级等级"
-  },
-  "tw.prep.nextSteps": {
-    "en": "Preparation checklist",
-    "zh": "准备清单"
-  },
-  "tw.prep.assessment": {
-    "en": "US launch priority assessment",
-    "zh": "美国发行优先级评估"
-  },
-  "tw.prep.checklist": {
-    "en": "Preparation checklist",
-    "zh": "准备清单"
-  },
-  "tw.prep.breakdown": {
-    "en": "Assessment breakdown",
-    "zh": "评估构成"
-  },
-  "tw.prep.marketEvidence": {
-    "en": "Market comparisons",
-    "zh": "市场对比"
-  },
-  "tw.next.uploadVideo": {
-    "en": "Upload video",
-    "zh": "上传视频"
-  },
-  "tw.next.firstCampaignHint": {
-    "en": "Video is available. The next step is a first ad campaign.",
-    "zh": "已有视频，下一步是第一轮广告活动。"
-  },
-  "pf.title": {
-    "en": "My catalog",
-    "zh": "我的剧库"
-  },
-  "pf.sub": { "en": "Manage your drama series here. Check TikTok reporting, review ad campaigns, or open the US launch priority score to see what needs preparation.", "zh": "在这里管理短剧作品：查看 TikTok 数据状态、跟进广告活动，或打开美国发行优先级评分查看待准备事项。" },
-  "pf.view.portfolio": {
-    "en": "Portfolio",
-    "zh": "作品总览"
-  },
-  "pf.view.tiktok": {
-    "en": "TikTok comparison",
-    "zh": "TikTok 对比"
-  },
-  "pf.view.preparation": {
-    "en": "Preparation checklist",
-    "zh": "准备清单"
-  },
-  "pf.views": {
-    "en": "Catalog views",
-    "zh": "剧库视图"
-  },
-  "pf.quick.all": {
-    "en": "All titles",
-    "zh": "全部作品"
-  },
-  "pf.quick.on_tiktok": {
-    "en": "On TikTok",
-    "zh": "已上 TikTok"
-  },
-  "pf.quick.ads_active": {
-    "en": "Ads active",
-    "zh": "广告进行中"
-  },
-  "pf.quick.preparing": {
-    "en": "Preparing",
-    "zh": "准备中"
-  },
-  "pf.legend": {
-    "en": "On TikTok = the linked listing has delivered data. Ads active = a campaign is submitted, running or has results. Preparing = neither. Groups can overlap.",
-    "zh": "已上 TikTok = 关联作品已有数据；广告进行中 = 有广告活动已提交、投放中或已有结果；准备中 = 两者皆无。分组可重叠。"
-  },
-  "pf.col.title": {
-    "en": "Title",
-    "zh": "作品"
-  },
-  "pf.col.platform": {
-    "en": "TikTok status",
-    "zh": "TikTok 状态"
-  },
-  "pf.col.ads": {
-    "en": "Ad status",
-    "zh": "广告状态"
-  },
-  "pf.col.earnings": {
-    "en": "TikTok earnings",
-    "zh": "TikTok 收入"
-  },
-  "pf.col.spend": {
-    "en": "Ad spend",
-    "zh": "广告花费"
-  },
-  "pf.col.ctr": {
-    "en": "Ad CTR",
-    "zh": "广告点击率"
-  },
-  "pf.col.open": {
-    "en": "Open",
-    "zh": "打开"
-  },
-  "pf.toDate": {
-    "en": "all rounds to date",
-    "zh": "所有轮次累计"
-  },
-  "pf.ctrBench": {
-    "en": "benchmark ≥ {n}%",
-    "zh": "基准 ≥ {n}%"
-  },
-  "pf.basisGross": {
-    "en": "gross sales",
-    "zh": "总销售额"
-  },
-  "pf.basisGrossNote": {
-    "en": "GROSS marks a title whose source reports gross purchase sales, not publisher earnings; the two are not comparable.",
-    "zh": "标注“总销售额”的作品，其来源上报的是购买总额而非发行方收入，两者不可直接比较。"
-  },
-  "pf.sort.earnings": {
-    "en": "TikTok earnings",
-    "zh": "TikTok 收入"
-  },
-  "pf.sort.spend": {
-    "en": "Ad spend",
-    "zh": "广告花费"
-  },
-  "pf.sort.name": {
-    "en": "Name",
-    "zh": "名称"
-  },
-  "pf.count": {
-    "en": "Titles shown: {n}",
-    "zh": "显示 {n} 部作品"
-  },
-  "pf.demoNote": {
-    "en": "Demo dataset: TikTok figures and ad results are simulated and labelled.",
-    "zh": "演示数据集：TikTok 数据与广告结果均为模拟并已标注。"
-  },
-  "pf.reset": {
-    "en": "Reset filters",
-    "zh": "重置筛选"
-  },
-  "tw.backTo": {
-    "en": "Back to {section}",
-    "zh": "返回{section}"
-  },
-  "tw.ads.resultsCol": {
-    "en": "Ad results",
-    "zh": "广告结果"
-  },
+  "tw.nav.label": { "en": "Title sections", "zh": "剧集分区" },
+  "tw.nav.overview": { "en": "Overview", "zh": "概览" },
+  "tw.nav.tiktok": { "en": "TikTok revenue & audience", "zh": "TikTok 收入与观众" },
+  "tw.nav.campaigns": { "en": "Ad campaigns", "zh": "广告活动" },
+  "tw.nav.preparation": { "en": "US launch priority", "zh": "美国发行优先级" },
+  "tw.nav.materials": { "en": "Episodes & subtitles", "zh": "分集与字幕" },
+  "tw.open": { "en": "Open", "zh": "打开" },
+  "tw.platform.reporting": { "en": "On TikTok · reporting", "zh": "已上 TikTok · 有数据" },
+  "tw.platform.stale": { "en": "On TikTok · data stale", "zh": "已上 TikTok · 数据过期" },
+  "tw.platform.sync_failed": { "en": "On TikTok · sync failed", "zh": "已上 TikTok · 同步失败" },
+  "tw.platform.awaiting_data": { "en": "Linked · awaiting data", "zh": "已关联 · 等待数据" },
+  "tw.platform.not_linked": { "en": "Not linked to TikTok", "zh": "未关联 TikTok" },
+  "tw.ads.none": { "en": "No ad campaign", "zh": "无广告活动" },
+  "tw.ads.preparing": { "en": "Ads · preparing", "zh": "广告 · 准备中" },
+  "tw.ads.awaiting_approval": { "en": "Ads · awaiting approval", "zh": "广告 · 待批准" },
+  "tw.ads.ready_to_launch": { "en": "Ads · ready to launch", "zh": "广告 · 可投放" },
+  "tw.ads.submitted": { "en": "Ads · submitted", "zh": "广告 · 已提交" },
+  "tw.ads.running": { "en": "Ads · running", "zh": "广告 · 投放中" },
+  "tw.ads.results": { "en": "Ads · results in", "zh": "广告 · 已有结果" },
+  "tw.ads.failed": { "en": "Ads · launch failed", "zh": "广告 · 投放失败" },
+  "tw.ads.spendToDate": { "en": "Ad spend to date", "zh": "累计广告花费" },
+  "tw.ads.ctrToDate": { "en": "Ad CTR to date", "zh": "累计广告点击率" },
+  "tw.ads.rounds": { "en": "Rounds", "zh": "轮次" },
+  "tw.ads.attributed": { "en": "Attributed outcomes", "zh": "可归因结果" },
+  "tw.ads.noSpend": { "en": "nothing reported yet", "zh": "尚无上报" },
+  "tw.ads.noResults": { "en": "no results yet", "zh": "尚无结果" },
+  "tw.ads.noneYet": { "en": "No ad campaign on this title yet.", "zh": "此剧集尚无广告活动。" },
+  "tw.ads.roundN": { "en": "Round {n}", "zh": "第 {n} 轮" },
+  "tw.ads.metCount": { "en": "{met} of {total} ads met both benchmarks", "zh": "{total} 条广告中 {met} 条两项基准达标" },
+  "tw.tiktok.notLinked": { "en": "Link this title to its TikTok listing to see earnings and viewers.", "zh": "关联 TikTok 条目后即可查看 TikTok 收入与观众。" },
+  "tw.tiktok.awaiting": { "en": "Linked. The first report has not arrived yet.", "zh": "已关联，第一份报告尚未到达。" },
+  "tw.tiktok.noValue": { "en": "No earnings value in this period.", "zh": "本期无收入数据。" },
+  "tw.prep.band": { "en": "US launch priority band", "zh": "美国发行优先级等级" },
+  "tw.prep.nextSteps": { "en": "Preparation checklist", "zh": "准备清单" },
+  "tw.prep.assessment": { "en": "US launch priority assessment", "zh": "美国发行优先级评估" },
+  "tw.prep.checklist": { "en": "Preparation checklist", "zh": "准备清单" },
+  "tw.prep.breakdown": { "en": "Assessment breakdown", "zh": "评估构成" },
+  "tw.prep.marketEvidence": { "en": "Market comparisons", "zh": "市场对比" },
+  "tw.next.uploadVideo": { "en": "Upload video", "zh": "上传视频" },
+  "tw.next.firstCampaignHint": { "en": "Video is available. The next step is a first ad campaign.", "zh": "已有视频，下一步是第一轮广告活动。" },
+  "pf.title": { "en": "My catalog", "zh": "我的剧库" },
+  "pf.sub": { "en": "Manage your drama series here. Check TikTok reporting, review ad campaigns, or open the US launch priority score to see what needs preparation.", "zh": "管理你的剧集：查看 TikTok 数据、跟进广告活动、按美国发行优先级安排准备。" },
+  "pf.view.portfolio": { "en": "Portfolio", "zh": "作品总览" },
+  "pf.view.tiktok": { "en": "TikTok comparison", "zh": "TikTok 对比" },
+  "pf.view.preparation": { "en": "Preparation checklist", "zh": "准备清单" },
+  "pf.views": { "en": "Catalog views", "zh": "剧库视图" },
+  "pf.quick.all": { "en": "All titles", "zh": "全部剧集" },
+  "pf.quick.on_tiktok": { "en": "On TikTok", "zh": "已上 TikTok" },
+  "pf.quick.ads_active": { "en": "Ads active", "zh": "广告进行中" },
+  "pf.quick.preparing": { "en": "Preparing", "zh": "准备中" },
+  "pf.legend": { "en": "On TikTok = the linked listing has delivered data. Ads active = a campaign is submitted, running or has results. Preparing = neither. Groups can overlap.", "zh": "已上 TikTok = 关联作品已有数据；广告进行中 = 有广告活动已提交、投放中或已有结果；准备中 = 两者皆无。分组可重叠。" },
+  "pf.col.title": { "en": "Title", "zh": "剧集" },
+  "pf.col.platform": { "en": "TikTok status", "zh": "TikTok 状态" },
+  "pf.col.ads": { "en": "Ad status", "zh": "广告状态" },
+  "pf.col.earnings": { "en": "TikTok earnings", "zh": "TikTok 收入" },
+  "pf.col.spend": { "en": "Ad spend", "zh": "广告花费" },
+  "pf.col.ctr": { "en": "Ad CTR", "zh": "广告点击率" },
+  "pf.col.open": { "en": "Open", "zh": "打开" },
+  "pf.toDate": { "en": "all rounds to date", "zh": "所有轮次累计" },
+  "pf.ctrBench": { "en": "benchmark ≥ {n}%", "zh": "基准 ≥ {n}%" },
+  "pf.basisGross": { "en": "gross sales", "zh": "总销售额" },
+  "pf.basisGrossNote": { "en": "GROSS marks a title whose source reports gross purchase sales, not publisher earnings; the two are not comparable.", "zh": "标注“总销售额”的作品，其来源上报的是购买总额而非发行方收入，两者不可直接比较。" },
+  "pf.sort.earnings": { "en": "TikTok earnings", "zh": "TikTok 收入" },
+  "pf.sort.spend": { "en": "Ad spend", "zh": "广告花费" },
+  "pf.sort.name": { "en": "Name", "zh": "名称" },
+  "pf.count": { "en": "Titles shown: {n}", "zh": "显示 {n} 部剧集" },
+  "pf.demoNote": { "en": "Demo dataset: TikTok figures and ad results are simulated and labelled.", "zh": "演示数据集：TikTok 数据与广告结果均为模拟并已标注。" },
+  "pf.reset": { "en": "Reset filters", "zh": "重置筛选" },
+  "tw.backTo": { "en": "Back to {section}", "zh": "返回 {section}" },
+  "tw.ads.resultsCol": { "en": "Ad results", "zh": "广告结果" },
   "pf.cell.viewTiktok": { "en": "View TikTok data", "zh": "查看 TikTok 数据" },
-  "pf.cell.link": { "en": "Link TikTok title", "zh": "关联 TikTok 作品" },
+  "pf.cell.link": { "en": "Link TikTok title", "zh": "关联 TikTok 剧集" },
   "pf.cell.start": { "en": "Start a campaign", "zh": "新建广告活动" },
   "pf.cell.campaigns": { "en": "View campaigns", "zh": "查看广告活动" },
-  "pf.tiktok.sub": { "en": "Compare title revenue, viewers and paying-viewer rates. Each row shows its reporting dates; delayed or partial reports may cover different days.", "zh": "对比各作品收入、观众和付费观众比例。每行标注统计日期，延迟或不完整报告所覆盖的日期可能不同。" },
+  "pf.tiktok.sub": { "en": "Compare title revenue, viewers and paying-viewer rates. Each row shows its reporting dates; delayed or partial reports may cover different days.", "zh": "对比各剧集收入、观众和付费观众比例。每行标注统计日期，延迟或不完整报告所覆盖的日期可能不同。" },
   "pf.tiktok.empty": { "en": "No TikTok data yet", "zh": "尚无 TikTok 数据" },
-  "pf.tiktok.emptyHint": { "en": "Link a listing from a title's TikTok section to start receiving data.", "zh": "在作品的 TikTok 分区关联平台条目后开始接收数据。" }
+  "pf.tiktok.emptyHint": { "en": "Link a listing from a title's TikTok section to start receiving data.", "zh": "在剧集的 TikTok 分区关联平台条目后开始接收数据。" }
 }

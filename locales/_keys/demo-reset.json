@@ -1,6 +1,6 @@
 {
-  "demo.badge": { "en": "Demo dataset", "zh": "演示数据集" },
-  "demo.badgeHint": { "en": "Demo workspace: your catalog and performance results are sample data. Public market research has its own sources and dates. No real ad launch or spending happens here.", "zh": "演示工作区：剧库与效果数据为示例。公开市场研究另有来源和采集日期。这里不会实际投放广告或产生花费。" },
+  "demo.badge": { "en": "Demo dataset", "zh": "演示数据" },
+  "demo.badgeHint": { "en": "Demo workspace: your catalog and performance results are sample data. Public market research has its own sources and dates. No real ad launch or spending happens here.", "zh": "当前为演示环境：剧库与效果数据均为示例。公开市场研究另有来源与日期。此处不会实际投放广告或产生花费。" },
   "demo.reset": { "en": "Reset demo", "zh": "重置演示" },
   "demo.resetDone": { "en": "Reset done", "zh": "已重置" },
   "demo.resetFailed": { "en": "Reset failed", "zh": "重置失败" }

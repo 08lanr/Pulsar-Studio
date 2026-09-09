@@ -54,6 +54,7 @@ Run `npm test`, `npm run typecheck`, and `npm run build` before considering an i
 - Admin chrome defaults to English and producer chrome to Chinese; the locale cookie wins.
 - Use `t()` in server components and `useT()` in client components. Add strings under `locales/_keys/`, then run `node scripts/merge-locales.mjs`.
 - Chinese source and English adaptation remain in their content languages independent of chrome locale; retain `lang` attributes or bilingual classes.
+- Producer-portal Chinese follows `docs/terminology.md` (decision 2026-09-08 "native Chinese pass"): 你 not 您, 剧集 for a title and 分集 for an episode (never 作品), 实测 / 推断 / 估算 / 合作方上报 for the evidence labels, verb–object buttons, noun-phrase labels, a half-width space between CJK and Latin or digits. New keys are written to that standard; `scripts/zh-native/` reruns the DeepSeek pass when a large batch of copy lands.
 - Use existing tokens and classes in `app/globals.css`. Do not introduce a CSS framework or external font host.
 - Wrapping discipline (decision 2026-09-08 "final UI/UX pass", `app/polish.css` loads last): a "label →" link gets `&nbsp;→`; action columns in repeating tables are fixed-width and their buttons never wrap; the date range is the `RangeControl` segmented control; use the `text-wrap-style` longhand, never the `text-wrap` shorthand, so deliberate `white-space: nowrap` survives.
 - Reserve the gold `.btn-approve` for the partner's primary approval action.

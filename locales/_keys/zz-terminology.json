@@ -1,7 +1,7 @@
 {
   "an.title": { "en": "TikTok revenue & audience", "zh": "TikTok 收入与观众" },
   "an.linkFrom.title": { "en": "TikTok revenue & audience", "zh": "TikTok 收入与观众" },
-  "an.linkFrom.campaign": { "en": "Attributed outcomes for this title", "zh": "此作品的可归因结果" },
+  "an.linkFrom.campaign": { "en": "Attributed outcomes for this title", "zh": "该剧集的可归因结果" },
   "an.nav.overview": { "en": "Summary", "zh": "摘要" },
   "an.nav.episodes": { "en": "Episode retention", "zh": "分集留存" },
   "an.nav.acquisition": { "en": "Ad attribution", "zh": "广告归因" },
@@ -12,7 +12,7 @@
   "an.catalog.col.viewers": { "en": "TikTok viewers", "zh": "TikTok 观众" },
   "an.demo.legend": { "en": "Demo analytics, labelled estimated. Rates show numerator and denominator; unobserved values are unavailable, never zero.", "zh": "演示数据，标注为估算。比率显示分子与分母；未观测值显示为不可用，绝不记为零。" },
   "catalogRefinement.evidence": { "en": "View assessment", "zh": "查看评估" },
-  "ws.actions.assess": { "en": "Open title", "zh": "打开作品" },
+  "ws.actions.assess": { "en": "Open title", "zh": "打开剧集" },
   "ws.assess.kicker": { "en": "Preparation", "zh": "准备" },
   "ws.catalog.sub": { "en": "Every title, its TikTok status and its advertising status. Open a title for its sections.", "zh": "所有作品及其 TikTok 状态与广告状态。打开作品查看各分区。" },
   "ws.exp.mock": { "en": "Demo handoff: no ad platform is connected and nothing is spent.", "zh": "演示交接：未连接广告平台，不产生花费。" },

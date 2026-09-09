@@ -25,9 +25,15 @@ Three domains, kept apart in every label: **preparation** (is the title ready an
 | Market comparisons | 市场对比 | Evidence | Comparable US listings sharing story types. |
 | Materials | 素材 | Localize, Adapt | Episodes, video, scripts, subtitles, exports (the frozen Adapt pipeline). |
 | Data sources & definitions | 数据来源与定义 | Data & Sources | The registry page and the metric dictionary. |
-| Demo dataset / Demo results (simulated) / Demo analytics | 演示数据集 / 演示结果（模拟）/ 演示数据 | Mock, Test data | Fixture-mode provenance labels; shown wherever a simulated number informs a decision. |
+| Demo dataset / Demo results (simulated) / Demo analytics | 演示数据 / 演示结果（模拟）/ 演示数据 | Mock, Test data | Fixture-mode provenance labels; shown wherever a simulated number informs a decision. |
+| Title (a series) / Episode | 剧集 / 分集 | 作品, 项目, 单集, 集 (alone) | A title is one drama series; an episode is one of its parts. 剧库 is the catalog. |
+| Listing | 上架条目 / 条目 | 作品 | One platform's public page for a title (ReelShort, DramaBox, a TikTok listing). Explore listings = 浏览上架剧集. |
+| Evidence labels: observed / inferred / estimated / partner_reported | 实测 / 推断 / 估算 / 合作方上报 | 观测, 推测, 估计, 合作方提供 | Four fixed, distinguishable translations; never blended. |
+| Data state: available / collecting history / requires connection / manual / unavailable / stale / failed | 可用 / 积累历史中 / 需要接入 / 人工导入 / 不可用 / 过期 / 失败 | 有效, 需要连接, 手动 | Registry status chips. |
+| Reviewer / approver roles | 审阅角色 / 审批角色 | 批准角色 | The role names; the action itself is 批准 (approve), never 审核通过. |
+| Hook hold / benchmark met | 开场留存 / 达标 | 3 秒留存, 钩子留存, 达到 | The first benchmark of every ad result. |
 
-Chinese follows the same rule: 收入/观众 always carry TikTok, 花费/点击率/结果 always carry 广告.
+Chinese follows the same rule: 收入/观众 always carry TikTok, 花费/点击率/结果 always carry 广告. Register (decision 2026-09-08, "native Chinese pass"): 简体, 你 not 您, the voice of a domestic SaaS console; buttons are verb–object phrases (新建广告活动, 查看结果), headers and labels are noun phrases without a full stop, hints are short full sentences; a half-width space separates CJK from Latin and digits (TikTok 收入, 近 30 天); full-width punctuation inside Chinese. The canonical term list DeepSeek produced is `docs/reviews/zh-native-2026-09-08-glossary.json`; the scripts under `scripts/zh-native/` regenerate the pass and `scripts/zh-native/review.json` records the human decisions.
 
 ## Where things live now (old → new)
 
