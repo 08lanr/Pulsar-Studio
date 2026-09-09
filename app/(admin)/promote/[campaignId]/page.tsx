@@ -19,9 +19,10 @@ export default async function PromoteCampaign({ params }: { params: { campaignId
   try { detail = await data.getPromoCampaign(session, params.campaignId); } catch (e) { if (isDataError(e) && (e.code === "not_found" || e.code === "forbidden")) notFound(); throw e; }
   const summary = (await data.listPromoCampaigns(session)).find((c) => c.id === detail.campaign.id);
   const media = Object.fromEntries(detail.episodes.map((e) => [e.id, mediaUrl(e.video_path)]));
+  const renders = Object.fromEntries(detail.creatives.map((c) => [c.id, mediaUrl(c.render_path)]));
   return <>
     <nav className="studio-crumbs"><Link href="/promote">{t(locale, "admin.promote.title")}</Link><span>›</span><span>{detail.campaign.name}</span></nav>
     <div className="page-head"><div><span className="page-kicker bilingual">{detail.title.name_en || detail.title.name_zh} · {summary?.producer_name_en || summary?.producer_name_zh || ""}</span><h1>{detail.campaign.name}</h1></div><Link className="btn btn-outline" href={`/titles/${detail.title.id}`}>{t(locale, "admin.head.title")}</Link></div>
-    <PromoDesk detail={detail} media={media} />
+    <PromoDesk detail={detail} media={media} renders={renders} />
   </>;
 }

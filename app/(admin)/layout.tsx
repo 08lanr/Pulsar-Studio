@@ -4,6 +4,7 @@ import { LocaleProvider } from "@/components/locale";
 import { adminLocale } from "@/components/admin/server";
 import { getSession } from "@/lib/auth";
 import { t } from "@/lib/i18n";
+import { ensureScheduler } from "@/lib/tiktok/scheduler";
 
 // The admin portal's route group: Pulsar staff only, English chrome unless
 // the locale cookie says otherwise (decision #8 — the root layout's default
@@ -15,6 +16,7 @@ import { t } from "@/lib/i18n";
 export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  ensureScheduler();
   const session = await getSession();
   if (!session || session.kind !== "staff") redirect("/login");
   const locale = adminLocale();

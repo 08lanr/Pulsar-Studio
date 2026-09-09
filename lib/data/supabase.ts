@@ -59,8 +59,12 @@ import { marketView } from "@/lib/research/snapshot";
 import type { ReportBatch, ReportRow, ResearchProfile, WatchRow } from "@/lib/research/types";
 import type { CatalogRow } from "@/lib/research/engine";
 import { examplesFromApprovedVersions } from "@/lib/translation-memory";
+import { isSystemSession } from "@/lib/auth";
+import { blockerMessage, isReadyLaunchAccount, launchReadiness } from "@/lib/promote/launch-gate";
+import { launchMode } from "@/lib/tiktok";
+import type { AccountRequest, PromoLaunch } from "@/lib/types";
 import { DataError, conflict, invalid, notFound } from "./errors";
-import type { DataLayer, ExportSnapshot } from "./index";
+import type { DataLayer, ExportSnapshot, LaunchedCampaign } from "./index";
 import { mediaUrl } from "./storage";
 import {
   buildEpisodeSummary,
@@ -76,6 +80,12 @@ import {
 type Db = SupabaseClient;
 
 const db = (): Db => createServerSupabase();
+/**
+ * The client for a session: the caller's cookie under RLS, or the service
+ * role for the system actor (the launch engine and the TikTok scheduler run
+ * with no request behind them; CLAUDE.md allows the service role for jobs).
+ */
+const dbFor = (session: Session): Db => (isSystemSession(session) ? createServiceSupabase() : createServerSupabase());
 const core = (c: Db) => c.schema("core");
 const research = (c: Db) => c.schema("research");
 const studio = (c: Db) => c.schema("studio");
@@ -198,15 +208,28 @@ async function snapshotOf(c: Db, v: Version): Promise<VersionSnapshot> {
 }
 
 async function loadPromoDetail(c: Db, campaign: PromoCampaign): Promise<PromoCampaignDetail> {
-  const [title, episodes, creatives, approvals, handoffs, results] = await Promise.all([
+  const [title, episodes, creatives, approvals, handoffs, launches, results] = await Promise.all([
     one<Title>(core(c).from("titles").select("*").eq("id", campaign.title_id).maybeSingle(), "title", campaign.title_id),
     many<Episode>(core(c).from("episodes").select("*").eq("title_id", campaign.title_id).order("number")),
     many<PromoCreative>(promote(c).from("creatives").select("*").eq("campaign_id", campaign.id).order("created_at")),
     many<PromoApproval>(promote(c).from("approvals").select("*").eq("campaign_id", campaign.id).order("created_at", { ascending: false }).limit(1)),
     many<PromoHandoff>(promote(c).from("handoffs").select("*").eq("campaign_id", campaign.id).order("attempted_at", { ascending: false })),
+    many<PromoLaunch>(promote(c).from("launches").select("*").eq("campaign_id", campaign.id).order("created_at", { ascending: false }).limit(1)),
     many<CreativeResult>(promote(c).from("results").select("*").eq("campaign_id", campaign.id).order("window_start")),
   ]);
-  return { campaign, title, episodes, creatives, approval: approvals[0] ?? null, handoffs, results };
+  return { campaign, title, episodes, creatives, approval: approvals[0] ?? null, handoffs, launch: launches[0] ?? null, results };
+}
+
+const campaignById = (c: Db, id: string) => one<PromoCampaign>(promote(c).from("campaigns").select("*").eq("id", id).maybeSingle(), "promotion campaign", id);
+
+/** The producer's staff-assigned, connected TikTok ad account, or null (decision 2026-09-09). */
+async function launchAccountOf(c: Db, producerId: string): Promise<CompanyAccount | null> {
+  const rows = await many<CompanyAccount>(core(c).from("company_accounts").select("*").eq("producer_id", producerId).eq("provider", "tiktok").eq("kind", "ad_account"));
+  return rows.find((a) => isReadyLaunchAccount(a)) ?? null;
+}
+
+function requireSystemOrStaff(session: Session): void {
+  if (!isSystemSession(session) && session.kind !== "staff") throw new DataError("forbidden", "Pulsar staff only");
 }
 
 // ---- the implementation ------------------------------------------------------------------------------
@@ -1076,8 +1099,8 @@ export const supabaseData: DataLayer = {
     return out;
   },
 
-  async getPromoCampaign(_session, campaignId) {
-    const c = db();
+  async getPromoCampaign(session, campaignId) {
+    const c = dbFor(session);
     const campaign = await one<PromoCampaign>(promote(c).from("campaigns").select("*").eq("id", campaignId).maybeSingle(), "promotion campaign", campaignId);
     return loadPromoDetail(c, campaign);
   },
@@ -1095,9 +1118,10 @@ export const supabaseData: DataLayer = {
     );
   },
 
-  async generatePromoDrafts(_session, campaignId) {
+  async generatePromoDrafts(_session, campaignId, opts) {
     const c = db();
     const campaign = await one<PromoCampaign>(promote(c).from("campaigns").select("*").eq("id", campaignId).maybeSingle(), "promotion campaign", campaignId);
+    if (!["draft", "review", "generating"].includes(campaign.status)) throw conflict("this campaign is already approved");
     const existing = await many<PromoCreative>(promote(c).from("creatives").select("*").eq("campaign_id", campaign.id).neq("status", "superseded"));
     if (existing.length) return existing;
     const [title, episodes] = await Promise.all([
@@ -1115,7 +1139,7 @@ export const supabaseData: DataLayer = {
       return { campaign_id: campaign.id, title_id: campaign.title_id, kind, status: "ready", hypothesis: hypotheses[index], source_episode_id: episode.id, source_start_ms: start, source_end_ms: end, hook: kind === "direct_clip" ? "Wait for the moment everything changes." : "I thought this was a love story—then this happened.", caption: `${title.name_en || title.name_zh}: one choice changes everything.`, ad_description: `Watch ${title.name_en || title.name_zh} and see what happens next.`, duration_ms: end - start, width: 1080, height: 1920, render_settings: { schema: 1, format: "9:16", source: "concept_preview", captions: true } };
     });
     const rows = await many<PromoCreative>(promote(c).from("creatives").insert(payload).select("*"));
-    await one<PromoCampaign>(promote(c).from("campaigns").update({ status: "review", updated_at: now() }).eq("id", campaign.id).select("*").maybeSingle(), "promotion campaign", campaign.id);
+    await one<PromoCampaign>(promote(c).from("campaigns").update({ status: opts?.rendering ? "generating" : "review", status_note: null, updated_at: now() }).eq("id", campaign.id).select("*").maybeSingle(), "promotion campaign", campaign.id);
     return rows;
   },
 
@@ -1140,16 +1164,39 @@ export const supabaseData: DataLayer = {
     return loadPromoDetail(c, campaign);
   },
 
-  async submitPromoCampaignMock(_session, campaignId) {
+  async submitPromoCampaign(session, campaignId) {
+    if (session.kind !== "producer" || session.producerRole !== "approver") throw new DataError("forbidden", "launch needs the approver role");
     const c = db();
-    const detail = await loadPromoDetail(c, await one<PromoCampaign>(promote(c).from("campaigns").select("*").eq("id", campaignId).maybeSingle(), "promotion campaign", campaignId));
-    if (detail.campaign.status === "submitted") return detail;
-    if (detail.campaign.status !== "approved" || !detail.approval) throw conflict("approve the campaign before launch submission");
-    const idempotency_key = `studio:${detail.campaign.external_id}:${detail.approval.manifest_sha256}`;
-    const growId = `cmp_mock_${detail.campaign.external_id.slice(3)}`;
-    await one<PromoHandoff>(promote(c).from("handoffs").insert({ campaign_id: campaignId, idempotency_key, request_sha256: detail.approval.manifest_sha256, status: "accepted", grow_campaign_id: growId, response: { mock: true, grow_campaign_id: growId } }).select("*").single(), "promotion handoff");
-    const campaign = await one<PromoCampaign>(promote(c).from("campaigns").update({ status: "submitted", grow_campaign_id: growId, updated_at: now() }).eq("id", campaignId).select("*").maybeSingle(), "promotion campaign", campaignId);
-    return loadPromoDetail(c, campaign);
+    const detail = await loadPromoDetail(c, await campaignById(c, campaignId));
+    const { campaign } = detail;
+    if (["launching", "submitted", "live", "paused", "ended"].includes(campaign.status)) return detail;
+    const account = await launchAccountOf(c, campaign.producer_id);
+    const mode = launchMode();
+    const readiness = launchReadiness({ campaign, approval: detail.approval, creatives: detail.creatives.filter((x) => x.status !== "superseded"), account, mode });
+    if (!readiness.ready) throw conflict(blockerMessage(readiness.blockers[0]));
+    const idempotency_key = `studio:${campaign.external_id}:${detail.approval!.manifest_sha256}`;
+    // The launch row is written by the service role (only the engine writes launches; RLS has no producer insert on purpose).
+    const s = createServiceSupabase();
+    const found = await many<PromoLaunch>(promote(s).from("launches").select("*").eq("idempotency_key", idempotency_key).limit(1));
+    let launch = found[0] ?? null;
+    if (launch?.status === "failed") {
+      launch = await one<PromoLaunch>(promote(s).from("launches").update({ status: "pending", error: null, finished_at: null }).eq("id", launch.id).select("*").maybeSingle(), "launch", launch.id);
+    } else if (!launch) {
+      launch = await one<PromoLaunch>(
+        promote(s).from("launches").insert({
+          campaign_id: campaign.id, idempotency_key, manifest_sha256: detail.approval!.manifest_sha256, status: "pending", mode,
+          advertiser_id: account!.external_ref, identity_id: account!.identity_id, identity_type: account!.identity_type,
+          budget_usd: campaign.experiment!.budget_usd, destination_url: campaign.destination_url, created_by: session.userId,
+        }).select("*").single(),
+        "launch"
+      );
+    }
+    const handoffs = await many<Pick<PromoHandoff, "id">>(promote(c).from("handoffs").select("id").eq("idempotency_key", idempotency_key).limit(1));
+    if (!handoffs.length) {
+      await one<PromoHandoff>(promote(c).from("handoffs").insert({ campaign_id: campaign.id, idempotency_key, request_sha256: detail.approval!.manifest_sha256, status: "accepted", response: { mode, launch_id: launch.id, advertiser_id: launch.advertiser_id, budget_usd: launch.budget_usd } }).select("*").single(), "promotion handoff");
+    }
+    const updated = await one<PromoCampaign>(promote(c).from("campaigns").update({ status: "launching", status_note: null, advertiser_id: launch.advertiser_id, updated_at: now() }).eq("id", campaign.id).select("*").maybeSingle(), "promotion campaign", campaign.id);
+    return loadPromoDetail(c, updated);
   },
 
   // ---- Pulsar's Promote desk (staff) ----
@@ -1183,12 +1230,165 @@ export const supabaseData: DataLayer = {
     if (session.kind !== "staff") throw new DataError("forbidden", "Pulsar staff only");
     const c = db();
     const campaign = await one<PromoCampaign>(promote(c).from("campaigns").select("*").eq("id", campaignId).maybeSingle(), "promotion campaign", campaignId);
-    const allowed: Record<string, PromoCampaign["status"][]> = { submitted: ["launching", "live", "failed"], launching: ["live", "failed"], failed: ["launching"] };
+    const allowed: Record<string, PromoCampaign["status"][]> = { submitted: ["launching", "live", "failed"], launching: ["live", "failed"], paused: ["live", "failed"], failed: ["launching"] };
     if (!allowed[campaign.status]?.includes(input.status)) throw conflict(`a ${campaign.status} campaign cannot move to ${input.status}`);
     const patch: Partial<PromoCampaign> = { status: input.status, updated_at: now() };
     if (input.grow_campaign_id !== undefined) patch.grow_campaign_id = input.grow_campaign_id?.trim() || null;
+    if (input.note?.trim()) patch.status_note = `Staff override: ${input.note.trim()}`;
     const updated = await one<PromoCampaign>(promote(c).from("campaigns").update(patch).eq("id", campaign.id).select("*").maybeSingle(), "promotion campaign", campaign.id);
     return loadPromoDetail(c, updated);
+  },
+
+  // ---- TikTok launch, review and read-back (decision 2026-09-09) ----
+
+  async getPromoLaunch(session, launchId) {
+    return one<PromoLaunch>(promote(dbFor(session)).from("launches").select("*").eq("id", launchId).maybeSingle(), "launch", launchId);
+  },
+
+  async listOpenPromoLaunches(session) {
+    requireSystemOrStaff(session);
+    return many<PromoLaunch>(promote(dbFor(session)).from("launches").select("*").in("status", ["pending", "running"]).order("created_at"));
+  },
+
+  async updatePromoLaunch(session, launchId, patch) {
+    if (!isSystemSession(session)) throw new DataError("forbidden", "only the launch engine writes launch steps");
+    const c = dbFor(session);
+    const launch = await one<PromoLaunch>(promote(c).from("launches").select("*").eq("id", launchId).maybeSingle(), "launch", launchId);
+    for (const key of ["tiktok_campaign_id", "tiktok_adgroup_id"] as const) {
+      if (patch[key] && launch[key] && patch[key] !== launch[key]) throw new DataError("frozen", `launch ${key} is already recorded`);
+    }
+    return one<PromoLaunch>(promote(c).from("launches").update(patch).eq("id", launchId).select("*").maybeSingle(), "launch", launchId);
+  },
+
+  async listLaunchedPromoCampaigns(session) {
+    requireSystemOrStaff(session);
+    const c = dbFor(session);
+    const campaigns = await many<PromoCampaign>(promote(c).from("campaigns").select("*").in("status", ["submitted", "live", "paused", "ended"]).not("grow_campaign_id", "is", null));
+    const out: LaunchedCampaign[] = [];
+    for (const campaign of campaigns) {
+      if (!campaign.grow_campaign_id || !/^\d+$/.test(campaign.grow_campaign_id)) continue;
+      const [launches, creatives] = await Promise.all([
+        many<PromoLaunch>(promote(c).from("launches").select("*").eq("campaign_id", campaign.id).eq("status", "done").order("created_at", { ascending: false }).limit(1)),
+        many<PromoCreative>(promote(c).from("creatives").select("*").eq("campaign_id", campaign.id).eq("status", "approved")),
+      ]);
+      if (launches[0]) out.push({ campaign, launch: launches[0], creatives });
+    }
+    return out;
+  },
+
+  async setPromoCampaignDelivery(session, campaignId, input) {
+    requireSystemOrStaff(session);
+    const c = dbFor(session);
+    const campaign = await campaignById(c, campaignId);
+    if (!["approved", "launching", "submitted", "live", "paused", "ended", "failed"].includes(campaign.status)) throw conflict(`a ${campaign.status} campaign has no TikTok delivery state`);
+    if (campaign.status === "ended" && input.status !== "ended") throw conflict("an ended campaign stays ended; launch a new round");
+    const patch: Partial<PromoCampaign> = { status: input.status, updated_at: now() };
+    if (input.status_note !== undefined) patch.status_note = input.status_note;
+    if (input.grow_campaign_id !== undefined) patch.grow_campaign_id = input.grow_campaign_id;
+    if (input.tiktok_adgroup_id !== undefined) patch.tiktok_adgroup_id = input.tiktok_adgroup_id;
+    if (input.advertiser_id !== undefined) patch.advertiser_id = input.advertiser_id;
+    if (input.launched_at !== undefined) patch.launched_at = input.launched_at;
+    return one<PromoCampaign>(promote(c).from("campaigns").update(patch).eq("id", campaignId).select("*").maybeSingle(), "promotion campaign", campaignId);
+  },
+
+  async retryPromoLaunch(session, campaignId) {
+    if (session.kind !== "staff") throw new DataError("forbidden", "Pulsar staff only");
+    const c = db();
+    const campaign = await campaignById(c, campaignId);
+    const launches = await many<PromoLaunch>(promote(c).from("launches").select("*").eq("campaign_id", campaignId).order("created_at", { ascending: false }).limit(1));
+    const launch = launches[0];
+    if (!launch) throw conflict("this campaign was never submitted");
+    if (campaign.status !== "failed" || launch.status !== "failed") throw conflict("only a failed launch can be retried");
+    const s = createServiceSupabase();
+    const updated = await one<PromoLaunch>(promote(s).from("launches").update({ status: "pending", error: null, finished_at: null }).eq("id", launch.id).select("*").maybeSingle(), "launch", launch.id);
+    await one<PromoCampaign>(promote(c).from("campaigns").update({ status: "launching", status_note: null, updated_at: now() }).eq("id", campaignId).select("*").maybeSingle(), "promotion campaign", campaignId);
+    return updated;
+  },
+
+  async upsertCreativeResults(session, rows) {
+    if (!isSystemSession(session)) throw new DataError("forbidden", "only the read-back writes results");
+    if (!rows.length) return 0;
+    const c = dbFor(session);
+    const { error } = await promote(c).from("results").upsert(rows, { onConflict: "creative_id,window_start,window_end,source" });
+    if (error) throw mapError(error);
+    return rows.length;
+  },
+
+  async setCreativeRender(session, creativeId, render) {
+    const c = dbFor(session);
+    const creative = await one<PromoCreative>(promote(c).from("creatives").select("*").eq("id", creativeId).maybeSingle(), "promotion creative", creativeId);
+    const campaign = await campaignById(c, creative.campaign_id);
+    if (creative.status === "superseded" || !["draft", "generating", "review"].includes(campaign.status)) throw new DataError("frozen", "a reviewed creative's file is frozen; a new version carries a new render");
+    if (!/^[0-9a-f]{64}$/.test(render.render_sha256)) throw invalid("render checksum must be a sha256");
+    return one<PromoCreative>(
+      promote(c).from("creatives").update({ render_path: render.render_path, render_sha256: render.render_sha256, duration_ms: render.duration_ms, width: render.width, height: render.height, ...(render.render_settings ? { render_settings: render.render_settings } : {}), updated_at: now() }).eq("id", creativeId).select("*").maybeSingle(),
+      "promotion creative",
+      creativeId
+    );
+  },
+
+  async finishPromoGeneration(session, campaignId, note) {
+    const c = dbFor(session);
+    const campaign = await campaignById(c, campaignId);
+    if (campaign.status !== "generating") return campaign;
+    return one<PromoCampaign>(promote(c).from("campaigns").update({ status: "review", status_note: note ?? null, updated_at: now() }).eq("id", campaignId).select("*").maybeSingle(), "promotion campaign", campaignId);
+  },
+
+  async getLaunchAccount(session, producerId) {
+    if (session.kind === "producer" && session.producerId !== producerId) return null;
+    return launchAccountOf(dbFor(session), producerId);
+  },
+
+  async assignLaunchAccount(session, producerId, input) {
+    if (session.kind !== "staff" || session.staffRole !== "admin") throw new DataError("forbidden", "Admin only");
+    if (!/^\d{5,}$/.test(input.advertiser_id.trim())) throw invalid("advertiser id must be TikTok's numeric ad account id");
+    if (blank(input.name)) throw invalid("account name is required");
+    const c = db();
+    const at = now();
+    const fields = { name: input.name.trim(), external_ref: input.advertiser_id.trim(), state: "connected", access: "partner", note: input.note?.trim() || null, identity_id: input.identity_id?.trim() || null, identity_type: input.identity_type ?? null, assigned_by: session.userId, assigned_at: at, updated_at: at };
+    const existing = await many<CompanyAccount>(core(c).from("company_accounts").select("*").eq("producer_id", producerId).eq("provider", "tiktok").eq("kind", "ad_account").limit(1));
+    const row = existing[0]
+      ? await one<CompanyAccount>(core(c).from("company_accounts").update(fields).eq("id", existing[0].id).select("*").maybeSingle(), "company account", existing[0].id)
+      : await one<CompanyAccount>(core(c).from("company_accounts").insert({ producer_id: producerId, provider: "tiktok", kind: "ad_account", ...fields }).select("*").maybeSingle(), "company account");
+    if (input.request_id) {
+      await one<AccountRequest>(core(c).from("account_requests").update({ status: "assigned", account_id: row.id, resolved_by: session.userId, resolved_at: at }).eq("id", input.request_id).eq("producer_id", producerId).select("*").maybeSingle(), "account request", input.request_id);
+    }
+    return row;
+  },
+
+  async listAccountRequests(session) {
+    const c = db();
+    let q = core(c).from("account_requests").select("*").order("created_at", { ascending: false });
+    if (session.kind === "producer") q = q.eq("producer_id", session.producerId!);
+    return many<AccountRequest>(q);
+  },
+
+  async createAccountRequest(session, input) {
+    requireEditor(session);
+    if (blank(input.contact_name) || blank(input.contact_email)) throw invalid("contact name and email are required");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.contact_email.trim())) throw invalid("contact email is invalid");
+    const c = db();
+    const open = await many<Pick<AccountRequest, "id">>(core(c).from("account_requests").select("id").eq("producer_id", session.producerId!).in("status", ["requested", "provisioning"]).limit(1));
+    if (open.length) throw conflict("a request is already open for this company");
+    if (await launchAccountOf(c, session.producerId!)) throw conflict("this company already has a TikTok ad account assigned");
+    const at = now();
+    let payment: AccountRequest["payment"] = null;
+    if (input.payment) {
+      if (!/^\d{4}$/.test(input.payment.last4) || blank(input.payment.brand) || blank(input.payment.holder)) throw invalid("payment opt-in needs a card brand, holder and last four digits");
+      payment = { method: "card", brand: input.payment.brand.trim(), last4: input.payment.last4, holder: input.payment.holder.trim(), opted_in_at: at };
+    }
+    return one<AccountRequest>(core(c).from("account_requests").insert({ producer_id: session.producerId, contact_name: input.contact_name.trim(), contact_email: input.contact_email.trim(), payment, note: input.note?.trim() || null, requested_by: session.userId }).select("*").single(), "account request");
+  },
+
+  async resolveAccountRequest(session, requestId, input) {
+    if (session.kind !== "staff") throw new DataError("forbidden", "Pulsar staff only");
+    const c = db();
+    const row = await one<AccountRequest>(core(c).from("account_requests").select("*").eq("id", requestId).maybeSingle(), "account request", requestId);
+    if (row.status === "assigned") throw conflict("this request is already fulfilled");
+    const patch: Partial<AccountRequest> = { status: input.status };
+    if (input.staff_note?.trim()) patch.staff_note = input.staff_note.trim();
+    if (input.status === "declined") Object.assign(patch, { resolved_by: session.userId, resolved_at: now() });
+    return one<AccountRequest>(core(c).from("account_requests").update(patch).eq("id", requestId).select("*").maybeSingle(), "account request", requestId);
   },
 
   // ---- exports and audit ----
@@ -1215,7 +1415,7 @@ export const supabaseData: DataLayer = {
     requireEditor(session);
     const c = db();
     const campaign = await one<PromoCampaign>(promote(c).from("campaigns").select("*").eq("id", campaignId).maybeSingle(), "promotion campaign", campaignId);
-    if (["submitted", "launching", "live"].includes(campaign.status)) throw new DataError("frozen", "a submitted experiment cannot be edited; start a new round");
+    if (["submitted", "launching", "live", "paused", "ended"].includes(campaign.status)) throw new DataError("frozen", "a submitted experiment cannot be edited; start a new round");
     const at = new Date().toISOString();
     const experiment = { ...input, currency: "USD" as const, approved_by: null, approved_at: null, version: (campaign.experiment?.version ?? 0) + 1, updated_at: at };
     return one<PromoCampaign>(promote(c).from("campaigns").update({ experiment, updated_at: at }).eq("id", campaignId).select("*").maybeSingle(), "promotion campaign", campaignId);
@@ -1254,6 +1454,10 @@ export const supabaseData: DataLayer = {
     requireEditor(session);
     if (blank(input.name)) throw invalid("account name is required");
     const row = { producer_id: session.producerId, provider: input.provider, kind: input.kind, name: input.name.trim(), external_ref: input.external_ref?.trim() || null, state: input.state, access: input.access, note: input.note?.trim() || null, updated_at: new Date().toISOString() };
+    if (input.id) {
+      const existing = await one<CompanyAccount>(core(db()).from("company_accounts").select("*").eq("id", input.id).eq("producer_id", session.producerId!).maybeSingle(), "company account", input.id);
+      if (existing.assigned_by) throw new DataError("frozen", "this ad account was assigned by Pulsar; ask Pulsar to change it");
+    }
     const q = input.id
       ? core(db()).from("company_accounts").update(row).eq("id", input.id).eq("producer_id", session.producerId!).select("*").maybeSingle()
       : core(db()).from("company_accounts").insert(row).select("*").maybeSingle();

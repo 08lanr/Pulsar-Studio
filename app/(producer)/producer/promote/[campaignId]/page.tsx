@@ -7,15 +7,17 @@ import { getData, isDataError } from "@/lib/data";
 import { dataSource } from "@/lib/data-source";
 import { mediaUrl } from "@/lib/data/storage";
 import { t } from "@/lib/i18n";
+import { launchReadiness } from "@/lib/promote/launch-gate";
 import { BENCHMARK } from "@/lib/research/assessment";
 import { experimentStage } from "@/lib/research/workspace";
-import { WORKFLOW_STEPS, campaignWorkflow, workflowStepForStage } from "@/lib/research/workflow";
+import { LAUNCHED_STATUSES, WORKFLOW_STEPS, campaignWorkflow, workflowStepForStage } from "@/lib/research/workflow";
 import { nextRoundName } from "@/lib/research/results";
+import { launchMode } from "@/lib/tiktok";
 
 // /producer/promote/[campaignId] — one experiment: the stage strip, the
 // structured brief with budget approval, the concept review (generate
-// broadly, keep a small first batch, approve, submit), results, and the
-// next-spend decision.
+// broadly, keep a small first batch, approve, launch on TikTok), the TikTok
+// launch state, results, and the next-spend decision.
 
 export const dynamic = "force-dynamic";
 
@@ -30,15 +32,18 @@ export default async function ExperimentPage({ params, searchParams }: { params:
     if (isDataError(e) && (e.code === "not_found" || e.code === "forbidden")) notFound();
     throw e;
   }
-  const summaries = await data.listPromoCampaigns(session);
+  const [summaries, account] = await Promise.all([data.listPromoCampaigns(session), data.getLaunchAccount(session, detail.campaign.producer_id)]);
   const summary = summaries.find((c) => c.id === detail.campaign.id);
   const st = summary ? experimentStage(summary, detail.results) : { stage: "brief" as const, waiting: "generate" as const };
   const media = Object.fromEntries(detail.episodes.map((e) => [e.id, mediaUrl(e.video_path)]));
+  const renders = Object.fromEntries(detail.creatives.map((c) => [c.id, mediaUrl(c.render_path)]));
   const canEdit = !isStaffPreview(session) && (session.producerRole === "approver" || session.producerRole === "reviewer");
   const canApprove = !isStaffPreview(session) && session.producerRole === "approver";
   const titleName = locale === "en" ? detail.title.name_en || detail.title.name_zh : detail.title.name_zh;
   const flow = summary ? campaignWorkflow(summary, detail.results) : { step: workflowStepForStage[st.stage], hint: `workflow.hint.${workflowStepForStage[st.stage]}`, waiting: false };
-  const launched = ["submitted", "launching", "live"].includes(detail.campaign.status);
+  const launched = LAUNCHED_STATUSES.includes(detail.campaign.status) && detail.campaign.status !== "failed";
+  const mode = launchMode();
+  const readiness = launchReadiness({ campaign: detail.campaign, approval: detail.approval, creatives: detail.creatives.filter((c) => c.status !== "superseded"), account, mode });
   // Where "back" goes: the title's campaigns section unless the caller said otherwise (a local path only).
   const raw = searchParams.returnTo ?? "";
   const returnTo = raw.startsWith("/producer/") && !raw.startsWith("//") ? raw : `/producer/titles/${detail.title.id}/campaigns`;
@@ -52,8 +57,21 @@ export default async function ExperimentPage({ params, searchParams }: { params:
   // Sections stay in step order on every visit: brief → ads → results. Past steps collapse; they never move.
   const briefSection = <div id="brief"><ExperimentPanel {...panelProps} section="brief" briefExpanded={flow.step === "prepare" || flow.step === "budget"} budgetStepReached={budgetStepReached} /></div>;
   const resultsSection = launched || detail.results.length > 0 ? <ExperimentPanel {...panelProps} section="results" /> : null;
-  const ads = detail.campaign.status === "generating" || (detail.campaign.status === "failed" && !detail.creatives.length) ? null : <section id="ads" className="fc-ads-section"><span id="concepts"/><header className="fc-section-heading"><h2>{t(locale, ["choose", "approveAds"].includes(flow.step) ? `workflow.step.${flow.step}` : "fc.ads")}</h2>{launched && <p>{t(locale, "fc.adsArchiveHint")}</p>}</header><PromoWorkspace detail={detail} media={media} canAct={canEdit} canApprove={canApprove} /></section>;
+  const ads = detail.campaign.status === "generating" || (detail.campaign.status === "failed" && !detail.creatives.length) ? null : <section id="ads" className="fc-ads-section"><span id="concepts"/><header className="fc-section-heading"><h2>{t(locale, ["choose", "approveAds"].includes(flow.step) ? `workflow.step.${flow.step}` : "fc.ads")}</h2>{launched && <p>{t(locale, "fc.adsArchiveHint")}</p>}</header><PromoWorkspace detail={detail} media={media} renders={renders} canAct={canEdit} canApprove={canApprove} blockers={readiness.blockers} launchMode={mode} /></section>;
   const adSection = launched || flow.step === "budget" ? <details className="fc-disclosure fc-archive"><summary><span>{t(locale, "fc.adsArchive")}</span><span>{detail.creatives.filter(c => c.status !== "superseded").length}</span></summary>{ads}</details> : ads;
+  const c = detail.campaign;
+  const launchRecord = (launched || c.status === "failed") && (c.grow_campaign_id || c.status_note || detail.launch) ? (
+    <section className="rs-panel" id="launch-status">
+      <div className="rs-panel-head"><div><h2>{t(locale, "promote.launch.title")}</h2><p>{t(locale, flow.hint)}</p></div><span className="rs-panel-aside"><span className={`pill ${c.status === "live" ? "status-live" : c.status === "failed" ? "pill-error" : c.status === "paused" ? "pill-warning" : "pill-accent"}`}>{t(locale, `promote.status.${c.status}`)}</span></span></div>
+      <dl className="rs-kv">
+        <dt>{t(locale, "promote.launch.campaignId")}</dt><dd className="pd-mono">{c.grow_campaign_id ?? "—"}</dd>
+        <dt>{t(locale, "promote.launch.account")}</dt><dd>{account ? `${account.name} · ${account.external_ref}` : c.advertiser_id ?? "—"}</dd>
+        <dt>{t(locale, "promote.launch.budget")}</dt><dd>{detail.launch ? `$${detail.launch.budget_usd}` : c.experiment ? `$${c.experiment.budget_usd}` : "—"} · {t(locale, `promote.launch.mode.${detail.launch?.mode ?? mode}`)}</dd>
+        <dt>{t(locale, "promote.launch.launchedAt")}</dt><dd>{c.launched_at ? c.launched_at.slice(0, 16).replace("T", " ") + " UTC" : "—"}</dd>
+        {c.status_note && <><dt>{t(locale, "promote.launch.note")}</dt><dd>{c.status_note}</dd></>}
+      </dl>
+    </section>
+  ) : null;
 
   return (
     <div className="fc-campaign">
@@ -77,9 +95,10 @@ export default async function ExperimentPage({ params, searchParams }: { params:
         </span>
       </div>
       <StageStrip stage={st.stage} step={flow.step} locale={locale} />
-      {(flow.step === "launch" || flow.waiting) && <p className="note note-info">{t(locale, "ws.exp.mock")}</p>}
+      {mode === "fake" && (flow.step === "launch" || flow.waiting) && <p className="note note-info">{t(locale, "ws.exp.mock")}</p>}
 
-      {flow.waiting && <div className="fc-current-task" id="launch-status"><strong>{t(locale, `workflow.step.${flow.step}`)}</strong><span>{t(locale, flow.hint)}</span></div>}
+      {flow.waiting && !launchRecord && <div className="fc-current-task" id="launch-status"><strong>{t(locale, `workflow.step.${flow.step}`)}</strong><span>{t(locale, flow.hint)}</span></div>}
+      {launchRecord}
       {briefSection}
       {adSection}
       {resultsSection}

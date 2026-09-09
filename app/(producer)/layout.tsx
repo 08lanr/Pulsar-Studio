@@ -4,6 +4,7 @@ import { dataSource } from "@/lib/data-source";
 import PortalHeader from "@/components/producer/PortalHeader";
 import { isStaffPreview, portalSession, producerLocale } from "@/components/producer/server";
 import { t } from "@/lib/i18n";
+import { ensureScheduler } from "@/lib/tiktok/scheduler";
 
 // The partner portal shell. Chinese by default (decision #8: the route group
 // decides when no cookie is set), so the nested LocaleProvider overrides the
@@ -15,6 +16,7 @@ import { t } from "@/lib/i18n";
 export const dynamic = "force-dynamic";
 
 export default async function ProducerLayout({ children }: { children: React.ReactNode }) {
+  ensureScheduler();
   const session = await portalSession();
   const locale = producerLocale();
   const company = await getData().getCompanyIdentity(session);

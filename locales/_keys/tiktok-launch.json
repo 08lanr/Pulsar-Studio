@@ -1,0 +1,626 @@
+{
+  "promote.status.paused": {
+    "en": "Paused",
+    "zh": "已暂停"
+  },
+  "promote.status.ended": {
+    "en": "Ended",
+    "zh": "已结束"
+  },
+  "promote.workspace.submitLaunch": {
+    "en": "Launch on TikTok",
+    "zh": "在 TikTok 投放"
+  },
+  "promote.workspace.launchDemoNote": {
+    "en": "Demo dataset: the launch runs against a fake TikTok inside Studio. Nothing is published and nothing is spent.",
+    "zh": "演示数据：投放在 Studio 内置的模拟 TikTok 上运行，不会发布广告，也不会产生广告花费。"
+  },
+  "promote.workspace.launchSandboxNote": {
+    "en": "TikTok sandbox: objects are created in the sandbox ad account. Nothing is published and nothing is spent.",
+    "zh": "TikTok 沙盒：广告对象会在沙盒账户中创建，不会发布，也不会产生广告花费。"
+  },
+  "promote.workspace.launchLiveNote": {
+    "en": "Pressing launch creates the campaign in your assigned TikTok ad account with the approved budget as its spending ceiling. TikTok reviews the ads before they run.",
+    "zh": "点击投放后，会在你的 TikTok 广告账户中以已批准预算为上限创建广告活动。广告需通过 TikTok 审核后才会投放。"
+  },
+  "promote.workspace.renderedPreview": {
+    "en": "This is the finished ad: the exact file that will be uploaded to TikTok.",
+    "zh": "这是成品广告，即上传到 TikTok 的文件。"
+  },
+  "promote.workspace.renderPending": {
+    "en": "Finished video not rendered yet; the source footage is shown.",
+    "zh": "成品视频尚未生成，当前显示源片段。"
+  },
+  "promote.workspace.blocked": {
+    "en": "Launch is not available yet:",
+    "zh": "暂时无法投放："
+  },
+  "promote.block.not_approved": {
+    "en": "approve the ads first",
+    "zh": "先批准广告"
+  },
+  "promote.block.budget_unsigned": {
+    "en": "the approver must sign the budget",
+    "zh": "需要审批人批准预算"
+  },
+  "promote.block.budget_below_minimum": {
+    "en": "the budget must be at least $20 (TikTok's minimum)",
+    "zh": "预算至少 $20（TikTok 最低要求）"
+  },
+  "promote.block.no_destination": {
+    "en": "set where viewers should go in the brief",
+    "zh": "在简报中填写观众点击后的去向链接"
+  },
+  "promote.block.unrendered_creatives": {
+    "en": "every chosen ad needs a finished video; generate the ads again",
+    "zh": "每条已选广告都需要成品视频，请重新生成广告"
+  },
+  "promote.block.no_launch_account": {
+    "en": "no TikTok ad account is assigned to your company yet",
+    "zh": "你的公司尚未分配 TikTok 广告账户"
+  },
+  "promote.block.no_identity": {
+    "en": "the assigned ad account has no TikTok handle linked; Pulsar is on it",
+    "zh": "已分配的广告账户尚未关联 TikTok 账号，Pulsar 正在处理"
+  },
+  "promote.block.setupLink": {
+    "en": "TikTok account setup",
+    "zh": "TikTok 账户设置"
+  },
+  "promote.launch.title": {
+    "en": "TikTok launch",
+    "zh": "TikTok 投放"
+  },
+  "promote.launch.campaignId": {
+    "en": "TikTok campaign",
+    "zh": "TikTok 广告活动"
+  },
+  "promote.launch.account": {
+    "en": "Ad account",
+    "zh": "广告账户"
+  },
+  "promote.launch.budget": {
+    "en": "Spending ceiling",
+    "zh": "广告花费上限"
+  },
+  "promote.launch.launchedAt": {
+    "en": "Launched",
+    "zh": "投放时间"
+  },
+  "promote.launch.note": {
+    "en": "Status note",
+    "zh": "状态说明"
+  },
+  "promote.launch.mode.fake": {
+    "en": "demo (fake TikTok)",
+    "zh": "演示（模拟 TikTok）"
+  },
+  "promote.launch.mode.sandbox": {
+    "en": "TikTok sandbox",
+    "zh": "TikTok 沙盒"
+  },
+  "promote.launch.mode.production": {
+    "en": "TikTok production",
+    "zh": "TikTok 正式环境"
+  },
+  "promote.new.destination": {
+    "en": "Where viewers should go (required)",
+    "zh": "观众点击后去向（必填）"
+  },
+  "promote.new.destinationHint": {
+    "en": "The link the ad opens: the drama's page on your platform or a web player. TikTok requires it.",
+    "zh": "广告点击后打开的链接：剧集在你平台上的页面或网页播放器。TikTok 要求必填。"
+  },
+  "workflow.step.launch": {
+    "en": "Launch",
+    "zh": "投放"
+  },
+  "workflow.hint.launch": {
+    "en": "Launch the approved ads with the approved budget. TikTok reviews them before they run.",
+    "zh": "以已批准的预算投放已批准的广告，广告需通过 TikTok 审核后才会开始投放。"
+  },
+  "workflow.hint.launching": {
+    "en": "Creating the campaign on TikTok…",
+    "zh": "正在 TikTok 上创建广告活动…"
+  },
+  "workflow.hint.submitted": {
+    "en": "Created on TikTok. The ads are in TikTok's review; results appear once they run.",
+    "zh": "已在 TikTok 创建，广告正在 TikTok 审核中，投放后会显示结果。"
+  },
+  "workflow.hint.waiting": {
+    "en": "Running on TikTok. Results are read back every hour.",
+    "zh": "正在 TikTok 投放，结果每小时回传一次。"
+  },
+  "workflow.hint.paused": {
+    "en": "Paused. Nothing is spending until it is switched back on.",
+    "zh": "已暂停，重新开启前不会产生广告花费。"
+  },
+  "workflow.hint.ended": {
+    "en": "The schedule ended or the budget was spent. Review the results and decide the next round.",
+    "zh": "投放已结束或预算已用完，请查看结果并决定下一轮。"
+  },
+  "workflow.hint.failed": {
+    "en": "The launch could not complete. Pulsar has been notified and will retry or explain.",
+    "zh": "投放未能完成，Pulsar 已收到通知，将重试或说明原因。"
+  },
+  "workflow.hint.generating": {
+    "en": "Generating the finished ads. This takes a few minutes; the page refreshes itself.",
+    "zh": "正在生成成品广告，需要几分钟，页面会自动刷新。"
+  },
+  "workflow.demoMode": {
+    "en": "Demo dataset: launches go to a fake TikTok inside Studio and spend nothing.",
+    "zh": "演示数据：投放在 Studio 内置的模拟 TikTok 上运行，不产生广告花费。"
+  },
+  "ws.exp.mock": {
+    "en": "Demo dataset: the launch runs against a fake TikTok inside Studio and spends nothing.",
+    "zh": "演示数据：投放在 Studio 内置的模拟 TikTok 上运行，不产生广告花费。"
+  },
+  "ws.exp.noResults": {
+    "en": "No results yet. Studio reads them back from TikTok every hour once the ads run.",
+    "zh": "还没有结果。广告开始投放后，Studio 每小时从 TikTok 回传一次。"
+  },
+  "ws.exp.signal.views": {
+    "en": "Video views and hook hold",
+    "zh": "视频观看与 2 秒留存"
+  },
+  "ws.exp.col.hold": {
+    "en": "Hook hold",
+    "zh": "2 秒留存"
+  },
+  "ws.exp.benchmark": {
+    "en": "Benchmarks: hook hold {hold}%, CTR {ctr}%. Above both = worth more spend.",
+    "zh": "基准：2 秒留存 {hold}%，点击率 {ctr}%。两项都高于基准 = 值得追加投入。"
+  },
+  "rd.sourceGrow": {
+    "en": "Reported by TikTok",
+    "zh": "TikTok 上报"
+  },
+  "an.acq.sourceGrow": {
+    "en": "TikTok",
+    "zh": "TikTok"
+  },
+  "tw.ads.paused": {
+    "en": "Ads · paused",
+    "zh": "广告 · 已暂停"
+  },
+  "ws.company.tab.accounts": {
+    "en": "Ad accounts",
+    "zh": "广告账户"
+  },
+  "ws.launchAccount.title": {
+    "en": "TikTok launch account",
+    "zh": "TikTok 投放账户"
+  },
+  "ws.launchAccount.sub": {
+    "en": "The ad account your campaigns launch into. Pulsar sets it up inside Pulsar's Business Center and assigns it to your company.",
+    "zh": "你的广告活动投放所用的广告账户。Pulsar 在自己的商务中心中创建并分配给你的公司。"
+  },
+  "ws.launchAccount.ready": {
+    "en": "Ready to launch",
+    "zh": "可投放"
+  },
+  "ws.launchAccount.notReady": {
+    "en": "Not set up yet",
+    "zh": "尚未设置"
+  },
+  "ws.launchAccount.advertiser": {
+    "en": "Ad account id",
+    "zh": "广告账户 ID"
+  },
+  "ws.launchAccount.identity": {
+    "en": "Publishing handle",
+    "zh": "发布账号"
+  },
+  "ws.launchAccount.assignedAt": {
+    "en": "Assigned",
+    "zh": "分配时间"
+  },
+  "ws.launchAccount.noIdentity": {
+    "en": "No TikTok handle linked yet — Pulsar is completing the setup.",
+    "zh": "尚未关联 TikTok 账号，Pulsar 正在完成设置。"
+  },
+  "ws.launchAccount.request": {
+    "en": "Request an ad account from Pulsar",
+    "zh": "向 Pulsar 申请广告账户"
+  },
+  "ws.launchAccount.requestSub": {
+    "en": "Pulsar creates the account and links a publishing handle. You will be able to launch as soon as it is assigned.",
+    "zh": "Pulsar 会创建账户并关联发布账号，分配完成后即可投放。"
+  },
+  "ws.launchAccount.contactName": {
+    "en": "Contact name",
+    "zh": "联系人"
+  },
+  "ws.launchAccount.contactEmail": {
+    "en": "Contact email",
+    "zh": "联系邮箱"
+  },
+  "ws.launchAccount.note": {
+    "en": "Anything Pulsar should know",
+    "zh": "需要告知 Pulsar 的信息"
+  },
+  "ws.launchAccount.payment": {
+    "en": "Payment method for ad spend",
+    "zh": "广告花费的支付方式"
+  },
+  "ws.launchAccount.paymentSub": {
+    "en": "Optional. Ad spend on a Pulsar-managed account is billed back to you. Studio records the card brand, holder and last four digits only — never the card number — and charges nothing itself.",
+    "zh": "选填。Pulsar 托管账户上的广告花费会向你结算。Studio 只记录卡品牌、持卡人和末四位，不记录卡号，也不会自行扣款。"
+  },
+  "ws.launchAccount.paymentOptIn": {
+    "en": "Add a payment method (demo)",
+    "zh": "添加支付方式（演示）"
+  },
+  "ws.launchAccount.cardBrand": {
+    "en": "Card brand",
+    "zh": "卡品牌"
+  },
+  "ws.launchAccount.cardHolder": {
+    "en": "Cardholder",
+    "zh": "持卡人"
+  },
+  "ws.launchAccount.cardLast4": {
+    "en": "Last four digits",
+    "zh": "末四位"
+  },
+  "ws.launchAccount.send": {
+    "en": "Send request",
+    "zh": "提交申请"
+  },
+  "ws.launchAccount.sent": {
+    "en": "Request sent. Pulsar will assign the account.",
+    "zh": "申请已提交，Pulsar 将分配账户。"
+  },
+  "ws.launchAccount.requestStatus": {
+    "en": "Your request",
+    "zh": "你的申请"
+  },
+  "ws.launchAccount.status.requested": {
+    "en": "Received",
+    "zh": "已收到"
+  },
+  "ws.launchAccount.status.provisioning": {
+    "en": "Pulsar is setting it up",
+    "zh": "Pulsar 设置中"
+  },
+  "ws.launchAccount.status.assigned": {
+    "en": "Assigned",
+    "zh": "已分配"
+  },
+  "ws.launchAccount.status.declined": {
+    "en": "Declined",
+    "zh": "已拒绝"
+  },
+  "ws.launchAccount.paymentOnFile": {
+    "en": "Payment method on file (demo)",
+    "zh": "已登记支付方式（演示）"
+  },
+  "ws.launchAccount.viewerOnly": {
+    "en": "An editor or approver can request an account.",
+    "zh": "编辑或审批人可以申请账户。"
+  },
+  "ws.accounts.assigned": {
+    "en": "Assigned by Pulsar",
+    "zh": "Pulsar 分配"
+  },
+  "ws.billing.state": {
+    "en": "Ad spend is billed to the payment method on the launch account. Studio charges nothing itself.",
+    "zh": "广告花费通过投放账户上的支付方式结算，Studio 不会自行扣款。"
+  },
+  "admin.nav.tiktok": {
+    "en": "TikTok setup",
+    "zh": "TikTok 设置"
+  },
+  "admin.head.tiktok": {
+    "en": "TikTok setup",
+    "zh": "TikTok 设置"
+  },
+  "admin.promote.status.paused": {
+    "en": "Paused",
+    "zh": "已暂停"
+  },
+  "admin.promote.status.ended": {
+    "en": "Ended",
+    "zh": "已结束"
+  },
+  "admin.promote.queue.launched": {
+    "en": "Launched on TikTok",
+    "zh": "已在 TikTok 投放"
+  },
+  "admin.promote.next.launching": {
+    "en": "Launch engine running",
+    "zh": "投放引擎运行中"
+  },
+  "admin.promote.next.launch": {
+    "en": "On TikTok · in review",
+    "zh": "TikTok 审核中"
+  },
+  "admin.promote.next.failed": {
+    "en": "Launch failed — retry or explain",
+    "zh": "投放失败，需重试或说明"
+  },
+  "admin.promote.next.paused": {
+    "en": "Paused",
+    "zh": "已暂停"
+  },
+  "admin.promote.next.ended": {
+    "en": "Ended",
+    "zh": "已结束"
+  },
+  "admin.promote.next.done": {
+    "en": "Running · metrics read back hourly",
+    "zh": "投放中 · 每小时回传数据"
+  },
+  "admin.promote.col.note": {
+    "en": "TikTok note",
+    "zh": "TikTok 状态"
+  },
+  "admin.promote.launch.submitted": {
+    "en": "Created on TikTok with {n} ads; TikTok is reviewing them. Nothing to do unless the review stalls.",
+    "zh": "已在 TikTok 创建 {n} 条广告，TikTok 审核中。除非审核停滞，无需操作。"
+  },
+  "admin.promote.launch.launching": {
+    "en": "The launch engine is creating the objects on TikTok. If this stays here for more than ten minutes, the scheduler adopts it; Sync now forces it.",
+    "zh": "投放引擎正在 TikTok 上创建对象。若超过十分钟未变化，调度器会接管；也可点击“立即同步”。"
+  },
+  "admin.promote.launch.live": {
+    "en": "Delivering on TikTok. Metrics are read back hourly.",
+    "zh": "正在 TikTok 投放，数据每小时回传。"
+  },
+  "admin.promote.launch.paused": {
+    "en": "Paused on TikTok. Nothing spends until it is resumed.",
+    "zh": "已在 TikTok 暂停，恢复前不产生花费。"
+  },
+  "admin.promote.launch.ended": {
+    "en": "Ended: schedule closed or budget spent.",
+    "zh": "已结束：排期结束或预算用完。"
+  },
+  "admin.promote.launch.failed": {
+    "en": "The launch failed. Fix the cause (the note says what TikTok answered) and retry — the same launch record resumes; no second campaign is created.",
+    "zh": "投放失败。根据备注中 TikTok 的回复修正后重试，会沿用同一投放记录，不会创建第二个活动。"
+  },
+  "admin.promote.launch.record": {
+    "en": "Launch record",
+    "zh": "投放记录"
+  },
+  "admin.promote.launch.mode": {
+    "en": "Mode",
+    "zh": "环境"
+  },
+  "admin.promote.launch.advertiser": {
+    "en": "Ad account",
+    "zh": "广告账户"
+  },
+  "admin.promote.launch.identity": {
+    "en": "Identity",
+    "zh": "发布账号"
+  },
+  "admin.promote.launch.budget": {
+    "en": "Budget ceiling",
+    "zh": "预算上限"
+  },
+  "admin.promote.launch.tiktokIds": {
+    "en": "TikTok ids",
+    "zh": "TikTok ID"
+  },
+  "admin.promote.launch.ads": {
+    "en": "Ads created",
+    "zh": "已创建广告"
+  },
+  "admin.promote.launch.attempts": {
+    "en": "Attempts",
+    "zh": "尝试次数"
+  },
+  "admin.promote.launch.error": {
+    "en": "Last error",
+    "zh": "最近错误"
+  },
+  "admin.promote.launch.pause": {
+    "en": "Pause on TikTok",
+    "zh": "在 TikTok 暂停"
+  },
+  "admin.promote.launch.resume": {
+    "en": "Resume on TikTok",
+    "zh": "在 TikTok 恢复"
+  },
+  "admin.promote.launch.sync": {
+    "en": "Sync now",
+    "zh": "立即同步"
+  },
+  "admin.promote.launch.synced": {
+    "en": "Synced: {polled} campaigns polled, {synced} result rows, {errors} errors.",
+    "zh": "已同步：轮询 {polled} 个活动，{synced} 条结果，{errors} 个错误。"
+  },
+  "admin.promote.launch.override": {
+    "en": "Override status (troubleshooting)",
+    "zh": "手动覆盖状态（排障）"
+  },
+  "admin.promote.launch.overrideNote": {
+    "en": "The engine and the scheduler write the normal path. Use this only when TikTok's state and Studio's disagree and you have checked Ads Manager.",
+    "zh": "正常情况下由引擎和调度器写入状态。仅当 TikTok 与 Studio 状态不一致且已在 Ads Manager 核实时使用。"
+  },
+  "admin.promote.launch.notApplied": {
+    "en": "TikTok accepted the request but did not change state; the next sweep settles it.",
+    "zh": "TikTok 已接受请求但状态未变，下一次轮询会处理。"
+  },
+  "admin.tiktok.title": {
+    "en": "TikTok setup",
+    "zh": "TikTok 设置"
+  },
+  "admin.tiktok.sub": {
+    "en": "The operator connection to Pulsar's Business Center, the ad accounts it reaches, and which producer each launches from.",
+    "zh": "Pulsar 商务中心的运营方连接、可用的广告账户，以及各制片方使用的投放账户。"
+  },
+  "admin.tiktok.connection": {
+    "en": "Connection",
+    "zh": "连接"
+  },
+  "admin.tiktok.mode": {
+    "en": "Mode",
+    "zh": "环境"
+  },
+  "admin.tiktok.mode.fake": {
+    "en": "Fixture: fake TikTok in this process",
+    "zh": "演示：本进程内的模拟 TikTok"
+  },
+  "admin.tiktok.mode.sandbox": {
+    "en": "Sandbox",
+    "zh": "沙盒"
+  },
+  "admin.tiktok.mode.production": {
+    "en": "Production",
+    "zh": "正式环境"
+  },
+  "admin.tiktok.connect": {
+    "en": "Connect TikTok",
+    "zh": "连接 TikTok"
+  },
+  "admin.tiktok.reconnect": {
+    "en": "Add another authorization",
+    "zh": "添加另一个授权"
+  },
+  "admin.tiktok.connected": {
+    "en": "TikTok authorized. The new connection is listed below.",
+    "zh": "TikTok 授权成功，新连接已列出。"
+  },
+  "admin.tiktok.connectError": {
+    "en": "Authorization failed: {detail}",
+    "zh": "授权失败：{detail}"
+  },
+  "admin.tiktok.redirectUri": {
+    "en": "Redirect URI to register on the developer app",
+    "zh": "需在开发者应用中注册的回调地址"
+  },
+  "admin.tiktok.connections": {
+    "en": "Authorizations",
+    "zh": "授权"
+  },
+  "admin.tiktok.noConnections": {
+    "en": "No authorization yet.",
+    "zh": "尚无授权。"
+  },
+  "admin.tiktok.accounts": {
+    "en": "Reachable ad accounts",
+    "zh": "可用广告账户"
+  },
+  "admin.tiktok.accountsOmitted": {
+    "en": "{n} more not shown",
+    "zh": "另有 {n} 个未显示"
+  },
+  "admin.tiktok.probe": {
+    "en": "Check",
+    "zh": "检查"
+  },
+  "admin.tiktok.assign": {
+    "en": "Assign",
+    "zh": "分配"
+  },
+  "admin.tiktok.assignTitle": {
+    "en": "Assign ad account {id} to a producer",
+    "zh": "将广告账户 {id} 分配给制片方"
+  },
+  "admin.tiktok.producer": {
+    "en": "Producer",
+    "zh": "制片方"
+  },
+  "admin.tiktok.accountName": {
+    "en": "Account name shown to the producer",
+    "zh": "向制片方显示的账户名称"
+  },
+  "admin.tiktok.identity": {
+    "en": "Publishing identity",
+    "zh": "发布账号"
+  },
+  "admin.tiktok.identityNone": {
+    "en": "No handle linked to this ad account — link one in Business Center before assigning, or ads cannot run.",
+    "zh": "该广告账户未关联 TikTok 账号，请先在商务中心关联，否则广告无法投放。"
+  },
+  "admin.tiktok.assigned": {
+    "en": "Assigned to {producer}.",
+    "zh": "已分配给 {producer}。"
+  },
+  "admin.tiktok.requests": {
+    "en": "Account requests",
+    "zh": "账户申请"
+  },
+  "admin.tiktok.noRequests": {
+    "en": "No open requests.",
+    "zh": "暂无申请。"
+  },
+  "admin.tiktok.request.contact": {
+    "en": "Contact",
+    "zh": "联系人"
+  },
+  "admin.tiktok.request.payment": {
+    "en": "Payment",
+    "zh": "支付方式"
+  },
+  "admin.tiktok.request.noPayment": {
+    "en": "none on file",
+    "zh": "未登记"
+  },
+  "admin.tiktok.request.provisioning": {
+    "en": "Mark provisioning",
+    "zh": "标记为设置中"
+  },
+  "admin.tiktok.request.decline": {
+    "en": "Decline",
+    "zh": "拒绝"
+  },
+  "admin.tiktok.request.fulfil": {
+    "en": "Fulfil with account…",
+    "zh": "以账户完成…"
+  },
+  "admin.tiktok.scheduler": {
+    "en": "Scheduler",
+    "zh": "调度器"
+  },
+  "admin.tiktok.scheduler.running": {
+    "en": "Running · last tick {at}",
+    "zh": "运行中 · 最近一次 {at}"
+  },
+  "admin.tiktok.scheduler.stopped": {
+    "en": "Not running in this process (SCHEDULER_DISABLED or no boot hook). Sync now still works.",
+    "zh": "本进程未运行调度器（SCHEDULER_DISABLED 或无启动钩子），仍可点击“立即同步”。"
+  },
+  "admin.tiktok.loading": {
+    "en": "Reading the connection…",
+    "zh": "正在读取连接…"
+  },
+  "admin.tiktok.state.READY": {
+    "en": "Ready",
+    "zh": "就绪"
+  },
+  "admin.tiktok.state.ACTION_REQUIRED": {
+    "en": "Action required",
+    "zh": "需要处理"
+  },
+  "admin.tiktok.state.BLOCKED": {
+    "en": "Blocked",
+    "zh": "已阻止"
+  },
+  "admin.promote.sub": {
+    "en": "Every producer ad campaign: what it needs from Pulsar, and how its TikTok launch is doing.",
+    "zh": "每个制片方的广告活动：需要 Pulsar 处理的事项，以及 TikTok 投放进展。"
+  },
+  "admin.promote.status.submitted": {
+    "en": "On TikTok · in review",
+    "zh": "TikTok 审核中"
+  },
+  "admin.promote.status.launching": {
+    "en": "Launching",
+    "zh": "投放创建中"
+  },
+  "admin.promote.status.live": {
+    "en": "Live",
+    "zh": "投放中"
+  },
+  "promote.status.submitted": {
+    "en": "In TikTok review",
+    "zh": "TikTok 审核中"
+  },
+  "promote.status.launching": {
+    "en": "Launching",
+    "zh": "投放创建中"
+  }
+}

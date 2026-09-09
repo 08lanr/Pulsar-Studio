@@ -4,6 +4,7 @@ import { apiError } from "@/lib/api-guard";
 import { requireSession } from "@/lib/auth";
 import { dataSource } from "@/lib/data-source";
 import { currentFixtureSeed, resetFixtureStore } from "@/lib/data/fixture";
+import { resetFakeTikTok } from "@/lib/tiktok/fake";
 import { handle, parseJson } from "@/app/api/titles/_lib/handler";
 
 // Fixture mode only: rebuild the in-memory demo dataset from data/fixture so a
@@ -23,6 +24,8 @@ export async function POST(req: NextRequest) {
     if (parsed.response) return parsed.response;
     const seed = parsed.data.seed ?? "demo";
     resetFixtureStore(seed);
+    // The fake TikTok's objects belong to the store they were launched from.
+    resetFakeTikTok();
     return NextResponse.json({ ok: true, seed, reset_at: new Date().toISOString() });
   });
 }

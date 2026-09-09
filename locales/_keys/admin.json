@@ -379,10 +379,6 @@
     "en": "Promote desk",
     "zh": "推广工作台"
   },
-  "admin.promote.sub": {
-    "en": "Every producer ad campaign, what it needs from Pulsar, and its launch progress in Grow.",
-    "zh": "所有制片方的广告活动、需要 Pulsar 处理的事项，以及 Grow 的投放进度。"
-  },
   "admin.promote.queue.action": {
     "en": "Needs Pulsar",
     "zh": "待 Pulsar 处理"
@@ -439,18 +435,6 @@
     "en": "Producer approved",
     "zh": "制片方已确认"
   },
-  "admin.promote.status.submitted": {
-    "en": "Ready to launch",
-    "zh": "待投放"
-  },
-  "admin.promote.status.launching": {
-    "en": "Launching on TikTok",
-    "zh": "TikTok 投放中"
-  },
-  "admin.promote.status.live": {
-    "en": "Live",
-    "zh": "已上线"
-  },
   "admin.promote.status.failed": {
     "en": "Launch failed",
     "zh": "投放失败"
@@ -459,25 +443,9 @@
     "en": "{n} change requests to answer",
     "zh": "{n} 条修改要求待处理"
   },
-  "admin.promote.next.launch": {
-    "en": "Launch on Grow",
-    "zh": "在 Grow 投放"
-  },
-  "admin.promote.next.launching": {
-    "en": "Confirm live when TikTok approves",
-    "zh": "TikTok 通过后确认上线"
-  },
-  "admin.promote.next.failed": {
-    "en": "Retry or follow up",
-    "zh": "重试或跟进"
-  },
   "admin.promote.next.producer": {
     "en": "Producer's move",
     "zh": "等待制片方"
-  },
-  "admin.promote.next.done": {
-    "en": "—",
-    "zh": "—"
   },
   "admin.promote.stat.status": {
     "en": "Status",
@@ -526,22 +494,6 @@
   "admin.promote.launch": {
     "en": "Launch",
     "zh": "投放"
-  },
-  "admin.promote.launch.submitted": {
-    "en": "The producer approved {n} ads and submitted for launch. Create the Grow campaign, then record its progress here.",
-    "zh": "制片方已批准 {n} 条广告并提交投放。在 Grow 创建活动后，在此记录进度。"
-  },
-  "admin.promote.launch.launching": {
-    "en": "Launching on Grow. Confirm here once TikTok approves the ads.",
-    "zh": "Grow 投放中。TikTok 审核通过后在此确认。"
-  },
-  "admin.promote.launch.live": {
-    "en": "Live on TikTok. Metrics arrive with the Grow read-back.",
-    "zh": "已在 TikTok 上线。数据将通过 Grow 回传。"
-  },
-  "admin.promote.launch.failed": {
-    "en": "Launch failed. Fix the campaign in Grow and retry.",
-    "zh": "投放失败。在 Grow 中修正后重试。"
   },
   "admin.promote.launch.waiting": {
     "en": "Nothing to launch yet — the producer has not submitted this campaign.",

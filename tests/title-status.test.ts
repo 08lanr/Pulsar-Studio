@@ -13,7 +13,7 @@ afterEach(() => resetFixtureStore());
 const producer = () => fixtureSession("producer");
 
 function campaign(over: Partial<PromoCampaignSummary>): PromoCampaignSummary {
-  return { id: "c", external_id: "pb_c", title_id: "t", producer_id: "p", name: "x", target_market: "US", destination_url: null, objective: "views", spoiler_level: "low", creative_direction: null, exclusions: null, experiment: null, status: "draft", grow_campaign_id: null, created_by: "u", created_at: "2026-09-01T00:00:00.000Z", updated_at: "2026-09-01T00:00:00.000Z", title_name_zh: "x", title_name_en: null, producer_name_zh: "p", producer_name_en: null, creative_count: 0, approved_count: 0, pending_count: 0, change_count: 0, ...over };
+  return { id: "c", external_id: "pb_c", title_id: "t", producer_id: "p", name: "x", target_market: "US", destination_url: null, objective: "views", spoiler_level: "low", creative_direction: null, exclusions: null, experiment: null, status: "draft", grow_campaign_id: null, advertiser_id: null, tiktok_adgroup_id: null, status_note: null, launched_at: null, created_by: "u", created_at: "2026-09-01T00:00:00.000Z", updated_at: "2026-09-01T00:00:00.000Z", title_name_zh: "x", title_name_en: null, producer_name_zh: "p", producer_name_en: null, creative_count: 0, approved_count: 0, pending_count: 0, change_count: 0, ...over };
 }
 const result = (campaign_id: string, over: Partial<CreativeResult> = {}): CreativeResult => ({ id: `r-${campaign_id}`, campaign_id, creative_id: "cr", source: "demo", window_start: "2026-09-01", window_end: "2026-09-06", impressions: 10_000, video_views: 5_000, hook_hold_rate: 0.3, clicks: 120, spend_usd: 50, landing_actions: null, observed_at: "2026-09-06T00:00:00.000Z", ...over });
 

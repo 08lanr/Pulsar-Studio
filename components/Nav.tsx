@@ -62,11 +62,14 @@ export default function Nav({ displayName, role }: NavProps) {
     { href: "/promote", label: tt("admin.nav.promote"), icon: <IconSparkle /> },
     { href: "/titles", label: tt("admin.nav.projects"), icon: <IconProjects /> },
     { href: "/producers", label: tt("admin.nav.producers"), icon: <IconProducers /> },
+    { href: "/tiktok", label: tt("admin.nav.tiktok"), icon: <IconSparkle /> },
   ];
 
   // The header names the screen; derived from the path so no page threads a
   // prop through. Deeper routes are matched first.
-  const title = pathname.startsWith("/promote")
+  const title = pathname.startsWith("/tiktok")
+    ? tt("admin.head.tiktok")
+    : pathname.startsWith("/promote")
     ? tt("admin.head.promote")
     : pathname.startsWith("/producers")
     ? tt("admin.nav.producers")

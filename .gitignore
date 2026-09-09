@@ -41,3 +41,4 @@ data/research/raw/*.log
 
 # Playwright default output (the root config writes under tmp/).
 test-results/
+.next-build/

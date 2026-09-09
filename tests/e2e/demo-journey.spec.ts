@@ -176,12 +176,14 @@ test("ads → approvals → budget → launch → demo results → next round", 
   await expect(budgetApproval).toBeEnabled();
   await budgetApproval.click();
   await expect(page.locator("#brief-record summary")).toContainText("Budget approved");
-  await expect(page.locator(".ws-stages [aria-current=step]")).toContainText("Submit for launch");
+  await expect(page.locator(".ws-stages [aria-current=step]")).toContainText("Launch");
   await shot(page, "campaign-budget-approved");
 
-  await page.getByRole("button", { name: "Submit demo launch", exact: true }).click();
-  await expect(page.locator(".ws-stages [aria-current=step]")).toContainText("Submit for launch");
-  await expect(page.getByText("Submitted. Waiting for results. In demo mode, use Simulate demo results below to continue.")).toBeVisible();
+  // Launch runs against the fake TikTok inside Studio: the campaign is created and sits in "TikTok's review".
+  await page.getByRole("button", { name: "Launch on TikTok", exact: true }).click();
+  await expect(page.locator(".ws-stages [aria-current=step]")).toContainText("Launch");
+  await expect(page.getByText("Created on TikTok. The ads are in TikTok's review; results appear once they run.")).toBeVisible();
+  await expect(page.locator("#launch-status")).toContainText(/17\d{15}/);
   await page.getByRole("button", { name: "Simulate demo results" }).click();
   await expect(page.getByRole("heading", { name: "What the results say" })).toBeVisible();
   await expect(page.locator(".rd-table tbody tr")).toHaveCount(4);
@@ -231,6 +233,9 @@ test("error feedback: the API refuses out-of-order actions and invalid input", a
   await page.getByLabel("Target audience").fill("US women 25-44");
   await expect(cta).toBeDisabled();
   await page.getByLabel("What do you want to test?").fill("The rebirth opening beats the romance opening for US women 25-44.");
+  // The destination link is required too (TikTok needs a landing page).
+  await expect(cta).toBeDisabled();
+  await page.getByLabel("Where viewers should go (required)").fill("https://www.reelshort.com/");
   await expect(cta).toBeEnabled();
   await shot(page, "new-campaign-validation");
 });

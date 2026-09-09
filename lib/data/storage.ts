@@ -60,13 +60,39 @@ async function putObject(stored: string, bytes: Uint8Array, contentType: string 
     await writeFile(abs, bytes);
     return stored;
   }
-  const { createServerSupabase } = await import("@/lib/supabase/server");
-  const supabase = createServerSupabase();
+  // Storage writes run as the service role (CLAUDE.md allows it for storage
+  // helpers): the caller's authorization was checked by the data layer, and
+  // the render step and the launch engine run with no request cookie at all.
+  const { createServiceSupabase } = await import("@/lib/supabase/server");
+  const supabase = createServiceSupabase();
   const { error } = await supabase.storage
     .from(MEDIA_BUCKET)
     .upload(stored, bytes, { contentType, upsert: true });
   if (error) throw invalid(`storage upload failed: ${error.message}`);
   return stored;
+}
+
+/** Any stored file (a rendered ad, a cover). Returns the storage path. */
+export function putStoredBytes(stored: string, bytes: Uint8Array, contentType: string): Promise<string> {
+  return putObject(stored, bytes, contentType);
+}
+
+/**
+ * The bytes behind a stored path: the file under .uploads/ in fixture mode,
+ * a download from the private bucket in supabase mode. The launch engine
+ * reads the rendered ad through here to upload it to TikTok, and the render
+ * step reads the episode source through here.
+ */
+export async function readStoredBytes(stored: string): Promise<Buffer> {
+  if (dataSource() === "fixture") {
+    const { readFile } = await import("node:fs/promises");
+    return readFile(resolveUploadPath(stored));
+  }
+  const { createServiceSupabase } = await import("@/lib/supabase/server");
+  const supabase = createServiceSupabase();
+  const { data, error } = await supabase.storage.from(MEDIA_BUCKET).download(stored);
+  if (error || !data) throw invalid(`storage download failed: ${error?.message ?? "no data"}`);
+  return Buffer.from(await data.arrayBuffer());
 }
 
 /** The delivered subtitle / script file, kept for reference beside the parsed rows. Returns the storage path. */

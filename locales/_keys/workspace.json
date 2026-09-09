@@ -1,271 +1,1050 @@
 {
-  "ws.nav.overview": { "en": "Overview", "zh": "总览" },
-  "ws.nav.catalog": { "en": "My catalog", "zh": "我的剧库" },
-  "ws.nav.insights": { "en": "US market insights", "zh": "美国市场洞察" },
-  "ws.nav.launch": { "en": "Ad campaigns", "zh": "广告活动" },
-  "ws.nav.company": { "en": "Company & accounts", "zh": "公司与账户" },
-  "ws.nav.sources": { "en": "Data sources", "zh": "数据来源" },
-  "ws.overview.kicker": { "en": "US launch workspace", "zh": "美国发行工作台" },
-  "ws.overview.title": { "en": "Your US launch workspace", "zh": "美国发行概览" },
-  "ws.overview.sub": { "en": "Choose titles for the US, manage advertising, and review audience response.", "zh": "筛选美国发行作品、管理广告活动、查看受众反应。" },
-  "ws.overview.goal": { "en": "Company goal", "zh": "公司目标" },
-  "ws.overview.budget": { "en": "Monthly test budget", "zh": "每月测试预算" },
-  "ws.overview.recommended": { "en": "Your launch shortlist", "zh": "发行候选作品" },
-  "ws.overview.recommendedSub": { "en": "Review each title’s market evidence or continue its advertising campaign.", "zh": "查看各作品的市场依据，或继续处理广告活动。" },
-  "ws.overview.decisions": { "en": "Campaigns to continue", "zh": "待处理广告活动" },
-  "ws.overview.decisionsSub": { "en": "Open a campaign to complete its next step.", "zh": "打开广告活动，完成下一步。" },
-  "ws.overview.results": { "en": "Results needing a decision", "zh": "需要决策的结果" },
-  "ws.overview.setup": { "en": "Setup gaps", "zh": "待完成设置" },
-  "ws.overview.noDecisions": { "en": "Nothing waiting on you.", "zh": "暂无待处理事项。" },
-  "ws.overview.viewCatalog": { "en": "Full catalog", "zh": "全部剧库" },
-  "ws.overview.viewLaunch": { "en": "All campaigns", "zh": "全部广告活动" },
-  "ws.score.label": { "en": "US launch priority score", "zh": "美国发行优先级评分" },
-  "ws.score.of": { "en": "of 100", "zh": "/ 100" },
-  "ws.score.note": { "en": "A score out of 100 based on market comparisons, preparation and available results. It helps prioritize tests; it is not a success probability.", "zh": "根据市场对比、准备情况和已有结果计算，满分 100 分，用于安排测试优先顺序，不代表成功概率。" },
-  "ws.band.test_first": { "en": "Higher priority", "zh": "较高优先级" },
-  "ws.band.prepare": { "en": "More preparation needed", "zh": "仍需准备" },
-  "ws.band.hold": { "en": "Lower priority", "zh": "较低优先级" },
-  "ws.band.insufficient": { "en": "Not enough information", "zh": "信息不足" },
-  "ws.component.story_match": { "en": "Story match", "zh": "题材匹配" },
-  "ws.component.market_signal": { "en": "Market signal", "zh": "市场信号" },
-  "ws.component.readiness": { "en": "Launch readiness", "zh": "发行就绪" },
-  "ws.component.own_evidence": { "en": "Own evidence", "zh": "自有证据" },
-  "ws.component.fit": { "en": "Company fit", "zh": "公司匹配" },
-  "ws.component.raise": { "en": "What would raise it", "zh": "如何提高" },
-  "ws.fact.noTropes": { "en": "No story tags recognized: the synopsis is missing or too short.", "zh": "未识别出题材标签：简介缺失或太短。" },
-  "ws.fact.tropes": { "en": "{n} story tags matched against the prominent-listing mix", "zh": "{n} 个题材标签与显著剧集对照" },
-  "ws.fact.comparables": { "en": "{n} comparable listings, mean prominence {prominence}", "zh": "{n} 部可比剧集，平均显著度 {prominence}" },
-  "ws.fact.hotTropes": { "en": "{n} of its tags are among the ten most prominent story types", "zh": "{n} 个标签位列十大显著题材" },
-  "ws.fact.noHotTropes": { "en": "None of its tags are among the ten most prominent story types", "zh": "没有标签位列十大显著题材" },
-  "ws.fact.noHistory": { "en": "Collecting history: chart movement needs a second observation day", "zh": "积累历史中：榜单变化需第二个采集日" },
-  "ws.fact.tropeDelta": { "en": "Its story types moved {pts} pts in chart share since the previous day", "zh": "题材榜单占比较上一采集日变化 {pts} 点" },
-  "ws.fact.rightsOk": { "en": "US license window covers today (until {end})", "zh": "美国授权窗口覆盖今天（至 {end}）" },
-  "ws.fact.rightsExpiring": { "en": "License window ends within 90 days ({end})", "zh": "授权窗口 90 天内到期（{end}）" },
-  "ws.fact.rightsOutside": { "en": "Outside the license window ({start} – {end})", "zh": "不在授权窗口内（{start} – {end}）" },
-  "ws.fact.rightsUnknown": { "en": "US rights window not recorded", "zh": "未记录美国授权窗口" },
-  "ws.fact.subsApproved": { "en": "{n} episodes with approved English subtitles (of {total})", "zh": "{n} 集已有定稿英文字幕（共 {total} 集）" },
-  "ws.fact.subsPartial": { "en": "English adaptation {pct}% done, nothing finalized", "zh": "英文改编完成 {pct}%，尚未定稿" },
-  "ws.fact.subsNone": { "en": "No English subtitles yet", "zh": "暂无英文字幕" },
-  "ws.fact.videoOk": { "en": "{n} episodes with video uploaded", "zh": "已上传 {n} 集视频" },
-  "ws.fact.scriptsOnly": { "en": "{n} episodes uploaded as scripts only, no video", "zh": "已上传 {n} 集剧本，无视频" },
-  "ws.fact.noMaterials": { "en": "No episodes uploaded", "zh": "未上传任何分集" },
-  "ws.fact.destinationOk": { "en": "A destination URL is set on a campaign", "zh": "广告活动已设置落地页" },
-  "ws.fact.destinationMissing": { "en": "No destination (landing page or platform link) recorded", "zh": "未记录落地页或平台链接" },
-  "ws.fact.adAccountOk": { "en": "A customer-owned ad account is connected", "zh": "已连接客户自有广告账户" },
-  "ws.fact.adAccountInvited": { "en": "Ad account access invited, not yet accepted", "zh": "广告账户已邀请授权，尚未接受" },
-  "ws.fact.adAccountMissing": { "en": "No ad account connected", "zh": "未连接广告账户" },
-  "ws.fact.reports": { "en": "{n} imported US report rows ({metrics})", "zh": "{n} 条导入的美国报表（{metrics}）" },
-  "ws.fact.noReports": { "en": "No imported US performance for this title", "zh": "此剧集没有导入的美国表现数据" },
-  "ws.fact.results": { "en": "Best ad: hook hold {hold}% (benchmark {benchHold}%), CTR {ctr}% (benchmark {benchCtr}%)", "zh": "最佳广告：开场留存 {hold}%（基准 {benchHold}%），点击率 {ctr}%（基准 {benchCtr}%）" },
-  "ws.fact.resultsDemo": { "en": "Demo results only, counted at half: hook hold {hold}% (benchmark {benchHold}%), CTR {ctr}% (benchmark {benchCtr}%)", "zh": "仅演示结果，按一半计：开场留存 {hold}%（基准 {benchHold}%），点击率 {ctr}%（基准 {benchCtr}%）" },
-  "ws.fact.testPending": { "en": "A test exists but has no results yet", "zh": "已有测试，暂无结果" },
-  "ws.fact.noTest": { "en": "Never tested in the US", "zh": "尚未在美国测试" },
-  "ws.fact.china": { "en": "China: completion {completion}%, paying {paying}% (context only, no points)", "zh": "国内：完播 {completion}%，付费 {paying}%（仅供参考，不计分）" },
-  "ws.fact.targetsUS": { "en": "The US is a stated target market", "zh": "美国是你填写的目标市场" },
-  "ws.fact.notUS": { "en": "The US is not among your stated target markets", "zh": "美国不在你声明的目标市场中" },
-  "ws.fact.noProfile": { "en": "Company profile not set", "zh": "未设置公司资料" },
-  "ws.fact.profileOverlap": { "en": "{n} of its tags match the story types you say you produce", "zh": "{n} 个标签与你声明的主要题材重合" },
-  "ws.raise.synopsis": { "en": "Add a synopsis so the title can be tagged", "zh": "补充简介，便于识别题材" },
-  "ws.raise.history": { "en": "Turns on automatically after the next market crawl", "zh": "下次市场采集后自动启用" },
-  "ws.raise.rights": { "en": "Record the US license window", "zh": "记录美国授权窗口" },
-  "ws.raise.subtitles": { "en": "Finalize English subtitles for at least two episodes", "zh": "至少定稿两集英文字幕" },
-  "ws.raise.video": { "en": "Upload episode video", "zh": "上传剧集视频" },
-  "ws.raise.destination": { "en": "Set a destination URL on the campaign", "zh": "设置广告活动落地页" },
-  "ws.raise.adAccount": { "en": "Connect the customer-owned ad account", "zh": "连接客户自有广告账户" },
-  "ws.raise.reports": { "en": "Import a US platform report", "zh": "导入美国平台报表" },
-  "ws.raise.test": { "en": "Prepare a $100 ad test", "zh": "准备 100 美元广告测试" },
-  "ws.raise.finishTest": { "en": "Complete the ad test and review results", "zh": "完成广告测试并查看结果" },
-  "ws.raise.profile": { "en": "Fill in the company profile", "zh": "填写公司资料" },
-  "ws.next.synopsis": { "en": "Add a synopsis", "zh": "补充简介" },
-  "ws.next.rights": { "en": "Record the US rights window", "zh": "记录美国版权窗口" },
-  "ws.next.renew": { "en": "Renew or extend the license before testing", "zh": "测试前续签或延长授权" },
-  "ws.next.video": { "en": "Upload episode video", "zh": "上传剧集视频" },
-  "ws.next.test": { "en": "Prepare a $100 ad test", "zh": "准备一次 100 美元广告测试" },
-  "ws.next.generate": { "en": "Generate ads from the saved brief", "zh": "根据已保存的简报生成广告" },
-  "ws.next.review": { "en": "Choose ads, then approve ads and budget", "zh": "选择广告，再批准广告和预算" },
-  "ws.next.submit": { "en": "Launch the approved ads", "zh": "投放已批准的广告" },
-  "ws.next.results": { "en": "Review results and choose the next spend", "zh": "查看结果并决定下一步投入" },
-  "ws.next.reports": { "en": "Import US platform reports", "zh": "导入美国平台报表" },
-  "ws.actions.assess": { "en": "View launch overview", "zh": "查看发行概览" },
-  "ws.actions.evidence": { "en": "See US market evidence", "zh": "查看美国市场证据" },
-  "ws.actions.test": { "en": "Create ad campaign", "zh": "创建广告活动" },
-  "ws.actions.variations": { "en": "Open campaign", "zh": "打开广告活动" },
-  "ws.actions.results": { "en": "Review results", "zh": "查看结果" },
-  "ws.actions.open": { "en": "Open", "zh": "打开" },
-  "ws.actions.openTitle": { "en": "Open title", "zh": "打开作品" },
-  "ws.actions.localize": { "en": "Localize (Adapt)", "zh": "本地化（Adapt）" },
-  "ws.catalog.title": { "en": "My catalog", "zh": "我的剧库" },
-  "ws.catalog.sub": { "en": "Compare your titles, review market evidence, and manage their next launch steps.", "zh": "比较剧库作品、查看市场依据，并处理下一步发行任务。" },
-  "ws.catalog.sort": { "en": "Sort", "zh": "排序" },
-  "ws.catalog.sort.score": { "en": "Launch priority", "zh": "发行优先级" },
-  "ws.catalog.sort.readiness": { "en": "Readiness", "zh": "就绪度" },
-  "ws.catalog.sort.name": { "en": "Name", "zh": "名称" },
-  "ws.catalog.sort.episodes": { "en": "Episodes", "zh": "集数" },
-  "ws.catalog.band": { "en": "Recommendation", "zh": "建议" },
-  "ws.catalog.allBands": { "en": "All", "zh": "全部" },
-  "ws.catalog.col.title": { "en": "Title", "zh": "剧集" },
-  "ws.catalog.col.score": { "en": "US launch priority", "zh": "美国发行优先级" },
-  "ws.catalog.col.tropes": { "en": "Story tags", "zh": "题材" },
-  "ws.catalog.col.readiness": { "en": "Readiness", "zh": "就绪" },
-  "ws.catalog.col.rights": { "en": "Rights", "zh": "版权" },
-  "ws.catalog.col.subs": { "en": "Subtitles", "zh": "字幕" },
-  "ws.catalog.col.video": { "en": "Video", "zh": "视频" },
-  "ws.catalog.col.tests": { "en": "Tests", "zh": "测试" },
-  "ws.catalog.col.next": { "en": "Next", "zh": "下一步" },
-  "ws.catalog.count": { "en": "{n} titles", "zh": "{n} 部作品" },
-  "ws.catalog.empty": { "en": "No titles yet. Add one to assess its US launch priority.", "zh": "还没有剧集。添加一部以评估其美国发行优先级。" },
-  "ws.catalog.chinaNote": { "en": "China numbers are partner-reported context, not US evidence.", "zh": "国内数据为合作方提供的参考，不是美国证据。" },
-  "ws.catalog.rights.ok": { "en": "OK", "zh": "有效" },
-  "ws.catalog.rights.expiring": { "en": "Expiring", "zh": "即将到期" },
-  "ws.catalog.rights.outside": { "en": "Outside window", "zh": "窗口外" },
-  "ws.catalog.rights.unknown": { "en": "Unknown", "zh": "未知" },
-  "ws.catalog.subs.approved": { "en": "{n} approved", "zh": "{n} 集定稿" },
-  "ws.catalog.subs.partial": { "en": "{pct}%", "zh": "{pct}%" },
-  "ws.catalog.subs.none": { "en": "None", "zh": "无" },
-  "ws.catalog.video.n": { "en": "{n} eps", "zh": "{n} 集" },
-  "ws.catalog.video.none": { "en": "None", "zh": "无" },
-  "ws.catalog.tests.none": { "en": "None", "zh": "无" },
-  "ws.assess.kicker": { "en": "Title launch overview", "zh": "作品发行概览" },
-  "ws.assess.sub": { "en": "Review the market comparisons, launch requirements and advertising activity for this title.", "zh": "查看本剧集的市场对标、发行条件和广告活动。" },
-  "ws.assess.components": { "en": "How the score is built", "zh": "分数构成" },
-  "ws.assess.comparables": { "en": "Comparable US listings", "zh": "美国可比剧集" },
-  "ws.assess.comparablesSub": { "en": "Prominent listings sharing story tags with this title; prominence is within each platform.", "zh": "与本剧集共享题材标签的显著剧集；显著度为平台内相对值。" },
-  "ws.assess.next": { "en": "Next actions", "zh": "下一步" },
-  "ws.assess.experiments": { "en": "Campaigns for this title", "zh": "本作品的广告活动" },
-  "ws.assess.noExperiments": { "en": "No campaigns yet.", "zh": "还没有广告活动。" },
-  "ws.assess.reports": { "en": "Your US reports for this title", "zh": "本剧集的美国报表" },
-  "ws.assess.observed": { "en": "Market snapshot {date}", "zh": "市场快照 {date}" },
-  "ws.assess.pointsOf": { "en": "{points} / {max}", "zh": "{points} / {max}" },
-  "ws.exp.kicker": { "en": "Launch & experiments", "zh": "发行与实验" },
-  "ws.exp.title": { "en": "Ad campaigns", "zh": "广告活动" },
-  "ws.exp.sub": { "en": "Prepare, choose ads, approve ads and budget, launch, then review results.", "zh": "准备、选择广告、批准广告和预算、投放，再查看结果。" },
-  "ws.exp.new": { "en": "New ad campaign", "zh": "新建广告活动" },
-  "ws.exp.stage.brief": { "en": "Prepare", "zh": "准备" },
-  "ws.exp.stage.concepts": { "en": "Choose ads", "zh": "选择广告" },
-  "ws.exp.stage.batch": { "en": "Approve ads", "zh": "批准广告" },
-  "ws.exp.stage.budget": { "en": "Approve budget", "zh": "批准预算" },
-  "ws.exp.stage.submitted": { "en": "Launch", "zh": "投放" },
-  "ws.exp.stage.results": { "en": "Review results", "zh": "查看结果" },
-  "ws.exp.stage.decide": { "en": "Review results", "zh": "查看结果" },
-  "ws.exp.col.experiment": { "en": "Campaign", "zh": "广告活动" },
-  "ws.exp.col.stage": { "en": "Stage", "zh": "阶段" },
-  "ws.exp.col.budget": { "en": "Budget", "zh": "预算" },
-  "ws.exp.col.batch": { "en": "Ads", "zh": "广告" },
-  "ws.exp.col.signal": { "en": "Best signal", "zh": "最佳信号" },
-  "ws.exp.col.waiting": { "en": "Next action", "zh": "下一步" },
-  "ws.exp.waiting.generate": { "en": "Generate ads", "zh": "生成广告" },
-  "ws.exp.waiting.select": { "en": "Choose ads", "zh": "选择广告" },
-  "ws.exp.waiting.budget": { "en": "Approve budget", "zh": "批准预算" },
-  "ws.exp.waiting.submit": { "en": "Launch", "zh": "投放" },
-  "ws.exp.waiting.results": { "en": "Waiting for results", "zh": "等待结果" },
-  "ws.exp.waiting.decide": { "en": "Review results", "zh": "查看结果" },
-  "ws.exp.waiting.none": { "en": "No action needed", "zh": "暂无待办" },
-  "ws.exp.empty": { "en": "No ad campaigns yet. Start from a title's US launch priority page.", "zh": "还没有广告活动。从作品的美国发行优先级页开始。" },
-  "ws.exp.mock": { "en": "No ad platform is connected. Briefs, ads and budget approvals are saved records. Launch uses a demo handoff and spends nothing.", "zh": "尚未连接广告平台。简报、广告和预算审批均有保存记录。投放采用演示交接，不产生支出。" },
-  "ws.exp.brief": { "en": "Campaign brief", "zh": "广告活动简报" },
-  "ws.exp.briefSub": { "en": "Set the budget, audience and test goal. Saving a change clears budget approval.", "zh": "设置预算、受众和测试目标。保存修改后需重新批准预算。" },
-  "ws.exp.budget": { "en": "Proposed budget (USD)", "zh": "计划预算（美元）" },
-  "ws.exp.budgetNote": { "en": "This is the proposed budget for this round. Saving or approving it does not charge you. The current launch submission is a demo and spends nothing.", "zh": "这是本轮拟定预算。保存或批准不会扣款，当前提交投放仅为演示，不产生花费。" },
-  "ws.exp.hypothesis": { "en": "What do you want to test?", "zh": "本轮想测试什么？" },
-  "ws.exp.audience": { "en": "Target audience", "zh": "目标受众" },
-  "ws.exp.firstBatch": { "en": "Planned number of ads", "zh": "计划测试广告数量" },
-  "ws.exp.signal": { "en": "Measure the ads by", "zh": "广告评估指标" },
-  "ws.exp.signal.views": { "en": "Video views and hook hold", "zh": "视频观看与 3 秒留存" },
-  "ws.exp.signal.clicks": { "en": "Clicks", "zh": "点击" },
-  "ws.exp.signal.landing": { "en": "Landing-page actions", "zh": "落地页行为" },
-  "ws.exp.save": { "en": "Save brief", "zh": "保存简报" },
-  "ws.exp.saved": { "en": "Brief saved (v{version}). Budget approval cleared.", "zh": "简报已保存（v{version}）。预算审批已清除。" },
-  "ws.exp.approveBudget": { "en": "Approve budget ${n}", "zh": "批准预算 ${n}" },
-  "ws.exp.budgetApproved": { "en": "Budget ${n} approved {at}", "zh": "预算 ${n} 已于 {at} 批准" },
-  "ws.exp.budgetPending": { "en": "Budget not approved", "zh": "预算未批准" },
-  "ws.exp.approverOnly": { "en": "Only the approver role can approve a budget.", "zh": "只有审批角色可以批准预算。" },
-  "ws.exp.selectBatch": { "en": "Plan: {n} ads from {total} proposals. The ads you select below determine the final batch.", "zh": "计划从 {total} 条方案中测试 {n} 条。最终测试批次以你选择的广告为准。" },
-  "ws.exp.results": { "en": "Results", "zh": "结果" },
-  "ws.exp.resultsSub": { "en": "Per ad, for the window shown. Demo results are labelled and count at half in the assessment.", "zh": "按广告和所示时间窗统计。演示结果有标注，在评估中按一半计。" },
-  "ws.exp.noResults": { "en": "No results yet. Results arrive from the launch system after submission.", "zh": "还没有结果。提交后由投放系统回传。" },
-  "ws.exp.simulate": { "en": "Simulate demo results", "zh": "模拟演示结果" },
-  "ws.exp.simulateNote": { "en": "Fixture mode only: generates demo-labelled numbers so the decision loop can be exercised.", "zh": "仅演示模式：生成带标注的演示数据，用于走通决策流程。" },
-  "ws.exp.col.creative": { "en": "Ad", "zh": "广告" },
-  "ws.exp.col.impressions": { "en": "Impressions", "zh": "曝光" },
-  "ws.exp.col.views": { "en": "Views", "zh": "观看" },
-  "ws.exp.col.hold": { "en": "Hook hold", "zh": "3 秒留存" },
-  "ws.exp.col.ctr": { "en": "CTR", "zh": "点击率" },
-  "ws.exp.col.spend": { "en": "Spend", "zh": "花费" },
-  "ws.exp.col.landing": { "en": "Landing actions", "zh": "落地页行为" },
-  "ws.exp.col.source": { "en": "Source", "zh": "来源" },
-  "ws.exp.source.demo": { "en": "Demo", "zh": "演示" },
-  "ws.exp.source.grow": { "en": "Grow", "zh": "Grow" },
-  "ws.exp.benchmark": { "en": "Benchmarks: hook hold {hold}%, CTR {ctr}%. Above both = worth more spend.", "zh": "基准：3 秒留存 {hold}%，点击率 {ctr}%。两项都高于基准 = 值得追加投入。" },
-  "ws.exp.decide": { "en": "Choose the next test", "zh": "选择下一轮测试" },
-  "ws.exp.decideSub": { "en": "Review the best ad and decide the next test. Your choice creates a new round.", "zh": "查看最佳广告并决定下一轮测试。你的选择将创建新一轮活动。" },
-  "ws.exp.winner": { "en": "Winner", "zh": "胜出" },
-  "ws.exp.noWinner": { "en": "No ad beat both benchmarks. Test new ads before spending more.", "zh": "没有广告同时超过两项基准。追加投入前先测试新广告。" },
-  "ws.exp.scaleUp": { "en": "Draft a ${n} test", "zh": "新建 ${n} 测试草稿" },
-  "ws.exp.moreVariations": { "en": "Draft another test", "zh": "新建下一轮测试草稿" },
-  "ws.exp.stop": { "en": "Back to campaigns", "zh": "返回广告活动" },
-  "ws.exp.roundCreated": { "en": "New round created.", "zh": "已创建新一轮。" },
-  "ws.exp.forTitle": { "en": "for {title}", "zh": "剧集：{title}" },
-  "ws.company.kicker": { "en": "Company & accounts", "zh": "公司与账户" },
-  "ws.company.title": { "en": "Company & accounts", "zh": "公司与账户" },
-  "ws.company.sub": { "en": "Your goals, the accounts you own, who can act, billing, and your imported reports.", "zh": "公司目标、你拥有的账户、操作权限、结算方式，以及导入的报表。" },
-  "ws.company.tab.profile": { "en": "Goals & profile", "zh": "目标与资料" },
-  "ws.company.tab.accounts": { "en": "Owned accounts", "zh": "自有账户" },
-  "ws.company.tab.access": { "en": "Permissions & billing", "zh": "权限与结算" },
-  "ws.company.tab.reports": { "en": "Reports", "zh": "报表" },
-  "ws.company.goal": { "en": "US goal", "zh": "美国目标" },
-  "ws.company.goalHint": { "en": "One sentence. Shown on the overview.", "zh": "一句话，显示在总览。" },
-  "ws.company.monthlyBudget": { "en": "Monthly test budget (USD)", "zh": "每月测试预算（美元）" },
-  "ws.accounts.sub": { "en": "Record accounts your company already owns and the access status you report. Saving an entry does not connect the account, send an invitation, or start syncing data.", "zh": "记录公司已有账户及你上报的授权状态。保存记录不会连接账户、发送邀请或开始同步数据。" },
-  "ws.accounts.add": { "en": "Record an existing account", "zh": "记录已有账户" },
-  "ws.accounts.provider": { "en": "Provider", "zh": "平台" },
-  "ws.accounts.kind": { "en": "Kind", "zh": "类型" },
-  "ws.accounts.name": { "en": "Name", "zh": "名称" },
-  "ws.accounts.ref": { "en": "Reference (ID or handle)", "zh": "标识（ID 或账号）" },
-  "ws.accounts.state": { "en": "Reported status", "zh": "记录的状态" },
-  "ws.accounts.access": { "en": "Studio access", "zh": "Studio 权限" },
-  "ws.accounts.note": { "en": "Note", "zh": "备注" },
-  "ws.accounts.save": { "en": "Save account record", "zh": "保存账户记录" },
-  "ws.accounts.state.unconnected": { "en": "Unconnected", "zh": "未连接" },
-  "ws.accounts.state.invited": { "en": "Invited", "zh": "已邀请" },
-  "ws.accounts.state.connected": { "en": "Connected", "zh": "已连接" },
-  "ws.accounts.state.revoked": { "en": "Revoked", "zh": "已撤销" },
-  "ws.accounts.access.none": { "en": "None", "zh": "无" },
-  "ws.accounts.access.partner": { "en": "Partner (revocable)", "zh": "合作方（可撤销）" },
-  "ws.accounts.access.owner_operated": { "en": "Customer operates", "zh": "客户自行操作" },
-  "ws.accounts.kind.business_center": { "en": "Business Center", "zh": "商务中心" },
-  "ws.accounts.kind.ad_account": { "en": "Ad account", "zh": "广告账户" },
-  "ws.accounts.kind.channel": { "en": "Channel", "zh": "频道" },
-  "ws.accounts.kind.pixel": { "en": "Pixel / events", "zh": "像素 / 事件" },
-  "ws.accounts.steps": { "en": "Manage invitations and permissions in the platform’s own business settings, then record the status here.", "zh": "请在平台自己的商务设置中管理邀请与权限，再回到这里记录状态。" },
-  "ws.accounts.empty": { "en": "No accounts recorded.", "zh": "尚未记录账户。" },
-  "ws.access.roles": { "en": "Who can act", "zh": "操作权限" },
-  "ws.access.rolesSub": { "en": "Roles come from your company's Studio profiles.", "zh": "角色来自你公司的 Studio 成员资料。" },
-  "ws.access.approver": { "en": "Approver: approves ads and budgets, then authorizes launch", "zh": "审批人：批准广告和预算，并授权投放" },
-  "ws.access.reviewer": { "en": "Reviewer: edits briefs, chooses ads and imports reports", "zh": "审阅人：编辑简报、选择广告、导入报表" },
-  "ws.access.viewer": { "en": "Viewer: reads everything, changes nothing", "zh": "查看者：只读" },
-  "ws.access.you": { "en": "You", "zh": "你" },
-  "ws.billing": { "en": "Billing", "zh": "结算" },
-  "ws.billing.sub": { "en": "Ad spend is billed by the platform to the customer's own payment method. Studio does not hold funds. Pulsar's service fee is invoiced separately.", "zh": "广告花费由平台向客户自己的支付方式结算。Studio 不代管资金。Pulsar 服务费另行开票。" },
-  "ws.billing.state": { "en": "Not configured (no platform connected)", "zh": "未配置（尚未连接平台）" },
-  "ws.insights.kicker": { "en": "US market insights", "zh": "美国市场洞察" },
-  "ws.insights.forTitle": { "en": "Evidence for {title}", "zh": "{title} 的市场证据" },
-  "ws.state.demo": { "en": "Demo data", "zh": "演示数据" },
-  "ws.readOnly": { "en": "Reviewer or approver roles can act here.", "zh": "审阅或审批角色可在此操作。" },
-  "ws.actions.reviewAds": { "en": "Choose ads", "zh": "选择广告" },
-  "ws.actions.reviewBudget": { "en": "Approve budget", "zh": "批准预算" },
-  "ws.actions.reviewLaunch": { "en": "Launch", "zh": "投放" },
-  "ws.actions.campaignStatus": { "en": "View campaign status", "zh": "查看广告状态" },
-  "ws.actions.materials": { "en": "Add video materials", "zh": "添加视频素材" },
-  "ws.card.results": { "en": "Campaign results are available", "zh": "已有广告结果" },
-  "ws.card.campaign": { "en": "Advertising campaign in progress", "zh": "广告活动进行中" },
-  "ws.card.noVideo": { "en": "Video materials have not been uploaded", "zh": "尚未上传视频素材" },
-  "ws.card.noCampaign": { "en": "No advertising campaign created", "zh": "尚未创建广告活动" },
-  "ws.card.priority": { "en": "Priority index", "zh": "优先级指数" },
-  "ws.card.demoResults": { "en": "Demo campaign results available", "zh": "已有演示广告结果" },
-  "ws.actions.generateAds": { "en": "Generate ads", "zh": "生成广告" },
-  "ws.accounts.edit": { "en": "Edit", "zh": "编辑" },
-  "ws.exp.budgetLater": { "en": "Budget approval opens at step 4, once the ads are approved.", "zh": "批准预算是第 4 步，在批准广告之后开放。" },
-  "ws.nav.tiktok": { "en": "TikTok performance", "zh": "TikTok 表现" },
-  "ws.nav.group.titles": { "en": "My titles", "zh": "我的剧集" },
-  "ws.nav.group.market": { "en": "US market", "zh": "美国市场" }
+  "ws.nav.overview": {
+    "en": "Overview",
+    "zh": "总览"
+  },
+  "ws.nav.catalog": {
+    "en": "My catalog",
+    "zh": "我的剧库"
+  },
+  "ws.nav.insights": {
+    "en": "US market insights",
+    "zh": "美国市场洞察"
+  },
+  "ws.nav.launch": {
+    "en": "Ad campaigns",
+    "zh": "广告活动"
+  },
+  "ws.nav.company": {
+    "en": "Company & accounts",
+    "zh": "公司与账户"
+  },
+  "ws.nav.sources": {
+    "en": "Data sources",
+    "zh": "数据来源"
+  },
+  "ws.overview.kicker": {
+    "en": "US launch workspace",
+    "zh": "美国发行工作台"
+  },
+  "ws.overview.title": {
+    "en": "Your US launch workspace",
+    "zh": "美国发行概览"
+  },
+  "ws.overview.sub": {
+    "en": "Choose titles for the US, manage advertising, and review audience response.",
+    "zh": "筛选美国发行作品、管理广告活动、查看受众反应。"
+  },
+  "ws.overview.goal": {
+    "en": "Company goal",
+    "zh": "公司目标"
+  },
+  "ws.overview.budget": {
+    "en": "Monthly test budget",
+    "zh": "每月测试预算"
+  },
+  "ws.overview.recommended": {
+    "en": "Your launch shortlist",
+    "zh": "发行候选作品"
+  },
+  "ws.overview.recommendedSub": {
+    "en": "Review each title’s market evidence or continue its advertising campaign.",
+    "zh": "查看各作品的市场依据，或继续处理广告活动。"
+  },
+  "ws.overview.decisions": {
+    "en": "Campaigns to continue",
+    "zh": "待处理广告活动"
+  },
+  "ws.overview.decisionsSub": {
+    "en": "Open a campaign to complete its next step.",
+    "zh": "打开广告活动，完成下一步。"
+  },
+  "ws.overview.results": {
+    "en": "Results needing a decision",
+    "zh": "需要决策的结果"
+  },
+  "ws.overview.setup": {
+    "en": "Setup gaps",
+    "zh": "待完成设置"
+  },
+  "ws.overview.noDecisions": {
+    "en": "Nothing waiting on you.",
+    "zh": "暂无待处理事项。"
+  },
+  "ws.overview.viewCatalog": {
+    "en": "Full catalog",
+    "zh": "全部剧库"
+  },
+  "ws.overview.viewLaunch": {
+    "en": "All campaigns",
+    "zh": "全部广告活动"
+  },
+  "ws.score.label": {
+    "en": "US launch priority score",
+    "zh": "美国发行优先级评分"
+  },
+  "ws.score.of": {
+    "en": "of 100",
+    "zh": "/ 100"
+  },
+  "ws.score.note": {
+    "en": "A score out of 100 based on market comparisons, preparation and available results. It helps prioritize tests; it is not a success probability.",
+    "zh": "根据市场对比、准备情况和已有结果计算，满分 100 分，用于安排测试优先顺序，不代表成功概率。"
+  },
+  "ws.band.test_first": {
+    "en": "Higher priority",
+    "zh": "较高优先级"
+  },
+  "ws.band.prepare": {
+    "en": "More preparation needed",
+    "zh": "仍需准备"
+  },
+  "ws.band.hold": {
+    "en": "Lower priority",
+    "zh": "较低优先级"
+  },
+  "ws.band.insufficient": {
+    "en": "Not enough information",
+    "zh": "信息不足"
+  },
+  "ws.component.story_match": {
+    "en": "Story match",
+    "zh": "题材匹配"
+  },
+  "ws.component.market_signal": {
+    "en": "Market signal",
+    "zh": "市场信号"
+  },
+  "ws.component.readiness": {
+    "en": "Launch readiness",
+    "zh": "发行就绪"
+  },
+  "ws.component.own_evidence": {
+    "en": "Own evidence",
+    "zh": "自有证据"
+  },
+  "ws.component.fit": {
+    "en": "Company fit",
+    "zh": "公司匹配"
+  },
+  "ws.component.raise": {
+    "en": "What would raise it",
+    "zh": "如何提高"
+  },
+  "ws.fact.noTropes": {
+    "en": "No story tags recognized: the synopsis is missing or too short.",
+    "zh": "未识别出题材标签：简介缺失或太短。"
+  },
+  "ws.fact.tropes": {
+    "en": "{n} story tags matched against the prominent-listing mix",
+    "zh": "{n} 个题材标签与显著剧集对照"
+  },
+  "ws.fact.comparables": {
+    "en": "{n} comparable listings, mean prominence {prominence}",
+    "zh": "{n} 部可比剧集，平均显著度 {prominence}"
+  },
+  "ws.fact.hotTropes": {
+    "en": "{n} of its tags are among the ten most prominent story types",
+    "zh": "{n} 个标签位列十大显著题材"
+  },
+  "ws.fact.noHotTropes": {
+    "en": "None of its tags are among the ten most prominent story types",
+    "zh": "没有标签位列十大显著题材"
+  },
+  "ws.fact.noHistory": {
+    "en": "Collecting history: chart movement needs a second observation day",
+    "zh": "积累历史中：榜单变化需第二个采集日"
+  },
+  "ws.fact.tropeDelta": {
+    "en": "Its story types moved {pts} pts in chart share since the previous day",
+    "zh": "题材榜单占比较上一采集日变化 {pts} 点"
+  },
+  "ws.fact.rightsOk": {
+    "en": "US license window covers today (until {end})",
+    "zh": "美国授权窗口覆盖今天（至 {end}）"
+  },
+  "ws.fact.rightsExpiring": {
+    "en": "License window ends within 90 days ({end})",
+    "zh": "授权窗口 90 天内到期（{end}）"
+  },
+  "ws.fact.rightsOutside": {
+    "en": "Outside the license window ({start} – {end})",
+    "zh": "不在授权窗口内（{start} – {end}）"
+  },
+  "ws.fact.rightsUnknown": {
+    "en": "US rights window not recorded",
+    "zh": "未记录美国授权窗口"
+  },
+  "ws.fact.subsApproved": {
+    "en": "{n} episodes with approved English subtitles (of {total})",
+    "zh": "{n} 集已有定稿英文字幕（共 {total} 集）"
+  },
+  "ws.fact.subsPartial": {
+    "en": "English adaptation {pct}% done, nothing finalized",
+    "zh": "英文改编完成 {pct}%，尚未定稿"
+  },
+  "ws.fact.subsNone": {
+    "en": "No English subtitles yet",
+    "zh": "暂无英文字幕"
+  },
+  "ws.fact.videoOk": {
+    "en": "{n} episodes with video uploaded",
+    "zh": "已上传 {n} 集视频"
+  },
+  "ws.fact.scriptsOnly": {
+    "en": "{n} episodes uploaded as scripts only, no video",
+    "zh": "已上传 {n} 集剧本，无视频"
+  },
+  "ws.fact.noMaterials": {
+    "en": "No episodes uploaded",
+    "zh": "未上传任何分集"
+  },
+  "ws.fact.destinationOk": {
+    "en": "A destination URL is set on a campaign",
+    "zh": "广告活动已设置落地页"
+  },
+  "ws.fact.destinationMissing": {
+    "en": "No destination (landing page or platform link) recorded",
+    "zh": "未记录落地页或平台链接"
+  },
+  "ws.fact.adAccountOk": {
+    "en": "A customer-owned ad account is connected",
+    "zh": "已连接客户自有广告账户"
+  },
+  "ws.fact.adAccountInvited": {
+    "en": "Ad account access invited, not yet accepted",
+    "zh": "广告账户已邀请授权，尚未接受"
+  },
+  "ws.fact.adAccountMissing": {
+    "en": "No ad account connected",
+    "zh": "未连接广告账户"
+  },
+  "ws.fact.reports": {
+    "en": "{n} imported US report rows ({metrics})",
+    "zh": "{n} 条导入的美国报表（{metrics}）"
+  },
+  "ws.fact.noReports": {
+    "en": "No imported US performance for this title",
+    "zh": "此剧集没有导入的美国表现数据"
+  },
+  "ws.fact.results": {
+    "en": "Best ad: hook hold {hold}% (benchmark {benchHold}%), CTR {ctr}% (benchmark {benchCtr}%)",
+    "zh": "最佳广告：开场留存 {hold}%（基准 {benchHold}%），点击率 {ctr}%（基准 {benchCtr}%）"
+  },
+  "ws.fact.resultsDemo": {
+    "en": "Demo results only, counted at half: hook hold {hold}% (benchmark {benchHold}%), CTR {ctr}% (benchmark {benchCtr}%)",
+    "zh": "仅演示结果，按一半计：开场留存 {hold}%（基准 {benchHold}%），点击率 {ctr}%（基准 {benchCtr}%）"
+  },
+  "ws.fact.testPending": {
+    "en": "A test exists but has no results yet",
+    "zh": "已有测试，暂无结果"
+  },
+  "ws.fact.noTest": {
+    "en": "Never tested in the US",
+    "zh": "尚未在美国测试"
+  },
+  "ws.fact.china": {
+    "en": "China: completion {completion}%, paying {paying}% (context only, no points)",
+    "zh": "国内：完播 {completion}%，付费 {paying}%（仅供参考，不计分）"
+  },
+  "ws.fact.targetsUS": {
+    "en": "The US is a stated target market",
+    "zh": "美国是你填写的目标市场"
+  },
+  "ws.fact.notUS": {
+    "en": "The US is not among your stated target markets",
+    "zh": "美国不在你声明的目标市场中"
+  },
+  "ws.fact.noProfile": {
+    "en": "Company profile not set",
+    "zh": "未设置公司资料"
+  },
+  "ws.fact.profileOverlap": {
+    "en": "{n} of its tags match the story types you say you produce",
+    "zh": "{n} 个标签与你声明的主要题材重合"
+  },
+  "ws.raise.synopsis": {
+    "en": "Add a synopsis so the title can be tagged",
+    "zh": "补充简介，便于识别题材"
+  },
+  "ws.raise.history": {
+    "en": "Turns on automatically after the next market crawl",
+    "zh": "下次市场采集后自动启用"
+  },
+  "ws.raise.rights": {
+    "en": "Record the US license window",
+    "zh": "记录美国授权窗口"
+  },
+  "ws.raise.subtitles": {
+    "en": "Finalize English subtitles for at least two episodes",
+    "zh": "至少定稿两集英文字幕"
+  },
+  "ws.raise.video": {
+    "en": "Upload episode video",
+    "zh": "上传剧集视频"
+  },
+  "ws.raise.destination": {
+    "en": "Set a destination URL on the campaign",
+    "zh": "设置广告活动落地页"
+  },
+  "ws.raise.adAccount": {
+    "en": "Connect the customer-owned ad account",
+    "zh": "连接客户自有广告账户"
+  },
+  "ws.raise.reports": {
+    "en": "Import a US platform report",
+    "zh": "导入美国平台报表"
+  },
+  "ws.raise.test": {
+    "en": "Prepare a $100 ad test",
+    "zh": "准备 100 美元广告测试"
+  },
+  "ws.raise.finishTest": {
+    "en": "Complete the ad test and review results",
+    "zh": "完成广告测试并查看结果"
+  },
+  "ws.raise.profile": {
+    "en": "Fill in the company profile",
+    "zh": "填写公司资料"
+  },
+  "ws.next.synopsis": {
+    "en": "Add a synopsis",
+    "zh": "补充简介"
+  },
+  "ws.next.rights": {
+    "en": "Record the US rights window",
+    "zh": "记录美国版权窗口"
+  },
+  "ws.next.renew": {
+    "en": "Renew or extend the license before testing",
+    "zh": "测试前续签或延长授权"
+  },
+  "ws.next.video": {
+    "en": "Upload episode video",
+    "zh": "上传剧集视频"
+  },
+  "ws.next.test": {
+    "en": "Prepare a $100 ad test",
+    "zh": "准备一次 100 美元广告测试"
+  },
+  "ws.next.generate": {
+    "en": "Generate ads from the saved brief",
+    "zh": "根据已保存的简报生成广告"
+  },
+  "ws.next.review": {
+    "en": "Choose ads, then approve ads and budget",
+    "zh": "选择广告，再批准广告和预算"
+  },
+  "ws.next.submit": {
+    "en": "Launch the approved ads",
+    "zh": "投放已批准的广告"
+  },
+  "ws.next.results": {
+    "en": "Review results and choose the next spend",
+    "zh": "查看结果并决定下一步投入"
+  },
+  "ws.next.reports": {
+    "en": "Import US platform reports",
+    "zh": "导入美国平台报表"
+  },
+  "ws.actions.assess": {
+    "en": "View launch overview",
+    "zh": "查看发行概览"
+  },
+  "ws.actions.evidence": {
+    "en": "See US market evidence",
+    "zh": "查看美国市场证据"
+  },
+  "ws.actions.test": {
+    "en": "Create ad campaign",
+    "zh": "创建广告活动"
+  },
+  "ws.actions.variations": {
+    "en": "Open campaign",
+    "zh": "打开广告活动"
+  },
+  "ws.actions.results": {
+    "en": "Review results",
+    "zh": "查看结果"
+  },
+  "ws.actions.open": {
+    "en": "Open",
+    "zh": "打开"
+  },
+  "ws.actions.openTitle": {
+    "en": "Open title",
+    "zh": "打开作品"
+  },
+  "ws.actions.localize": {
+    "en": "Localize (Adapt)",
+    "zh": "本地化（Adapt）"
+  },
+  "ws.catalog.title": {
+    "en": "My catalog",
+    "zh": "我的剧库"
+  },
+  "ws.catalog.sub": {
+    "en": "Compare your titles, review market evidence, and manage their next launch steps.",
+    "zh": "比较剧库作品、查看市场依据，并处理下一步发行任务。"
+  },
+  "ws.catalog.sort": {
+    "en": "Sort",
+    "zh": "排序"
+  },
+  "ws.catalog.sort.score": {
+    "en": "Launch priority",
+    "zh": "发行优先级"
+  },
+  "ws.catalog.sort.readiness": {
+    "en": "Readiness",
+    "zh": "就绪度"
+  },
+  "ws.catalog.sort.name": {
+    "en": "Name",
+    "zh": "名称"
+  },
+  "ws.catalog.sort.episodes": {
+    "en": "Episodes",
+    "zh": "集数"
+  },
+  "ws.catalog.band": {
+    "en": "Recommendation",
+    "zh": "建议"
+  },
+  "ws.catalog.allBands": {
+    "en": "All",
+    "zh": "全部"
+  },
+  "ws.catalog.col.title": {
+    "en": "Title",
+    "zh": "剧集"
+  },
+  "ws.catalog.col.score": {
+    "en": "US launch priority",
+    "zh": "美国发行优先级"
+  },
+  "ws.catalog.col.tropes": {
+    "en": "Story tags",
+    "zh": "题材"
+  },
+  "ws.catalog.col.readiness": {
+    "en": "Readiness",
+    "zh": "就绪"
+  },
+  "ws.catalog.col.rights": {
+    "en": "Rights",
+    "zh": "版权"
+  },
+  "ws.catalog.col.subs": {
+    "en": "Subtitles",
+    "zh": "字幕"
+  },
+  "ws.catalog.col.video": {
+    "en": "Video",
+    "zh": "视频"
+  },
+  "ws.catalog.col.tests": {
+    "en": "Tests",
+    "zh": "测试"
+  },
+  "ws.catalog.col.next": {
+    "en": "Next",
+    "zh": "下一步"
+  },
+  "ws.catalog.count": {
+    "en": "{n} titles",
+    "zh": "{n} 部作品"
+  },
+  "ws.catalog.empty": {
+    "en": "No titles yet. Add one to assess its US launch priority.",
+    "zh": "还没有剧集。添加一部以评估其美国发行优先级。"
+  },
+  "ws.catalog.chinaNote": {
+    "en": "China numbers are partner-reported context, not US evidence.",
+    "zh": "国内数据为合作方提供的参考，不是美国证据。"
+  },
+  "ws.catalog.rights.ok": {
+    "en": "OK",
+    "zh": "有效"
+  },
+  "ws.catalog.rights.expiring": {
+    "en": "Expiring",
+    "zh": "即将到期"
+  },
+  "ws.catalog.rights.outside": {
+    "en": "Outside window",
+    "zh": "窗口外"
+  },
+  "ws.catalog.rights.unknown": {
+    "en": "Unknown",
+    "zh": "未知"
+  },
+  "ws.catalog.subs.approved": {
+    "en": "{n} approved",
+    "zh": "{n} 集定稿"
+  },
+  "ws.catalog.subs.partial": {
+    "en": "{pct}%",
+    "zh": "{pct}%"
+  },
+  "ws.catalog.subs.none": {
+    "en": "None",
+    "zh": "无"
+  },
+  "ws.catalog.video.n": {
+    "en": "{n} eps",
+    "zh": "{n} 集"
+  },
+  "ws.catalog.video.none": {
+    "en": "None",
+    "zh": "无"
+  },
+  "ws.catalog.tests.none": {
+    "en": "None",
+    "zh": "无"
+  },
+  "ws.assess.kicker": {
+    "en": "Title launch overview",
+    "zh": "作品发行概览"
+  },
+  "ws.assess.sub": {
+    "en": "Review the market comparisons, launch requirements and advertising activity for this title.",
+    "zh": "查看本剧集的市场对标、发行条件和广告活动。"
+  },
+  "ws.assess.components": {
+    "en": "How the score is built",
+    "zh": "分数构成"
+  },
+  "ws.assess.comparables": {
+    "en": "Comparable US listings",
+    "zh": "美国可比剧集"
+  },
+  "ws.assess.comparablesSub": {
+    "en": "Prominent listings sharing story tags with this title; prominence is within each platform.",
+    "zh": "与本剧集共享题材标签的显著剧集；显著度为平台内相对值。"
+  },
+  "ws.assess.next": {
+    "en": "Next actions",
+    "zh": "下一步"
+  },
+  "ws.assess.experiments": {
+    "en": "Campaigns for this title",
+    "zh": "本作品的广告活动"
+  },
+  "ws.assess.noExperiments": {
+    "en": "No campaigns yet.",
+    "zh": "还没有广告活动。"
+  },
+  "ws.assess.reports": {
+    "en": "Your US reports for this title",
+    "zh": "本剧集的美国报表"
+  },
+  "ws.assess.observed": {
+    "en": "Market snapshot {date}",
+    "zh": "市场快照 {date}"
+  },
+  "ws.assess.pointsOf": {
+    "en": "{points} / {max}",
+    "zh": "{points} / {max}"
+  },
+  "ws.exp.kicker": {
+    "en": "Launch & experiments",
+    "zh": "发行与实验"
+  },
+  "ws.exp.title": {
+    "en": "Ad campaigns",
+    "zh": "广告活动"
+  },
+  "ws.exp.sub": {
+    "en": "Prepare, choose ads, approve ads and budget, launch, then review results.",
+    "zh": "准备、选择广告、批准广告和预算、投放，再查看结果。"
+  },
+  "ws.exp.new": {
+    "en": "New ad campaign",
+    "zh": "新建广告活动"
+  },
+  "ws.exp.stage.brief": {
+    "en": "Prepare",
+    "zh": "准备"
+  },
+  "ws.exp.stage.concepts": {
+    "en": "Choose ads",
+    "zh": "选择广告"
+  },
+  "ws.exp.stage.batch": {
+    "en": "Approve ads",
+    "zh": "批准广告"
+  },
+  "ws.exp.stage.budget": {
+    "en": "Approve budget",
+    "zh": "批准预算"
+  },
+  "ws.exp.stage.submitted": {
+    "en": "Launch",
+    "zh": "投放"
+  },
+  "ws.exp.stage.results": {
+    "en": "Review results",
+    "zh": "查看结果"
+  },
+  "ws.exp.stage.decide": {
+    "en": "Review results",
+    "zh": "查看结果"
+  },
+  "ws.exp.col.experiment": {
+    "en": "Campaign",
+    "zh": "广告活动"
+  },
+  "ws.exp.col.stage": {
+    "en": "Stage",
+    "zh": "阶段"
+  },
+  "ws.exp.col.budget": {
+    "en": "Budget",
+    "zh": "预算"
+  },
+  "ws.exp.col.batch": {
+    "en": "Ads",
+    "zh": "广告"
+  },
+  "ws.exp.col.signal": {
+    "en": "Best signal",
+    "zh": "最佳信号"
+  },
+  "ws.exp.col.waiting": {
+    "en": "Next action",
+    "zh": "下一步"
+  },
+  "ws.exp.waiting.generate": {
+    "en": "Generate ads",
+    "zh": "生成广告"
+  },
+  "ws.exp.waiting.select": {
+    "en": "Choose ads",
+    "zh": "选择广告"
+  },
+  "ws.exp.waiting.budget": {
+    "en": "Approve budget",
+    "zh": "批准预算"
+  },
+  "ws.exp.waiting.submit": {
+    "en": "Launch",
+    "zh": "投放"
+  },
+  "ws.exp.waiting.results": {
+    "en": "Waiting for results",
+    "zh": "等待结果"
+  },
+  "ws.exp.waiting.decide": {
+    "en": "Review results",
+    "zh": "查看结果"
+  },
+  "ws.exp.waiting.none": {
+    "en": "No action needed",
+    "zh": "暂无待办"
+  },
+  "ws.exp.empty": {
+    "en": "No ad campaigns yet. Start from a title's US launch priority page.",
+    "zh": "还没有广告活动。从作品的美国发行优先级页开始。"
+  },
+  "ws.exp.brief": {
+    "en": "Campaign brief",
+    "zh": "广告活动简报"
+  },
+  "ws.exp.briefSub": {
+    "en": "Set the budget, audience and test goal. Saving a change clears budget approval.",
+    "zh": "设置预算、受众和测试目标。保存修改后需重新批准预算。"
+  },
+  "ws.exp.budget": {
+    "en": "Proposed budget (USD)",
+    "zh": "计划预算（美元）"
+  },
+  "ws.exp.budgetNote": {
+    "en": "This is the proposed budget for this round. Saving or approving it does not charge you. The current launch submission is a demo and spends nothing.",
+    "zh": "这是本轮拟定预算。保存或批准不会扣款，当前提交投放仅为演示，不产生花费。"
+  },
+  "ws.exp.hypothesis": {
+    "en": "What do you want to test?",
+    "zh": "本轮想测试什么？"
+  },
+  "ws.exp.audience": {
+    "en": "Target audience",
+    "zh": "目标受众"
+  },
+  "ws.exp.firstBatch": {
+    "en": "Planned number of ads",
+    "zh": "计划测试广告数量"
+  },
+  "ws.exp.signal": {
+    "en": "Measure the ads by",
+    "zh": "广告评估指标"
+  },
+  "ws.exp.signal.clicks": {
+    "en": "Clicks",
+    "zh": "点击"
+  },
+  "ws.exp.signal.landing": {
+    "en": "Landing-page actions",
+    "zh": "落地页行为"
+  },
+  "ws.exp.save": {
+    "en": "Save brief",
+    "zh": "保存简报"
+  },
+  "ws.exp.saved": {
+    "en": "Brief saved (v{version}). Budget approval cleared.",
+    "zh": "简报已保存（v{version}）。预算审批已清除。"
+  },
+  "ws.exp.approveBudget": {
+    "en": "Approve budget ${n}",
+    "zh": "批准预算 ${n}"
+  },
+  "ws.exp.budgetApproved": {
+    "en": "Budget ${n} approved {at}",
+    "zh": "预算 ${n} 已于 {at} 批准"
+  },
+  "ws.exp.budgetPending": {
+    "en": "Budget not approved",
+    "zh": "预算未批准"
+  },
+  "ws.exp.approverOnly": {
+    "en": "Only the approver role can approve a budget.",
+    "zh": "只有审批角色可以批准预算。"
+  },
+  "ws.exp.selectBatch": {
+    "en": "Plan: {n} ads from {total} proposals. The ads you select below determine the final batch.",
+    "zh": "计划从 {total} 条方案中测试 {n} 条。最终测试批次以你选择的广告为准。"
+  },
+  "ws.exp.results": {
+    "en": "Results",
+    "zh": "结果"
+  },
+  "ws.exp.resultsSub": {
+    "en": "Per ad, for the window shown. Demo results are labelled and count at half in the assessment.",
+    "zh": "按广告和所示时间窗统计。演示结果有标注，在评估中按一半计。"
+  },
+  "ws.exp.simulate": {
+    "en": "Simulate demo results",
+    "zh": "模拟演示结果"
+  },
+  "ws.exp.simulateNote": {
+    "en": "Fixture mode only: generates demo-labelled numbers so the decision loop can be exercised.",
+    "zh": "仅演示模式：生成带标注的演示数据，用于走通决策流程。"
+  },
+  "ws.exp.col.creative": {
+    "en": "Ad",
+    "zh": "广告"
+  },
+  "ws.exp.col.impressions": {
+    "en": "Impressions",
+    "zh": "曝光"
+  },
+  "ws.exp.col.views": {
+    "en": "Views",
+    "zh": "观看"
+  },
+  "ws.exp.col.ctr": {
+    "en": "CTR",
+    "zh": "点击率"
+  },
+  "ws.exp.col.spend": {
+    "en": "Spend",
+    "zh": "花费"
+  },
+  "ws.exp.col.landing": {
+    "en": "Landing actions",
+    "zh": "落地页行为"
+  },
+  "ws.exp.col.source": {
+    "en": "Source",
+    "zh": "来源"
+  },
+  "ws.exp.source.demo": {
+    "en": "Demo",
+    "zh": "演示"
+  },
+  "ws.exp.source.grow": {
+    "en": "Grow",
+    "zh": "Grow"
+  },
+  "ws.exp.decide": {
+    "en": "Choose the next test",
+    "zh": "选择下一轮测试"
+  },
+  "ws.exp.decideSub": {
+    "en": "Review the best ad and decide the next test. Your choice creates a new round.",
+    "zh": "查看最佳广告并决定下一轮测试。你的选择将创建新一轮活动。"
+  },
+  "ws.exp.winner": {
+    "en": "Winner",
+    "zh": "胜出"
+  },
+  "ws.exp.noWinner": {
+    "en": "No ad beat both benchmarks. Test new ads before spending more.",
+    "zh": "没有广告同时超过两项基准。追加投入前先测试新广告。"
+  },
+  "ws.exp.scaleUp": {
+    "en": "Draft a ${n} test",
+    "zh": "新建 ${n} 测试草稿"
+  },
+  "ws.exp.moreVariations": {
+    "en": "Draft another test",
+    "zh": "新建下一轮测试草稿"
+  },
+  "ws.exp.stop": {
+    "en": "Back to campaigns",
+    "zh": "返回广告活动"
+  },
+  "ws.exp.roundCreated": {
+    "en": "New round created.",
+    "zh": "已创建新一轮。"
+  },
+  "ws.exp.forTitle": {
+    "en": "for {title}",
+    "zh": "剧集：{title}"
+  },
+  "ws.company.kicker": {
+    "en": "Company & accounts",
+    "zh": "公司与账户"
+  },
+  "ws.company.title": {
+    "en": "Company & accounts",
+    "zh": "公司与账户"
+  },
+  "ws.company.sub": {
+    "en": "Your goals, the accounts you own, who can act, billing, and your imported reports.",
+    "zh": "公司目标、你拥有的账户、操作权限、结算方式，以及导入的报表。"
+  },
+  "ws.company.tab.profile": {
+    "en": "Goals & profile",
+    "zh": "目标与资料"
+  },
+  "ws.company.tab.access": {
+    "en": "Permissions & billing",
+    "zh": "权限与结算"
+  },
+  "ws.company.tab.reports": {
+    "en": "Reports",
+    "zh": "报表"
+  },
+  "ws.company.goal": {
+    "en": "US goal",
+    "zh": "美国目标"
+  },
+  "ws.company.goalHint": {
+    "en": "One sentence. Shown on the overview.",
+    "zh": "一句话，显示在总览。"
+  },
+  "ws.company.monthlyBudget": {
+    "en": "Monthly test budget (USD)",
+    "zh": "每月测试预算（美元）"
+  },
+  "ws.accounts.sub": {
+    "en": "Record accounts your company already owns and the access status you report. Saving an entry does not connect the account, send an invitation, or start syncing data.",
+    "zh": "记录公司已有账户及你上报的授权状态。保存记录不会连接账户、发送邀请或开始同步数据。"
+  },
+  "ws.accounts.add": {
+    "en": "Record an existing account",
+    "zh": "记录已有账户"
+  },
+  "ws.accounts.provider": {
+    "en": "Provider",
+    "zh": "平台"
+  },
+  "ws.accounts.kind": {
+    "en": "Kind",
+    "zh": "类型"
+  },
+  "ws.accounts.name": {
+    "en": "Name",
+    "zh": "名称"
+  },
+  "ws.accounts.ref": {
+    "en": "Reference (ID or handle)",
+    "zh": "标识（ID 或账号）"
+  },
+  "ws.accounts.state": {
+    "en": "Reported status",
+    "zh": "记录的状态"
+  },
+  "ws.accounts.access": {
+    "en": "Studio access",
+    "zh": "Studio 权限"
+  },
+  "ws.accounts.note": {
+    "en": "Note",
+    "zh": "备注"
+  },
+  "ws.accounts.save": {
+    "en": "Save account record",
+    "zh": "保存账户记录"
+  },
+  "ws.accounts.state.unconnected": {
+    "en": "Unconnected",
+    "zh": "未连接"
+  },
+  "ws.accounts.state.invited": {
+    "en": "Invited",
+    "zh": "已邀请"
+  },
+  "ws.accounts.state.connected": {
+    "en": "Connected",
+    "zh": "已连接"
+  },
+  "ws.accounts.state.revoked": {
+    "en": "Revoked",
+    "zh": "已撤销"
+  },
+  "ws.accounts.access.none": {
+    "en": "None",
+    "zh": "无"
+  },
+  "ws.accounts.access.partner": {
+    "en": "Partner (revocable)",
+    "zh": "合作方（可撤销）"
+  },
+  "ws.accounts.access.owner_operated": {
+    "en": "Customer operates",
+    "zh": "客户自行操作"
+  },
+  "ws.accounts.kind.business_center": {
+    "en": "Business Center",
+    "zh": "商务中心"
+  },
+  "ws.accounts.kind.ad_account": {
+    "en": "Ad account",
+    "zh": "广告账户"
+  },
+  "ws.accounts.kind.channel": {
+    "en": "Channel",
+    "zh": "频道"
+  },
+  "ws.accounts.kind.pixel": {
+    "en": "Pixel / events",
+    "zh": "像素 / 事件"
+  },
+  "ws.accounts.steps": {
+    "en": "Manage invitations and permissions in the platform’s own business settings, then record the status here.",
+    "zh": "请在平台自己的商务设置中管理邀请与权限，再回到这里记录状态。"
+  },
+  "ws.accounts.empty": {
+    "en": "No accounts recorded.",
+    "zh": "尚未记录账户。"
+  },
+  "ws.access.roles": {
+    "en": "Who can act",
+    "zh": "操作权限"
+  },
+  "ws.access.rolesSub": {
+    "en": "Roles come from your company's Studio profiles.",
+    "zh": "角色来自你公司的 Studio 成员资料。"
+  },
+  "ws.access.approver": {
+    "en": "Approver: approves ads and budgets, then authorizes launch",
+    "zh": "审批人：批准广告和预算，并授权投放"
+  },
+  "ws.access.reviewer": {
+    "en": "Reviewer: edits briefs, chooses ads and imports reports",
+    "zh": "审阅人：编辑简报、选择广告、导入报表"
+  },
+  "ws.access.viewer": {
+    "en": "Viewer: reads everything, changes nothing",
+    "zh": "查看者：只读"
+  },
+  "ws.access.you": {
+    "en": "You",
+    "zh": "你"
+  },
+  "ws.billing": {
+    "en": "Billing",
+    "zh": "结算"
+  },
+  "ws.billing.sub": {
+    "en": "Ad spend is billed by the platform to the customer's own payment method. Studio does not hold funds. Pulsar's service fee is invoiced separately.",
+    "zh": "广告花费由平台向客户自己的支付方式结算。Studio 不代管资金。Pulsar 服务费另行开票。"
+  },
+  "ws.insights.kicker": {
+    "en": "US market insights",
+    "zh": "美国市场洞察"
+  },
+  "ws.insights.forTitle": {
+    "en": "Evidence for {title}",
+    "zh": "{title} 的市场证据"
+  },
+  "ws.state.demo": {
+    "en": "Demo data",
+    "zh": "演示数据"
+  },
+  "ws.readOnly": {
+    "en": "Reviewer or approver roles can act here.",
+    "zh": "审阅或审批角色可在此操作。"
+  },
+  "ws.actions.reviewAds": {
+    "en": "Choose ads",
+    "zh": "选择广告"
+  },
+  "ws.actions.reviewBudget": {
+    "en": "Approve budget",
+    "zh": "批准预算"
+  },
+  "ws.actions.reviewLaunch": {
+    "en": "Launch",
+    "zh": "投放"
+  },
+  "ws.actions.campaignStatus": {
+    "en": "View campaign status",
+    "zh": "查看广告状态"
+  },
+  "ws.actions.materials": {
+    "en": "Add video materials",
+    "zh": "添加视频素材"
+  },
+  "ws.card.results": {
+    "en": "Campaign results are available",
+    "zh": "已有广告结果"
+  },
+  "ws.card.campaign": {
+    "en": "Advertising campaign in progress",
+    "zh": "广告活动进行中"
+  },
+  "ws.card.noVideo": {
+    "en": "Video materials have not been uploaded",
+    "zh": "尚未上传视频素材"
+  },
+  "ws.card.noCampaign": {
+    "en": "No advertising campaign created",
+    "zh": "尚未创建广告活动"
+  },
+  "ws.card.priority": {
+    "en": "Priority index",
+    "zh": "优先级指数"
+  },
+  "ws.card.demoResults": {
+    "en": "Demo campaign results available",
+    "zh": "已有演示广告结果"
+  },
+  "ws.actions.generateAds": {
+    "en": "Generate ads",
+    "zh": "生成广告"
+  },
+  "ws.accounts.edit": {
+    "en": "Edit",
+    "zh": "编辑"
+  },
+  "ws.exp.budgetLater": {
+    "en": "Budget approval opens at step 4, once the ads are approved.",
+    "zh": "批准预算是第 4 步，在批准广告之后开放。"
+  },
+  "ws.nav.tiktok": {
+    "en": "TikTok performance",
+    "zh": "TikTok 表现"
+  },
+  "ws.nav.group.titles": {
+    "en": "My titles",
+    "zh": "我的剧集"
+  },
+  "ws.nav.group.market": {
+    "en": "US market",
+    "zh": "美国市场"
+  }
 }

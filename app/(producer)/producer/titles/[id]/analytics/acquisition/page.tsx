@@ -40,7 +40,7 @@ export default async function AnalyticsAcquisition({ params, searchParams }: { p
             {acq.campaigns.map((c) => {
               const id = c.campaign_id ?? c.name;
               const focused = focus != null && focus === c.campaign_id;
-              const src = c.reporting_source === "demo" ? t(locale, "an.acq.sourceDemo") : c.reporting_source === "grow" ? t(locale, "an.acq.sourceGrow") : t(locale, "an.acq.sourceNone");
+              const src = c.reporting_source === "demo" ? t(locale, "an.acq.sourceDemo") : c.reporting_source === "grow" || c.reporting_source === "tiktok" ? t(locale, "an.acq.sourceGrow") : t(locale, "an.acq.sourceNone");
               return (
                 <section key={id} id={c.campaign_id ? `campaign-${c.campaign_id}` : undefined} className={`rs-panel an-campaign${focused ? " is-focused" : ""}`} aria-current={focused ? "true" : undefined}>
                   <div className="rs-panel-head">

@@ -29,6 +29,7 @@ import type {
   PromoCampaign,
   PromoCreative,
   PromoHandoff,
+  PromoLaunch,
   Scene,
   Title,
   Version,
@@ -37,7 +38,11 @@ import type { ReportBatch, ReportRow, ResearchProfile, WatchRow } from "@/lib/re
 import { PRODUCER_ID, PRODUCER_USER_ID, STAFF_USER_ID, ext, uuid } from "./ids";
 import { buildVersionSnapshot, snapshotSha256 } from "./snapshot";
 
-const B = { title: 0x30, episode: 0x31, scene: 0x32, line: 0x33, adapted: 0x34, version: 0x35, adaptation: 0x36, campaign: 0x37, creative: 0x38, result: 0x39, account: 0x3a, batch: 0x3b, row: 0x3c, approval: 0x3d, handoff: 0x3e } as const;
+const B = { title: 0x30, episode: 0x31, scene: 0x32, line: 0x33, adapted: 0x34, version: 0x35, adaptation: 0x36, campaign: 0x37, creative: 0x38, result: 0x39, account: 0x3a, batch: 0x3b, row: 0x3c, approval: 0x3d, handoff: 0x3e, launch: 0x3f } as const;
+
+/** The demo studio's TikTok ad account (assigned by staff from Pulsar's Business Center; a fake advertiser id, never a real one). */
+export const DEMO_ADVERTISER_ID = "7000000000000000001";
+export const DEMO_IDENTITY_ID = "7000000000000000101";
 
 const AT0 = "2026-07-15T02:00:00.000Z";
 const AT1 = "2026-08-20T06:00:00.000Z";
@@ -112,6 +117,7 @@ export type DemoSeed = {
   creatives: PromoCreative[];
   approvals: PromoApproval[];
   handoffs: PromoHandoff[];
+  launches: PromoLaunch[];
   results: CreativeResult[];
   accounts: CompanyAccount[];
 };
@@ -307,7 +313,8 @@ export function buildDemoSeed(): DemoSeed {
       producer_id: PRODUCER_ID,
       name,
       target_market: "US",
-      destination_url: n === 1 ? "https://www.reelshort.com/" : null,
+      // Every demo campaign has somewhere to send viewers: TikTok requires a landing page (decision 2026-09-09).
+      destination_url: "https://www.reelshort.com/",
       objective: "views",
       spoiler_level: "low",
       creative_direction: null,
@@ -315,6 +322,10 @@ export function buildDemoSeed(): DemoSeed {
       experiment: exp ? { budget_usd: 100, currency: "USD", hypothesis: "", audience: "", first_batch: 2, signal: "views", approved_by: approved ? PRODUCER_USER_ID : null, approved_at: approved ? at : null, version: 1, updated_at: at, ...exp } : null,
       status,
       grow_campaign_id: null,
+      advertiser_id: null,
+      tiktok_adgroup_id: null,
+      status_note: null,
+      launched_at: null,
       created_by: PRODUCER_USER_ID,
       created_at: at,
       updated_at: at,
@@ -357,11 +368,26 @@ export function buildDemoSeed(): DemoSeed {
   }
 
   // C1: title 1, submitted (demo handoff) with demo results on the two selected creatives.
+  // The manifest hash is a real sha256 shape (of the literal "demo-manifest-c1") so the launch record's check passes in both backends.
+  const C1_SHA = "1e4f2b7d0a9c6e3f5b8a1d2c4e6f7a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f";
   const c1 = campaign(1, 1, "Rebirth vs romance opening — US test, round 1", "submitted", { hypothesis: "The rebirth-revenge opening outperforms the romance opening for US women 25-44.", audience: "US women 25-44 who watch romance and revenge dramas", first_batch: 2 }, true, AT2);
-  c1.grow_campaign_id = `cmp_mock_${c1.external_id.slice(3)}`;
+  // Launched through the fake TikTok transport: ids of the demo shape, never real ones.
+  c1.grow_campaign_id = "1700000000000000001";
+  c1.advertiser_id = DEMO_ADVERTISER_ID;
+  c1.tiktok_adgroup_id = "1710000000000000001";
+  c1.launched_at = AT2;
   batch(1, 1, ["approved", "approved", "not_selected", "not_selected", "not_selected"], AT2);
-  approvals.push({ id: uuid(B.approval, 1), campaign_id: c1.id, producer_id: PRODUCER_ID, approved_by: PRODUCER_USER_ID, manifest: { demo: true, creatives: [creativeId(1, 1), creativeId(1, 2)], budget_usd: 100 }, manifest_sha256: "demo-manifest-c1", created_at: AT2 });
-  handoffs.push({ id: uuid(B.handoff, 1), campaign_id: c1.id, idempotency_key: `studio:${c1.external_id}:demo-manifest-c1`, request_sha256: "demo-manifest-c1", status: "accepted", grow_campaign_id: c1.grow_campaign_id, response: { mock: true }, error: null, attempted_at: AT2 });
+  approvals.push({ id: uuid(B.approval, 1), campaign_id: c1.id, producer_id: PRODUCER_ID, approved_by: PRODUCER_USER_ID, manifest: { demo: true, creatives: [creativeId(1, 1), creativeId(1, 2)], budget_usd: 100 }, manifest_sha256: C1_SHA, created_at: AT2 });
+  handoffs.push({ id: uuid(B.handoff, 1), campaign_id: c1.id, idempotency_key: `studio:${c1.external_id}:${C1_SHA}`, request_sha256: C1_SHA, status: "accepted", grow_campaign_id: c1.grow_campaign_id, response: { mode: "fake", tiktok_campaign_id: c1.grow_campaign_id }, error: null, attempted_at: AT2 });
+  const launches: PromoLaunch[] = [{
+    id: uuid(B.launch, 1), campaign_id: c1.id, idempotency_key: `studio:${c1.external_id}:${C1_SHA}`, manifest_sha256: C1_SHA, status: "done", mode: "fake",
+    advertiser_id: DEMO_ADVERTISER_ID, identity_id: DEMO_IDENTITY_ID, identity_type: "BC_AUTH_TT", budget_usd: 100, destination_url: "https://www.reelshort.com/",
+    uploaded_videos: { [creativeId(1, 1)]: "v1700000000000000001", [creativeId(1, 2)]: "v1700000000000000002" },
+    covers: { v1700000000000000001: "c1700000000000000001", v1700000000000000002: "c1700000000000000002" },
+    tiktok_campaign_id: c1.grow_campaign_id, tiktok_adgroup_id: c1.tiktok_adgroup_id,
+    ad_ids: { [creativeId(1, 1)]: "1720000000000000001", [creativeId(1, 2)]: "1720000000000000002" },
+    error: null, attempts: 1, created_by: PRODUCER_USER_ID, created_at: AT2, started_at: AT2, heartbeat_at: AT2, finished_at: AT2,
+  }];
   results.push(
     { id: uuid(B.result, 1), campaign_id: c1.id, creative_id: creativeId(1, 1), source: "demo", window_start: "2026-09-01", window_end: "2026-09-06", impressions: 38_400, video_views: 21_900, hook_hold_rate: 0.41, clicks: 612, spend_usd: 52.4, landing_actions: 88, observed_at: AT3 },
     { id: uuid(B.result, 2), campaign_id: c1.id, creative_id: creativeId(1, 2), source: "demo", window_start: "2026-09-01", window_end: "2026-09-06", impressions: 35_100, video_views: 16_200, hook_hold_rate: 0.27, clicks: 301, spend_usd: 47.6, landing_actions: 34, observed_at: AT3 }
@@ -376,12 +402,14 @@ export function buildDemoSeed(): DemoSeed {
   batch(4, 8, ["approved", "approved", "rejected", "not_selected", "not_selected"], AT3);
   approvals.push({ id: uuid(B.approval, 4), campaign_id: demoCampaignId(4), producer_id: PRODUCER_ID, approved_by: PRODUCER_USER_ID, manifest: { demo: true, creatives: [creativeId(4, 1), creativeId(4, 2)], budget_usd: 100 }, manifest_sha256: "demo-manifest-c4", created_at: AT3 });
 
+  const noIdentity = { identity_id: null, identity_type: null, assigned_by: null, assigned_at: null } as const;
   const accounts: CompanyAccount[] = [
-    { id: uuid(B.account, 1), producer_id: PRODUCER_ID, provider: "tiktok", kind: "business_center", name: "星海影视 Business Center", external_ref: null, state: "invited", access: "partner", note: "Partner invitation sent; the customer has not accepted yet.", updated_at: AT3 },
-    { id: uuid(B.account, 2), producer_id: PRODUCER_ID, provider: "tiktok", kind: "ad_account", name: "Xinghai US Ads", external_ref: null, state: "unconnected", access: "none", note: null, updated_at: AT3 },
-    { id: uuid(B.account, 3), producer_id: PRODUCER_ID, provider: "youtube", kind: "channel", name: "Xinghai Drama (YouTube)", external_ref: "@xinghaidrama", state: "connected", access: "owner_operated", note: "Demo state: the customer uploads and reads analytics themselves.", updated_at: AT2 },
-    { id: uuid(B.account, 4), producer_id: PRODUCER_ID, provider: "meta", kind: "ad_account", name: "Meta ad account", external_ref: null, state: "unconnected", access: "none", note: null, updated_at: AT3 },
+    { id: uuid(B.account, 1), producer_id: PRODUCER_ID, provider: "tiktok", kind: "business_center", name: "Pulsar Business Center", external_ref: null, state: "connected", access: "partner", note: "The studio's ads run from an ad account inside Pulsar's Business Center (demo).", ...noIdentity, updated_at: AT2 },
+    // The launch account: assigned by Pulsar staff, ready to launch (demo ids; the fake transport accepts them).
+    { id: uuid(B.account, 2), producer_id: PRODUCER_ID, provider: "tiktok", kind: "ad_account", name: "Xinghai US Ads (Pulsar BC)", external_ref: DEMO_ADVERTISER_ID, state: "connected", access: "partner", note: "Assigned from Pulsar's Business Center. Demo account: nothing here reaches TikTok.", identity_id: DEMO_IDENTITY_ID, identity_type: "BC_AUTH_TT", assigned_by: STAFF_USER_ID, assigned_at: AT2, updated_at: AT2 },
+    { id: uuid(B.account, 3), producer_id: PRODUCER_ID, provider: "youtube", kind: "channel", name: "Xinghai Drama (YouTube)", external_ref: "@xinghaidrama", state: "connected", access: "owner_operated", note: "Demo state: the customer uploads and reads analytics themselves.", ...noIdentity, updated_at: AT2 },
+    { id: uuid(B.account, 4), producer_id: PRODUCER_ID, provider: "meta", kind: "ad_account", name: "Meta ad account", external_ref: null, state: "unconnected", access: "none", note: null, ...noIdentity, updated_at: AT3 },
   ];
 
-  return { titles, episodes, adaptations, scenes, lines, adapted_lines, versions, profile, watchlist, report_batches, report_rows, campaigns, creatives, approvals, handoffs, results, accounts };
+  return { titles, episodes, adaptations, scenes, lines, adapted_lines, versions, profile, watchlist, report_batches, report_rows, campaigns, creatives, approvals, handoffs, launches, results, accounts };
 }

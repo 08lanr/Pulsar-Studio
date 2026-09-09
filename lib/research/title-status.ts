@@ -39,7 +39,7 @@ export function isOnPlatform(s: PlatformStatus): boolean {
   return s === "reporting" || s === "stale" || s === "sync_failed";
 }
 
-export type AdStatus = "none" | "preparing" | "awaiting_approval" | "ready_to_launch" | "submitted" | "running" | "results" | "failed";
+export type AdStatus = "none" | "preparing" | "awaiting_approval" | "ready_to_launch" | "submitted" | "running" | "paused" | "results" | "failed";
 
 export type AdReading = {
   status: AdStatus;
@@ -56,6 +56,8 @@ export function adStatus(campaigns: PromoCampaignSummary[], results: CreativeRes
   let status: AdStatus;
   if (latest.status === "failed") status = "failed";
   else if (latest.status === "live") status = hasResults ? "results" : "running";
+  else if (latest.status === "paused") status = hasResults ? "results" : "paused";
+  else if (latest.status === "ended") status = hasResults ? "results" : "submitted";
   else if (latest.status === "submitted" || latest.status === "launching") status = hasResults ? "results" : "submitted";
   else if (latest.status === "approved") status = latest.experiment?.approved_at ? "ready_to_launch" : "awaiting_approval";
   else if (latest.approved_count > 0) status = "awaiting_approval";
@@ -65,7 +67,7 @@ export function adStatus(campaigns: PromoCampaignSummary[], results: CreativeRes
 
 /** Advertising has left the producer's hands: submitted, running or reporting results. */
 export function isAdvertising(s: AdStatus): boolean {
-  return s === "submitted" || s === "running" || s === "results";
+  return s === "submitted" || s === "running" || s === "paused" || s === "results";
 }
 
 export type QuickFilter = "all" | "on_tiktok" | "ads_active" | "preparing";

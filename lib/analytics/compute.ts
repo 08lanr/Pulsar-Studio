@@ -448,7 +448,7 @@ function campaignRow(c: PromoCampaign, rows: CreativeResult[], ds: TitleDataset 
     name: c.name,
     status: c.status,
     href: `/producer/promote/${c.id}?returnTo=${encodeURIComponent(`/producer/titles/${titleId}/analytics/acquisition`)}`,
-    reporting_source: has ? (demoRows ? "demo" : "grow") : "none",
+    reporting_source: has ? (demoRows ? "demo" : "tiktok") : "none",
     attribution_window: attr?.attribution_window ?? "not reported",
     refreshed_at: at,
     window,

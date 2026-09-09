@@ -60,7 +60,7 @@ export default function ExperimentPanel({ campaign, creatives, results, canEdit,
   // page's nextRound advances by one, so the confirmation must not read the live prop.
   const [created, setCreated] = useState<{ id: string; number: number } | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const locked = ["submitted", "launching", "live"].includes(campaign.status);
+  const locked = ["submitted", "launching", "live", "paused", "ended"].includes(campaign.status);
 
   const dirty = !!e && (Number(budget) !== e.budget_usd || hypothesis.trim() !== e.hypothesis || audience.trim() !== e.audience || Number(batch) !== e.first_batch || signal !== e.signal);
 
@@ -159,7 +159,7 @@ export default function ExperimentPanel({ campaign, creatives, results, canEdit,
             <h2>{tt("rd.resultsTitle")}</h2>
             <p>{tt("rd.resultsSub")}</p>
           </div>
-          {fixtureMode && ["submitted", "live"].includes(campaign.status) && results.length === 0 && canEdit && (
+          {fixtureMode && ["submitted", "live", "paused", "ended"].includes(campaign.status) && results.length === 0 && canEdit && (
             <span className="rs-panel-aside"><button className="btn btn-outline btn-sm" type="button" onClick={simulate} disabled={busy !== null} title={tt("ws.exp.simulateNote")}>{busy === "simulate" ? tt("common.loading") : tt("ws.exp.simulate")}</button></span>
           )}
         </div>

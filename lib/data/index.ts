@@ -25,9 +25,11 @@ import type { CatalogRow } from "@/lib/research/engine";
 import type { MarketView } from "@/lib/research/snapshot";
 import type { ReportBatch, ReportRow, ResearchProfile, WatchRow } from "@/lib/research/types";
 import type {
+  AccountRequest,
   AdAngle,
   CompanyAccount,
   CreativeResult,
+  PromoLaunch,
   AdaptTag,
   AdaptedLine,
   AuditChannel,
@@ -279,11 +281,72 @@ export type RevisePromoCreativeInput = {
   revision_note?: string | null;
 };
 
-/** Staff record Grow's launch progress on a submitted campaign. */
+/** Staff override of a campaign's launch status (troubleshooting only; the engine and the scheduler write the normal path). */
 export type AdvancePromoCampaignInput = {
   status: Extract<PromoCampaign["status"], "launching" | "live" | "failed">;
   grow_campaign_id?: string | null;
   note?: string | null;
+};
+
+// ---- TikTok launch (decision 2026-09-09) --------------------------------------------------------
+
+/** What the launch engine records after a step. Only the system session may write these. */
+export type PromoLaunchPatch = Partial<
+  Pick<PromoLaunch, "status" | "identity_id" | "identity_type" | "uploaded_videos" | "covers" | "tiktok_campaign_id" | "tiktok_adgroup_id" | "ad_ids" | "error" | "attempts" | "started_at" | "heartbeat_at" | "finished_at">
+>;
+
+/** The scheduler's and the engine's view of a launched campaign. */
+export type LaunchedCampaign = {
+  campaign: PromoCampaign;
+  launch: PromoLaunch;
+  /** The creatives that became ads (approved in the manifest). */
+  creatives: PromoCreative[];
+};
+
+/** The engine and the scheduler move a campaign along TikTok's lifecycle; staff may pause/resume. */
+export type DeliveryInput = {
+  status: Extract<PromoCampaign["status"], "launching" | "submitted" | "live" | "paused" | "ended" | "failed">;
+  status_note?: string | null;
+  grow_campaign_id?: string | null;
+  tiktok_adgroup_id?: string | null;
+  advertiser_id?: string | null;
+  launched_at?: string | null;
+};
+
+/** One creative's numbers for one window, as read from a reporting source. Upserted on (creative, window, source). */
+export type NewCreativeResult = Omit<CreativeResult, "id">;
+
+export type RenderInput = {
+  render_path: string;
+  render_sha256: string;
+  duration_ms: number | null;
+  width: number | null;
+  height: number | null;
+  render_settings?: Json;
+};
+
+/** Staff assign a launch account from Pulsar's Business Center to a producer. */
+export type AssignLaunchAccountInput = {
+  advertiser_id: string;
+  name: string;
+  identity_id: string | null;
+  identity_type: "BC_AUTH_TT" | "TT_USER" | null;
+  note?: string | null;
+  /** Which request this fulfils, if any; it is marked assigned. */
+  request_id?: string | null;
+};
+
+export type AccountRequestInput = {
+  contact_name: string;
+  contact_email: string;
+  /** Mock opt-in only: never a card number. */
+  payment?: { brand: string; last4: string; holder: string } | null;
+  note?: string | null;
+};
+
+export type ResolveAccountRequestInput = {
+  status: Extract<AccountRequest["status"], "provisioning" | "declined">;
+  staff_note?: string | null;
 };
 
 export type ApproveOptions = {
@@ -438,15 +501,53 @@ export interface DataLayer {
   listPromoCampaigns(session: Session): Promise<PromoCampaignSummary[]>;
   getPromoCampaign(session: Session, campaignId: string): Promise<PromoCampaignDetail>;
   createPromoCampaign(session: Session, input: CreatePromoCampaignInput): Promise<PromoCampaign>;
-  generatePromoDrafts(session: Session, campaignId: string): Promise<PromoCreative[]>;
+  /** Five concept rows per round. With `rendering`, the campaign waits in `generating` until finishPromoGeneration; otherwise it opens for review at once. */
+  generatePromoDrafts(session: Session, campaignId: string, opts?: { rendering?: boolean }): Promise<PromoCreative[]>;
   reviewPromoCreative(session: Session, creativeId: string, input: PromoCreativeReviewInput): Promise<PromoCreative>;
   /** Producer keeps every creative still waiting for a decision. */
   approveAllPromoCreatives(session: Session, campaignId: string): Promise<PromoCampaignDetail>;
   approvePromoCampaign(session: Session, campaignId: string): Promise<PromoCampaignDetail>;
-  submitPromoCampaignMock(session: Session, campaignId: string): Promise<PromoCampaignDetail>;
-  // Pulsar's Promote desk (staff only): answer change requests, track launch.
+  /**
+   * Producer approver: launch the approved manifest. Gates on the approved
+   * budget, a destination URL, rendered creatives (live modes) and a ready
+   * launch account; records one launch row per manifest (idempotent — a
+   * retry returns the same row) and moves the campaign to `launching`. The
+   * route then runs the engine (lib/tiktok/launch.ts).
+   */
+  submitPromoCampaign(session: Session, campaignId: string): Promise<PromoCampaignDetail>;
+  // Pulsar's Promote desk (staff only): answer change requests; override launch status when troubleshooting.
   revisePromoCreative(session: Session, creativeId: string, input: RevisePromoCreativeInput): Promise<PromoCreative>;
   advancePromoCampaign(session: Session, campaignId: string, input: AdvancePromoCampaignInput): Promise<PromoCampaignDetail>;
+
+  // TikTok launch, review and read-back (decision 2026-09-09). The system
+  // session (lib/auth.ts systemSession) is the engine and the scheduler.
+  getPromoLaunch(session: Session, launchId: string): Promise<PromoLaunch>;
+  /** System/staff: launches still pending or running (the scheduler adopts them). */
+  listOpenPromoLaunches(session: Session): Promise<PromoLaunch[]>;
+  /** System only: persist a step's output. */
+  updatePromoLaunch(session: Session, launchId: string, patch: PromoLaunchPatch): Promise<PromoLaunch>;
+  /** System/staff: every campaign with TikTok objects whose status can still move (submitted, live, paused, ended). */
+  listLaunchedPromoCampaigns(session: Session): Promise<LaunchedCampaign[]>;
+  /** System/staff: the campaign's TikTok lifecycle state. */
+  setPromoCampaignDelivery(session: Session, campaignId: string, input: DeliveryInput): Promise<PromoCampaign>;
+  /** Staff: a failed launch runs again from its first unfinished step (never a second TikTok campaign). */
+  retryPromoLaunch(session: Session, campaignId: string): Promise<PromoLaunch>;
+  /** System: rows read from a reporting source; returns how many were written. */
+  upsertCreativeResults(session: Session, rows: NewCreativeResult[]): Promise<number>;
+  /** System or a producer editor: the rendered ad file for a creative. */
+  setCreativeRender(session: Session, creativeId: string, render: RenderInput): Promise<PromoCreative>;
+  /** Generation finished (renders done or skipped): generating -> review. */
+  finishPromoGeneration(session: Session, campaignId: string, note?: string | null): Promise<PromoCampaign>;
+  /** The producer's ready TikTok launch account (connected ad account with an advertiser id), or null. */
+  getLaunchAccount(session: Session, producerId: string): Promise<CompanyAccount | null>;
+  /** Staff admin: assign an ad account from Pulsar's Business Center to a producer. */
+  assignLaunchAccount(session: Session, producerId: string, input: AssignLaunchAccountInput): Promise<CompanyAccount>;
+  /** Staff: every request; producer: their own. */
+  listAccountRequests(session: Session): Promise<AccountRequest[]>;
+  /** Producer editor: ask Pulsar for an ad account. One open request per company. */
+  createAccountRequest(session: Session, input: AccountRequestInput): Promise<AccountRequest>;
+  /** Staff: mark a request provisioning or declined (assignment resolves it through assignLaunchAccount). */
+  resolveAccountRequest(session: Session, requestId: string, input: ResolveAccountRequestInput): Promise<AccountRequest>;
 
   // experiments, results and customer-owned accounts (decision 2026-09-08)
   /** Editors; refused once the campaign is submitted. Each save bumps the experiment version and clears approval. */

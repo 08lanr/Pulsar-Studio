@@ -1,39 +1,146 @@
 {
-  "an.title": { "en": "TikTok revenue & audience", "zh": "TikTok 收入与观众" },
-  "an.linkFrom.title": { "en": "TikTok revenue & audience", "zh": "TikTok 收入与观众" },
-  "an.linkFrom.campaign": { "en": "Attributed outcomes for this title", "zh": "该剧集的可归因结果" },
-  "an.nav.overview": { "en": "Summary", "zh": "摘要" },
-  "an.nav.episodes": { "en": "Episode retention", "zh": "分集留存" },
-  "an.nav.acquisition": { "en": "Ad attribution", "zh": "广告归因" },
-  "an.state.available": { "en": "TikTok data available", "zh": "TikTok 数据可用" },
-  "an.empty.available.title": { "en": "TikTok data available", "zh": "TikTok 数据可用" },
-  "an.catalog.viewLaunch": { "en": "Preparation checklist", "zh": "准备清单" },
-  "an.catalog.viewPerformance": { "en": "TikTok comparison", "zh": "TikTok 对比" },
-  "an.catalog.col.viewers": { "en": "TikTok viewers", "zh": "TikTok 观众" },
-  "an.demo.legend": { "en": "Demo analytics, labelled estimated. Rates show numerator and denominator; unobserved values are unavailable, never zero.", "zh": "演示数据，标注为估算。比率显示分子与分母；未观测值显示为不可用，绝不记为零。" },
-  "catalogRefinement.evidence": { "en": "View assessment", "zh": "查看评估" },
-  "ws.actions.assess": { "en": "Open title", "zh": "打开剧集" },
-  "ws.assess.kicker": { "en": "Preparation", "zh": "准备" },
-  "ws.catalog.sub": { "en": "Every title, its TikTok status and its advertising status. Open a title for its sections.", "zh": "所有作品及其 TikTok 状态与广告状态。打开作品查看各分区。" },
-  "ws.exp.mock": { "en": "Demo handoff: no ad platform is connected and nothing is spent.", "zh": "演示交接：未连接广告平台，不产生花费。" },
-  "ws.exp.title": { "en": "Ad campaigns", "zh": "广告活动" },
-  "ws.exp.results": { "en": "Ad results", "zh": "广告结果" },
-  "workflow.step.results": { "en": "Review ad results", "zh": "查看广告结果" },
-  "workflow.viewLaunch": { "en": "View ad launch", "zh": "查看广告投放" },
-  "rd.resultsTitle": { "en": "Ad results", "zh": "广告结果" },
-  "rd.resultsSub": { "en": "Compare each ad with the opening-retention and click-through benchmarks. Click-through rate is clicks divided by impressions.", "zh": "将每条广告的开场留存率和点击率与基准对比。点击率等于点击次数除以展示次数。" },
-  "rd.benchWhy": { "en": "Meeting both benchmarks is a signal to consider another test. It does not establish profitability.", "zh": "两项基准均达标，可作为继续测试的参考，不代表已实现盈利。" },
-  "rd.decideSub": { "en": "From the table above. Not a prediction.", "zh": "由上表得出，不是预测。" },
-  "rd.winnerLine": { "en": "Ad {n} met both: hook hold {hold}%, CTR {ctr}%.", "zh": "广告 {n} 两项达标：开场留存 {hold}%，点击率 {ctr}%。" },
-  "rd.missedLine": { "en": "Ad {n} missed {what}: hook hold {hold}%, CTR {ctr}%.", "zh": "广告 {n} {what}未达标：开场留存 {hold}%，点击率 {ctr}%。" },
-  "rd.nextSub": { "en": "Creates round {n} as a new campaign. Nothing launches until it is approved again.", "zh": "创建第 {n} 轮新广告活动。再次批准前不会投放。" },
-  "rd.scaleHint": { "en": "Draft a new ${budget} round (3× this round), with the same audience and Ad {ad} as the creative direction.", "zh": "创建预算 ${budget} 的新一轮草稿（本轮的 3 倍），受众不变，以广告 {ad} 为创意方向。" },
-  "rd.moreHint": { "en": "Same ${budget}, new ads on the best hypothesis.", "zh": "预算不变（${budget}），围绕最佳假设制作新广告。" },
-  "rd.retryHint": { "en": "Same ${budget}, new ads, new hypothesis.", "zh": "预算不变（${budget}），新广告、新假设。" },
-  "rd.stopHint": { "en": "Return to the campaign list. This does not pause or stop a running campaign.", "zh": "返回广告活动列表，不会暂停或停止正在投放的活动。" },
-  "rd.analyticsLink": { "en": "Attributed revenue in TikTok revenue & audience", "zh": "在 TikTok 收入与观众中查看可归因收入" },
-  "rd.benchShort": { "en": "≥ {n}%", "zh": "≥ {n}%" },
-  "redesign.catalog.review": { "en": "Open title", "zh": "打开作品" },
-  "next.nav.sources": { "en": "Data sources & definitions", "zh": "数据来源与定义" },
-  "research.nav.sources": { "en": "Data sources & definitions", "zh": "数据来源与定义" }
+  "an.title": {
+    "en": "TikTok revenue & audience",
+    "zh": "TikTok 收入与观众"
+  },
+  "an.linkFrom.title": {
+    "en": "TikTok revenue & audience",
+    "zh": "TikTok 收入与观众"
+  },
+  "an.linkFrom.campaign": {
+    "en": "Attributed outcomes for this title",
+    "zh": "该剧集的可归因结果"
+  },
+  "an.nav.overview": {
+    "en": "Summary",
+    "zh": "摘要"
+  },
+  "an.nav.episodes": {
+    "en": "Episode retention",
+    "zh": "分集留存"
+  },
+  "an.nav.acquisition": {
+    "en": "Ad attribution",
+    "zh": "广告归因"
+  },
+  "an.state.available": {
+    "en": "TikTok data available",
+    "zh": "TikTok 数据可用"
+  },
+  "an.empty.available.title": {
+    "en": "TikTok data available",
+    "zh": "TikTok 数据可用"
+  },
+  "an.catalog.viewLaunch": {
+    "en": "Preparation checklist",
+    "zh": "准备清单"
+  },
+  "an.catalog.viewPerformance": {
+    "en": "TikTok comparison",
+    "zh": "TikTok 对比"
+  },
+  "an.catalog.col.viewers": {
+    "en": "TikTok viewers",
+    "zh": "TikTok 观众"
+  },
+  "an.demo.legend": {
+    "en": "Demo analytics, labelled estimated. Rates show numerator and denominator; unobserved values are unavailable, never zero.",
+    "zh": "演示数据，标注为估算。比率显示分子与分母；未观测值显示为不可用，绝不记为零。"
+  },
+  "catalogRefinement.evidence": {
+    "en": "View assessment",
+    "zh": "查看评估"
+  },
+  "ws.actions.assess": {
+    "en": "Open title",
+    "zh": "打开剧集"
+  },
+  "ws.assess.kicker": {
+    "en": "Preparation",
+    "zh": "准备"
+  },
+  "ws.catalog.sub": {
+    "en": "Every title, its TikTok status and its advertising status. Open a title for its sections.",
+    "zh": "所有作品及其 TikTok 状态与广告状态。打开作品查看各分区。"
+  },
+  "ws.exp.title": {
+    "en": "Ad campaigns",
+    "zh": "广告活动"
+  },
+  "ws.exp.results": {
+    "en": "Ad results",
+    "zh": "广告结果"
+  },
+  "workflow.step.results": {
+    "en": "Review ad results",
+    "zh": "查看广告结果"
+  },
+  "workflow.viewLaunch": {
+    "en": "View ad launch",
+    "zh": "查看广告投放"
+  },
+  "rd.resultsTitle": {
+    "en": "Ad results",
+    "zh": "广告结果"
+  },
+  "rd.resultsSub": {
+    "en": "Compare each ad with the opening-retention and click-through benchmarks. Click-through rate is clicks divided by impressions.",
+    "zh": "将每条广告的开场留存率和点击率与基准对比。点击率等于点击次数除以展示次数。"
+  },
+  "rd.benchWhy": {
+    "en": "Meeting both benchmarks is a signal to consider another test. It does not establish profitability.",
+    "zh": "两项基准均达标，可作为继续测试的参考，不代表已实现盈利。"
+  },
+  "rd.decideSub": {
+    "en": "From the table above. Not a prediction.",
+    "zh": "由上表得出，不是预测。"
+  },
+  "rd.winnerLine": {
+    "en": "Ad {n} met both: hook hold {hold}%, CTR {ctr}%.",
+    "zh": "广告 {n} 两项达标：开场留存 {hold}%，点击率 {ctr}%。"
+  },
+  "rd.missedLine": {
+    "en": "Ad {n} missed {what}: hook hold {hold}%, CTR {ctr}%.",
+    "zh": "广告 {n} {what}未达标：开场留存 {hold}%，点击率 {ctr}%。"
+  },
+  "rd.nextSub": {
+    "en": "Creates round {n} as a new campaign. Nothing launches until it is approved again.",
+    "zh": "创建第 {n} 轮新广告活动。再次批准前不会投放。"
+  },
+  "rd.scaleHint": {
+    "en": "Draft a new ${budget} round (3× this round), with the same audience and Ad {ad} as the creative direction.",
+    "zh": "创建预算 ${budget} 的新一轮草稿（本轮的 3 倍），受众不变，以广告 {ad} 为创意方向。"
+  },
+  "rd.moreHint": {
+    "en": "Same ${budget}, new ads on the best hypothesis.",
+    "zh": "预算不变（${budget}），围绕最佳假设制作新广告。"
+  },
+  "rd.retryHint": {
+    "en": "Same ${budget}, new ads, new hypothesis.",
+    "zh": "预算不变（${budget}），新广告、新假设。"
+  },
+  "rd.stopHint": {
+    "en": "Return to the campaign list. This does not pause or stop a running campaign.",
+    "zh": "返回广告活动列表，不会暂停或停止正在投放的活动。"
+  },
+  "rd.analyticsLink": {
+    "en": "Attributed revenue in TikTok revenue & audience",
+    "zh": "在 TikTok 收入与观众中查看可归因收入"
+  },
+  "rd.benchShort": {
+    "en": "≥ {n}%",
+    "zh": "≥ {n}%"
+  },
+  "redesign.catalog.review": {
+    "en": "Open title",
+    "zh": "打开作品"
+  },
+  "next.nav.sources": {
+    "en": "Data sources & definitions",
+    "zh": "数据来源与定义"
+  },
+  "research.nav.sources": {
+    "en": "Data sources & definitions",
+    "zh": "数据来源与定义"
+  }
 }

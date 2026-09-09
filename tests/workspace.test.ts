@@ -8,6 +8,8 @@ import { assessTitle, BENCHMARK, type AssessmentInput } from "@/lib/research/ass
 import { experimentStage, loadWorkspace } from "@/lib/research/workspace";
 import { campaignWorkflow } from "@/lib/research/workflow";
 import { resetMarketCache } from "@/lib/research/snapshot";
+import { resetFakeTikTok } from "@/lib/tiktok/fake";
+import { runLaunch } from "@/lib/tiktok/launch";
 
 afterEach(() => {
   resetFixtureStore();
@@ -119,8 +121,11 @@ test("demo results are labelled, idempotent, and only follow a submitted campaig
   assert.equal(detail.results.length, 2, "the seeded results stand; nothing is added twice");
   assert.equal((await fixtureData.listCreativeResults(producer())).length, before);
   // A fresh submitted campaign gets deterministic demo rows, one per selected creative.
-  const c4 = await fixtureData.submitPromoCampaignMock(producer(), demoCampaignId(4));
-  assert.equal(c4.campaign.status, "submitted");
+  resetFakeTikTok();
+  const c4 = await fixtureData.submitPromoCampaign(producer(), demoCampaignId(4));
+  assert.equal(c4.campaign.status, "launching");
+  await runLaunch(c4.launch!.id);
+  assert.equal((await fixtureData.getPromoCampaign(producer(), demoCampaignId(4))).campaign.status, "submitted");
   const d4 = await fixtureData.simulateDemoResults(producer(), demoCampaignId(4));
   assert.equal(d4.results.length, 2);
   assert.ok(d4.results.every((r) => r.source === "demo"));
@@ -157,8 +162,12 @@ test("workflow actions follow actual approval and handoff transitions", async ()
   await fixtureData.approveExperiment(producer(),id);
   assert.equal((await flow()).step,"launch");
   assert.equal((await flow()).waiting,false,"ready for a real user action");
-  await fixtureData.submitPromoCampaignMock(producer(),id);
-  assert.equal((await flow()).waiting,true,"a submitted handoff must not request another approval");
+  resetFakeTikTok();
+  const sent = await fixtureData.submitPromoCampaign(producer(),id);
+  assert.equal((await flow()).waiting,true,"a launching campaign must not request another approval");
+  assert.equal((await flow()).hint,"workflow.hint.launching");
+  await runLaunch(sent.launch!.id);
+  assert.equal((await flow()).hint,"workflow.hint.submitted","created on TikTok, in TikTok's review");
   assert.ok((await flow()).href.endsWith("#launch-status"),"waiting links target a visible status, not a closed archive");
   await fixtureData.simulateDemoResults(producer(),id);
   assert.equal((await flow()).step,"results");

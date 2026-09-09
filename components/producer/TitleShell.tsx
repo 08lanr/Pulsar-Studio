@@ -17,7 +17,7 @@ const SECTIONS: { id: TitleSection; sub: string; key: string }[] = [
 ];
 
 const PLATFORM_CLASS: Record<PlatformStatus, string> = { reporting: "is-live", stale: "is-warn", sync_failed: "is-bad", awaiting_data: "is-wait", not_linked: "is-none" };
-const AD_CLASS: Record<AdStatus, string> = { none: "is-none", preparing: "is-wait", awaiting_approval: "is-warn", ready_to_launch: "is-warn", submitted: "is-live", running: "is-live", results: "is-live", failed: "is-bad" };
+const AD_CLASS: Record<AdStatus, string> = { none: "is-none", preparing: "is-wait", awaiting_approval: "is-warn", ready_to_launch: "is-warn", submitted: "is-live", running: "is-live", paused: "is-warn", results: "is-live", failed: "is-bad" };
 
 export function PlatformChip({ status, locale }: { status: PlatformStatus; locale: Locale }) {
   return <span className={`tw-chip tw-chip-tiktok ${PLATFORM_CLASS[status]}`}><i aria-hidden="true" />{t(locale, `tw.platform.${status}`)}</span>;

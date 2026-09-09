@@ -113,7 +113,7 @@ export type ExperimentStage = "brief" | "concepts" | "batch" | "budget" | "submi
 
 export function experimentStage(c: PromoCampaignSummary, results: CreativeResult[]): { stage: ExperimentStage; waiting: "generate" | "select" | "budget" | "submit" | "results" | "decide" | "none" } {
   const hasResults = results.some((r) => r.campaign_id === c.id);
-  if (c.status === "live" || (c.status === "submitted" && hasResults)) return { stage: hasResults ? "decide" : "results", waiting: hasResults ? "decide" : "results" };
+  if (["live", "paused", "ended"].includes(c.status) || (c.status === "submitted" && hasResults)) return { stage: hasResults ? "decide" : "results", waiting: hasResults ? "decide" : "results" };
   if (c.status === "submitted" || c.status === "launching") return { stage: "submitted", waiting: "results" };
   if (c.status === "approved") return { stage: c.experiment?.approved_at ? "submitted" : "budget", waiting: c.experiment?.approved_at ? "submit" : "budget" };
   if (c.status === "review") return c.approved_count > 0 ? { stage: "batch", waiting: c.experiment?.approved_at ? "submit" : "budget" } : { stage: "concepts", waiting: "select" };

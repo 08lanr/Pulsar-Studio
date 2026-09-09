@@ -10,6 +10,7 @@
 // resets on server restart — that is the point of fixture mode).
 
 import type {
+  AccountRequest,
   AdaptedLine,
   CompanyAccount,
   CreativeResult,
@@ -27,6 +28,7 @@ import type {
   PromoCampaign,
   PromoCreative,
   PromoHandoff,
+  PromoLaunch,
   Scene,
   SceneDecision,
   Title,
@@ -68,6 +70,10 @@ export type FixtureDb = {
   company_accounts: CompanyAccount[];
   /** Title -> platform listing mappings for title analytics (migration 0007). */
   analytics_links: AnalyticsLink[];
+  /** Launch jobs, one per approval manifest (migration 0008). */
+  promo_launches: PromoLaunch[];
+  /** "Make a new ad account through Pulsar" requests (migration 0008). */
+  account_requests: AccountRequest[];
 };
 
 export const fixtureDb: FixtureDb = {
@@ -97,6 +103,8 @@ export const fixtureDb: FixtureDb = {
   promo_results: [],
   company_accounts: [],
   analytics_links: [],
+  promo_launches: [],
+  account_requests: [],
 };
 
 export type FixtureSeed = "demo" | "empty";
@@ -134,6 +142,8 @@ export function cloneFixtureDb(seed: FixtureSeed = defaultFixtureSeed()): Fixtur
   db.promo_handoffs.push(...demo.handoffs);
   db.promo_results.push(...demo.results);
   db.company_accounts.push(...demo.accounts);
+  db.promo_launches.push(...demo.launches);
+  db.promo_launches.push(...demo.launches);
   db.analytics_links.push(...structuredClone(buildDemoAnalytics().links));
   return db;
 }

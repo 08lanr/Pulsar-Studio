@@ -55,7 +55,7 @@ export default function AccountsForm({ accounts, canAct }: { accounts: CompanyAc
             <span><span className={`state ${a.state === "connected" ? "state-available" : a.state === "invited" ? "state-collecting_history" : a.state === "revoked" ? "state-failed" : "state-requires_connection"}`}>{tt(`ws.accounts.state.${a.state}`)}</span></span>
             <span>{tt(`ws.accounts.access.${a.access}`)}</span>
             <span className="gt-muted" style={{ whiteSpace: "normal" }}>{a.note ?? ""}</span>
-            <span>{canAct && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditing(a)}>{tt("ws.accounts.edit")}</button>}</span>
+            <span>{a.assigned_by ? <span className="gt-muted">{tt("ws.accounts.assigned")}</span> : canAct && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditing(a)}>{tt("ws.accounts.edit")}</button>}</span>
           </div>
         ))}
       </div>

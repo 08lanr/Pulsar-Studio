@@ -85,6 +85,16 @@ export type ClipStatus = "suggested" | "shortlisted" | "dismissed";
 
 /** Promote is a sibling product to adaptation. Its rows never depend on an
  * adaptation or subtitle version; both products only share core titles and episodes. */
+/**
+ * The campaign lifecycle. Up to `approved` the producer is preparing; from
+ * `launching` the record is TikTok's (decision 2026-09-09 "TikTok launch"):
+ *   launching  the launch job is creating objects on TikTok
+ *   submitted  created on TikTok, ads awaiting TikTok's review
+ *   live       at least one ad delivering
+ *   paused     switched off (by staff or on TikTok)
+ *   ended      the schedule closed or the budget was spent
+ *   failed     the launch job could not complete, or TikTok rejected every ad
+ */
 export type PromoCampaignStatus =
   | "draft"
   | "generating"
@@ -93,6 +103,8 @@ export type PromoCampaignStatus =
   | "submitted"
   | "launching"
   | "live"
+  | "paused"
+  | "ended"
   | "failed";
 export type PromoCreativeKind = "direct_clip" | "ugc_story" | "ugc_reaction";
 export type PromoCreativeStatus = "draft" | "ready" | "approved" | "rejected" | "not_selected" | "superseded";
@@ -596,13 +608,13 @@ export type CreativeResult = {
   id: string;
   campaign_id: string;
   creative_id: string;
-  /** `demo` rows are generated for the fixture and say so everywhere; `grow` rows come from the launch system. */
-  source: "demo" | "grow";
+  /** `demo` rows are generated for the fixture and say so everywhere; `tiktok` rows are read from TikTok's reporting API by Studio's own sync (`grow` is the pre-2026-09-09 name of the same thing, kept for old rows). */
+  source: "demo" | "grow" | "tiktok";
   window_start: string;
   window_end: string;
   impressions: number;
   video_views: number;
-  /** Share of viewers still watching at 3 s (0-1). */
+  /** Share of video plays still watching at 2 s (0-1): TikTok `video_watched_2s / video_play_actions`. */
   hook_hold_rate: number;
   clicks: number;
   spend_usd: number;
@@ -615,9 +627,11 @@ export type CompanyAccountKind = "business_center" | "ad_account" | "channel" | 
 export type CompanyAccountState = "unconnected" | "invited" | "connected" | "revoked";
 
 /**
- * A customer-owned account Studio may be granted access to. The customer
- * owns identity, billing and assets; Studio records the state it was told
- * or verified, never a fabricated connection.
+ * An account a producer's ads can run from. Either customer-owned (recorded,
+ * never created by Studio) or, for a TikTok ad account, one Pulsar staff
+ * assigned from Pulsar's own Business Center (decision 2026-09-09). The
+ * launch engine uses the ad account row that is `connected` with a
+ * TikTok advertiser id in `external_ref` and a publishing identity.
  */
 export type CompanyAccount = {
   id: string;
@@ -625,12 +639,45 @@ export type CompanyAccount = {
   provider: CompanyAccountProvider;
   kind: CompanyAccountKind;
   name: string;
+  /** For a TikTok ad account: the advertiser id ads launch into. */
   external_ref: string | null;
   state: CompanyAccountState;
   /** What Studio may do: nothing, revocable partner access, or the customer operates it themselves. */
   access: "none" | "partner" | "owner_operated";
   note: string | null;
+  /** The TikTok handle the ads are published under (identities are per ad account). Staff-assigned; null until assigned. */
+  identity_id: string | null;
+  identity_type: "BC_AUTH_TT" | "TT_USER" | null;
+  /** Staff who assigned the launch account, when it came from Pulsar's Business Center. */
+  assigned_by: string | null;
+  assigned_at: string | null;
   updated_at: string;
+};
+
+/**
+ * A producer's request for an ad account provisioned by Pulsar ("make a new
+ * one through us"). Provisioning is manual: staff create the account in
+ * Pulsar's Business Center and assign it (a CompanyAccount row). The
+ * payment method is a producer opt-in record only; nothing is charged by
+ * Studio.
+ */
+export type AccountRequestStatus = "requested" | "provisioning" | "assigned" | "declined";
+export type AccountRequest = {
+  id: string;
+  producer_id: string;
+  status: AccountRequestStatus;
+  contact_name: string;
+  contact_email: string;
+  /** Mock payment opt-in: brand and last four only, never a card number. */
+  payment: { method: "card"; brand: string; last4: string; holder: string; opted_in_at: string } | null;
+  note: string | null;
+  staff_note: string | null;
+  /** The CompanyAccount the request resolved to, once assigned. */
+  account_id: string | null;
+  requested_by: string;
+  created_at: string;
+  resolved_by: string | null;
+  resolved_at: string | null;
 };
 
 export type PromoCampaign = {
@@ -647,10 +694,57 @@ export type PromoCampaign = {
   exclusions: string | null;
   experiment: ExperimentSpec | null;
   status: PromoCampaignStatus;
+  /** The TikTok campaign id once launched (column name predates the in-house launch; `cmp_mock_` values are demo handoffs). */
   grow_campaign_id: string | null;
+  /** The TikTok advertiser (ad account) the launch went into. */
+  advertiser_id: string | null;
+  tiktok_adgroup_id: string | null;
+  /** Why the campaign is where it is: the launch error, TikTok's rejection reason, who paused it. */
+  status_note: string | null;
+  launched_at: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
+};
+
+export type PromoLaunchStatus = "pending" | "running" | "done" | "failed";
+
+/**
+ * The launch job record — Pulsar's launch engine invariants, kept in the
+ * data layer instead of a job file: IDEMPOTENT (a step whose TikTok id is
+ * recorded is never re-run; one row per approval manifest, so a retry can
+ * never create a second TikTok campaign) and RESUMABLE (persisted after
+ * every step; the scheduler adopts a row whose heartbeat went stale).
+ */
+export type PromoLaunch = {
+  id: string;
+  campaign_id: string;
+  /** `studio:<pb_>:<manifest sha>` — unique, so one manifest launches once. */
+  idempotency_key: string;
+  manifest_sha256: string;
+  status: PromoLaunchStatus;
+  /** Which TikTok environment the objects were created in. */
+  mode: "sandbox" | "production" | "fake";
+  advertiser_id: string;
+  identity_id: string | null;
+  identity_type: "BC_AUTH_TT" | "TT_USER" | null;
+  /** The exact spend ceiling sent to TikTok: the approved experiment budget. */
+  budget_usd: number;
+  destination_url: string;
+  /** Step outputs, keyed by creative id. Presence = step done. */
+  uploaded_videos: Record<string, string>;
+  covers: Record<string, string>;
+  tiktok_campaign_id: string | null;
+  tiktok_adgroup_id: string | null;
+  /** creative id -> ad id, written once /ad/create/ answers. */
+  ad_ids: Record<string, string>;
+  error: string | null;
+  attempts: number;
+  created_by: string;
+  created_at: string;
+  started_at: string | null;
+  heartbeat_at: string | null;
+  finished_at: string | null;
 };
 
 /** Every revision is a new row. Approved rows are immutable and the parent is
@@ -726,6 +820,8 @@ export type PromoCampaignDetail = {
   creatives: PromoCreative[];
   approval: PromoApproval | null;
   handoffs: PromoHandoff[];
+  /** The launch job for the approved manifest, once submitted. */
+  launch: PromoLaunch | null;
   results: CreativeResult[];
 };
 

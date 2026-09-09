@@ -115,6 +115,25 @@ export function fixtureSession(kind: UserKind): Session {
   return { ...FIXTURE_SESSIONS[kind] };
 }
 
+// ---- the system actor --------------------------------------------------------
+
+/**
+ * The launch engine and the TikTok scheduler act with no user behind them.
+ * They carry this staff-admin session so the data layer can audit "who":
+ * the audit trail reads system:tiktok, and in supabase mode the data layer
+ * uses the service role for it (no cookie exists on a scheduler tick).
+ * Never minted from a request.
+ */
+export const SYSTEM_USER_ID = "00000000-0000-4000-8000-00000000005e";
+
+export function systemSession(): Session {
+  return { userId: SYSTEM_USER_ID, kind: "staff", staffRole: "admin", displayName: "system:tiktok", locale: "en" };
+}
+
+export function isSystemSession(session: Session): boolean {
+  return session.userId === SYSTEM_USER_ID;
+}
+
 // ---- supabase profile --------------------------------------------------------
 
 /** The columns of core.profiles the app reads. `core` must be an exposed schema. */
