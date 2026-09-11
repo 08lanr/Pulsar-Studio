@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { isStaffPreview, portalSession, producerLocale } from "@/components/producer/server";
 import { getData, isDataError } from "@/lib/data";
 import type { Locale } from "@/lib/i18n";
-import { parseRange, type AnalyticsRange, type TitleAnalytics } from "@/lib/analytics/types";
+import { parseRange, parseWindow, type AnalyticsRange, type AnalyticsWindow, type TitleAnalytics } from "@/lib/analytics/types";
 import type { Session } from "@/lib/auth";
 import { adStatus, platformStatus, type AdReading, type PlatformStatus } from "@/lib/research/title-status";
 
@@ -16,6 +16,8 @@ export type AnalyticsPageData = {
   locale: Locale;
   record: TitleAnalytics;
   range: AnalyticsRange;
+  /** The explicit window when range is "custom". */
+  window: AnalyticsWindow | null;
   base: string;
   /** `?range=` suffix to keep on every link between the views. */
   query: string;
@@ -27,15 +29,16 @@ export type AnalyticsPageData = {
 
 export type View = "overview" | "revenue" | "episodes" | "acquisition" | "link";
 
-export async function loadAnalyticsPage(titleId: string, view: View, searchParams: { range?: string }): Promise<AnalyticsPageData> {
+export async function loadAnalyticsPage(titleId: string, view: View, searchParams: { range?: string; from?: string; to?: string }): Promise<AnalyticsPageData> {
   const base = `/producer/titles/${titleId}/analytics`;
   const path = view === "overview" ? base : `${base}/${view}`;
   const session = await portalSession(path);
   const locale = producerLocale();
-  const range = parseRange(searchParams.range);
+  const window = parseWindow(searchParams.from, searchParams.to);
+  const range: AnalyticsRange = window ? "custom" : parseRange(searchParams.range);
   let record: TitleAnalytics;
   try {
-    record = await getData().getTitleAnalytics(session, titleId, { range });
+    record = await getData().getTitleAnalytics(session, titleId, { range, window });
   } catch (e) {
     if (isDataError(e) && (e.code === "not_found" || e.code === "forbidden")) notFound();
     throw e;
@@ -43,5 +46,6 @@ export async function loadAnalyticsPage(titleId: string, view: View, searchParam
   const canEdit = !isStaffPreview(session) && (session.producerRole === "approver" || session.producerRole === "reviewer");
   const data = getData();
   const [campaigns, results] = await Promise.all([data.listPromoCampaigns(session), data.listCreativeResults(session, { titleId })]);
-  return { session, locale, record, range, base, query: `?range=${range}`, canEdit, platform: platformStatus(record.analytics_state), ads: adStatus(campaigns.filter((c) => c.title_id === titleId), results) };
+  const query = window ? `?range=custom&from=${window.from}&to=${window.to}` : `?range=${range}`;
+  return { session, locale, record, range, window, base, query, canEdit, platform: platformStatus(record.analytics_state), ads: adStatus(campaigns.filter((c) => c.title_id === titleId), results) };
 }

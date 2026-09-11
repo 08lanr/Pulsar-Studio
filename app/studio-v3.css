@@ -1355,3 +1355,25 @@ button.metric-label { border:0; background:none; padding:0; font:inherit; color:
 @media (max-width: 640px) { .nx-board-head { display:none; } .nx-board-row { grid-template-columns:28px minmax(0,1fr); } .nx-board-num { text-align:left; } .nx-board-num .nx-lift { justify-self:start; } }
 .nx-board-section > header { flex-direction:column; align-items:stretch; gap:12px; }
 .nx-board-section > header .rs-tool-row { flex-wrap:wrap; }
+
+/* ---- Company & accounts: the goal leads, the profile reads as chips (2026-09-10) ---- */
+.co-profile { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; margin-top: 16px; }
+.co-goal { background: var(--brand-tint); border: 1px solid var(--brand-tint-2); border-radius: var(--radius); padding: 22px 24px; }
+.co-label { display: block; font-size: var(--t-micro); letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent-text); font-weight: var(--w-strong); }
+.co-goal-text { font-size: 20px; line-height: 1.35; margin: 8px 0 18px; text-wrap-style: balance; color: var(--text); }
+.co-goal-meta { display: flex; gap: 28px; flex-wrap: wrap; font-size: var(--t-small); color: var(--text-muted); }
+.co-goal-meta b { display: block; font-size: 22px; line-height: 1.1; color: var(--text); font-variant-numeric: tabular-nums; margin-bottom: 2px; }
+.co-facts { display: grid; margin: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); align-content: start; }
+.co-facts > div { padding: 14px 18px; border-bottom: 1px solid var(--border-light); }
+.co-facts > div:last-child { border-bottom: 0; }
+.co-facts dt { font-size: var(--t-micro); letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-faint); margin: 0 0 8px; }
+.co-facts dd { margin: 0; display: flex; flex-wrap: wrap; gap: 6px; font-size: var(--t-small); }
+@media (max-width: 900px) { .co-profile { grid-template-columns: 1fr; } }
+
+/* ---- My catalog filtered by story type (from What to make next) ---- */
+.pf-trope-filter { display: flex; align-items: center; gap: 12px; margin: 0 0 10px; font-size: var(--t-small); color: var(--text-muted); }
+.pf-tropes { margin-top: 6px; }
+.pf-title .pf-tropes .trope { font-size: var(--t-micro); }
+
+/* ---- Pulsar service fee line under a proposed budget ---- */
+.ws-fee-line { color: var(--text); font-variant-numeric: tabular-nums; }

@@ -5,7 +5,9 @@ import { BandPill, ScoreDial } from "@/components/producer/research/workspace-ui
 import { IconPlus } from "@/components/producer/icons";
 import { getData } from "@/lib/data";
 import { t } from "@/lib/i18n";
+import { TropeChip } from "@/components/producer/research/ui";
 import { ASSESSMENT_VERSION, BAND_ORDER, type Band } from "@/lib/research/assessment";
+import { isTropeId, tropeLabel, type TropeId } from "@/lib/research/taxonomy";
 import { adStatus, platformStatus } from "@/lib/research/title-status";
 import { loadWorkspace } from "@/lib/research/workspace";
 
@@ -17,7 +19,7 @@ import { loadWorkspace } from "@/lib/research/workspace";
 
 export const dynamic = "force-dynamic";
 
-type Search = { view?: string; q?: string; sort?: string; band?: string; range?: string };
+type Search = { view?: string; q?: string; sort?: string; band?: string; range?: string; trope?: string };
 type Sort = "score" | "name";
 
 export default async function MyCatalog({ searchParams }: { searchParams: Search }) {
@@ -36,16 +38,18 @@ export default async function MyCatalog({ searchParams }: { searchParams: Search
   const q = searchParams.q?.trim().toLowerCase() ?? "";
   const band = BAND_ORDER.includes(searchParams.band as Band) ? (searchParams.band as Band) : null;
   const sort: Sort = searchParams.sort === "name" ? "name" : "score";
+  // What to make next links "N of your titles carry it" here with ?trope=, so the board's story type filters the catalog.
+  const trope: TropeId | null = searchParams.trope && isTropeId(searchParams.trope) ? searchParams.trope : null;
   const byName = (a: string, b: string) => a.localeCompare(b, "zh");
 
   const rows = ws.titles
     .map((x) => ({ x, tiktok: perfById.get(x.summary.id) ?? null, platform: platformStatus(perfById.get(x.summary.id)?.analytics_state), ads: adStatus(x.campaigns, x.results) }))
-    .filter(({ x }) => (!band || x.assessment.band === band) && (!q || x.summary.name_zh.toLowerCase().includes(q) || (x.summary.name_en ?? "").toLowerCase().includes(q)))
+    .filter(({ x }) => (!band || x.assessment.band === band) && (!trope || x.assessment.tropes.includes(trope)) && (!q || x.summary.name_zh.toLowerCase().includes(q) || (x.summary.name_en ?? "").toLowerCase().includes(q)))
     .sort((a, b) => (sort === "name" ? byName(a.x.summary.name_zh, b.x.summary.name_zh) : b.x.assessment.score - a.x.assessment.score || byName(a.x.summary.name_zh, b.x.summary.name_zh)));
 
   const href = (patch: Partial<Search>) => {
     const p = new URLSearchParams();
-    const current: Partial<Search> = { q: q || undefined, sort: sort === "score" ? undefined : sort, band: band ?? undefined };
+    const current: Partial<Search> = { q: q || undefined, sort: sort === "score" ? undefined : sort, band: band ?? undefined, trope: trope ?? undefined };
     for (const [k, v] of Object.entries({ ...current, ...patch })) if (v) p.set(k, String(v));
     const s = p.toString();
     return s ? `/producer/titles?${s}` : "/producer/titles";
@@ -71,6 +75,7 @@ export default async function MyCatalog({ searchParams }: { searchParams: Search
             {(["score", "name"] as Sort[]).map((s) => <option key={s} value={s}>{t(locale, "ws.catalog.sort")}: {t(locale, `ws.catalog.sort.${s}`)}</option>)}
           </select>
           {band && <input type="hidden" name="band" value={band} />}
+          {trope && <input type="hidden" name="trope" value={trope} />}
           <button className="btn btn-outline btn-sm" type="submit">{t(locale, "research.search.go")}</button>
         </form>
         <div className="pf-quick" role="group" aria-label={t(locale, "ws.catalog.band")}>
@@ -78,6 +83,13 @@ export default async function MyCatalog({ searchParams }: { searchParams: Search
           {BAND_ORDER.map((b) => <a key={b} className={`filter-chip${band === b ? " on" : ""}`} aria-current={band === b ? "true" : undefined} href={href({ band: band === b ? undefined : b })}>{t(locale, `ws.band.${b}`)}</a>)}
         </div>
       </div>
+      {trope && (
+        <p className="pf-trope-filter" role="status">
+          <span className="trope is-hot">{t(locale, "pf.filter.trope", { name: tropeLabel(trope, locale) })}</span>
+          <span>{t(locale, "pf.count", { n: rows.length })}</span>
+          <a className="pf-cell-link" href={href({ trope: "" })}>{t(locale, "pf.filter.clear")}&nbsp;×</a>
+        </p>
+      )}
       {ws.truncated && <p className="pf-legend"><span className="ev ev-inferred">{t(locale, "research.mine.truncated", { shown: ws.titles.length, total: ws.total })}</span></p>}
 
       {rows.length === 0 ? (
@@ -107,7 +119,7 @@ export default async function MyCatalog({ searchParams }: { searchParams: Search
                 const a = x.assessment;
                 return (
                   <tr key={id}>
-                    <th scope="row" className="pf-title"><a href={open} lang={lang}>{primary}</a>{secondary && <small lang={lang === "en" ? "zh-CN" : "en"}>{secondary}</small>}</th>
+                    <th scope="row" className="pf-title"><a href={open} lang={lang}>{primary}</a>{secondary && <small lang={lang === "en" ? "zh-CN" : "en"}>{secondary}</small>}{trope && <span className="rs-tropes pf-tropes">{a.tropes.slice(0, 4).map((id) => <TropeChip key={id} id={id} locale={locale} hot={id === trope} />)}</span>}</th>
                     <td className="pf-cell">
                       <PlatformChip status={platform} locale={locale} />
                       <a className="pf-cell-link" href={linked ? `${open}/analytics` : `${open}/analytics/link`}>{t(locale, linked ? "pf.cell.viewTiktok" : "pf.cell.link")}&nbsp;→</a>

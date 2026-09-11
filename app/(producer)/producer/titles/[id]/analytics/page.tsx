@@ -4,7 +4,10 @@ import FunnelList from "@/components/producer/analytics/FunnelList";
 import SeriesChart from "@/components/producer/analytics/SeriesChart";
 import { loadAnalyticsPage } from "@/components/producer/analytics/load";
 import { t } from "@/lib/i18n";
-import type { RateMetric } from "@/lib/analytics/types";
+import { getData } from "@/lib/data";
+import { titleHealth } from "@/lib/analytics/health";
+import { presetFor, type RateMetric } from "@/lib/analytics/types";
+import { fmtValue } from "@/components/producer/analytics/bits";
 
 // /producer/titles/[id]/analytics — Overview: the range control, five
 // defined headline measures with a valid previous-period comparison, one
@@ -17,14 +20,38 @@ export const dynamic = "force-dynamic";
 
 const VIEW_HREF = { overview: "", revenue: "/revenue", episodes: "/episodes", acquisition: "/acquisition" } as const;
 
-export default async function AnalyticsOverview({ params, searchParams }: { params: { id: string }; searchParams: { range?: string } }) {
+const TONE_CLASS = { good: "is-good", bad: "is-bad", flat: "is-flat", na: "is-na" } as const;
+const OVERALL_CLASS = { good: "state-available", mixed: "state-collecting_history", weak: "state-stale", na: "state-unavailable" } as const;
+
+export default async function AnalyticsOverview({ params, searchParams }: { params: { id: string }; searchParams: { range?: string; from?: string; to?: string } }) {
   const data = await loadAnalyticsPage(params.id, "overview", searchParams);
-  const { locale, record: a, base, query } = data;
+  const { locale, record: a, base, query, session } = data;
   const o = a.overview;
+  // The catalog comparison uses the matching preset (custom windows compare on 30 days; the panel says so).
+  const catalog = o ? await getData().listTitlePerformance(session, { range: presetFor(a.range) }) : [];
+  const health = o ? titleHealth(a, catalog) : null;
   return (
     <AnalyticsFrame data={data} view="overview">
       {o && (
         <>
+          {health && (
+            <section className="rs-panel an-health" aria-labelledby="an-health-h">
+              <div className="rs-panel-head">
+                <div><h2 id="an-health-h">{t(locale, "an.health.title")}</h2><p>{t(locale, "an.health.sub", { range: t(locale, `an.range.${presetFor(a.range)}`) })}</p></div>
+                <span className={`state ${OVERALL_CLASS[health.overall]} an-health-overall`}>{t(locale, `an.health.overall.${health.overall}`)}</span>
+              </div>
+              <ul className="an-health-rows">
+                {health.rows.map((r) => (
+                  <li key={r.key}>
+                    <span className="an-health-label">{t(locale, `an.health.row.${r.key}`)}{r.key === "revenue" && <small> · {t(locale, `an.health.basis.${health.revenue_basis}`)}</small>}</span>
+                    <b>{r.value == null ? "–" : fmtValue(r.value, r.unit)}</b>
+                    <span className={`an-health-verdict ${TONE_CLASS[r.tone]}`}>{t(locale, r.verdict_key)}</span>
+                    <small>{t(locale, r.note_key, r.note_vars)}</small>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           <section className="an-headlines" aria-label={t(locale, "an.ov.headlines")}>
             {o.headlines.map((h) => (
               <div key={h.key} className="an-headline">

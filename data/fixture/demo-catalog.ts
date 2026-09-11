@@ -2,7 +2,7 @@
 // with a broad, uneven catalog so every screen of the workspace has
 // something real to show and the workflow can be stress-tested. Fourteen
 // titles in different states of readiness, a company profile, watchlist,
-// imported reports, four experiments at different stages (one with
+// imported reports, four experiments at different stages (two with
 // demo-labelled results) and the customer's account inventory.
 //
 // Everything here is invented and deterministic (stable ids, one timeline).
@@ -49,6 +49,7 @@ const AT0 = "2026-07-15T02:00:00.000Z";
 const AT1 = "2026-08-20T06:00:00.000Z";
 const AT2 = "2026-09-01T03:00:00.000Z";
 const AT3 = "2026-09-06T09:00:00.000Z";
+const AT4 = "2026-09-09T09:00:00.000Z";
 
 type Adapt = "none" | "draft" | "approved";
 
@@ -398,10 +399,31 @@ export function buildDemoSeed(): DemoSeed {
   batch(2, 6, ["ready", "ready", "ready", "ready", "ready"], AT3);
   // C3: title 4, a brief only (no creatives yet).
   campaign(3, 4, "Fake-heiress reveal — US test, round 1", "draft", { hypothesis: "The fake-heiress reveal is a stronger US hook than the designer comeback.", audience: "US women 25-44, revenge and family drama viewers", first_batch: 2 }, false, AT3);
-  // C4: title 8, approved batch and budget, waiting for submission.
-  campaign(4, 8, "Face-slap in 3 seconds — US test, round 1", "approved", { hypothesis: "Male-audience face-slap plays on US TikTok when the reveal comes in the first 3 seconds.", audience: "US men 25-44 who watch action and revenge shorts", first_batch: 2 }, true, AT3);
+  // C4: title 8, a finished round: launched through the fake TikTok with demo results on the two selected creatives,
+  // one change request still open. The demo reads this round, then drafts the next one from Prepare.
+  const C4_SHA = "4a7c1e9b2d6f8a0c3e5b7d9f1a2c4e6b8d0f2a4c6e8b0d1f3a5c7e9b2d4f6a8c";
+  const c4 = campaign(4, 8, "Face-slap in 3 seconds — US test, round 1", "submitted", { hypothesis: "Male-audience face-slap plays on US TikTok when the reveal comes in the first 3 seconds.", audience: "US men 25-44 who watch action and revenge shorts", first_batch: 2 }, true, AT3);
+  c4.grow_campaign_id = "1700000000000000004";
+  c4.advertiser_id = DEMO_ADVERTISER_ID;
+  c4.tiktok_adgroup_id = "1710000000000000004";
+  c4.launched_at = AT3;
   batch(4, 8, ["approved", "approved", "rejected", "not_selected", "not_selected"], AT3);
-  approvals.push({ id: uuid(B.approval, 4), campaign_id: demoCampaignId(4), producer_id: PRODUCER_ID, approved_by: PRODUCER_USER_ID, manifest: { demo: true, creatives: [creativeId(4, 1), creativeId(4, 2)], budget_usd: 100 }, manifest_sha256: "demo-manifest-c4", created_at: AT3 });
+  creatives.find((c) => c.id === creativeId(4, 3))!.rejection_note = "Open on the reveal, not the dinner. Keep it under 15 seconds.";
+  approvals.push({ id: uuid(B.approval, 4), campaign_id: c4.id, producer_id: PRODUCER_ID, approved_by: PRODUCER_USER_ID, manifest: { demo: true, creatives: [creativeId(4, 1), creativeId(4, 2)], budget_usd: 100 }, manifest_sha256: C4_SHA, created_at: AT3 });
+  handoffs.push({ id: uuid(B.handoff, 4), campaign_id: c4.id, idempotency_key: `studio:${c4.external_id}:${C4_SHA}`, request_sha256: C4_SHA, status: "accepted", grow_campaign_id: c4.grow_campaign_id, response: { mode: "fake", tiktok_campaign_id: c4.grow_campaign_id }, error: null, attempted_at: AT3 });
+  launches.push({
+    id: uuid(B.launch, 4), campaign_id: c4.id, idempotency_key: `studio:${c4.external_id}:${C4_SHA}`, manifest_sha256: C4_SHA, status: "done", mode: "fake",
+    advertiser_id: DEMO_ADVERTISER_ID, identity_id: DEMO_IDENTITY_ID, identity_type: "BC_AUTH_TT", budget_usd: 100, destination_url: "https://www.reelshort.com/",
+    uploaded_videos: { [creativeId(4, 1)]: "v1700000000000000041", [creativeId(4, 2)]: "v1700000000000000042" },
+    covers: { v1700000000000000041: "c1700000000000000041", v1700000000000000042: "c1700000000000000042" },
+    tiktok_campaign_id: c4.grow_campaign_id, tiktok_adgroup_id: c4.tiktok_adgroup_id,
+    ad_ids: { [creativeId(4, 1)]: "1720000000000000041", [creativeId(4, 2)]: "1720000000000000042" },
+    error: null, attempts: 1, created_by: PRODUCER_USER_ID, created_at: AT3, started_at: AT3, heartbeat_at: AT3, finished_at: AT3,
+  });
+  results.push(
+    { id: uuid(B.result, 3), campaign_id: c4.id, creative_id: creativeId(4, 1), source: "demo", window_start: "2026-09-06", window_end: "2026-09-09", impressions: 41_200, video_views: 24_300, hook_hold_rate: 0.36, clicks: 700, spend_usd: 51.8, landing_actions: 96, observed_at: AT4 },
+    { id: uuid(B.result, 4), campaign_id: c4.id, creative_id: creativeId(4, 2), source: "demo", window_start: "2026-09-06", window_end: "2026-09-09", impressions: 37_900, video_views: 15_900, hook_hold_rate: 0.23, clicks: 341, spend_usd: 48.2, landing_actions: 39, observed_at: AT4 }
+  );
 
   const noIdentity = { identity_id: null, identity_type: null, assigned_by: null, assigned_at: null } as const;
   const accounts: CompanyAccount[] = [

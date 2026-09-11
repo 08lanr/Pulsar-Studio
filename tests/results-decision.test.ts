@@ -28,7 +28,12 @@ test("the demo seed is one coherent journey: distinct campaigns, one per title, 
   const c1 = seed.campaigns.find((c) => c.id === demoCampaignId(1))!;
   assert.equal(c1.title_id, demoTitleId(1));
   assert.equal(c1.status, "submitted");
-  assert.ok(seed.results.every((r) => r.campaign_id === c1.id));
+  // two finished rounds carry results: campaign 1 (title 1) and campaign 4 (Rise of the Son-in-Law, title 8)
+  const c4 = seed.campaigns.find((c) => c.id === demoCampaignId(4))!;
+  assert.equal(c4.status, "submitted");
+  assert.ok(seed.results.every((r) => r.campaign_id === c1.id || r.campaign_id === c4.id));
+  assert.equal(seed.results.filter((r) => r.campaign_id === c1.id).length, 2);
+  assert.equal(seed.results.filter((r) => r.campaign_id === c4.id).length, 2);
 
   // building the store links the clip under .uploads so previews play
   resetFixtureStore("demo");

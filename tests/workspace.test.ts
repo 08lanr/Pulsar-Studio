@@ -46,7 +46,7 @@ test("the demo seed fills every workspace surface and stays company-scoped", asy
   assert.equal((await fixtureData.listPromoCampaigns(producer())).length, 4);
   assert.equal((await fixtureData.listCompanyAccounts(producer())).length, 4);
   const results = await fixtureData.listCreativeResults(producer());
-  assert.equal(results.length, 2);
+  assert.equal(results.length, 4, "two finished rounds, two ads each");
   assert.ok(results.every((r) => r.source === "demo"), "seeded results are labelled demo");
   assert.deepEqual(await fixtureData.listTitles(other()), []);
   assert.deepEqual(await fixtureData.listCreativeResults(other()), []);
@@ -78,8 +78,8 @@ test("the workspace scores every demo title with reasons; bands and next actions
   const own = t1.assessment.components.find((c) => c.key === "own_evidence")!;
   assert.ok(own.facts.some((f) => f.key === "ws.fact.resultsDemo"), "demo results are named as demo");
   const t2 = ws.titles.find((x) => x.summary.id === demoTitleId(2))!;
-  assert.equal(t2.assessment.band, "hold", "expired license holds the title regardless of story match");
-  assert.ok(t2.assessment.next.includes("ws.next.renew"));
+  assert.ok(!t2.assessment.components.flatMap((c) => c.facts).some((f) => f.key.startsWith("ws.fact.rights")), "the rights window is not scored");
+  assert.ok(!t2.assessment.next.includes("ws.next.renew"));
   const t13 = ws.titles.find((x) => x.summary.id === demoTitleId(13))!;
   assert.ok(t13.assessment.score < t1.assessment.score);
   assert.equal(ws.titles[0].assessment.score, Math.max(...ws.titles.map((x) => x.assessment.score)), "sorted by score");
@@ -131,17 +131,21 @@ test("demo results are labelled, idempotent, and only follow a submitted campaig
   assert.equal((await fixtureData.listCreativeResults(producer())).length, before);
   // A fresh submitted campaign gets deterministic demo rows, one per selected creative.
   resetFakeTikTok();
-  const c4 = await fixtureData.submitPromoCampaign(producer(), demoCampaignId(4), await demoPick());
-  assert.equal(c4.campaign.status, "launching");
-  await runLaunch(c4.launch!.id);
-  assert.equal((await fixtureData.getPromoCampaign(producer(), demoCampaignId(4))).campaign.status, "submitted");
-  const d4 = await fixtureData.simulateDemoResults(producer(), demoCampaignId(4));
-  assert.equal(d4.results.length, 2);
-  assert.ok(d4.results.every((r) => r.source === "demo"));
-  assert.equal(d4.campaign.status, "live");
-  const again = await fixtureData.simulateDemoResults(producer(), demoCampaignId(4));
-  assert.equal(again.results.length, 2);
-  await assert.rejects(fixtureData.simulateDemoResults(staff(), demoCampaignId(4)));
+  // Campaign 2 is approved here the way the producer does it: every ad, then the batch, then the budget.
+  await fixtureData.approveAllPromoCreatives(producer(), demoCampaignId(2));
+  await fixtureData.approvePromoCampaign(producer(), demoCampaignId(2));
+  await fixtureData.approveExperiment(producer(), demoCampaignId(2));
+  const c2 = await fixtureData.submitPromoCampaign(producer(), demoCampaignId(2), await demoPick());
+  assert.equal(c2.campaign.status, "launching");
+  await runLaunch(c2.launch!.id);
+  assert.equal((await fixtureData.getPromoCampaign(producer(), demoCampaignId(2))).campaign.status, "submitted");
+  const d2 = await fixtureData.simulateDemoResults(producer(), demoCampaignId(2));
+  assert.equal(d2.results.length, 5);
+  assert.ok(d2.results.every((r) => r.source === "demo"));
+  assert.equal(d2.campaign.status, "live");
+  const again = await fixtureData.simulateDemoResults(producer(), demoCampaignId(2));
+  assert.equal(again.results.length, 5);
+  await assert.rejects(fixtureData.simulateDemoResults(staff(), demoCampaignId(2)));
 });
 
 test("experiment stages follow the loop", async () => {
@@ -151,7 +155,7 @@ test("experiment stages follow the loop", async () => {
   const stage = (n: number) => experimentStage(campaigns.find((c) => c.id === demoCampaignId(n))!, results);
   assert.deepEqual(stage(3), { stage: "brief", waiting: "generate" });
   assert.deepEqual(stage(2), { stage: "concepts", waiting: "select" });
-  assert.deepEqual(stage(4), { stage: "submitted", waiting: "submit" });
+  assert.deepEqual(stage(4), { stage: "decide", waiting: "decide" });
   assert.deepEqual(stage(1), { stage: "decide", waiting: "decide" });
 });
 

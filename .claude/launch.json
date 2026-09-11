@@ -4,13 +4,28 @@
     {
       "name": "studio",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
+      "port": 3200
+    },
+    {
+      "name": "studio-fixture",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set DATA_SOURCE=fixture&& set TIKTOK_MODE=sandbox&& npm run dev"
+      ],
       "port": 3200
     },
     {
       "name": "studio-prod",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "start"],
+      "runtimeArgs": [
+        "run",
+        "start"
+      ],
       "port": 3200
     },
     {

@@ -1,4 +1,5 @@
 import { portalSession, producerLocale } from "@/components/producer/server";
+import { fmtLift } from "@/lib/research/lift";
 import { ChartCell, GrowthCell, LiftChip, ReasonChips, titleHref } from "@/components/producer/research/NextParts";
 import { EvidenceTag, MetricLabel, ObservationCell, StateBadge, TropeChip, fmtPct, platformName } from "@/components/producer/research/ui";
 import { getData } from "@/lib/data";
@@ -127,7 +128,7 @@ export default async function WhatToMakeNext({ searchParams }: { searchParams: {
                     <small>
                       {s.pair && <>{t(locale, "next.col.pair")} {tropeLabel(s.pair, locale)} ({s.pair_titles}/{s.fresh_titles})</>}
                       {s.pair && s.catalog_ids.length > 0 && " · "}
-                      {s.catalog_ids.length > 0 && <a href="/producer/titles">{t(locale, "next.mine.yours", { n: s.catalog_ids.length })}</a>}
+                      {s.catalog_ids.length > 0 && <a href={`/producer/titles?trope=${s.id}`}>{t(locale, "next.mine.yours", { n: s.catalog_ids.length })}</a>}
                     </small>
                   </div>
                   <div className="nx-board-share">
@@ -169,7 +170,7 @@ export default async function WhatToMakeNext({ searchParams }: { searchParams: {
                   <h3>{tropeLabel(s.id, locale)}{s.pair && <span> {t(locale, "next.recipe.with")} {tropeLabel(s.pair, locale)}</span>}</h3>
                   <div className="nx-recipe-share">
                     <span><b>{fmtPct(s.fresh_share)}</b> · {t(locale, "next.recipe.share", { n: s.fresh_titles, sample: s.fresh_sample })}</span>
-                    {s.lift != null && <span>{t(locale, "next.recipe.lift", { lift: s.lift.toFixed(2) })}</span>}
+                    {s.lift != null && <span>{t(locale, "next.recipe.lift", { pct: fmtLift(s.lift) })}</span>}
                     {s.growth_pct != null && win && <span>{t(locale, "next.recipe.growth", { pct: s.growth_pct, start: win.start })}</span>}
                   </div>
                   <ul>

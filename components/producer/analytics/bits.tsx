@@ -6,7 +6,7 @@
 
 import { EvidenceTag, fmtCount, fmtPct, fmtUtc } from "@/components/producer/research/ui";
 import { definition } from "@/lib/analytics/definitions";
-import { RANGES, type AnalyticsRange, type AnalyticsState, type Comparison, type Freshness, type Metric, type RateMetric, type ReportingPeriod } from "@/lib/analytics/types";
+import { RANGES, type AnalyticsRange, type AnalyticsState, type AnalyticsWindow, type Comparison, type Freshness, type Metric, type RateMetric, type ReportingPeriod } from "@/lib/analytics/types";
 import { t, type Locale } from "@/lib/i18n";
 
 export type Unit = "count" | "usd" | "rate" | "usd_per_user" | "seconds" | "ratio";
@@ -98,8 +98,9 @@ export function DemoChip({ locale }: { locale: Locale }) {
   return <span className="state state-unavailable an-demo-chip" title={t(locale, "an.demo.note")}>{t(locale, "an.demo.chip")}</span>;
 }
 
-export function RangeControl({ range, hrefFor, locale }: { range: AnalyticsRange; hrefFor: (r: AnalyticsRange) => string; locale: Locale }) {
-  return (
+/** The presets, plus (when `action` is given) a from/to date form that submits ?range=custom&from&to. */
+export function RangeControl({ range, hrefFor, locale, window, action, dataThrough }: { range: AnalyticsRange; hrefFor: (r: AnalyticsRange) => string; locale: Locale; window?: AnalyticsWindow | null; action?: string; dataThrough?: string | null }) {
+  const presets = (
     <nav className="seg an-range" aria-label={t(locale, "an.range.label")}>
       {RANGES.map((r) => (
         <a key={r} className={`seg-btn${r === range ? " on" : ""}`} aria-current={r === range ? "true" : undefined} href={hrefFor(r)}>
@@ -107,6 +108,20 @@ export function RangeControl({ range, hrefFor, locale }: { range: AnalyticsRange
         </a>
       ))}
     </nav>
+  );
+  if (!action) return presets;
+  const custom = range === "custom";
+  return (
+    <div className="an-range-wrap">
+      {presets}
+      <form className={`an-range-custom${custom ? " on" : ""}`} method="get" action={action} aria-label={t(locale, "an.range.custom")}>
+        <input type="hidden" name="range" value="custom" />
+        <label><span className="sr-only">{t(locale, "an.range.from")}</span><input type="date" name="from" defaultValue={window?.from ?? ""} max={dataThrough ?? undefined} required /></label>
+        <span aria-hidden>→</span>
+        <label><span className="sr-only">{t(locale, "an.range.to")}</span><input type="date" name="to" defaultValue={window?.to ?? dataThrough ?? ""} max={dataThrough ?? undefined} required /></label>
+        <button className="btn btn-outline btn-sm" type="submit">{t(locale, "an.range.apply")}</button>
+      </form>
+    </div>
   );
 }
 
@@ -120,16 +135,18 @@ export function PeriodText({ p, locale }: { p: ReportingPeriod | null; locale: L
   );
 }
 
+/** The data bar: period, data through, last sync and source as labelled cells; source notes as chips on the right. */
 export function FreshnessLine({ f, period, locale, source }: { f: Freshness; period: ReportingPeriod | null; locale: Locale; source: string | null }) {
   return (
-    <p className="an-fresh rs-meta">
-      <PeriodText p={period} locale={locale} />
-      {f.data_through && <span>{t(locale, "an.dataThrough", { date: f.data_through, lag: f.lag_days ?? 0 })}</span>}
-      {f.last_sync_at && <span>{t(locale, "an.lastSync", { at: fmtUtc(f.last_sync_at) })}</span>}
-      {f.source_label && <span>{t(locale, "an.source")}: {f.source_label}</span>}
-      {source === "demo" && <EvidenceTag evidence="estimated" locale={locale} />}
-      {f.notes.map((n) => <span key={n} className="ev ev-inferred">{t(locale, n)}</span>)}
-    </p>
+    <div className="an-meta" role="group" aria-label={t(locale, "an.meta.label")}>
+      <dl>
+        {period && <div><dt>{t(locale, "an.meta.period")}</dt><dd><PeriodText p={period} locale={locale} /></dd></div>}
+        {f.data_through && <div><dt>{t(locale, "an.meta.dataThrough")}</dt><dd>{f.data_through}<small>{t(locale, "an.meta.lag", { lag: f.lag_days ?? 0 })}</small></dd></div>}
+        {f.last_sync_at && <div><dt>{t(locale, "an.meta.lastSync")}</dt><dd>{fmtUtc(f.last_sync_at)}</dd></div>}
+        {f.source_label && <div><dt>{t(locale, "an.source")}</dt><dd>{f.source_label}{source === "demo" && <EvidenceTag evidence="estimated" locale={locale} />}</dd></div>}
+      </dl>
+      {f.notes.length > 0 && <div className="an-meta-notes">{f.notes.map((n) => <span key={n} className="ev ev-inferred">{t(locale, n)}</span>)}</div>}
+    </div>
   );
 }
 

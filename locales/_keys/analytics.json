@@ -1162,5 +1162,157 @@
   "an.basis.none": {
     "en": "Revenue",
     "zh": "收入"
+  },
+  "an.range.custom": {
+    "en": "Custom dates",
+    "zh": "自定义日期"
+  },
+  "an.range.from": {
+    "en": "From",
+    "zh": "开始"
+  },
+  "an.range.to": {
+    "en": "To",
+    "zh": "结束"
+  },
+  "an.range.apply": {
+    "en": "Apply",
+    "zh": "应用"
+  },
+  "an.meta.label": {
+    "en": "Reporting period and data freshness",
+    "zh": "统计周期与数据新鲜度"
+  },
+  "an.meta.period": {
+    "en": "Period",
+    "zh": "统计周期"
+  },
+  "an.meta.dataThrough": {
+    "en": "Data through",
+    "zh": "数据截至"
+  },
+  "an.meta.lag": {
+    "en": "{lag} d lag",
+    "zh": "延迟 {lag} 天"
+  },
+  "an.meta.lastSync": {
+    "en": "Last sync",
+    "zh": "上次同步"
+  },
+  "an.health.title": {
+    "en": "How this title is doing",
+    "zh": "这部剧表现如何"
+  },
+  "an.health.sub": {
+    "en": "A rules-based reading of the numbers on this page against the previous period and your own catalog ({range}). It describes; it does not predict.",
+    "zh": "按固定规则，把本页数据与上一周期和你的剧库（{range}）对比。只描述，不预测。"
+  },
+  "an.health.overall.good": {
+    "en": "Doing well",
+    "zh": "表现良好"
+  },
+  "an.health.overall.mixed": {
+    "en": "Mixed",
+    "zh": "好坏参半"
+  },
+  "an.health.overall.weak": {
+    "en": "Needs attention",
+    "zh": "需要关注"
+  },
+  "an.health.overall.na": {
+    "en": "Not enough data",
+    "zh": "数据不足"
+  },
+  "an.health.row.revenue": {
+    "en": "Revenue",
+    "zh": "收入"
+  },
+  "an.health.row.audience": {
+    "en": "Viewers",
+    "zh": "观众"
+  },
+  "an.health.row.conversion": {
+    "en": "Payer conversion",
+    "zh": "付费转化率"
+  },
+  "an.health.row.rpv": {
+    "en": "Revenue per viewer",
+    "zh": "单观众收入"
+  },
+  "an.health.row.roas": {
+    "en": "Revenue vs ad spend",
+    "zh": "收入 vs 广告花费"
+  },
+  "an.health.basis.publisher_earnings": {
+    "en": "publisher earnings",
+    "zh": "发行方收入"
+  },
+  "an.health.basis.iap_gross": {
+    "en": "IAP gross",
+    "zh": "内购流水"
+  },
+  "an.health.verdict.up": {
+    "en": "Up",
+    "zh": "上升"
+  },
+  "an.health.verdict.down": {
+    "en": "Down",
+    "zh": "下降"
+  },
+  "an.health.verdict.flat": {
+    "en": "Flat",
+    "zh": "持平"
+  },
+  "an.health.verdict.above": {
+    "en": "Above your catalog median",
+    "zh": "高于剧库中位数"
+  },
+  "an.health.verdict.below": {
+    "en": "Below your catalog median",
+    "zh": "低于剧库中位数"
+  },
+  "an.health.verdict.inline": {
+    "en": "In line with your catalog",
+    "zh": "与剧库持平"
+  },
+  "an.health.verdict.roasAbove": {
+    "en": "Revenue above ad spend",
+    "zh": "收入高于广告花费"
+  },
+  "an.health.verdict.roasBelow": {
+    "en": "Revenue below ad spend",
+    "zh": "收入低于广告花费"
+  },
+  "an.health.verdict.na": {
+    "en": "n/a",
+    "zh": "暂无"
+  },
+  "an.health.note.vsPrev": {
+    "en": "{pct} vs the previous period",
+    "zh": "较上一周期 {pct}"
+  },
+  "an.health.note.noPrev": {
+    "en": "No comparable previous period",
+    "zh": "没有可比较的上一周期"
+  },
+  "an.health.note.noValue": {
+    "en": "Not reported for this period",
+    "zh": "本周期未上报"
+  },
+  "an.health.note.vsCatalog": {
+    "en": "Your catalog median is {median} across {n} other titles with data",
+    "zh": "你的剧库中位数为 {median}（{n} 部有数据的其他剧集）"
+  },
+  "an.health.note.noCatalog": {
+    "en": "No other title with data to compare",
+    "zh": "没有其他有数据的剧集可比较"
+  },
+  "an.health.note.roas": {
+    "en": "Blended {roas}×: all title revenue in this period (${revenue}) ÷ ad spend whose reporting window overlaps it (${spend}). Not attributed to the ads.",
+    "zh": "综合 {roas} 倍：本周期全部收入（${revenue}）÷ 报告窗口与本周期重叠的广告花费（${spend}）。不是广告归因。"
+  },
+  "an.health.note.noSpend": {
+    "en": "No ad spend reported in this period",
+    "zh": "本周期没有上报的广告花费"
   }
 }

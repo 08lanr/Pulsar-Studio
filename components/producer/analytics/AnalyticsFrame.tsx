@@ -19,18 +19,19 @@ const VIEWS: { id: View; key: string; sub: string }[] = [
 ];
 
 export default function AnalyticsFrame({ data, view, children }: { data: AnalyticsPageData; view: View; children: React.ReactNode }) {
-  const { locale, record: a, range, base, query, canEdit, platform, ads } = data;
+  const { locale, record: a, range, window, base, query, canEdit, platform, ads } = data;
   const name = locale === "en" ? a.title.name_en || a.title.name_zh : a.title.name_zh;
   const lang = locale === "en" && a.title.name_en ? "en" : "zh-CN";
   const secondary = locale === "en" ? (a.title.name_en ? a.title.name_zh : null) : a.title.name_en;
-  const hrefFor = (r: AnalyticsRange) => `${view === "overview" ? base : `${base}/${view}`}?range=${r}`;
+  const viewPath = view === "overview" ? base : `${base}/${view}`;
+  const hrefFor = (r: AnalyticsRange) => `${viewPath}?range=${r}`;
   const hasData = !!a.overview;
   const state = a.analytics_state;
   const linkHref = `${base}/link${query}`;
 
   const adStep = ads.flow ? t(locale, `workflow.step.${ads.flow.step}`) : null;
   return (
-    <TitleShell locale={locale} titleId={a.title.id} name_zh={a.title.name_zh} name_en={a.title.name_en} platform={platform} ads={ads.status} adStep={adStep} section="tiktok" tiktokQuery={query} catalogHref={`/producer/tiktok?range=${range}`} catalogLabel="ws.nav.tiktok"
+    <TitleShell locale={locale} titleId={a.title.id} name_zh={a.title.name_zh} name_en={a.title.name_en} platform={platform} ads={ads.status} adStep={adStep} section="tiktok" tiktokQuery={query} catalogHref={`/producer/tiktok?range=${range === "custom" ? "30d" : range}`} catalogLabel="ws.nav.tiktok"
       actions={canEdit ? <a className="btn btn-outline btn-sm" href={linkHref}>{t(locale, a.listing ? "an.link.change" : "an.link.cta")}</a> : <span className="ev ev-inferred">{t(locale, "an.readOnly")}</span>}>
       <div className="rs-tool-row an-chips">
         <StateChip state={state} locale={locale} />
@@ -46,7 +47,7 @@ export default function AnalyticsFrame({ data, view, children }: { data: Analyti
           ))}
           <a className={`tab${view === "link" ? " on" : ""}`} href={linkHref} aria-current={view === "link" ? "page" : undefined}>{t(locale, "an.nav.link")}</a>
         </nav>
-        <RangeControl range={range} hrefFor={hrefFor} locale={locale} />
+        <RangeControl range={range} hrefFor={hrefFor} locale={locale} window={window} action={viewPath} dataThrough={a.freshness.data_through} />
       </div>
 
       <FreshnessLine f={a.freshness} period={a.period} locale={locale} source={a.source} />

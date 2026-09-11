@@ -9,6 +9,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useT } from "@/components/locale";
+import { feeLineVars } from "@/lib/promote/fee";
 import { readResults, type AdReading, type Verdict } from "@/lib/research/results";
 import type { CreativeResult, ExperimentSpec, PromoCampaign, PromoCreative } from "@/lib/types";
 
@@ -49,7 +50,7 @@ export default function ExperimentPanel({ campaign, creatives, results, canEdit,
   const { tt, locale } = useT();
   const router = useRouter();
   const e = campaign.experiment;
-  const [budget, setBudget] = useState(String(e?.budget_usd ?? 100));
+  const [budget, setBudget] = useState(String(e?.budget_usd ?? 500));
   const [hypothesis, setHypothesis] = useState(e?.hypothesis ?? "");
   const [audience, setAudience] = useState(e?.audience ?? "");
   const [batch, setBatch] = useState(String(e?.first_batch ?? 2));
@@ -135,6 +136,7 @@ export default function ExperimentPanel({ campaign, creatives, results, canEdit,
               <label className="ws-span">{tt("ws.exp.audience")}<input className="input" maxLength={200} value={audience} onChange={(x) => setAudience(x.target.value)} required /></label>
               <label className="ws-span">{tt("ws.exp.hypothesis")}<textarea className="textarea" maxLength={400} rows={3} value={hypothesis} onChange={(x) => setHypothesis(x.target.value)} required /></label>
             </div>
+            <p className="hint ws-fee-line" role="note">{tt("ws.exp.feeLine", feeLineVars(Number(budget) || 0))}</p>
             <p className="hint">{tt("ws.exp.budgetNote")}</p>
           </fieldset>
           {dirty && <p className="hint" role="status">{tt("review.unsavedBrief")}</p>}

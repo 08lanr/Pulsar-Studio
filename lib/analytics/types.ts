@@ -11,13 +11,39 @@ import type { CreativeResult, PromoCampaign } from "@/lib/types";
 
 // ---- ranges and periods ----------------------------------------------------------------
 
-export type AnalyticsRange = "7d" | "30d" | "90d";
-export const RANGES: AnalyticsRange[] = ["7d", "30d", "90d"];
-export const RANGE_DAYS: Record<AnalyticsRange, number> = { "7d": 7, "30d": 30, "90d": 90 };
+export type PresetRange = "7d" | "30d" | "90d";
+/** "custom" means the record was computed for an explicit from/to window (AnalyticsWindow). */
+export type AnalyticsRange = PresetRange | "custom";
+export const RANGES: PresetRange[] = ["7d", "30d", "90d"];
+export const RANGE_DAYS: Record<PresetRange, number> = { "7d": 7, "30d": 30, "90d": 90 };
+
+/** An explicit reporting window, inclusive ISO dates (decision 2026-09-10: a date filter beside the presets). */
+export type AnalyticsWindow = { from: string; to: string };
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+function isoDay(raw: unknown): string | null {
+  const v = Array.isArray(raw) ? raw[0] : raw;
+  if (typeof v !== "string" || !ISO_DAY.test(v)) return null;
+  const d = new Date(`${v}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== v ? null : v;
+}
+
+/** A valid from/to pair (from ≤ to, at most 366 days), else null: an incomplete or bad pair falls back to the preset. */
+export function parseWindow(from: unknown, to: unknown): AnalyticsWindow | null {
+  const f = isoDay(from), t = isoDay(to);
+  if (!f || !t || f > t) return null;
+  const days = Math.round((Date.parse(`${t}T00:00:00Z`) - Date.parse(`${f}T00:00:00Z`)) / 86_400_000) + 1;
+  return days > 366 ? null : { from: f, to: t };
+}
+
+/** The preset that stands in for a custom window where only presets exist (the catalog comparison). */
+export function presetFor(range: AnalyticsRange): PresetRange {
+  return range === "custom" ? "30d" : range;
+}
 
 export function parseRange(raw: string | string[] | undefined | null): AnalyticsRange {
   const v = Array.isArray(raw) ? raw[0] : raw;
-  return RANGES.includes(v as AnalyticsRange) ? (v as AnalyticsRange) : "30d";
+  return RANGES.includes(v as PresetRange) ? (v as PresetRange) : "30d";
 }
 
 /** A reporting period: inclusive calendar days, one timezone, one currency. */

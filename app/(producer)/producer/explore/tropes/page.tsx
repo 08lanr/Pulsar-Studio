@@ -1,4 +1,5 @@
 import MarketFilters from '@/components/producer/research/MarketFilters';
+import { fmtLift } from "@/lib/research/lift";
 import { parseMarketFilter, type Query } from '@/lib/research/navigation';
 import ExploreNav from "@/components/producer/research/ExploreNav";
 import { portalSession, producerLocale } from "@/components/producer/server";
@@ -83,7 +84,7 @@ export default async function ExploreTropes({ searchParams }: { searchParams: Se
               <span className="gt-num strong">{fmtPct(s.cohort_share)}</span>
               <span className="gt-num">{s.titles}/{s.sample}</span>
               <span className="gt-num">{fmtPct(s.share)}</span>
-              <span className="gt-num">{s.lift == null ? "–" : `${s.lift.toFixed(2)}×`}</span>
+              <span className="gt-num">{s.lift == null ? "–" : fmtLift(s.lift)}</span>
               <span className={`gt-num${s.delta_pts == null ? " gt-muted" : s.delta_pts > 0 ? " delta-up" : s.delta_pts < 0 ? " delta-down" : ""}`}>
                 {s.delta_pts == null ? "–" : s.delta_pts > 0 ? `↑ ${t(locale, "research.delta.up", { n: s.delta_pts })}` : s.delta_pts < 0 ? `↓ ${t(locale, "research.delta.down", { n: Math.abs(s.delta_pts) })}` : t(locale, "research.delta.flat")}
               </span>

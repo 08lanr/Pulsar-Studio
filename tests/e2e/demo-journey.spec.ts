@@ -230,6 +230,8 @@ test("error feedback: the API refuses out-of-order actions and invalid input", a
   const cta = page.locator(".promo-brief-side button.btn-primary");
   const err = page.locator(".promo-brief-side .err");
   await expect(cta).toBeEnabled();
+  // The destination is prefilled with tiktok.com; clear it so the validation path is exercised.
+  await page.getByLabel("Where viewers should go (required)").fill("");
   await cta.click();
   await expect(err).toContainText("the target audience");
   await expect(err).toContainText("the destination link");

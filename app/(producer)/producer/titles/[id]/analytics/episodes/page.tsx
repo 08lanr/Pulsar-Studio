@@ -13,7 +13,7 @@ import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
-export default async function AnalyticsEpisodes({ params, searchParams }: { params: { id: string }; searchParams: { range?: string } }) {
+export default async function AnalyticsEpisodes({ params, searchParams }: { params: { id: string }; searchParams: { range?: string; from?: string; to?: string } }) {
   const data = await loadAnalyticsPage(params.id, "episodes", searchParams);
   const { locale, record: a, base, query } = data;
   const ep = a.episodes;

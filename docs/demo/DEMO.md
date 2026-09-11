@@ -23,7 +23,8 @@ results (simulated)" on every result, `source: "demo"` on the rows).
    30 %, CTR ≥ 1.2 %), names the ad that met both, shows the underlying
    metrics with CPM/CPC/cost per action and provenance, and offers the next
    round (scale the best ad / test more ads / stop).
-5. **A second campaign to run live in the rehearsal.** Campaign 2 on "Bride of
+5. **Rise of the Son-in-Law (title 8)** carries secret identity and revenge, has the largest TikTok audience in the catalog, and its round 1 ("Face-slap in 3 seconds") is finished: launched on the fake TikTok, demo results on its two selected ads, one change request open. The rehearsal reads that round and drafts the next one from Prepare; My catalog filters by story type from What to make next (`?trope=`).
+6. **A second campaign to run live in the rehearsal.** Campaign 2 on "Bride of
    the Wolf King" has five ads in review: choose → approve ads → approve
    budget → launch → simulate demo results → decide, all on the fixture.
 

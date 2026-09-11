@@ -1,4 +1,5 @@
 import { t, type Locale } from "@/lib/i18n";
+import { fmtLift } from "@/lib/research/lift";
 import type { FreshReason, FreshTitle, RisingTrope } from "@/lib/research/next";
 import { fmtCount, platformName } from "./ui";
 
@@ -72,7 +73,7 @@ export function LiftChip({ trope, locale }: { trope: RisingTrope; locale: Locale
   const label = trope.lift >= 1.2 ? "next.lift.up" : trope.lift <= 0.8 ? "next.lift.down" : "next.lift.flat";
   return (
     <span className={`nx-lift ${cls}`} title={t(locale, label)}>
-      {trope.lift >= 1.2 ? "▲" : trope.lift <= 0.8 ? "▽" : "•"} {trope.lift.toFixed(2)}×
+      {trope.lift >= 1.2 ? "▲" : trope.lift <= 0.8 ? "▽" : "•"} {fmtLift(trope.lift)}
     </span>
   );
 }

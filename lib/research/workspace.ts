@@ -9,6 +9,9 @@ import type { CompanyAccount, CreativeResult, PromoCampaignSummary, TitleDetail,
 import { assessTitle, type Assessment } from "./assessment";
 import { scoreSnapshot, tropeStats, type CatalogRow, type Scores, type TropeStat } from "./engine";
 import { hasHistory } from "./history";
+import { whatToMakeNext } from "./next";
+import { snapshotHistory } from "./snapshot";
+import { TROPES } from "./taxonomy";
 import type { MarketView } from "./snapshot";
 import type { ReportRow, ResearchProfile } from "./types";
 
@@ -70,7 +73,11 @@ export async function loadWorkspace(session: Session, opts: { titleId?: string; 
   ]);
   const snapshot = market.latest;
   const scores = snapshot ? scoreSnapshot(snapshot) : new Map();
-  const stats = snapshot ? tropeStats(snapshot.titles, scores, snapshot.taxonomy_version) : [];
+  // Day-over-day movement needs the previous day's cohort shares; fresh-launch lifts come from the board What to make next shows.
+  const previous = market.previous ? { titles: market.previous.titles, scores: scoreSnapshot(market.previous), taxonomy_version: market.previous.taxonomy_version } : null;
+  const stats = snapshot ? tropeStats(snapshot.titles, scores, snapshot.taxonomy_version, previous) : [];
+  const board = snapshot ? whatToMakeNext({ latest: snapshot, previous: market.previous, history: snapshotHistory(), days: market.days, scores, limits: { tropes: TROPES.length, titles: 0, movers: 0 } }) : null;
+  const fresh = board ? { lifts: new Map(board.tropes.map((t) => [t.id, t.lift] as const)), sample: board.fresh_sample } : null;
   const history = hasHistory(market.days);
   const rows = opts.titleId ? catalog.rows.filter((r) => r.id === opts.titleId) : catalog.rows;
   const summaryById = new Map(summaries.map((s) => [s.id, s]));
@@ -94,7 +101,7 @@ export async function loadWorkspace(session: Session, opts: { titleId?: string; 
       summary,
       row,
       detail: { license_start: facts.license_start, license_end: facts.license_end, approved_episodes: facts.approved_episodes, episodes_with_video: facts.episodes_with_video, china_metrics: (detail?.title.china_metrics ?? null) as never },
-      market: { titles: snapshot?.titles ?? [], scores, stats, observed_at: snapshot?.observed_at ?? null, hasHistory: history },
+      market: { titles: snapshot?.titles ?? [], scores, stats, observed_at: snapshot?.observed_at ?? null, hasHistory: history, fresh },
       reports: myReports,
       campaigns: myCampaigns,
       results: myResults,

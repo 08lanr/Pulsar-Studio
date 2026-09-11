@@ -22,6 +22,7 @@ import type {
   AnalyticsLink,
   AnalyticsListing,
   AnalyticsRange,
+  AnalyticsWindow,
   AnalyticsState,
   CampaignAnalytics,
   CohortMeasure,
@@ -60,6 +61,8 @@ export type ComputeInput = {
   campaigns: PromoCampaign[];
   results: CreativeResult[];
   range: AnalyticsRange;
+  /** Explicit dates; when set, `range` is "custom" and the period is this window clamped to the data. */
+  window?: AnalyticsWindow | null;
   today: string;
 };
 
@@ -101,11 +104,21 @@ function ppChange(now: number | null, prev: number | null): Comparison | null {
 
 // ---- periods ---------------------------------------------------------------------------------
 
-function periodFor(ds: TitleDataset, range: AnalyticsRange, to: string): ReportingPeriod {
-  const days = RANGE_DAYS[range];
-  const from = addDays(to, -(days - 1));
+function periodBetween(ds: TitleDataset, from: string, to: string): ReportingPeriod {
+  const days = daysBetween(from, to) + 1;
   const covered = ds.daily.filter((d) => d.date >= from && d.date <= to).length;
   return { from, to, timezone: "UTC", currency: "USD", days, covered_days: covered };
+}
+
+function periodFor(ds: TitleDataset, range: AnalyticsRange, to: string, window?: AnalyticsWindow | null): ReportingPeriod {
+  if (window) {
+    // Clamp the requested window to the data the source has delivered; a window entirely after the data is one empty day.
+    const end = window.to < to ? window.to : to;
+    const start = window.from <= end ? window.from : end;
+    return periodBetween(ds, start, end);
+  }
+  const days = RANGE_DAYS[range === "custom" ? "30d" : range];
+  return periodBetween(ds, addDays(to, -(days - 1)), to);
 }
 
 function sliceDaily(ds: TitleDataset, p: ReportingPeriod): DailyRow[] {
@@ -523,7 +536,7 @@ export function computeTitleAnalytics(input: ComputeInput): TitleAnalytics {
   const base = `/producer/titles/${title.id}/analytics`;
   const identity = { producer_id: title.producer_id, provider_account_ref: listing?.provider_account_ref ?? null, listing_id: link?.listing_id ?? null, title_id: title.id };
   const hasData = !!(link && ds && ds.daily.length);
-  const period = hasData ? periodFor(ds!, range, ds!.data_through) : null;
+  const period = hasData ? periodFor(ds!, range, ds!.data_through, input.window) : null;
   const state = deriveState(link, ds, period, today);
   const fresh = freshness(state, ds, listing, today);
   const t = hasData ? totals(sliceDaily(ds!, period!), ds!.dedupe) : null;
@@ -547,7 +560,7 @@ export function computeTitleAnalytics(input: ComputeInput): TitleAnalytics {
   };
   if (!hasData || !period || !t) return shell;
   // Previous period: only when both periods are fully covered.
-  let prev: ReportingPeriod | null = periodFor(ds!, range, addDays(period.from, -1));
+  let prev: ReportingPeriod | null = periodBetween(ds!, addDays(period.from, -period.days), addDays(period.from, -1));
   if (period.covered_days < period.days || prev.covered_days < prev.days) prev = null;
   const tp = prev ? totals(sliceDaily(ds!, prev), ds!.dedupe) : null;
   const rev = revenue(ds!, period, t);

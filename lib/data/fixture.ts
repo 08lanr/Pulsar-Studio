@@ -32,7 +32,7 @@ import { examplesFromApprovedVersions } from "@/lib/translation-memory";
 import { cloneFixtureDb, type FixtureDb, type FixtureSeed } from "@/data/fixture";
 import { buildDemoAnalytics, DEMO_TODAY } from "@/data/fixture/demo-analytics";
 import { computeTitleAnalytics, performanceRow } from "@/lib/analytics/compute";
-import { parseRange } from "@/lib/analytics/types";
+import { parseRange, AnalyticsRange, AnalyticsWindow } from "@/lib/analytics/types";
 import type { AnalyticsLink } from "@/lib/analytics/types";
 import { DEMO_CLIP_SOURCE } from "@/data/fixture/demo-catalog";
 import { buildVersionSnapshot, snapshotSha256 } from "@/data/fixture/snapshot";
@@ -2585,7 +2585,7 @@ export const fixtureData: DataLayer = {
   async getTitleAnalytics(session, titleId, opts) {
     const { db } = store();
     const title = readableTitle(db, session, titleId);
-    return clone(analyticsRecord(db, session, title, parseRange(opts?.range), opts?.today ?? DEMO_TODAY));
+    return clone(analyticsRecord(db, session, title, opts?.window ? "custom" : parseRange(opts?.range), opts?.today ?? DEMO_TODAY, opts?.window ?? null));
   },
 
   async listAnalyticsListings(session) {
@@ -2646,7 +2646,7 @@ function analyticsLinks(db: FixtureDb): AnalyticsLink[] {
   return db.analytics_links;
 }
 
-function analyticsRecord(db: FixtureDb, session: Session, title: Title, range: ReturnType<typeof parseRange>, today: string) {
+function analyticsRecord(db: FixtureDb, session: Session, title: Title, range: AnalyticsRange, today: string, window: AnalyticsWindow | null = null) {
   const demo = buildDemoAnalytics(today);
   const link = analyticsLinks(db).find((x) => x.title_id === title.id) ?? null;
   const listing = link ? demo.listings.find((l) => l.id === link.listing_id) ?? null : null;
@@ -2663,5 +2663,6 @@ function analyticsRecord(db: FixtureDb, session: Session, title: Title, range: R
     results: (db.promo_results ?? []).filter((r) => ids.has(r.campaign_id)),
     range,
     today,
+    window,
   });
 }

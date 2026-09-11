@@ -1,103 +1,406 @@
 {
-  "next.nav.overview": { "en": "US overview", "zh": "美国市场总览" },
-  "next.nav.next": { "en": "What to make next", "zh": "下一部拍什么" },
-  "next.nav.explore": { "en": "Explore listings", "zh": "浏览上架剧集" },
-  "next.nav.sources": { "en": "Data & sources", "zh": "数据与来源" },
-  "next.title": { "en": "What to make next", "zh": "下一部拍什么" },
-  "next.sub": { "en": "Recent and newly discovered listings in the {date} collection. These are English-language public catalogs; viewer location and US demand are not verified.", "zh": "来自 {date} 采集的近期及新发现剧集。数据源为英文公开目录，尚未验证观众所在地区或美国市场需求。" },
-  "next.window.ok": { "en": "Growth compares {start} → {end} ({days} day).", "zh": "增长对比 {start} → {end}（{days} 天）。" },
-  "next.window.collecting": { "en": "One published day so far. Growth and first-seen dates appear after the next collection.", "zh": "目前只有一天数据。下次采集后显示增长和首次出现日期。" },
-  "next.fresh": { "en": "{fresh} of {sample} listings are new by at least one observed reason.", "zh": "{sample} 部作品中 {fresh} 部至少有一项观测到的新作依据。" },
-  "next.basis": { "en": "New flags, lists, release dates and counters are read from the platforms; story types are tagged by Studio (taxonomy {version}).", "zh": "新作标记、榜单、上线日期和计数均读取自平台；题材由 Studio 标注（分类 {version}）。" },
-  "next.tropes.title": { "en": "Story types in recent listings", "zh": "近期剧集的题材" },
-  "next.tropes.sub": { "en": "Share of new listings carrying each story type (multi-label), against its share of every listing. A lift above 1 means the platforms are launching more of it than they carry.", "zh": "各题材在新作中的占比（多标签），与其在全量作品中的占比对比。提升值大于 1 表示平台上新该题材的比例高于库存。" },
-  "next.col.trope": { "en": "Story type", "zh": "题材" },
-  "next.col.freshShare": { "en": "Of new listings", "zh": "新作占比" },
-  "next.col.lift": { "en": "vs all listings", "zh": "对比全量" },
-  "next.col.growth": { "en": "New listings' growth", "zh": "新作增长" },
-  "next.col.pair": { "en": "Launched with", "zh": "常见搭配" },
-  "next.col.mine": { "en": "In my catalog", "zh": "我的剧库" },
-  "next.col.examples": { "en": "New examples", "zh": "新作示例" },
-  "next.lift.up": { "en": "launching more", "zh": "上新偏多" },
-  "next.lift.down": { "en": "launching less", "zh": "上新偏少" },
-  "next.lift.flat": { "en": "in line", "zh": "持平" },
-  "next.lift.na": { "en": "too few new listings", "zh": "新作太少" },
-  "next.growth.median": { "en": "median of {n} listings", "zh": "{n} 部剧集的中位数" },
-  "next.growth.none": { "en": "no baseline yet", "zh": "尚无基线" },
-  "next.sort.share": { "en": "Most common in recent listings", "zh": "近期最常见题材" },
-  "next.sort.lift": { "en": "Largest share increase", "zh": "占比增幅最高" },
-  "next.sort.growth": { "en": "Fastest view growth", "zh": "增长最快" },
-  "next.sort.label": { "en": "Order", "zh": "排序" },
-  "next.mine.count": { "en": "{n} titles", "zh": "{n} 部" },
-  "next.mine.none": { "en": "none", "zh": "无" },
-  "next.mine.profile": { "en": "One of your story types", "zh": "你的题材之一" },
-  "next.recipes.title": { "en": "Story ideas to explore", "zh": "选题参考" },
-  "next.recipes.sub": { "en": "Starting points based on recurring story types. Review the examples and develop your own premise; these patterns do not establish audience demand.", "zh": "根据常见题材组合提供构思起点。参考案例后发展自己的故事，这些模式不代表已验证的观众需求。" },
-  "next.recipe.with": { "en": "with", "zh": "搭配" },
-  "next.recipe.share": { "en": "{n} of {sample} new listings", "zh": "{sample} 部新上架中的 {n} 部" },
-  "next.recipe.lift": { "en": "lift {lift}×", "zh": "提升 {lift}×" },
-  "next.recipe.growth": { "en": "median growth {pct}% since {start}", "zh": "自 {start} 中位增长 {pct}%" },
-  "next.recipe.structure": { "en": "{trope} appears with {pair} in {n} recent listings. Explore whether that combination fits your own story.", "zh": "{n} 部近期剧集同时包含{trope}与{pair}。可探索这一组合是否适合你的故事。" },
-  "next.recipe.structureSolo": { "en": "Explore a story built around {trope}, using your own characters and setting.", "zh": "围绕{trope}构思故事，发展自己的角色与背景。" },
-  "next.recipe.format": { "en": "Format on {platform}: median {eps} episodes, paywall at episode {pay}.", "zh": "{platform} 规格：中位 {eps} 集，第 {pay} 集起付费。" },
-  "next.recipe.formatNoPay": { "en": "Format on {platform}: median {eps} episodes.", "zh": "{platform} 规格：中位 {eps} 集。" },
-  "next.recipe.premise": { "en": "Example synopsis opening", "zh": "案例简介开头" },
-  "next.recipe.mine": { "en": "Matching titles in your catalog: {n}", "zh": "剧库中同题材剧集：{n} 部" },
-  "next.recipe.mineNone": { "en": "Nothing in your catalog carries this story type yet", "zh": "你的剧库还没有这个题材" },
-  "next.recipe.see": { "en": "See the new listings", "zh": "查看新上架" },
-  "next.platform.title": { "en": "New on {platform}", "zh": "{platform} 新上架" },
-  "next.platform.sub": { "en": "{fresh} of {sample} listings. Ranked by views added per day, within {platform} only.", "zh": "{sample} 部剧集中 {fresh} 部新上架。仅在 {platform} 内按日均新增观看排序。" },
-  "next.platform.subNoHistory": { "en": "{fresh} of {sample} listings. Ranked by prominence, within {platform} only.", "zh": "{sample} 部剧集中 {fresh} 部新上架。仅在 {platform} 内按显著度排序。" },
-  "next.platform.none": { "en": "No listing on {platform} is flagged new in this collection.", "zh": "本次采集中 {platform} 没有标记为新上架的剧集。" },
-  "next.col.title": { "en": "Title", "zh": "剧集" },
-  "next.col.why": { "en": "Why it's new", "zh": "新作依据" },
-  "next.col.when": { "en": "Released / first seen", "zh": "上线 / 首次出现" },
-  "next.col.views": { "en": "Views", "zh": "观看" },
-  "next.col.growthDay": { "en": "Growth / day", "zh": "日增长" },
-  "next.col.chart": { "en": "Chart", "zh": "榜单" },
-  "next.col.story": { "en": "Story types", "zh": "题材" },
-  "next.reason.platform_new": { "en": "Platform flags it new", "zh": "平台标记为新上架" },
-  "next.reason.released": { "en": "Released {date}", "zh": "上线于 {date}" },
-  "next.reason.new_list": { "en": "{name} #{rank}", "zh": "{name} #{rank}" },
-  "next.reason.first_seen": { "en": "First seen by Studio {date}", "zh": "Studio 首次发现于 {date}" },
-  "next.when.released": { "en": "Released {date}", "zh": "上线 {date}" },
-  "next.when.daysAgo": { "en": "{n} days ago", "zh": "{n} 天前" },
-  "next.when.today": { "en": "today", "zh": "今天" },
-  "next.when.seen": { "en": "Seen since {date}", "zh": "自 {date} 出现" },
-  "next.when.noDate": { "en": "No release date exposed", "zh": "平台未公开上线日期" },
-  "next.growth.no_baseline": { "en": "No baseline yet", "zh": "尚无基线" },
-  "next.growth.collecting": { "en": "Collecting", "zh": "采集中" },
-  "next.growth.anomaly": { "en": "Counter reset", "zh": "计数异常" },
-  "next.growth.incomparable": { "en": "Not comparable", "zh": "不可比" },
-  "next.growth.perDay": { "en": "/day", "zh": "/天" },
-  "next.chart.entered": { "en": "entered", "zh": "新进榜" },
-  "next.chart.up": { "en": "up {n}", "zh": "升 {n}" },
-  "next.chart.down": { "en": "down {n}", "zh": "降 {n}" },
-  "next.chart.same": { "en": "held", "zh": "持平" },
-  "next.chart.none": { "en": "Not charted", "zh": "未上榜" },
-  "next.movers.title": { "en": "Fastest growing on {platform}", "zh": "{platform} 增长最快" },
-  "next.movers.sub": { "en": "Views added per day since the previous collection, any listing, within {platform} only.", "zh": "自上次采集以来的日均新增观看，不限新作，仅 {platform} 内比较。" },
-  "next.movers.collecting": { "en": "Appears after the next collection.", "zh": "下次采集后显示。" },
-  "next.more": { "en": "All new listings on {platform}", "zh": "{platform} 全部新上架" },
-  "next.overview.title": { "en": "What to make next", "zh": "下一部拍什么" },
-  "next.overview.sub": { "en": "Story types the US platforms are launching now, from the {date} collection.", "zh": "美国平台现在正在上新的题材，来自 {date} 的采集。" },
-  "next.overview.link": { "en": "Open what to make next", "zh": "查看下一部拍什么" },
-  "next.overview.tropes": { "en": "Launching now", "zh": "正在上新" },
-  "next.overview.titles": { "en": "Newest listings", "zh": "最新上架" },
-  "next.overview.noData": { "en": "No published market collection yet.", "zh": "尚无已发布的市场采集。" },
-  "next.mine.yours": { "en": "{n} of your titles carry it", "zh": "你的 {n} 部剧集含此题材" },
-  "next.summary.fresh": { "en": "Recent / newly found listings", "zh": "近期 / 新发现剧集" },
-  "next.summary.leading": { "en": "Leading story type", "zh": "新上架中最多的题材" },
-  "next.summary.ofNew": { "en": "of new listings", "zh": "的新上架剧集" },
-  "next.summary.rising": { "en": "Rising fastest", "zh": "增长最快的题材" },
-  "next.summary.mine": { "en": "Your titles on a top-3 story type", "zh": "你的剧集命中前三题材" },
-  "next.summary.mineHint": { "en": "Open My catalog", "zh": "打开我的剧库" },
-  "next.board.examples": { "en": "See {n} new listings", "zh": "查看 {n} 部新上架" },
-  "next.tropes.subShort": { "en": "Share is the percentage of recent listings with this story type. A listing can have several types, so shares can exceed 100% in total. A 1.2× ratio means its share is 20% higher than in the full catalog. Growth is the median change in each listing’s own platform counter across listings with a baseline; small samples may be unrepresentative.", "zh": "占比表示近期剧集中该题材的比例。一部剧集可有多个题材，因此占比之和可超过 100%。1.2 倍表示其占比较完整目录高 20%。增长率是有历史数据剧集各自平台计数变化的中位数，小样本可能不具代表性。" },
-  "next.board.share": { "en": "Share of new listings", "zh": "新上架占比" },
-  "next.board.lift": { "en": "Share vs catalog", "zh": "占比对比" },
-  "next.col.viewGrowth": { "en": "View growth", "zh": "观看增长" },
-  "next.board.ofNew": { "en": "{n} of {sample} new", "zh": "新上架 {sample} 部中的 {n} 部" },
-  "next.board.see": { "en": "See all", "zh": "查看全部" },
-  "next.tropes.oneLine": { "en": "Compare the story types in recent listings and changes in their reported views.", "zh": "对比近期剧集中的题材及其平台播放量变化。" }
+  "next.nav.overview": {
+    "en": "US overview",
+    "zh": "美国市场总览"
+  },
+  "next.nav.next": {
+    "en": "What to make next",
+    "zh": "下一部拍什么"
+  },
+  "next.nav.explore": {
+    "en": "Explore listings",
+    "zh": "浏览上架剧集"
+  },
+  "next.nav.sources": {
+    "en": "Data & sources",
+    "zh": "数据与来源"
+  },
+  "next.title": {
+    "en": "What to make next",
+    "zh": "下一部拍什么"
+  },
+  "next.sub": {
+    "en": "Recent and newly discovered listings in the {date} collection. These are English-language public catalogs; viewer location and US demand are not verified.",
+    "zh": "来自 {date} 采集的近期及新发现剧集。数据源为英文公开目录，尚未验证观众所在地区或美国市场需求。"
+  },
+  "next.window.ok": {
+    "en": "Growth compares {start} → {end} ({days} day).",
+    "zh": "增长对比 {start} → {end}（{days} 天）。"
+  },
+  "next.window.collecting": {
+    "en": "One published day so far. Growth and first-seen dates appear after the next collection.",
+    "zh": "目前只有一天数据。下次采集后显示增长和首次出现日期。"
+  },
+  "next.fresh": {
+    "en": "{fresh} of {sample} listings are new by at least one observed reason.",
+    "zh": "{sample} 部作品中 {fresh} 部至少有一项观测到的新作依据。"
+  },
+  "next.basis": {
+    "en": "New flags, lists, release dates and counters are read from the platforms; story types are tagged by Studio (taxonomy {version}).",
+    "zh": "新作标记、榜单、上线日期和计数均读取自平台；题材由 Studio 标注（分类 {version}）。"
+  },
+  "next.tropes.title": {
+    "en": "Story types in recent listings",
+    "zh": "近期剧集的题材"
+  },
+  "next.tropes.sub": {
+    "en": "Share of new listings carrying each story type (multi-label), compared with its share of every listing. A positive number means the platforms are launching more of it than usual.",
+    "zh": "各题材在新上架条目中的占比（多标签），与其在全部条目中的占比对比。正数表示平台上新该题材的比例高于平时。"
+  },
+  "next.col.trope": {
+    "en": "Story type",
+    "zh": "题材"
+  },
+  "next.col.freshShare": {
+    "en": "Of new listings",
+    "zh": "新作占比"
+  },
+  "next.col.lift": {
+    "en": "vs its usual share",
+    "zh": "对比平时占比"
+  },
+  "next.col.growth": {
+    "en": "New listings' growth",
+    "zh": "新作增长"
+  },
+  "next.col.pair": {
+    "en": "Launched with",
+    "zh": "常见搭配"
+  },
+  "next.col.mine": {
+    "en": "In my catalog",
+    "zh": "我的剧库"
+  },
+  "next.col.examples": {
+    "en": "New examples",
+    "zh": "新作示例"
+  },
+  "next.lift.up": {
+    "en": "launching more",
+    "zh": "上新偏多"
+  },
+  "next.lift.down": {
+    "en": "launching less",
+    "zh": "上新偏少"
+  },
+  "next.lift.flat": {
+    "en": "in line",
+    "zh": "持平"
+  },
+  "next.lift.na": {
+    "en": "too few new listings",
+    "zh": "新作太少"
+  },
+  "next.growth.median": {
+    "en": "median of {n} listings",
+    "zh": "{n} 部剧集的中位数"
+  },
+  "next.growth.none": {
+    "en": "no baseline yet",
+    "zh": "尚无基线"
+  },
+  "next.sort.share": {
+    "en": "Most common in recent listings",
+    "zh": "近期最常见题材"
+  },
+  "next.sort.lift": {
+    "en": "Largest share increase",
+    "zh": "占比增幅最高"
+  },
+  "next.sort.growth": {
+    "en": "Fastest view growth",
+    "zh": "增长最快"
+  },
+  "next.sort.label": {
+    "en": "Order",
+    "zh": "排序"
+  },
+  "next.mine.count": {
+    "en": "{n} titles",
+    "zh": "{n} 部"
+  },
+  "next.mine.none": {
+    "en": "none",
+    "zh": "无"
+  },
+  "next.mine.profile": {
+    "en": "One of your story types",
+    "zh": "你的题材之一"
+  },
+  "next.recipes.title": {
+    "en": "Story ideas to explore",
+    "zh": "选题参考"
+  },
+  "next.recipes.sub": {
+    "en": "Starting points based on recurring story types. Review the examples and develop your own premise; these patterns do not establish audience demand.",
+    "zh": "根据常见题材组合提供构思起点。参考案例后发展自己的故事，这些模式不代表已验证的观众需求。"
+  },
+  "next.recipe.with": {
+    "en": "with",
+    "zh": "搭配"
+  },
+  "next.recipe.share": {
+    "en": "{n} of {sample} new listings",
+    "zh": "{sample} 部新上架中的 {n} 部"
+  },
+  "next.recipe.lift": {
+    "en": "{pct} vs its usual share",
+    "zh": "较平时占比 {pct}"
+  },
+  "next.recipe.growth": {
+    "en": "median growth {pct}% since {start}",
+    "zh": "自 {start} 中位增长 {pct}%"
+  },
+  "next.recipe.structure": {
+    "en": "{trope} appears with {pair} in {n} recent listings. Explore whether that combination fits your own story.",
+    "zh": "{n} 部近期剧集同时包含{trope}与{pair}。可探索这一组合是否适合你的故事。"
+  },
+  "next.recipe.structureSolo": {
+    "en": "Explore a story built around {trope}, using your own characters and setting.",
+    "zh": "围绕{trope}构思故事，发展自己的角色与背景。"
+  },
+  "next.recipe.format": {
+    "en": "Format on {platform}: median {eps} episodes, paywall at episode {pay}.",
+    "zh": "{platform} 规格：中位 {eps} 集，第 {pay} 集起付费。"
+  },
+  "next.recipe.formatNoPay": {
+    "en": "Format on {platform}: median {eps} episodes.",
+    "zh": "{platform} 规格：中位 {eps} 集。"
+  },
+  "next.recipe.premise": {
+    "en": "Example synopsis opening",
+    "zh": "案例简介开头"
+  },
+  "next.recipe.mine": {
+    "en": "Matching titles in your catalog: {n}",
+    "zh": "剧库中同题材剧集：{n} 部"
+  },
+  "next.recipe.mineNone": {
+    "en": "Nothing in your catalog carries this story type yet",
+    "zh": "你的剧库还没有这个题材"
+  },
+  "next.recipe.see": {
+    "en": "See the new listings",
+    "zh": "查看新上架"
+  },
+  "next.platform.title": {
+    "en": "New on {platform}",
+    "zh": "{platform} 新上架"
+  },
+  "next.platform.sub": {
+    "en": "{fresh} of {sample} listings. Ranked by views added per day, within {platform} only.",
+    "zh": "{sample} 部剧集中 {fresh} 部新上架。仅在 {platform} 内按日均新增观看排序。"
+  },
+  "next.platform.subNoHistory": {
+    "en": "{fresh} of {sample} listings. Ranked by prominence, within {platform} only.",
+    "zh": "{sample} 部剧集中 {fresh} 部新上架。仅在 {platform} 内按显著度排序。"
+  },
+  "next.platform.none": {
+    "en": "No listing on {platform} is flagged new in this collection.",
+    "zh": "本次采集中 {platform} 没有标记为新上架的剧集。"
+  },
+  "next.col.title": {
+    "en": "Title",
+    "zh": "剧集"
+  },
+  "next.col.why": {
+    "en": "Why it's new",
+    "zh": "新作依据"
+  },
+  "next.col.when": {
+    "en": "Released / first seen",
+    "zh": "上线 / 首次出现"
+  },
+  "next.col.views": {
+    "en": "Views",
+    "zh": "观看"
+  },
+  "next.col.growthDay": {
+    "en": "Growth / day",
+    "zh": "日增长"
+  },
+  "next.col.chart": {
+    "en": "Chart",
+    "zh": "榜单"
+  },
+  "next.col.story": {
+    "en": "Story types",
+    "zh": "题材"
+  },
+  "next.reason.platform_new": {
+    "en": "Platform flags it new",
+    "zh": "平台标记为新上架"
+  },
+  "next.reason.released": {
+    "en": "Released {date}",
+    "zh": "上线于 {date}"
+  },
+  "next.reason.new_list": {
+    "en": "{name} #{rank}",
+    "zh": "{name} #{rank}"
+  },
+  "next.reason.first_seen": {
+    "en": "First seen by Studio {date}",
+    "zh": "Studio 首次发现于 {date}"
+  },
+  "next.when.released": {
+    "en": "Released {date}",
+    "zh": "上线 {date}"
+  },
+  "next.when.daysAgo": {
+    "en": "{n} days ago",
+    "zh": "{n} 天前"
+  },
+  "next.when.today": {
+    "en": "today",
+    "zh": "今天"
+  },
+  "next.when.seen": {
+    "en": "Seen since {date}",
+    "zh": "自 {date} 出现"
+  },
+  "next.when.noDate": {
+    "en": "No release date exposed",
+    "zh": "平台未公开上线日期"
+  },
+  "next.growth.no_baseline": {
+    "en": "No baseline yet",
+    "zh": "尚无基线"
+  },
+  "next.growth.collecting": {
+    "en": "Collecting",
+    "zh": "采集中"
+  },
+  "next.growth.anomaly": {
+    "en": "Counter reset",
+    "zh": "计数异常"
+  },
+  "next.growth.incomparable": {
+    "en": "Not comparable",
+    "zh": "不可比"
+  },
+  "next.growth.perDay": {
+    "en": "/day",
+    "zh": "/天"
+  },
+  "next.chart.entered": {
+    "en": "entered",
+    "zh": "新进榜"
+  },
+  "next.chart.up": {
+    "en": "up {n}",
+    "zh": "升 {n}"
+  },
+  "next.chart.down": {
+    "en": "down {n}",
+    "zh": "降 {n}"
+  },
+  "next.chart.same": {
+    "en": "held",
+    "zh": "持平"
+  },
+  "next.chart.none": {
+    "en": "Not charted",
+    "zh": "未上榜"
+  },
+  "next.movers.title": {
+    "en": "Fastest growing on {platform}",
+    "zh": "{platform} 增长最快"
+  },
+  "next.movers.sub": {
+    "en": "Views added per day since the previous collection, any listing, within {platform} only.",
+    "zh": "自上次采集以来的日均新增观看，不限新作，仅 {platform} 内比较。"
+  },
+  "next.movers.collecting": {
+    "en": "Appears after the next collection.",
+    "zh": "下次采集后显示。"
+  },
+  "next.more": {
+    "en": "All new listings on {platform}",
+    "zh": "{platform} 全部新上架"
+  },
+  "next.overview.title": {
+    "en": "What to make next",
+    "zh": "下一部拍什么"
+  },
+  "next.overview.sub": {
+    "en": "Story types the US platforms are launching now, from the {date} collection.",
+    "zh": "美国平台现在正在上新的题材，来自 {date} 的采集。"
+  },
+  "next.overview.link": {
+    "en": "Open what to make next",
+    "zh": "查看下一部拍什么"
+  },
+  "next.overview.tropes": {
+    "en": "Launching now",
+    "zh": "正在上新"
+  },
+  "next.overview.titles": {
+    "en": "Newest listings",
+    "zh": "最新上架"
+  },
+  "next.overview.noData": {
+    "en": "No published market collection yet.",
+    "zh": "尚无已发布的市场采集。"
+  },
+  "next.mine.yours": {
+    "en": "{n} of your titles carry it",
+    "zh": "你的 {n} 部剧集含此题材"
+  },
+  "next.summary.fresh": {
+    "en": "Recent / newly found listings",
+    "zh": "近期 / 新发现剧集"
+  },
+  "next.summary.leading": {
+    "en": "Leading story type",
+    "zh": "新上架中最多的题材"
+  },
+  "next.summary.ofNew": {
+    "en": "of new listings",
+    "zh": "的新上架剧集"
+  },
+  "next.summary.rising": {
+    "en": "Rising fastest",
+    "zh": "增长最快的题材"
+  },
+  "next.summary.mine": {
+    "en": "Your titles on a top-3 story type",
+    "zh": "你的剧集命中前三题材"
+  },
+  "next.summary.mineHint": {
+    "en": "Open My catalog",
+    "zh": "打开我的剧库"
+  },
+  "next.board.examples": {
+    "en": "See {n} new listings",
+    "zh": "查看 {n} 部新上架"
+  },
+  "next.tropes.subShort": {
+    "en": "Share is the percentage of recent listings with this story type. A listing can have several types, so shares can exceed 100% in total. Share increase compares that with the story type's share of the whole catalog: +20% means it is 20% more common among recent listings than usual. Growth is the median change in each listing's own platform counter across listings with a baseline; small samples may be unrepresentative.",
+    "zh": "占比表示近期上架条目中该题材的比例。一个条目可有多个题材，因此占比之和可超过 100%。占比变化把它与该题材在全库中的占比对比：+20% 表示它在近期上架条目中比平时多 20%。增长率是有历史数据的条目各自平台计数变化的中位数，小样本可能不具代表性。"
+  },
+  "next.board.share": {
+    "en": "Share of new listings",
+    "zh": "新上架占比"
+  },
+  "next.board.lift": {
+    "en": "Share increase",
+    "zh": "占比变化"
+  },
+  "next.col.viewGrowth": {
+    "en": "View growth",
+    "zh": "观看增长"
+  },
+  "next.board.ofNew": {
+    "en": "{n} of {sample} new",
+    "zh": "新上架 {sample} 部中的 {n} 部"
+  },
+  "next.board.see": {
+    "en": "See all",
+    "zh": "查看全部"
+  },
+  "next.tropes.oneLine": {
+    "en": "Compare the story types in recent listings and changes in their reported views.",
+    "zh": "对比近期剧集中的题材及其平台播放量变化。"
+  }
 }

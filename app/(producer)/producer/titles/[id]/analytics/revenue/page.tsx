@@ -14,7 +14,7 @@ import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
-export default async function AnalyticsRevenue({ params, searchParams }: { params: { id: string }; searchParams: { range?: string } }) {
+export default async function AnalyticsRevenue({ params, searchParams }: { params: { id: string }; searchParams: { range?: string; from?: string; to?: string } }) {
   const data = await loadAnalyticsPage(params.id, "revenue", searchParams);
   const { locale, record: a } = data;
   const r = a.revenue;

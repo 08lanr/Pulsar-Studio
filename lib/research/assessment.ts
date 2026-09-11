@@ -9,7 +9,7 @@
 //                       plus its comparables' prominence (0-10), within platform
 //   market_signal 0-10  whether those tropes are gaining chart visibility
 //                       (needs history; otherwise 0 and says so)
-//   readiness     0-25  rights window, English subtitles, materials,
+//   readiness     0-25  English subtitles, materials,
 //                       destination, ad account (facts the company recorded)
 //   own_evidence  0-25  imported US reports and measured test results
 //                       (demo-labelled results count at half)
@@ -21,10 +21,11 @@
 import { catalogMatches, type CatalogMatch, type Scores, type TropeStat } from "./engine";
 import { tagCatalogTitle, type CatalogRow } from "./engine";
 import type { CompanyAccount, CreativeResult, PromoCampaign, TitleSummary } from "@/lib/types";
+import { fmtLift } from "./lift";
 import type { TropeId } from "./taxonomy";
 import type { Evidence, MarketTitle, ReportRow, ResearchProfile } from "./types";
 
-export const ASSESSMENT_VERSION = "1.0";
+export const ASSESSMENT_VERSION = "1.2";
 
 export type ComponentKey = "story_match" | "market_signal" | "readiness" | "own_evidence" | "fit";
 
@@ -71,7 +72,15 @@ export type AssessmentInput = {
     episodes_with_video: number;
     china_metrics: { views?: number; completion_rate?: number; paying_rate?: number } | null;
   };
-  market: { titles: MarketTitle[]; scores: Scores; stats: TropeStat[]; observed_at: string | null; hasHistory: boolean };
+  market: {
+    titles: MarketTitle[];
+    scores: Scores;
+    stats: TropeStat[];
+    observed_at: string | null;
+    hasHistory: boolean;
+    /** Per trope, its share of recent listings over its share of the whole catalog (What to make next, v1.0); null lifts mean fewer than 10 recent listings. */
+    fresh?: { lifts: Map<TropeId, number | null>; sample: number } | null;
+  };
   reports: ReportRow[];
   campaigns: PromoCampaign[];
   results: CreativeResult[];
@@ -112,45 +121,54 @@ export function assessTitle(input: AssessmentInput): Assessment {
   components.push({ key: "story_match", points: storyPts, max: 35, facts: storyFacts, raise: tropes.length ? [] : ["ws.raise.synopsis"] });
 
   // ---- market signal (0-10) ----------------------------------------------------------
-  let signalPts = 0;
+  // 0-6: are the platforms launching this title's story types right now? The largest lift
+  // among its tropes (share of recent listings ÷ share of the catalog, What to make next).
+  // 0-4: are those story types gaining chart share day over day? Needs two published days.
   const signalFacts: Fact[] = [];
+  let signalPts = 0;
   if (!input.market.hasHistory) signalFacts.push({ key: "ws.fact.noHistory", evidence: null, ok: null, points: 0 });
-  else {
+  const lifts = tropes.map((id) => input.market.fresh?.lifts.get(id) ?? null).filter((x): x is number => x != null);
+  if (!tropes.length || !input.market.fresh || (input.market.fresh.sample < 10 && !lifts.length)) {
+    if (tropes.length) signalFacts.push({ key: "ws.fact.noFreshSample", evidence: null, ok: null, points: 0 });
+  } else {
+    const best = lifts.length ? Math.max(...lifts) : 0;
+    const above = lifts.filter((x) => x >= 1.2).length;
+    const liftPts = best >= 1.5 ? 6 : best >= 1.2 ? 4 : best >= 1 ? 2 : 0;
+    signalPts += liftPts;
+    if (best >= 1.2) signalFacts.push({ key: "ws.fact.freshLift", vars: { n: above, pct: fmtLift(best) }, evidence: "inferred", ok: true, points: liftPts });
+    else signalFacts.push({ key: "ws.fact.freshFlat", vars: { pct: fmtLift(best) }, evidence: "inferred", ok: false, points: liftPts });
+  }
+  if (input.market.hasHistory) {
     const deltas = input.market.stats.filter((s) => tropes.includes(s.id) && s.delta_pts != null).map((s) => s.delta_pts!);
     const mean = deltas.length ? deltas.reduce((a, b) => a + b, 0) / deltas.length : 0;
-    signalPts = Math.round(clamp(5 + mean, 0, 10));
-    signalFacts.push({ key: "ws.fact.tropeDelta", vars: { pts: Math.round(mean) }, evidence: "observed", ok: mean > 0, points: signalPts });
+    const movePts = Math.round(clamp(2 + mean, 0, 4));
+    signalPts += movePts;
+    signalFacts.push({ key: "ws.fact.tropeDelta", vars: { pts: Math.round(mean) }, evidence: "observed", ok: mean > 0, points: movePts });
   }
+  signalPts = Math.round(clamp(signalPts, 0, 10));
   components.push({ key: "market_signal", points: signalPts, max: 10, facts: signalFacts, raise: input.market.hasHistory ? [] : ["ws.raise.history"] });
 
   // ---- readiness (0-25) --------------------------------------------------------------
   const d = input.detail;
   const readyFacts: Fact[] = [];
   const raise: string[] = [];
-  const rights = !d.license_start && !d.license_end ? null : (d.license_start && today < d.license_start) || (d.license_end && today > d.license_end) ? false : true;
-  const expiring = rights === true && d.license_end && new Date(d.license_end).getTime() - new Date(today).getTime() < 90 * 86_400_000;
-  if (rights === true) readyFacts.push({ key: expiring ? "ws.fact.rightsExpiring" : "ws.fact.rightsOk", vars: { end: d.license_end ?? "–" }, evidence: "partner_reported", ok: true, points: expiring ? 5 : 8 });
-  else if (rights === false) readyFacts.push({ key: "ws.fact.rightsOutside", vars: { start: d.license_start ?? "–", end: d.license_end ?? "–" }, evidence: "partner_reported", ok: false, points: 0 });
-  else {
-    readyFacts.push({ key: "ws.fact.rightsUnknown", evidence: null, ok: null, points: 0 });
-    raise.push("ws.raise.rights");
-  }
-  if (d.approved_episodes > 0) readyFacts.push({ key: "ws.fact.subsApproved", vars: { n: d.approved_episodes, total: input.summary.episode_count }, evidence: "observed", ok: true, points: d.approved_episodes >= 2 ? 7 : 5 });
-  else if (input.summary.percent_adapted > 0) readyFacts.push({ key: "ws.fact.subsPartial", vars: { pct: input.summary.percent_adapted }, evidence: "observed", ok: true, points: Math.round(input.summary.percent_adapted * 0.04) });
+  // The rights window is not scored (decision 2026-09-10): it is recorded on the title and shown in Materials, not here.
+  if (d.approved_episodes > 0) readyFacts.push({ key: "ws.fact.subsApproved", vars: { n: d.approved_episodes, total: input.summary.episode_count }, evidence: "observed", ok: true, points: d.approved_episodes >= 2 ? 10 : 7 });
+  else if (input.summary.percent_adapted > 0) readyFacts.push({ key: "ws.fact.subsPartial", vars: { pct: input.summary.percent_adapted }, evidence: "observed", ok: true, points: Math.min(6, Math.round(input.summary.percent_adapted * 0.06)) });
   else {
     readyFacts.push({ key: "ws.fact.subsNone", evidence: "observed", ok: false, points: 0 });
     raise.push("ws.raise.subtitles");
   }
-  if (d.episodes_with_video > 0) readyFacts.push({ key: "ws.fact.videoOk", vars: { n: d.episodes_with_video }, evidence: "observed", ok: true, points: d.episodes_with_video >= 3 ? 5 : 3 });
+  if (d.episodes_with_video > 0) readyFacts.push({ key: "ws.fact.videoOk", vars: { n: d.episodes_with_video }, evidence: "observed", ok: true, points: d.episodes_with_video >= 3 ? 8 : 5 });
   else {
     readyFacts.push({ key: input.summary.episodes_ingested > 0 ? "ws.fact.scriptsOnly" : "ws.fact.noMaterials", vars: { n: input.summary.episodes_ingested }, evidence: "observed", ok: false, points: 0 });
     raise.push("ws.raise.video");
   }
   const destination = input.campaigns.some((c) => c.destination_url);
-  readyFacts.push({ key: destination ? "ws.fact.destinationOk" : "ws.fact.destinationMissing", evidence: "partner_reported", ok: destination, points: destination ? 3 : 0 });
+  readyFacts.push({ key: destination ? "ws.fact.destinationOk" : "ws.fact.destinationMissing", evidence: "partner_reported", ok: destination, points: destination ? 4 : 0 });
   if (!destination) raise.push("ws.raise.destination");
   const adAccount = input.accounts.find((a) => a.kind === "ad_account" && (a.state === "connected" || a.state === "invited"));
-  readyFacts.push({ key: adAccount ? (adAccount.state === "connected" ? "ws.fact.adAccountOk" : "ws.fact.adAccountInvited") : "ws.fact.adAccountMissing", evidence: "partner_reported", ok: adAccount ? adAccount.state === "connected" : false, points: adAccount ? (adAccount.state === "connected" ? 2 : 1) : 0 });
+  readyFacts.push({ key: adAccount ? (adAccount.state === "connected" ? "ws.fact.adAccountOk" : "ws.fact.adAccountInvited") : "ws.fact.adAccountMissing", evidence: "partner_reported", ok: adAccount ? adAccount.state === "connected" : false, points: adAccount ? (adAccount.state === "connected" ? 3 : 1) : 0 });
   if (!adAccount || adAccount.state !== "connected") raise.push("ws.raise.adAccount");
   const readyPts = clamp(readyFacts.reduce((a, f) => a + f.points, 0), 0, 25);
   components.push({ key: "readiness", points: readyPts, max: 25, facts: readyFacts, raise });
@@ -202,12 +220,10 @@ export function assessTitle(input: AssessmentInput): Assessment {
 
   const score = clamp(components.reduce((a, c) => a + c.points, 0), 0, 100);
   const known = tropes.length > 0 || usReports.length > 0 || results.length > 0;
-  const band: Band = !known ? "insufficient" : rights === false ? "hold" : score >= 60 ? "test_first" : score >= 35 ? "prepare" : "hold";
+  const band: Band = !known ? "insufficient" : score >= 60 ? "test_first" : score >= 35 ? "prepare" : "hold";
 
   const next: string[] = [];
   if (!tropes.length) next.push("ws.next.synopsis");
-  if (rights === null) next.push("ws.next.rights");
-  if (rights === false) next.push("ws.next.renew");
   if (d.episodes_with_video === 0) next.push("ws.next.video");
   if (!input.campaigns.length && band !== "hold") next.push("ws.next.test");
   const open = input.campaigns.find((c) => c.status === "review" || c.status === "draft");

@@ -88,7 +88,6 @@ export default async function TitleOverview({ params, searchParams }: { params: 
           <header><h2 id="tw-prep">{t(locale, "tw.nav.preparation")}</h2><a href={sectionHref(params.id, "preparation")}>{t(locale, "tw.open")}&nbsp;→</a></header>
           <dl className="tw-facts">
             <div><dt>{t(locale, "tw.prep.band")}</dt><dd><BandPill band={a.band} locale={locale} /></dd></div>
-            <div><dt>{t(locale, "ws.catalog.col.rights")}</dt><dd className={x.facts.rights === "outside" ? "delta-down" : undefined}>{t(locale, `ws.catalog.rights.${x.facts.rights}`)}</dd></div>
             <div><dt>{t(locale, "tw.prep.nextSteps")}</dt><dd><ol className="tw-steps">{a.next.slice(0, 2).map((k) => <li key={k}>{t(locale, k)}</li>)}</ol></dd></div>
           </dl>
         </section>

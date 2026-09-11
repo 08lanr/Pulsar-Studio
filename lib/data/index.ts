@@ -17,7 +17,7 @@
 // because the AI routes and the export route need a write/read path the
 // contract's method list left implicit.
 
-import type { AnalyticsLink, AnalyticsListing, AnalyticsRange, TitleAnalytics, TitlePerformanceRow } from "@/lib/analytics/types";
+import type { AnalyticsLink, AnalyticsListing, AnalyticsRange, AnalyticsWindow, TitleAnalytics, TitlePerformanceRow } from "@/lib/analytics/types";
 import type { Session } from "@/lib/auth";
 import { dataSource } from "@/lib/data-source";
 import type { IngestResult } from "@/lib/ingest";
@@ -391,7 +391,7 @@ export type CommitReportInput = {
 };
 
 /** Title analytics reads (lib/analytics): the range is bookmarkable; `today` is a test hook (fixture mode uses the demo clock). */
-export type AnalyticsOptions = { range?: AnalyticsRange; today?: string };
+export type AnalyticsOptions = { range?: AnalyticsRange; today?: string; /** An explicit from/to window; when set the record's range is "custom". */ window?: AnalyticsWindow | null };
 
 export type ExportSource = "approved" | "in_review" | "draft";
 

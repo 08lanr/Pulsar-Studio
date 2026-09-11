@@ -1651,7 +1651,7 @@ export const supabaseData: DataLayer = {
       many<AnalyticsLink>(core(c).from("analytics_links").select("*").eq("title_id", titleId)).then((rows) => rows[0] ?? null),
     ]);
     const results = campaigns.length ? await many<CreativeResult>(promote(c).from("results").select("*").in("campaign_id", campaigns.map((x) => x.id))) : [];
-    const record = computeTitleAnalytics({ title: { id: title.id, producer_id: title.producer_id, name_zh: title.name_zh, name_en: title.name_en, episode_count: title.episode_count ?? episodes.length }, episodes, listing: null, link, dataset: null, campaigns, results, range: parseRange(opts?.range), today: opts?.today ?? new Date().toISOString().slice(0, 10) });
+    const record = computeTitleAnalytics({ title: { id: title.id, producer_id: title.producer_id, name_zh: title.name_zh, name_en: title.name_en, episode_count: title.episode_count ?? episodes.length }, episodes, listing: null, link, dataset: null, campaigns, results, range: opts?.window ? "custom" : parseRange(opts?.range), window: opts?.window ?? null, today: opts?.today ?? new Date().toISOString().slice(0, 10) });
     return link
       ? { ...record, analytics_state: "linked_awaiting_data", freshness: { ...record.freshness, state: "linked_awaiting_data", notes: ["an.note.requiresConnection"] } }
       : { ...record, freshness: { ...record.freshness, notes: ["an.note.requiresConnection"] } };

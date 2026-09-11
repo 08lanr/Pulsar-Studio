@@ -1046,5 +1046,29 @@
   "ws.nav.group.market": {
     "en": "US market",
     "zh": "美国市场"
+  },
+  "ws.fact.freshLift": {
+    "en": "{n} of its story types are launching above their usual share among recent listings (largest increase {pct})",
+    "zh": "{n} 个题材在近期上架条目中的占比高于平时（最高 {pct}）"
+  },
+  "ws.fact.freshFlat": {
+    "en": "None of its story types is launching above its usual share among recent listings (largest change {pct})",
+    "zh": "其题材在近期上架条目中的占比均未高于平时（最高 {pct}）"
+  },
+  "ws.fact.noFreshSample": {
+    "en": "Recent-listing shares need at least 10 recent listings",
+    "zh": "近期上架占比需要至少 10 条近期上架条目"
+  },
+  "pf.filter.trope": {
+    "en": "Story type: {name}",
+    "zh": "题材：{name}"
+  },
+  "pf.filter.clear": {
+    "en": "Clear filter",
+    "zh": "清除筛选"
+  },
+  "ws.exp.feeLine": {
+    "en": "Ad spend ${budget} + Pulsar service fee ({pct}%) ${fee} = ${total} billed to you",
+    "zh": "广告花费 ${budget} + Pulsar 服务费（{pct}%）${fee} = 合计 ${total}"
   }
 }

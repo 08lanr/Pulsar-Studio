@@ -4,12 +4,11 @@ import CompanyNav from "@/components/producer/research/CompanyNav";
 import OnboardingForm from "@/components/producer/research/OnboardingForm";
 import ReportImport from "@/components/producer/research/ReportImport";
 import { isStaffPreview, portalSession, producerLocale } from "@/components/producer/server";
-import { EvidenceTag, StateBadge } from "@/components/producer/research/ui";
+import { EvidenceTag, StateBadge, TropeChip } from "@/components/producer/research/ui";
 import { getData } from "@/lib/data";
 import { t } from "@/lib/i18n";
 import { normalizeMarkets } from "@/lib/research/navigation";
 import { REPORT_METRICS } from "@/lib/research/reports";
-import { tropeLabel } from "@/lib/research/taxonomy";
 
 // /producer/company — Company & accounts: goals and profile, the accounts
 // the customer owns (recorded, never created), who can act and how billing
@@ -49,15 +48,20 @@ export default async function CompanyPage({ searchParams }: { searchParams: { ta
           {edit ? (
             <OnboardingForm initial={profile} readOnly={!canAct} />
           ) : (
-            <section className="rs-panel">
-              <dl className="rs-kv">
-                <dt>{t(locale, "ws.company.goal")}</dt><dd>{profile!.goal || <span className="gt-muted">{t(locale, "ux.unknown")}</span>}</dd>
-                <dt>{t(locale, "ws.company.monthlyBudget")}</dt><dd>{profile!.monthly_test_budget_usd != null ? `$${profile!.monthly_test_budget_usd}` : <span className="gt-muted">{t(locale, "ux.unknown")}</span>}</dd>
-                <dt>{t(locale, "research.onboard.tropes")}</dt><dd>{profile!.tropes.map((id) => tropeLabel(id, locale)).join(" · ")}</dd>
-                <dt>{t(locale, "research.onboard.audience")}</dt><dd>{profile!.audience ? t(locale, profile!.audience === "both" ? "research.onboard.audienceBoth" : `research.audience.${profile!.audience}`) : t(locale, "ux.unknown")}</dd>
-                <dt>{t(locale, "research.onboard.markets")}</dt><dd>{normalizeMarkets(profile!.target_markets).join(" · ") || t(locale, "ux.unknown")}</dd>
-                <dt>{t(locale, "research.onboard.distribution")}</dt><dd>{profile!.distribution.map((d) => t(locale, `research.onboard.dist.${d}`)).join(" · ") || t(locale, "ux.unknown")}</dd>
-                <dt>{t(locale, "research.onboard.volume")}</dt><dd>{profile!.titles_per_year ?? t(locale, "ux.unknown")}</dd>
+            <section className="co-profile" aria-label={t(locale, "ws.company.tab.profile")}>
+              <div className="co-goal">
+                <span className="co-label">{t(locale, "ws.company.goal")}</span>
+                <p className="co-goal-text">{profile!.goal || <span className="gt-muted">{t(locale, "ux.unknown")}</span>}</p>
+                <div className="co-goal-meta">
+                  <span><b>{profile!.monthly_test_budget_usd != null ? `$${profile!.monthly_test_budget_usd}` : "–"}</b>{t(locale, "ws.company.monthlyBudget")}</span>
+                  <span><b>{normalizeMarkets(profile!.target_markets).join(" · ") || "–"}</b>{t(locale, "research.onboard.markets")}</span>
+                  <span><b>{profile!.titles_per_year ?? "–"}</b>{t(locale, "research.onboard.volume")}</span>
+                </div>
+              </div>
+              <dl className="co-facts">
+                <div><dt>{t(locale, "research.onboard.tropes")}</dt><dd className="rs-tropes">{profile!.tropes.map((id) => <TropeChip key={id} id={id} locale={locale} mine />)}</dd></div>
+                <div><dt>{t(locale, "research.onboard.audience")}</dt><dd>{profile!.audience ? t(locale, profile!.audience === "both" ? "research.onboard.audienceBoth" : `research.audience.${profile!.audience}`) : t(locale, "ux.unknown")}</dd></div>
+                <div><dt>{t(locale, "research.onboard.distribution")}</dt><dd>{profile!.distribution.length ? profile!.distribution.map((d) => <span key={d} className="tag tag-neutral">{t(locale, `research.onboard.dist.${d}`)}</span>) : t(locale, "ux.unknown")}</dd></div>
               </dl>
             </section>
           )}
