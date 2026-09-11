@@ -9,6 +9,7 @@ import { fmtPct, fmtUtc, hrefWith, exploreHref, MetricLabel, StateBadge } from '
 import MarketFilters from '@/components/producer/research/MarketFilters';
 import DramaCard from '@/components/producer/research/DramaCard';
 import OwnTitles from '@/components/producer/research/OwnTitles';
+import AudienceResearch from '@/components/producer/research/AudienceResearch';
 export const dynamic='force-dynamic';
 export default async function Overview({searchParams}:{searchParams:Query}) {
  const session=await portalSession();const locale=producerLocale();const data=getData();
@@ -30,5 +31,6 @@ export default async function Overview({searchParams}:{searchParams:Query}) {
  <div className="brief-bottom"><section className="brief-section"><header><div><span className="brief-section-number">02</span><h2>{t(locale,'ux.stories')}</h2><p>{t(locale,'ux.storyBasis')}</p></div></header><div className="rs-bars brief-bars">{stats.slice(0,6).map(s=><a key={s.id} className={`rs-bar${profile?.tropes.includes(s.id)?' is-mine':''}`} href={exploreHref(base,{trope:s.id})}><span className="rs-bar-label">{tropeLabel(s.id,locale)}</span><span className="rs-bar-track"><span className="rs-bar-fill" style={{width:`${s.cohort_share*100}%`}}/></span><span className="rs-bar-value">{fmtPct(s.cohort_share)}</span><span className="rs-bar-delta">{s.in_cohort}/{s.cohort}</span></a>)}</div><footer><MetricLabel metric="trope_cohort_share" locale={locale}>{t(locale,'ux.howCalculated')}</MetricLabel><a href={hrefWith('/producer/explore/tropes',base,{mode:'all'})}>{t(locale,'ux.allStories')}&nbsp;→</a></footer></section>
  <section className="brief-section"><header><div><span className="brief-section-number">03</span><h2>{t(locale,'ux.nextStep')}</h2><p>{t(locale,'ux.nextStep.sub')}</p></div><a href="/producer/titles">{t(locale,'research.nav.titles')}&nbsp;→</a></header><OwnTitles session={session} locale={locale} limit={3}/></section></div>
  <footer className="brief-source-line">{t(locale,'research.coverage',{listings:snapshot.titles.length,platforms:snapshot.platforms.length})} · {t(locale,'research.coverage.note')}</footer></>}
+ <AudienceResearch locale={locale}/>
  </div>;
 }

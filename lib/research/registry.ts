@@ -12,6 +12,7 @@
 import { ENGINE_VERSION } from "./engine";
 import type { MarketView } from "./snapshot";
 import { TAXONOMY_VERSION } from "./taxonomy";
+import { AUDIENCE_SOURCES, AUDIENCE_VERSION } from './audience';
 
 export type SourceGroup = "catalogs_charts" | "social_search" | "ads_creatives" | "platforms_pricing" | "my_reports" | "derived";
 
@@ -35,7 +36,7 @@ export type SourceEntry = {
   limitations: string[];
   /** The review's correction for this source, when there is one (S1–S5). */
   review_note?: string;
-  status_rule: "catalog" | "history" | "connection" | "manual" | "unavailable" | "producer";
+  status_rule: "catalog" | "history" | "connection" | "manual" | "unavailable" | "producer" | "publication";
 };
 
 export type MetricEntry = {
@@ -67,6 +68,13 @@ const CATALOG_LIMITS = [
 ];
 
 export const SOURCES: SourceEntry[] = [
+  ...Object.values(AUDIENCE_SOURCES).map((source): SourceEntry => ({
+    key: source.key, group: 'social_search', name: source.name,
+    access: 'public_web', surface: source.url, collection_locale: source.key === 'sensor_audience_2024' ? 'zh' : 'en',
+    audience_geography: 'US', refresh_target: 'Manual publication review; not a live feed',
+    limitations: [source.period, 'Historical published research; preserve original population and denominator. No joint age/gender/genre measurement is available.'],
+    status_rule: 'publication',
+  })),
   {
     key: "reelshort_web",
     group: "catalogs_charts",
@@ -231,6 +239,24 @@ export const SOURCES: SourceEntry[] = [
 ];
 
 export const METRICS: MetricEntry[] = [
+  {
+    key: 'reelshort_us_female_share', group: 'social_search', name_en: 'ReelShort US female user share (2024 report)', name_zh: 'ReelShort 美国女性用户占比（2024 年报告）',
+    question_en: 'Who used ReelShort in the published research?', question_zh: '公开研究中的 ReelShort 用户是谁？',
+    grain: 'platform', source_key: 'sensor_audience_2024', source_field: 'Page 13: US female user share', unit: 'percent',
+    denominator: 'ReelShort US users in Sensor Tower research; sample size not specified', window: '2024 publication; gender-chart measurement window not specified',
+    evidence: 'estimated', formula: 'Published estimate transcribed as 72%; no extrapolation', version: AUDIENCE_VERSION,
+    limitations_en: ['Historical app-level users, not current users or payers.', 'Not a joint age, gender, ethnicity or genre measurement.'],
+    limitations_zh: ['历史应用用户数据，不代表当前用户或付费用户。', '没有按年龄、性别、族裔与题材联合统计。'], status_rule: 'publication',
+  },
+  {
+    key: 'us_platform_use_by_demographic', group: 'social_search', name_en: 'US social platform use by demographic (2025)', name_zh: '美国各人口群体的社媒使用率（2025 年）',
+    question_en: 'Where can these demographic groups be reached?', question_zh: '这些人口群体使用哪些平台？',
+    grain: 'cohort', source_key: 'pew_social_2025', source_field: 'Who uses each social media platform? Age and gender tables', unit: 'percent',
+    denominator: 'US adults within each named demographic group; total survey n=5,022', window: '2025-02-05 to 2025-06-18',
+    evidence: 'estimated', formula: 'Weighted survey share who say they ever use each platform; separate marginal distributions', version: AUDIENCE_VERSION,
+    limitations_en: ['Platform penetration within a demographic, not demographic composition of the platform.', 'Not short-drama viewing or paying behavior. Do not multiply age and gender percentages.'],
+    limitations_zh: ['群体内的平台使用率，不是平台用户的性别或年龄构成。', '不代表短剧观看或付费行为，不能将年龄与性别比例相乘。'], status_rule: 'publication',
+  },
   {
     key: "views_counter",
     group: "catalogs_charts",
@@ -752,6 +778,9 @@ export function snapshotAgeDays(view: MarketView, now = new Date()): number | nu
 export function statusFor(rule: SourceEntry["status_rule"], ctx: RegistryContext): RegistryStatus {
   const { view } = ctx;
   switch (rule) {
+    case 'publication':
+      // Available as a dated reference, not fresh/live telemetry.
+      return 'available';
     case "catalog": {
       if (!view.latest) return view.publication.last_failure ? "failed" : "unavailable";
       if (view.latest.platforms.every((p) => p.status === "failed")) return "failed";

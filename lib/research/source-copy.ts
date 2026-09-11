@@ -16,7 +16,9 @@ const limits:Record<string,string[]>={
  producer_input:['公司偏好代表发行意向。普通授权日期不能证明美国地区版权，部分素材获批不代表全剧就绪。'],
  engine:['题材可能由简介推断，存在误分类。显著度仅表示平台内的相对可见度，并非增长或成功概率。']
 };
-export function sourceCopy(s:SourceEntry,locale:Locale){return {
+export function sourceCopy(s:SourceEntry,locale:Locale){
+ if(s.status_rule==='publication') return {name:s.name,description:t(locale,'audience.sources.note'),refresh:t(locale,'audience.sources.note'),limits:locale==='zh'?[t(locale,'audience.gaps.detail')]:s.limitations};
+ return {
  name:locale==='zh'?names[s.key]??s.name:s.name,
  description:t(locale,s.key==='engine'?'ux.sources.derived':s.status_rule==='catalog'?'ux.scope':s.status_rule==='producer'||s.key==='producer_reports'?'ux.sources.manual':'ux.sources.connection'),
  refresh:t(locale,s.key==='engine'?'ux.sources.derived':s.status_rule==='catalog'?'ux.sources.refresh':s.status_rule==='producer'||s.key==='producer_reports'?'ux.sources.manual':'ux.sources.connection'),
