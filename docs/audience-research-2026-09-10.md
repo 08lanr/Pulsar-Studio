@@ -1,6 +1,6 @@
 # Audience evidence for selecting the first US titles
 
-Reviewed 2026-09-11. This collection is independent of Studio's fixture campaigns.
+Reviewed 2026-09-10. This collection is independent of Studio's fixture campaigns.
 No campaign was run, no account was created, and no paid data was purchased.
 
 ## Retrieved evidence

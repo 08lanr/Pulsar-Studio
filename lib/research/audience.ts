@@ -3,7 +3,7 @@
 // gender shares into an invented demographic-by-genre estimate.
 import { z } from 'zod';
 
-export const AUDIENCE_REVIEWED_AT = '2026-09-11';
+export const AUDIENCE_REVIEWED_AT = '2026-09-10';
 export const AUDIENCE_VERSION = '1.0';
 export const AUDIENCE_SOURCES = {
   sensor: {
@@ -38,7 +38,6 @@ export const CHANNEL_DEMOGRAPHICS = z.array(ChannelSchema).parse([
 export const REELSHORT_FEMALE_SHARE = percent.parse(72);
 export const AUDIENCE_GAPS = {
   genreAgeGenderCrossTab: null,
-  genreEthnicityCrossTab: null,
   dramaBoxUSAgeGender: null,
   tiktokHashtagDemographics: null,
 } as const;

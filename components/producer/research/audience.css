@@ -1,9 +1,0 @@
-.audience-research { margin-top: 2rem; }
-.audience-research .audience-finding { padding-block: 1rem; border-bottom: 1px solid var(--border); }
-.audience-research p { max-width: 78ch; line-height: 1.6; }
-.audience-research h3 { line-height: 1.5; }
-.audience-table-scroll { overflow-x: auto; }
-.audience-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-.audience-table caption { text-align: left; padding-block: 0.75rem; }
-.audience-table th, .audience-table td { padding: 0.75rem; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
-.audience-table th:first-child { text-align: left; }

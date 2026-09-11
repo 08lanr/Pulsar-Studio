@@ -1,7 +1,6 @@
 import { t, type Locale } from '@/lib/i18n';
 import { AUDIENCE_REVIEWED_AT, AUDIENCE_SOURCES, CHANNEL_DEMOGRAPHICS, REELSHORT_FEMALE_SHARE, US_DEMAND_TITLES } from '@/lib/research/audience';
 import { EvidenceTag } from './ui';
-import './audience.css';
 
 /** Public research remains visible even when no catalog snapshot is available. */
 export default function AudienceResearch({ locale }: { locale: Locale }) {

@@ -6,7 +6,15 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
-## 2026-09-10 (latest) · Market signal counts what the platforms are launching now
+## 2026-09-10 (latest) · Published audience research sits under the US overview, as dated references
+
+Codex (branch `codex/us-audience-evidence`) added a "Who to make the first titles for" section at the bottom of the US overview, reviewed and merged by Ruobin with fixes. Kept: hand-transcribed facts from three publications in `lib/research/audience.ts` (Sensor Tower 2024: 72% of ReelShort's US users female; Pew 2025: platform use by age and by gender, marginals only; YouGov September 2025: five titles by online demand, names only), each registered as a `publication` source and metric in `lib/research/registry.ts` with its original denominator and window, labelled `estimated` (third-party figure) or `inferred` (the report's qualitative genre reading). The section renders outside the snapshot condition, so a failed crawl never hides it, and nothing in it feeds a score or the launch priority.
+
+- **Publications are references, not feeds.** `status_rule: "publication"` always reads `available`; the source card says it is re-read by hand. They are listed after the live catalogs on Data & Sources, never ahead of them.
+- **No ethnicity in producer copy.** The branch's copy rebutted a "white women aged 25–45" brief that the product never states; that sentence, and every ethnicity mention, was removed from the UI and the metric limitations. The research note (`docs/audience-research-2026-09-10.md`) keeps the full record of what was and was not retrieved. Age × gender × genre stays null until an authenticated audience export exists; never fill a matrix with placeholders.
+- **Marginals stay marginal.** The Pew table is penetration within each group; the copy says so and the unit test asserts women + men > 100 so nobody normalises it into a composition.
+- Open: the Sensor Tower link points at a third-party rehost of the PDF (page 13). Replace with Sensor Tower's own page when one is found.
+## 2026-09-10 · Market signal counts what the platforms are launching now
 
 Decided by the founders (Ruobin) while rehearsing the demo: the What to make next board said a title's story types were launching at twice their usual share while its US launch priority showed "Market signal 5 / 10 · moved 0 pts", so the two pages disagreed. Assessment v1.1 (`lib/research/assessment.ts`):
 

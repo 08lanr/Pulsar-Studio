@@ -13,7 +13,7 @@ test('public audience research stays sourced across listing filters and locales'
   await expect(research.getByRole('table')).toContainText('Share of each US demographic group');
   await expect(research.getByRole('row', { name: 'Facebook 68% 80% 74% 57% 78% 63%', exact: true })).toBeVisible();
   await research.getByText('What remains unverified', { exact: true }).click();
-  await expect(research).toContainText('hypothesis, not an established selection requirement');
+  await expect(research).toContainText('cannot fill these gaps');
   await page.setViewportSize({ width: 390, height: 844 });
   await research.screenshot({ path: 'tmp/audience-mobile.png' });
   await expect(page.locator('body')).toHaveJSProperty('scrollWidth', await page.evaluate(() => window.innerWidth));

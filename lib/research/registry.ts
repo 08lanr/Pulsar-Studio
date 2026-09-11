@@ -68,13 +68,6 @@ const CATALOG_LIMITS = [
 ];
 
 export const SOURCES: SourceEntry[] = [
-  ...Object.values(AUDIENCE_SOURCES).map((source): SourceEntry => ({
-    key: source.key, group: 'social_search', name: source.name,
-    access: 'public_web', surface: source.url, collection_locale: source.key === 'sensor_audience_2024' ? 'zh' : 'en',
-    audience_geography: 'US', refresh_target: 'Manual publication review; not a live feed',
-    limitations: [source.period, 'Historical published research; preserve original population and denominator. No joint age/gender/genre measurement is available.'],
-    status_rule: 'publication',
-  })),
   {
     key: "reelshort_web",
     group: "catalogs_charts",
@@ -236,6 +229,14 @@ export const SOURCES: SourceEntry[] = [
     limitations: ["Reproducible from committed snapshots; a taxonomy or engine version change is a method change, not a market change."],
     status_rule: "catalog",
   },
+  // Published research, hand-reviewed: listed after the live catalogs it never replaces.
+  ...Object.values(AUDIENCE_SOURCES).map((source): SourceEntry => ({
+    key: source.key, group: 'social_search', name: source.name,
+    access: 'public_web', surface: source.url, collection_locale: source.key === 'sensor_audience_2024' ? 'zh' : 'en',
+    audience_geography: 'US', refresh_target: 'Manual publication review; not a live feed',
+    limitations: [source.period, 'Historical published research; preserve original population and denominator. No joint age/gender/genre measurement is available.'],
+    status_rule: 'publication',
+  })),
 ];
 
 export const METRICS: MetricEntry[] = [
@@ -245,8 +246,8 @@ export const METRICS: MetricEntry[] = [
     grain: 'platform', source_key: 'sensor_audience_2024', source_field: 'Page 13: US female user share', unit: 'percent',
     denominator: 'ReelShort US users in Sensor Tower research; sample size not specified', window: '2024 publication; gender-chart measurement window not specified',
     evidence: 'estimated', formula: 'Published estimate transcribed as 72%; no extrapolation', version: AUDIENCE_VERSION,
-    limitations_en: ['Historical app-level users, not current users or payers.', 'Not a joint age, gender, ethnicity or genre measurement.'],
-    limitations_zh: ['历史应用用户数据，不代表当前用户或付费用户。', '没有按年龄、性别、族裔与题材联合统计。'], status_rule: 'publication',
+    limitations_en: ['Historical app-level users, not current users or payers.', 'Not a joint age, gender or genre measurement.'],
+    limitations_zh: ['历史应用用户数据，不代表当前用户或付费用户。', '没有按年龄、性别与题材联合统计。'], status_rule: 'publication',
   },
   {
     key: 'us_platform_use_by_demographic', group: 'social_search', name_en: 'US social platform use by demographic (2025)', name_zh: '美国各人口群体的社媒使用率（2025 年）',
