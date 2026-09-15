@@ -1293,12 +1293,17 @@ export const supabaseData: DataLayer = {
     const start = input.source_start_ms ?? parent.source_start_ms;
     const end = input.source_end_ms ?? parent.source_end_ms;
     if (start !== null && end !== null && end <= start) throw invalid("source end must come after source start");
+    // Clean cuts (decision 2026-09-14): copy is ad text, not pixels — the
+    // same rule as the fixture layer: an unchanged window keeps the parent's
+    // finished file, a moved window re-cuts in the background.
+    const windowChanged = start !== parent.source_start_ms || end !== parent.source_end_ms;
     const revision = await one<PromoCreative>(
       promote(c).from("creatives").insert({
         campaign_id: parent.campaign_id, title_id: parent.title_id, parent_creative_id: parent.id, version: parent.version + 1, kind: parent.kind, status: "ready",
         hypothesis: blank(input.hypothesis) ? parent.hypothesis : input.hypothesis!.trim(), source_episode_id: parent.source_episode_id, source_start_ms: start, source_end_ms: end,
         hook: input.hook.trim(), caption: input.caption.trim(), ad_description: input.ad_description.trim(),
         duration_ms: start !== null && end !== null ? end - start : parent.duration_ms, width: parent.width, height: parent.height, render_settings: parent.render_settings,
+        render_path: windowChanged ? null : parent.render_path, render_sha256: windowChanged ? null : parent.render_sha256,
         revision_note: input.revision_note?.trim() || null,
       }).select("*").single(),
       "promotion creative"

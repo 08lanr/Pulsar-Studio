@@ -113,6 +113,44 @@ test("Pulsar answers a change request with a new version; the producer sees only
   await assert.rejects(fixtureData.revisePromoCreative(staff(), first.id, { hook: "a", caption: "b", ad_description: "c" }), /awaiting review or change/);
 });
 
+test("a copy-only revision keeps the finished file; a moved window re-cuts", async () => {
+  // Clean cuts (decision 2026-09-14): the hook and copy are ad text, not
+  // pixels — answering a change request that only rewrites the copy must not
+  // throw away the rendered file, or the revision parks at the launch gate
+  // with nothing left to re-render it.
+  const { title, campaign } = await campaignWithVideo();
+  const [first] = await fixtureData.generatePromoDrafts(producer(), campaign.id);
+  const sha = "ab".repeat(32);
+  await fixtureData.setCreativeRender(staff(), first.id, {
+    render_path: `${title.id}/episode-1/ad-${first.external_id}-v1.mp4`,
+    render_sha256: sha,
+    duration_ms: 18_000,
+    width: 1080,
+    height: 1920,
+    render_settings: { schema: 2, format: "9:16", source: "rendered_cut" },
+  });
+  await fixtureData.reviewPromoCreative(producer(), first.id, { status: "rejected", rejection_note: "Softer hook, same moment." });
+  const copyOnly = await fixtureData.revisePromoCreative(staff(), first.id, {
+    hook: "A softer hook.",
+    caption: "New caption.",
+    ad_description: "New description.",
+    source_start_ms: first.source_start_ms,
+    source_end_ms: first.source_end_ms,
+  });
+  assert.equal(copyOnly.render_path, `${title.id}/episode-1/ad-${first.external_id}-v1.mp4`, "same window, same file");
+  assert.equal(copyOnly.render_sha256, sha);
+  await fixtureData.reviewPromoCreative(producer(), copyOnly.id, { status: "rejected", rejection_note: "Actually start after the slap." });
+  const moved = await fixtureData.revisePromoCreative(staff(), copyOnly.id, {
+    hook: "A softer hook.",
+    caption: "New caption.",
+    ad_description: "New description.",
+    source_start_ms: (first.source_start_ms ?? 0) + 6_000,
+    source_end_ms: (first.source_end_ms ?? 0) + 6_000,
+  });
+  assert.equal(moved.render_path, null, "a moved window needs a new cut");
+  assert.equal(moved.render_sha256, null);
+});
+
 test("staff may override a launched campaign's status, in order, and only staff", async () => {
   const { campaign } = await campaignWithVideo();
   await fixtureData.generatePromoDrafts(producer(), campaign.id);

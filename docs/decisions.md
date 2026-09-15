@@ -6,7 +6,37 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
-## 2026-09-14 (latest) · Ad angles, clips cut after upload, and a budget-gated pick
+## 2026-09-14 (latest, later) · A revision keeps its finished file unless the window moved
+
+Follow-through on the same day's "clean cuts" decision, found rehearsing the
+change-request flow: `revisePromoCreative` always discarded the parent's
+`render_path`/`render_sha256`, which was right while the hook was burned
+into the picture and generation re-rendered every unrendered creative — and
+wrong now that copy is ad text and campaign generation reuses clip files
+without re-rendering. A staff answer that only rewrote the copy threw away a
+finished file nothing would rebuild: the revision previewed as raw source
+footage and, in the live modes, parked the launch gate at "unrendered
+creatives" with "generate the ads again" refused on a review campaign.
+
+- **Copy is not pixels.** A revision whose clip window equals its parent's
+  keeps the parent's `render_path` and `render_sha256` (both backends, one
+  `windowChanged` rule). Rendered files are never deleted, so versions may
+  share a file; the manifest still freezes the exact `pc_` version and hash
+  the producer approved.
+- **A moved window starts unrendered and re-cuts itself.** The revise route
+  kicks the campaign's background render (`renderCampaignInBackground`,
+  ffmpeg-gated) after a window change, through the same cutter as every
+  other ad file. Without ffmpeg the behavior is unchanged: the gate says so,
+  and fixture's fake launch still accepts the source file.
+- Tests pin both halves (`tests/promote.test.ts`, "a copy-only revision
+  keeps the finished file; a moved window re-cuts").
+
+Checks: `npm test`, `npm run typecheck`, `npx next lint`, `npm run build`,
+`npm run test:e2e`, and a live desk walk in fixture mode (copy-only revise
+keeps the file and hash; a moved window re-cuts in the background with
+ffmpeg 9.0.1).
+
+## 2026-09-14 · Ad angles, clips cut after upload, and a budget-gated pick
 
 Decided by the founders (Ruobin) from the brief `docs/auto-clips-brief.md` and the conversation that followed: "in the end state there will be a few different types of ads or angles … build out this infrastructure first … the customer will pick the ads they choose to run; each ad will have a minimum budget … direct clipping will be the first angle … keep them between 20-30 seconds … capture either the intro (trailer-esque) or a crazy heartbreaking moment … if an episode's English subtitles aren't approved, don't spend the time or the tokens to burn it … narration as greyed coming soon". The end goal is a live walk: upload a mini drama, watch the clips appear, pick ads, launch on production TikTok with real spend.
 
