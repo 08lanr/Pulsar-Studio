@@ -39,6 +39,8 @@ import { computeTitleAnalytics, performanceRow } from "@/lib/analytics/compute";
 import { parseRange, AnalyticsRange, AnalyticsWindow } from "@/lib/analytics/types";
 import type { AnalyticsLink } from "@/lib/analytics/types";
 import { DEMO_CLIP_SOURCE } from "@/data/fixture/demo-catalog";
+import { STARTER_MEDIA } from "@/data/fixture";
+import { FIXTURE_PRODUCER_ID } from "@/lib/auth";
 import { buildVersionSnapshot, snapshotSha256 } from "@/data/fixture/snapshot";
 import type {
   AdaptedLine,
@@ -125,6 +127,7 @@ function store(): Store {
     ensureDemoClips(db);
     s = { db, auditSeq: db.audit_events.reduce((m, e) => Math.max(m, e.id), 0), seedVersion: SEED_VERSION };
     g[STORE_KEY] = s;
+    if ((seed ?? defaultFixtureSeed()) === "demo") ensureStarterCuts(db);
   }
   schedulePersist();
   // A store parked on globalThis survives a dev-server hot reload that added
@@ -147,10 +150,11 @@ function store(): Store {
  * as it would for any missing upload.
  */
 function ensureDemoMedia(db: FixtureDb): void {
-  const source = path.join(process.cwd(), DEMO_CLIP_SOURCE);
-  if (!existsSync(source)) return;
   for (const e of db.episodes) {
     if (!e.video_path) continue;
+    // Starter companies name their own files (data/fixture/starter-companies.ts); every demo-catalog episode uses the sample clip.
+    const source = path.join(process.cwd(), STARTER_MEDIA[e.video_path] ?? DEMO_CLIP_SOURCE);
+    if (!existsSync(source)) continue;
     try {
       const target = resolveUploadPath(e.video_path);
       if (existsSync(target)) continue;
@@ -160,6 +164,38 @@ function ensureDemoMedia(db: FixtureDb): void {
       console.warn("[fixture] demo media not linked", e.video_path, (err as Error).message);
     }
   }
+}
+
+/**
+ * A starter company's episodes have no clips when first seeded: the real
+ * engine cuts them (footage path, no subtitles) the first time the store
+ * is built, one episode after another, exactly as an upload would. Skipped
+ * when clips already exist (saved state), when a run is going, or with
+ * PROMO_RENDER=off. Deferred a tick because the engine reads the store.
+ */
+function ensureStarterCuts(db: FixtureDb): void {
+  if (process.env.PROMO_RENDER === "off") return;
+  const starters = new Set(db.producers.filter((p) => p.id !== FIXTURE_PRODUCER_ID).map((p) => p.id));
+  const titles = db.titles.filter((t) => starters.has(t.producer_id));
+  const pending = db.episodes.filter((e) => e.video_path && titles.some((t) => t.id === e.title_id) && !db.clips.some((c) => c.episode_id === e.id) && !db.jobs.some((j) => j.episode_id === e.id && j.kind === "cut_clips"));
+  if (!pending.length) return;
+  const g = globalThis as unknown as { __pulsarStarterCuts?: boolean };
+  if (g.__pulsarStarterCuts) return;
+  g.__pulsarStarterCuts = true;
+  setTimeout(async () => {
+    try {
+      const { cutEpisodeClips } = await import("@/lib/clips/run");
+      for (const e of pending) {
+        const title = titles.find((t) => t.id === e.title_id)!;
+        await cutEpisodeClips(title.id, e.number).catch((err) => console.warn("[fixture] starter clips", title.name_en, e.number, (err as Error).message));
+      }
+    } finally {
+      g.__pulsarStarterCuts = false;
+    }
+    // The store may have been rebuilt while this ran (a demo reset): pick up whatever is still uncut.
+    const current = (globalThis as unknown as Record<string, Store | undefined>)[STORE_KEY];
+    if (current && current.db !== db) ensureStarterCuts(current.db);
+  }, 0);
 }
 
 /**
@@ -328,31 +364,46 @@ function schedulePersist(): void {
   g.__pulsarPersistTimer.unref?.();
 }
 
-/**
- * Fresh seed + every company that is not a seeded one, carried over from
- * `old` with all of its rows: anything keyed by producer_id, title_id or
- * campaign_id that belongs to it. Seeded companies always come from the seed.
- */
-function mergeOtherCompanies(fresh: FixtureDb, old: FixtureDb): FixtureDb {
-  const seeded = new Set(fresh.producers.map((p) => p.id));
-  const producers = new Set(old.producers.filter((p) => !seeded.has(p.id)).map((p) => p.id));
-  if (!producers.size) return fresh;
-  const titles = new Set(old.titles.filter((t) => producers.has(t.producer_id)).map((t) => t.id));
-  const campaigns = new Set(old.promo_campaigns.filter((c) => producers.has(c.producer_id) || titles.has(c.title_id)).map((c) => c.id));
-  const keep = (row: Record<string, unknown>) =>
+/** Every row of `db` that belongs to one of `producers` (by producer, title or campaign key). */
+function companyRows(db: FixtureDb, producers: Set<string>): (row: Record<string, unknown>, table: string) => boolean {
+  const titles = new Set(db.titles.filter((t) => producers.has(t.producer_id)).map((t) => t.id));
+  const campaigns = new Set(db.promo_campaigns.filter((c) => producers.has(c.producer_id) || titles.has(c.title_id)).map((c) => c.id));
+  return (row, table) =>
+    (table === "producers" && typeof row.id === "string" && producers.has(row.id)) ||
     (typeof row.producer_id === "string" && producers.has(row.producer_id)) ||
     (typeof row.title_id === "string" && titles.has(row.title_id)) ||
     (typeof row.campaign_id === "string" && campaigns.has(row.campaign_id));
+}
+
+/**
+ * Fresh seed + every company other than the demo studio, carried over from
+ * `old` with all of its rows. The demo studio (Xinghai) always comes from
+ * the seed; a starter company (data/fixture/starter-companies.ts) comes
+ * from the seed only until the saved state has it — after that the saved
+ * version wins, campaigns and all. A saved company with the same English
+ * name as a starter replaces the starter (Ruobin created "Idiots in Cars"
+ * by hand before the starter existed).
+ */
+function mergeOtherCompanies(fresh: FixtureDb, old: FixtureDb): FixtureDb {
+  const carried = new Set(old.producers.filter((p) => p.id !== FIXTURE_PRODUCER_ID).map((p) => p.id));
+  if (!carried.size) return fresh;
+  const carriedNames = new Set(old.producers.filter((p) => carried.has(p.id)).map((p) => (p.name_en ?? p.name_zh).trim().toLowerCase()));
+  const replaced = new Set(fresh.producers.filter((p) => p.id !== FIXTURE_PRODUCER_ID && (carried.has(p.id) || carriedNames.has((p.name_en ?? p.name_zh).trim().toLowerCase()))).map((p) => p.id));
+  const dropFresh = companyRows(fresh, replaced);
+  const keepOld = companyRows(old, carried);
   const out = fresh as unknown as Record<string, unknown>;
   const src = old as unknown as Record<string, unknown>;
-  for (const key of Object.keys(src)) {
-    const rows = src[key];
+  for (const key of Object.keys(out)) {
     const target = out[key];
-    if (!Array.isArray(rows) || !Array.isArray(target)) continue;
-    const present = new Set((target as Array<{ id?: unknown }>).map((r) => r.id).filter((id) => typeof id === "string"));
+    if (!Array.isArray(target)) continue;
+    // The saved version of a company replaces its seeded starter rows wholesale.
+    if (replaced.size) out[key] = (target as Array<Record<string, unknown>>).filter((row) => !dropFresh(row, key));
+    const dest = out[key] as Array<Record<string, unknown>>;
+    const rows = src[key];
+    if (!Array.isArray(rows)) continue;
+    const present = new Set(dest.map((r) => r.id).filter((id) => typeof id === "string"));
     for (const row of rows as Array<Record<string, unknown>>) {
-      const isProducer = key === "producers" && typeof row.id === "string" && producers.has(row.id);
-      if ((isProducer || keep(row)) && !(typeof row.id === "string" && present.has(row.id))) target.push(row);
+      if (keepOld(row, key) && !(typeof row.id === "string" && present.has(row.id))) dest.push(row);
     }
   }
   return fresh;

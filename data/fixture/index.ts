@@ -39,6 +39,7 @@ import type { AnalyticsLink } from "@/lib/analytics/types";
 import type { ReportBatch, ReportRow, WatchRow } from "@/lib/research/types";
 import { buildDemoAnalytics } from "./demo-analytics";
 import { buildDemoSeed } from "./demo-catalog";
+import { buildStarterCompanies } from "./starter-companies";
 import { producer, profiles } from "./title";
 
 /** Table name -> rows; the key is the studio.* / core.* table name. */
@@ -145,8 +146,17 @@ export function cloneFixtureDb(seed: FixtureSeed = defaultFixtureSeed()): Fixtur
   db.promo_launches.push(...demo.launches);
   db.clips.push(...demo.clips);
   db.analytics_links.push(...structuredClone(buildDemoAnalytics().links));
+  // Starter companies ship with the repository (real footage under docs/demo); seeded once, then owned by the saved state.
+  const starters = buildStarterCompanies();
+  db.producers.push(...starters.producers);
+  db.titles.push(...starters.titles);
+  db.episodes.push(...starters.episodes);
+  db.adaptations.push(...starters.adaptations);
   return db;
 }
+
+/** Stored video path -> repository file, for every starter episode (the fixture store links them under .uploads/). */
+export const STARTER_MEDIA: Record<string, string> = buildStarterCompanies().media;
 
 export { buildVersionSnapshot, snapshotSha256 } from "./snapshot";
 export { STAFF_USER_ID, PRODUCER_USER_ID, PRODUCER_ID } from "./ids";
