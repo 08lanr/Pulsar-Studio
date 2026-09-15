@@ -1,0 +1,26 @@
+{
+  "tr.cta": {
+    "zh": "转写字幕",
+    "en": "Transcribe subtitles"
+  },
+  "tr.busy": {
+    "zh": "正在转写…（约 1–2 分钟）",
+    "en": "Transcribing… (a minute or two)"
+  },
+  "tr.hint": {
+    "zh": "用语音识别为这一集生成带时间轴的字幕，之后请在工作台核对文字与时间。",
+    "en": "Generate timed subtitles from this episode's audio; review the text and timing in the studio afterwards."
+  },
+  "tr.unavailable": {
+    "zh": "自动转写未开通——请联系 Pulsar。",
+    "en": "Transcription is not set up — contact Pulsar."
+  },
+  "tr.done": {
+    "zh": "已生成 {n} 句字幕，页面即将刷新。",
+    "en": "Transcribed {n} lines; the page is refreshing."
+  },
+  "tr.failed": {
+    "zh": "转写失败：{detail}",
+    "en": "Transcription failed: {detail}"
+  }
+}

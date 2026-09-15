@@ -1393,6 +1393,8 @@ button.metric-label { border:0; background:none; padding:0; font:inherit; color:
 .episode-block { border-bottom: 1px solid var(--v3-line); }
 .episode-block:last-child { border-bottom: 0; }
 .episode-block > .episode-row { border-bottom: 0; }
+.ep-transcribe { padding: 0 16px 4px 74px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.ep-transcribe .hint { margin: 0; }
 .ep-clips { padding: 0 16px 14px 74px; display: grid; gap: 8px; }
 .ep-clips-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .ep-clips-head strong { font-size: 12px; font-weight: 650; color: var(--v3-ink); }

@@ -6,7 +6,76 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
-## 2026-09-14 (latest, later) · A revision keeps its finished file unless the window moved
+## 2026-09-15 (latest) · Transcription fills a script-less episode, by explicit button
+
+The v1.1 slot the ASR stub reserved (`lib/asr.ts`, job kind
+`transcribe_episode`, docs/build-plan.md) is filled, prompted by the
+starter company shipping five video-only episodes: without a script an
+episode cannot be adapted, only gets the footage-signal clip path, and
+eats the launch-readiness subtitle penalty. The V1 rule stands — nothing
+is ever transcribed silently.
+
+- **One explicit button** (转写字幕, Materials, editors only, shown only on
+  an episode with a video and no lines): reads the audio into timed
+  subtitles and refreshes the page. When no provider is configured the
+  button is disabled with portal words and the technical reason on hover,
+  the auto-sync pattern.
+- **Provider-based like alignment** (`STUDIO_ASR_PROVIDER`,
+  docs/transcription.md): `local-whisper` (faster-whisper on CPU,
+  `scripts/transcribe_episode.py`, word timestamps + VAD, language
+  auto-detected) spends nothing and may run in fixture/demo mode the way
+  the ffmpeg burns do; `openai` (whisper-1, verbose_json) is a REAL model
+  call — demo replay refuses it (`DEMO_REPLAY=0` overrides) and the job
+  carries the audio-minute cost, rounded up to integer cents.
+- **Words become subtitle cues, not paragraphs** (`transcriptToCues`,
+  pure, tested): break on ≥600 ms silence, sentence-final punctuation once
+  a cue has ≥1.2 s of substance, a 6.5 s screen-time cap and the 42-char
+  width budget; starts clamp to the previous cue's end; nothing under
+  300 ms. Latin words space themselves (the leading space rides inside the
+  token), CJK concatenates bare.
+- **The stored file and the lines cannot disagree**: the cues are written
+  as a real WebVTT (machine NOTE naming provider/model/language) into
+  storage, the episode's `script_format` becomes `'asr'`
+  (`source_script_path` set), and the SAME bytes are parsed back through
+  `lib/ingest` and attached via the new `attachIngestToEpisode` (both
+  backends; refuses an episode that already has lines — a script is never
+  silently replaced; scenes, draft version and the cost-0 parse job exactly
+  as an uploaded SRT). Migration `0011_transcribe.sql` adds the reserved
+  enum values and the producer episode-update policy the timing desk's SQL
+  path was silently missing.
+- **The clips re-rank afterwards**: a forced `cut_clips` run follows the
+  attach, so `find_clips` can rank from the script where AI is enabled; in
+  demo replay the selection honestly stays on footage signals.
+- **Speaker attribution stays open** (the stub's planned LLM pass from the
+  character notes): ASR hears what was said, not who — the parsed lines are
+  restored to the EXACT machine cues with `speaker: null`
+  (`restoreMachineLines`), so the generic parser's speaker heuristic can
+  never strip "他说：…" or "[Music] …" out of machine text.
+- **Hardened by an adversarial review before merge:** job bookkeeping runs
+  through the system actor like the clip engine (producers never gain read
+  access to `studio.jobs`; a failed run resurrects its own row in both
+  backends); the run heartbeats every 2 minutes so the concurrency guard
+  stays honest for the whole 8-minute budget, and a failure never clobbers
+  a concurrently-finished done row; the openai provider extracts the audio
+  track first (16 kHz mono AAC — the endpoint caps uploads at 25 MB) and
+  its spend is recorded on the job even when a later step fails; both
+  providers' output passes a zod schema; 0011 follows 0001's own
+  revoke-the-table-grant-the-columns rule so the new producer episode
+  UPDATE policy exposes exactly the script/timing/video-path fields (the
+  blanket 0001 grant would otherwise have opened every column); a
+  half-attached episode (scenes without lines, a torn non-transactional
+  attach) self-heals on the next attach instead of refusing forever. Known
+  pre-existing defect noted, not fixed here: supabase.ts's three episode
+  UPDATE call sites address `studio.episodes` instead of `core.episodes`
+  (retime, duration backfill, replace-video).
+- Verified with a real run: faster-whisper `small` on the Mandarin demo
+  minute scored 94.3% character recall against its reference SRT with
+  median cue-start drift 230 ms (p90 450 ms, 19 s on CPU;
+  `scripts/asr-smoke.ts` prints the scoring), and on the starter company's
+  English footage end to end in the browser — 17 timed lines, the button
+  disappearing once the script exists.
+
+## 2026-09-14 · A revision keeps its finished file unless the window moved
 
 Follow-through on the same day's "clean cuts" decision, found rehearsing the
 change-request flow: `revisePromoCreative` always discarded the parent's

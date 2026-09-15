@@ -478,6 +478,145 @@ export const supabaseData: DataLayer = {
     return episode;
   },
 
+  async attachIngestToEpisode(_session, titleId, episodeNumber, ingest, files) {
+    const c = db();
+    if (!ingest.lines.length) throw invalid("the file parsed to no lines");
+    const title = await one<Title>(core(c).from("titles").select("*").eq("id", titleId).maybeSingle(), "title", titleId);
+    const adaptation = await adaptationOf(c, titleId);
+    const episode = await episodeByNumber(c, titleId, episodeNumber);
+    const existing = await many<Pick<Scene, "id">>(studio(c).from("scenes").select("id").eq("episode_id", episode.id));
+    if (existing.length) {
+      const { count } = await studio(c)
+        .from("lines")
+        .select("id", { count: "exact", head: true })
+        .in("scene_id", existing.map((s) => s.id));
+      if ((count ?? 0) > 0) {
+        throw conflict(`episode ${episodeNumber} already has a script (${count} lines); a script is never silently replaced`);
+      }
+      // Scenes without a single line are the debris of a torn earlier
+      // attach; heal by replacing them (0011's producer_delete_scenes
+      // policy permits deleting exactly line-less scenes on own titles).
+      await studio(c).from("scenes").delete().eq("episode_id", episode.id);
+      const { data: left } = await studio(c).from("scenes").select("id").eq("episode_id", episode.id);
+      if (left?.length) throw conflict(`episode ${episodeNumber} has ${left.length} scene(s) that could not be cleared; ask Pulsar staff`);
+    }
+
+    const lastEnd = ingest.lines.reduce<number | null>((m, l) => (l.end_ms !== null && (m === null || l.end_ms > m) ? l.end_ms : m), null);
+    const scriptFormat = files.scriptFormat ?? ingest.format;
+    const updated = await one<Episode>(
+      core(c)
+        .from("episodes")
+        .update({
+          source_script_path: files.subtitlePath,
+          script_format: scriptFormat,
+          has_timecodes: ingest.hasTimecodes,
+          duration_ms: episode.duration_ms ?? (ingest.hasTimecodes ? lastEnd : null),
+        })
+        .eq("id", episode.id)
+        .select("*")
+        .single(),
+      "episode",
+      episode.id
+    );
+
+    // Speakers become characters (unique on title_id, name_zh; a re-run is a no-op).
+    const speakers = Array.from(new Set(ingest.lines.map((l) => l.speaker?.trim()).filter((s): s is string => !!s)));
+    if (speakers.length) {
+      await many<Character>(
+        studio(c)
+          .from("characters")
+          .upsert(
+            speakers.map((name_zh) => ({ title_id: titleId, name_zh })),
+            { onConflict: "title_id,name_zh", ignoreDuplicates: true }
+          )
+          .select("*")
+      );
+    }
+    const characters = await many<Character>(studio(c).from("characters").select("*").eq("title_id", titleId));
+    const byName = new Map(characters.map((ch) => [ch.name_zh, ch.id]));
+
+    const scenes = await many<Scene>(
+      studio(c)
+        .from("scenes")
+        .insert(
+          ingest.scenes.map((sc) => ({
+            title_id: titleId,
+            episode_id: episode.id,
+            number: sc.number,
+            start_ms: ingest.hasTimecodes ? sc.start_ms : null,
+            end_ms: ingest.hasTimecodes ? sc.end_ms : null,
+          }))
+        )
+        .select("*")
+    );
+    const sceneByNumber = new Map(scenes.map((s) => [s.number, s.id]));
+    const sceneFor = (seq: number): string => {
+      const sc = ingest.scenes.find((x) => seq >= x.from_seq && seq <= x.to_seq) ?? ingest.scenes[ingest.scenes.length - 1];
+      const id = sceneByNumber.get(sc.number);
+      if (!id) throw invalid(`scene ${sc.number} was not created`);
+      return id;
+    };
+    await many<Line>(
+      studio(c)
+        .from("lines")
+        .insert(
+          ingest.lines.map((l) => {
+            const speaker = l.speaker?.trim() || null;
+            return {
+              title_id: titleId,
+              scene_id: sceneFor(l.seq),
+              seq: l.seq,
+              speaker,
+              character_id: speaker ? byName.get(speaker) ?? null : null,
+              start_ms: ingest.hasTimecodes ? l.start_ms : null,
+              end_ms: ingest.hasTimecodes ? l.end_ms : null,
+              text_zh: l.text_zh,
+            };
+          })
+        )
+        .select("id")
+    );
+
+    const at = now();
+    await many<Job>(
+      studio(c)
+        .from("jobs")
+        .insert({
+          title_id: titleId,
+          episode_id: episode.id,
+          kind: "parse_subtitles",
+          target_type: "episode",
+          target_id: episode.id,
+          idempotency_key: `parse_subtitles:${episode.id}:1`,
+          status: "done",
+          input: { format: scriptFormat, filename: files.subtitlePath },
+          output: { lines: ingest.lines.length, scenes: scenes.length, has_timecodes: ingest.hasTimecodes, warnings: ingest.warnings },
+          cost_cents: 0,
+          heartbeat_at: at,
+          started_at: at,
+          finished_at: at,
+        })
+        .select("id")
+    );
+
+    const { data: draft } = await studio(c).from("versions").select("id").eq("episode_id", episode.id).eq("status", "draft").maybeSingle();
+    if (!draft) {
+      await one<Version>(
+        studio(c)
+          .from("versions")
+          .insert({ title_id: titleId, adaptation_id: adaptation.id, episode_id: episode.id, number: 1 })
+          .select("*")
+          .single(),
+        "version"
+      );
+    }
+
+    if (title.status === "candidate" || title.status === "selected") {
+      await core(c).from("titles").update({ status: "ingesting" }).eq("id", titleId);
+    }
+    return updated;
+  },
+
   async getWorkbench(_session, titleId, episodeNumber) {
     const c = db();
     const [title, adaptation, episode] = await Promise.all([
