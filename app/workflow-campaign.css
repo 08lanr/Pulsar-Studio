@@ -104,3 +104,39 @@
 .rd-option .rd-stop-link:hover { color: var(--text); }
 .fc-experiment .rd-decide .note { margin-bottom: 12px; }
 @media (max-width: 900px) { .rd-options { grid-template-columns: 1fr; } .rd-provenance .rd-bench { margin-left: 0; } }
+
+/* Ad angles (decision 2026-09-14): ads grouped by angle; a coming-soon angle is a quiet placeholder. */
+.fc-angle { display: grid; gap: 12px; margin-top: 8px; min-width: 0; }
+.fc-angle + .fc-angle { margin-top: 20px; }
+.fc-angle-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.fc-angle-head h3 { margin: 0; font-size: 16px; }
+.fc-angle-head p { flex-basis: 100%; margin: 0; color: var(--text-muted); font-size: 12px; max-width: 80ch; }
+.fc-angle-soon { padding: 14px 16px; border: 1px dashed var(--border); border-radius: 12px; color: var(--text-muted); background: var(--surface); }
+.fc-angle-soon h3 { color: var(--text-muted); }
+.fc-ad-nohook { margin: 6px 0 0; color: var(--text-muted); font-size: 13px; font-style: italic; }
+
+/* Budget slots and angle tabs (2026-09-14, "the budget / ad interaction should be obvious"). */
+.fc-budget-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 24px; align-items: center; padding: 16px 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); margin-bottom: 16px; }
+.fc-budget-card .fc-toolbar-actions { grid-column: 2; grid-row: 1 / span 3; justify-self: end; }
+.fc-budget-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.fc-budget-head strong { font-size: 15px; }
+.fc-budget-head span { color: var(--text-muted); font-size: 13px; }
+.fc-slots { display: flex; flex-wrap: wrap; gap: 6px; }
+.fc-slot { width: 44px; height: 14px; border-radius: 4px; border: 1px solid var(--border); background: var(--brand-tint); }
+.fc-slot.is-chosen { background: var(--brand); border-color: var(--brand); }
+.fc-slot.is-over { background: var(--error); border-color: var(--error); }
+.fc-budget-line { margin: 0; font-size: 13px; }
+.fc-budget-line strong { font-weight: 600; }
+.fc-budget-line.is-full { color: var(--error); }
+.fc-angle-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin: 4px 0 14px; }
+.fc-angle-tabs [role="tab"] { appearance: none; background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: 10px 14px; font: inherit; font-size: 14px; font-weight: 600; color: var(--text-muted); cursor: pointer; display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.fc-angle-tabs [role="tab"][aria-selected="true"] { color: var(--text); border-bottom-color: var(--brand); }
+.fc-angle-tabs [role="tab"]:disabled { cursor: not-allowed; opacity: .7; }
+.fc-angle-tabs [role="tab"] .pill { font-weight: 500; }
+.fc-angle-panel { display: grid; gap: 12px; }
+.fc-angle-panel > p { margin: 0; color: var(--text-muted); font-size: 12px; max-width: 80ch; }
+.fc-angle-soon { padding: 24px; border: 1px dashed var(--border); border-radius: 12px; color: var(--text-muted); background: var(--surface); }
+.fc-angle-soon h3 { margin: 0 0 6px; color: var(--text-muted); }
+.fc-ad-reserve { margin-left: auto; color: var(--text-muted); }
+.fc-ad-heading > .fc-ad-reserve + .pill { margin-left: 0; }
+@media (max-width: 720px) { .fc-budget-card { grid-template-columns: 1fr; } .fc-budget-card .fc-toolbar-actions { grid-column: auto; grid-row: auto; justify-self: start; } .fc-angle-tabs { overflow-x: auto; } }

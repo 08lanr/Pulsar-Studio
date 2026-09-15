@@ -80,6 +80,11 @@ export type VariantKind =
 export type VariantStatus = "candidate" | "dismissed";
 
 export type ClipStatus = "suggested" | "shortlisted" | "dismissed";
+/** How a clip's moment was chosen: from the script (find_clips) or from footage signals alone. */
+export type ClipSource = "script" | "footage";
+/** What the clip is for: the trailer-style opening of the drama, or a peak moment (decision 2026-09-14). */
+export type ClipMoment = "opening" | "peak";
+export type ClipRenderStatus = "pending" | "rendered" | "failed";
 
 // ---- Promote enums -----------------------------------------------------------
 
@@ -126,6 +131,7 @@ export type JobKind =
   | "rewrite"
   | "propose_variants"
   | "find_clips"
+  | "cut_clips"
   | "parse_subtitles"
   | "transcribe_episode";
 export type JobStatus = "queued" | "running" | "done" | "failed" | "cancelled";
@@ -542,6 +548,18 @@ export type Clip = {
   model: string | null;
   prompt_version: string | null;
   job_id: string | null;
+  // Auto-cut renders (decision 2026-09-14 "ad clips cut after upload"; migration 0010).
+  source: ClipSource;
+  moment: ClipMoment;
+  /** Storage path of the finished 9:16 file, same convention as PromoCreative.render_path. */
+  render_path: string | null;
+  render_sha256: string | null;
+  render_status: ClipRenderStatus;
+  /** Why a render failed, or what the producer should know about the file; shown as is. */
+  render_note: string | null;
+  duration_ms: number | null;
+  width: number | null;
+  height: number | null;
   created_at: string;
 };
 /** @deprecated prose name; use Clip. */

@@ -16,9 +16,13 @@
 // partner-approved, on-behalf needs a staff admin and an evidence note.
 
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { copyFileSync, existsSync, linkSync, mkdirSync } from "node:fs";
+import { copyFileSync, existsSync, linkSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { canReadTitle, isSystemSession, type Session } from "@/lib/auth";
+import { budgetCheck, overBudgetMessage } from "@/lib/angles";
+import { creativesFromClips, FALLBACK_NOTE, pickClipsForRound } from "@/lib/clips/creatives";
+import { cutClip, withSourceFile } from "@/lib/clips/cut";
+import { ffmpegAvailable } from "@/lib/promote/render";
 import { blockerMessage, isAssignedBusinessCenter, isReadyLaunchAccount, launchReadiness } from "@/lib/promote/launch-gate";
 import { launchMode } from "@/lib/tiktok";
 import { LAST_CUE_MS, liftStamp, MAX_DERIVED_CUE_MS, SAMPLE_LATENCY_MS, type IngestResult } from "@/lib/ingest";
@@ -93,7 +97,7 @@ type Store = {
 };
 
 /** Bump when the fixture seed shape changes, so a dev server's parked store is rebuilt on hot reload. */
-const SEED_VERSION = "demo-2026-09-09.2-tiktok";
+const SEED_VERSION = "demo-2026-09-14.3-clips";
 
 const STORE_KEY = "__pulsarStudioFixtureStore";
 
@@ -104,6 +108,7 @@ function store(): Store {
     const seed = (globalThis as unknown as Record<string, FixtureSeed | undefined>)[`${STORE_KEY}Seed`];
     const db = cloneFixtureDb(seed);
     ensureDemoMedia(db);
+    ensureDemoClips(db);
     s = { db, auditSeq: db.audit_events.reduce((m, e) => Math.max(m, e.id), 0), seedVersion: SEED_VERSION };
     g[STORE_KEY] = s;
   }
@@ -140,6 +145,58 @@ function ensureDemoMedia(db: FixtureDb): void {
       console.warn("[fixture] demo media not linked", e.video_path, (err as Error).message);
     }
   }
+}
+
+/**
+ * The seeded ad clips are real cuts (decision 2026-09-14, "is it actually
+ * cut for real?"): the rows come in `pending` pointing at
+ * `<title>/<episode>/clip-demo-<k>.mp4`; a cut already on disk (with its
+ * sha sidecar) is marked rendered at once, the rest are cut with ffmpeg in
+ * the background from the linked sample episode (clean cuts, nothing
+ * burned in) and marked as they finish. Without ffmpeg the rows
+ * end `failed` with the honest note. `PROMO_RENDER=off` (the test runner)
+ * skips all of it; the rows then stay pending and nothing asserts on them.
+ */
+function ensureDemoClips(db: FixtureDb): void {
+  if (process.env.PROMO_RENDER === "off") return;
+  const pending = db.clips.filter((c) => c.render_status === "pending" && c.render_path);
+  if (!pending.length) return;
+  const toCut: Clip[] = [];
+  for (const clip of pending) {
+    try {
+      const abs = resolveUploadPath(clip.render_path!);
+      const sidecar = `${abs}.sha256`;
+      if (existsSync(abs) && existsSync(sidecar)) {
+        const sha = readFileSync(sidecar, "utf8").trim();
+        if (/^[0-9a-f]{64}$/.test(sha)) {
+          Object.assign(clip, { render_status: "rendered", render_sha256: sha, duration_ms: clip.end_ms - clip.start_ms, width: 1080, height: 1920 });
+          continue;
+        }
+      }
+    } catch { /* fall through: cut it */ }
+    toCut.push(clip);
+  }
+  if (!toCut.length) return;
+  void (async () => {
+    if (!(await ffmpegAvailable())) {
+      for (const clip of toCut) Object.assign(clip, { render_status: "failed", render_note: "ffmpeg is not installed on this machine" });
+      return;
+    }
+    for (const clip of toCut) {
+      const episode = db.episodes.find((e) => e.id === clip.episode_id);
+      if (!episode?.video_path) { Object.assign(clip, { render_status: "failed", render_note: "no source video" }); continue; }
+      try {
+        const r = await withSourceFile(episode.video_path, (srcAbs, workDir) =>
+          cutClip({ srcAbs, workDir, startMs: clip.start_ms, endMs: clip.end_ms, storedPath: clip.render_path! })
+        );
+        writeFileSync(`${resolveUploadPath(r.render_path)}.sha256`, r.render_sha256);
+        Object.assign(clip, { render_status: "rendered", render_sha256: r.render_sha256, duration_ms: r.duration_ms, width: r.width, height: r.height, render_note: null });
+      } catch (e) {
+        Object.assign(clip, { render_status: "failed", render_note: (e as Error).message });
+        console.warn("[fixture] demo clip not cut", clip.external_id, (e as Error).message);
+      }
+    }
+  })();
 }
 
 /** Which seed the process-wide store was built from (the demo badge and the reset route read it). */
@@ -1648,9 +1705,11 @@ export const fixtureData: DataLayer = {
     requireStaff(session);
     const { db } = store();
     const episode = findEpisodeById(db, episodeId);
-    if (!episode.has_timecodes) throw invalid("clips need a timed episode");
+    // Script clips need cue timecodes; footage clips (decision 2026-09-14) only need the video.
+    if (!episode.has_timecodes && !episode.video_path) throw invalid("clips need a timed episode or an episode with video");
     const adaptation = findAdaptation(db, episode.title_id);
     // A re-run replaces 'suggested' rows only; shortlisted / dismissed keep their rank.
+    // Rendered files of replaced rows stay in storage: an approved creative may still point at one.
     db.clips = db.clips.filter((c) => !(c.episode_id === episodeId && c.status === "suggested"));
     const taken = new Set(db.clips.filter((c) => c.episode_id === episodeId).map((c) => c.rank));
     const at = now();
@@ -1683,6 +1742,15 @@ export const fixtureData: DataLayer = {
         model: c.model ?? null,
         prompt_version: c.prompt_version ?? null,
         job_id: c.job_id ?? null,
+        source: c.source ?? "script",
+        moment: c.moment ?? "peak",
+        render_path: null,
+        render_sha256: null,
+        render_status: "pending",
+        render_note: null,
+        duration_ms: null,
+        width: null,
+        height: null,
         created_at: at,
       };
     });
@@ -1695,6 +1763,37 @@ export const fixtureData: DataLayer = {
     const clip = store().db.clips.find((c) => c.id === clipId);
     if (!clip) throw notFound("clip", clipId);
     clip.status = status;
+    return clone(clip);
+  },
+
+  async listEpisodeClips(session, titleId, episodeNumber) {
+    const { db } = store();
+    readableTitle(db, session, titleId); // a foreign title is not found, never forbidden
+    const episodeId = episodeNumber !== undefined ? findEpisode(db, titleId, episodeNumber).id : null;
+    const number = new Map(db.episodes.map((e) => [e.id, e.number]));
+    return clone(
+      db.clips
+        .filter((c) => c.title_id === titleId && (episodeId === null || c.episode_id === episodeId))
+        .sort((a, b) => (number.get(a.episode_id) ?? 0) - (number.get(b.episode_id) ?? 0) || a.rank - b.rank)
+    );
+  },
+
+  async setClipRender(session, clipId, render) {
+    const { db } = store();
+    const clip = db.clips.find((c) => c.id === clipId);
+    if (!clip) throw notFound("clip", clipId);
+    if (!isSystemSession(session) && session.kind !== "staff") requireTitleEditor(db, session, clip.title_id);
+    if (render.render_status === "rendered") {
+      if (!render.render_path) throw invalid("a rendered clip needs its file path");
+      if (!/^[0-9a-f]{64}$/.test(render.render_sha256 ?? "")) throw invalid("render checksum must be a sha256");
+    }
+    clip.render_status = render.render_status;
+    if (render.render_path !== undefined) clip.render_path = render.render_path;
+    if (render.render_sha256 !== undefined) clip.render_sha256 = render.render_sha256;
+    if (render.render_note !== undefined) clip.render_note = render.render_note;
+    if (render.duration_ms !== undefined) clip.duration_ms = render.duration_ms;
+    if (render.width !== undefined) clip.width = render.width;
+    if (render.height !== undefined) clip.height = render.height;
     return clone(clip);
   },
 
@@ -1752,6 +1851,20 @@ export const fixtureData: DataLayer = {
     job.heartbeat_at = at;
     job.finished_at = at;
     return clone(job);
+  },
+
+  async latestEpisodeJob(session, titleId, episodeNumber, kind) {
+    const { db } = store();
+    readableTitle(db, session, titleId);
+    const episode = findEpisode(db, titleId, episodeNumber);
+    const jobs = db.jobs.filter((j) => j.episode_id === episode.id && j.kind === kind).sort((a, b) => b.created_at.localeCompare(a.created_at) || b.started_at!.localeCompare(a.started_at!));
+    return jobs.length ? clone(jobs[0]) : null;
+  },
+
+  async heartbeatJob(jobId) {
+    const job = store().db.jobs.find((j) => j.id === jobId);
+    if (!job) throw notFound("job", jobId);
+    job.heartbeat_at = now();
   },
 
   async sumCostCents(titleId) {
@@ -1903,6 +2016,22 @@ export const fixtureData: DataLayer = {
       return clone(db.promo_creatives.filter((c) => c.campaign_id === campaign.id && c.status !== "superseded"));
     }
     const title = findTitle(db, campaign.title_id);
+    const at = now();
+    // Ads come from the title's finished auto-cut clips (decision 2026-09-14);
+    // the fixed-offset concepts below are the fallback when none exist.
+    const rendered = pickClipsForRound(db.clips.filter((c) => c.title_id === title.id), episodes);
+    if (rendered.length) {
+      const rows: PromoCreative[] = creativesFromClips(rendered, title).map((d) => ({
+        id: randomUUID(), external_id: extId("pc"), campaign_id: campaign.id, title_id: title.id,
+        parent_creative_id: null, version: 1, ...d, rejection_note: null, revision_note: null, created_at: at, updated_at: at,
+      }));
+      db.promo_creatives.push(...rows);
+      campaign.status = "review"; // nothing to render: every ad already has its file
+      campaign.status_note = null;
+      campaign.updated_at = at;
+      audit(store(), session, "generate_promo_drafts", "promote.campaigns", campaign.id, title.id, null, { creative_count: rows.length, rendering: false, source: "auto_clip" });
+      return clone(rows);
+    }
     // Five concepts per round (decision 2026-09-04): one testable set at a
     // time; further rounds follow once results come back.
     const kinds: PromoCreative["kind"][] = ["direct_clip", "ugc_story", "direct_clip", "ugc_reaction", "direct_clip"];
@@ -1913,7 +2042,6 @@ export const fixtureData: DataLayer = {
       "Use a disbelief reaction to make the plot twist feel socially shareable.",
       "Build escalating cuts around the relationship power shift.",
     ];
-    const at = now();
     const rows = kinds.map((kind, index): PromoCreative => {
       const episode = episodes[index % episodes.length];
       const available = Math.max(15_000, episode.duration_ms ?? 45_000);
@@ -1934,9 +2062,9 @@ export const fixtureData: DataLayer = {
     db.promo_creatives.push(...rows);
     // With renders running, the campaign waits in `generating` until finishPromoGeneration opens it.
     campaign.status = opts?.rendering ? "generating" : "review";
-    campaign.status_note = null;
+    campaign.status_note = FALLBACK_NOTE;
     campaign.updated_at = at;
-    audit(store(), session, "generate_promo_drafts", "promote.campaigns", campaign.id, title.id, null, { creative_count: rows.length, rendering: !!opts?.rendering });
+    audit(store(), session, "generate_promo_drafts", "promote.campaigns", campaign.id, title.id, null, { creative_count: rows.length, rendering: !!opts?.rendering, source: "fixed_offsets" });
     return clone(rows);
   },
 
@@ -1948,6 +2076,8 @@ export const fixtureData: DataLayer = {
     requireTitleEditor(db, session, campaign.title_id);
     if (campaign.status !== "review") throw conflict("creative review is closed");
     if (input.status === "rejected" && blank(input.rejection_note)) throw invalid("tell us what to change when rejecting a creative");
+    // Unselect only walks back a pick; a change request stays a change request.
+    if (input.status === "ready" && creative.status !== "approved") throw conflict("only a chosen ad can be unselected");
     creative.status = input.status;
     creative.rejection_note = input.status === "rejected" ? input.rejection_note?.trim() || null : null;
     creative.updated_at = now();
@@ -1981,6 +2111,9 @@ export const fixtureData: DataLayer = {
     const creatives = db.promo_creatives.filter((c) => c.campaign_id === campaign.id && c.status === "approved");
     if (!creatives.length) throw invalid("approve at least one creative first");
     if (creatives.some((c) => !c.render_sha256 && c.render_path)) throw invalid("every rendered creative needs a checksum");
+    // Each chosen ad reserves its angle's minimum; the pick must fit the experiment budget (lib/angles.ts).
+    const budget = budgetCheck(creatives, campaign.experiment?.budget_usd);
+    if (!budget.ok) throw invalid(overBudgetMessage(budget, campaign.experiment?.budget_usd ?? 0));
     const manifest = { schema: 1, campaign_external_id: campaign.external_id, creatives: creatives.map((c) => ({ external_id: c.external_id, version: c.version, render_path: c.render_path, render_sha256: c.render_sha256, hook: c.hook, caption: c.caption, ad_description: c.ad_description })) };
     const manifest_sha256 = createHash("sha256").update(JSON.stringify(manifest)).digest("hex");
     const approval: PromoApproval = { id: randomUUID(), campaign_id: campaign.id, producer_id: campaign.producer_id, approved_by: session.userId, manifest, manifest_sha256, created_at: now() };

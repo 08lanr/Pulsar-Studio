@@ -25,7 +25,8 @@ async function campaignWithVideo() {
     destination_url: "https://example.com/watch/xiang-yuan",
     objective: "subscriptions",
     spoiler_level: "medium",
-    experiment: { budget_usd: 100, hypothesis: "The reversal opening beats the romance opening.", audience: "US women 25-44", first_batch: 2, signal: "views" },
+    // $250 covers all five concepts at the $50-per-ad minimum (decision 2026-09-14), so keep-all still freezes.
+    experiment: { budget_usd: 250, hypothesis: "The reversal opening beats the romance opening.", audience: "US women 25-44", first_batch: 2, signal: "views" },
   });
   await fixtureData.assignLaunchAccount(staff(), FIXTURE_PRODUCER_ID, { advertiser_id: "7000000000000000001", name: "Test ad account", identity_id: "7000000000000000101", identity_type: "BC_AUTH_TT" });
   return { title, campaign };

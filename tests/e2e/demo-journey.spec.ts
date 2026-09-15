@@ -94,6 +94,16 @@ test("status board → market signal → matching owned title → its campaign",
   await expect(page.locator(".tw-chips")).toContainText(/On TikTok/);
   await expect(page.locator(".tw-chips")).toContainText(/results in/);
   await shot(page, "title-overview");
+  // Materials: the finalized episodes carry their auto-cut ad clips with a download (decision 2026-09-14).
+  await page.goto(`/producer/titles/${T1}/materials`);
+  const firstClips = page.locator(".ep-clips").first();
+  await expect(firstClips).toContainText("Ad clips");
+  await expect(firstClips.getByRole("status")).toContainText("3 ready");
+  await expect(firstClips.locator(".ep-clip")).toHaveCount(3);
+  await expect(firstClips.getByRole("link", { name: "Download" }).first()).toHaveAttribute("href", /\/api\/media\//);
+  await expect(firstClips.getByRole("button", { name: "Cut clips again" })).toBeVisible();
+  await shot(page, "materials-ad-clips");
+  await page.goto(`/producer/titles/${T1}`);
   // The title workspace: Preparation keeps the full assessment; the campaign is one section away and comes back.
   await page.locator(".tw-nav a", { hasText: "US launch priority" }).click();
   await expect(page).toHaveURL(new RegExp(`/producer/titles/${T1}/preparation`));
@@ -163,8 +173,25 @@ test("ads → approvals → budget → launch → demo results → next round", 
   await expect(firstAd).toContainText("Change requested — awaiting Pulsar review");
   await expect(firstAd).toContainText("Open on the wedding, not the forest.");
 
-  await page.getByRole("button", { name: /Choose all \d+ ads/ }).click();
-  await expect(page.locator(".fc-review-toolbar p")).toContainText("4 of 5 ads selected");
+  // Angles are tabs above the ads; narration is a disabled "coming soon" tab (decision 2026-09-14).
+  await expect(page.getByRole("tab", { name: /Direct clips/ })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: /Narration/ })).toBeDisabled();
+  await expect(page.getByRole("tab", { name: /Narration/ })).toContainText("Coming soon");
+  // The $100 budget is two slots at $50 each; the third Choose button greys out once both are used.
+  const slots = page.locator(".fc-budget-card");
+  await expect(slots).toContainText("0 of 2 slots used");
+  await expect(slots).toContainText("2 more can be chosen");
+  await expect(page.getByRole("button", { name: "Approve ads", exact: true })).toBeDisabled();
+  await page.locator(".fc-ad.ready").first().getByRole("button", { name: "Choose ad" }).click();
+  await expect(slots).toContainText("1 of 2 slots used");
+  await page.locator(".fc-ad.ready").first().getByRole("button", { name: "Choose ad" }).click();
+  await expect(slots).toContainText("2 of 2 slots used");
+  await expect(slots).toContainText("Slots full");
+  await expect(page.locator(".fc-ad.ready").first().getByRole("button", { name: "Choose ad" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /Choose all/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Unselect" })).toHaveCount(2);
+  await expect(page.getByRole("button", { name: "Approve ads", exact: true })).toBeEnabled();
+  await shot(page, "campaign-slots-full");
   await page.getByRole("button", { name: "Approve ads", exact: true }).click();
   await expect(page.locator(".ws-stages [aria-current=step]")).toContainText("Approve budget");
   await expect(page.getByText("Budget not approved")).toBeVisible();
@@ -186,7 +213,7 @@ test("ads → approvals → budget → launch → demo results → next round", 
   await expect(page.locator("#launch-status")).toContainText(/17\d{15}/);
   await page.getByRole("button", { name: "Simulate demo results" }).click();
   await expect(page.getByRole("heading", { name: "What the results say" })).toBeVisible();
-  await expect(page.locator(".rd-table tbody tr")).toHaveCount(4);
+  await expect(page.locator(".rd-table tbody tr")).toHaveCount(2);
   await expect(page.locator(".rd-provenance")).toContainText("Demo results (simulated)");
   await expect(page.locator(".rd-verdict").first()).toBeVisible();
   await shot(page, "campaign-results");
@@ -194,7 +221,7 @@ test("ads → approvals → budget → launch → demo results → next round", 
   // Refresh persistence: the results and the stage survive a reload.
   await page.reload();
   await expect(page.locator(".ws-stages [aria-current=step]")).toContainText("Review ad results");
-  await expect(page.locator(".rd-table tbody tr")).toHaveCount(4);
+  await expect(page.locator(".rd-table tbody tr")).toHaveCount(2);
   const winnerRow = page.locator(".rd-table tr.is-winner");
   if (await winnerRow.count()) {
     await expect(page.locator(".rd-findings li.is-met").first()).toContainText(/met both/);

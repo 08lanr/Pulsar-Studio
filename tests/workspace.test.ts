@@ -131,8 +131,9 @@ test("demo results are labelled, idempotent, and only follow a submitted campaig
   assert.equal((await fixtureData.listCreativeResults(producer())).length, before);
   // A fresh submitted campaign gets deterministic demo rows, one per selected creative.
   resetFakeTikTok();
-  // Campaign 2 is approved here the way the producer does it: every ad, then the batch, then the budget.
-  await fixtureData.approveAllPromoCreatives(producer(), demoCampaignId(2));
+  // Campaign 2 is approved here the way the producer does it: the two ads its $100 covers, then the batch, then the budget.
+  const c2Before = await fixtureData.getPromoCampaign(producer(), demoCampaignId(2));
+  for (const cr of c2Before.creatives.slice(0, 2)) await fixtureData.reviewPromoCreative(producer(), cr.id, { status: "approved" });
   await fixtureData.approvePromoCampaign(producer(), demoCampaignId(2));
   await fixtureData.approveExperiment(producer(), demoCampaignId(2));
   const c2 = await fixtureData.submitPromoCampaign(producer(), demoCampaignId(2), await demoPick());
@@ -140,11 +141,11 @@ test("demo results are labelled, idempotent, and only follow a submitted campaig
   await runLaunch(c2.launch!.id);
   assert.equal((await fixtureData.getPromoCampaign(producer(), demoCampaignId(2))).campaign.status, "submitted");
   const d2 = await fixtureData.simulateDemoResults(producer(), demoCampaignId(2));
-  assert.equal(d2.results.length, 5);
+  assert.equal(d2.results.length, 2);
   assert.ok(d2.results.every((r) => r.source === "demo"));
   assert.equal(d2.campaign.status, "live");
   const again = await fixtureData.simulateDemoResults(producer(), demoCampaignId(2));
-  assert.equal(again.results.length, 5);
+  assert.equal(again.results.length, 2);
   await assert.rejects(fixtureData.simulateDemoResults(staff(), demoCampaignId(2)));
 });
 

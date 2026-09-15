@@ -42,7 +42,7 @@ export async function renderCampaign(campaignId: string): Promise<{ rendered: nu
     }
     try {
       const r = await renderAd(creative, episode.video_path, `${detail.title.id}/${episode.id}`);
-      await data.setCreativeRender(session, creative.id, { render_path: r.render_path, render_sha256: r.render_sha256, duration_ms: r.duration_ms, width: r.width, height: r.height, render_settings: { schema: 2, format: "9:16", source: "rendered_cut", hook_burned: !!creative.hook.trim() } });
+      await data.setCreativeRender(session, creative.id, { render_path: r.render_path, render_sha256: r.render_sha256, duration_ms: r.duration_ms, width: r.width, height: r.height, render_settings: { schema: 2, format: "9:16", source: "rendered_cut" } });
       rendered += 1;
     } catch (e) {
       failed.push(`${creative.external_id}: ${(e as Error).message}`);

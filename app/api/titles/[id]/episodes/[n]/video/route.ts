@@ -6,6 +6,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { apiError } from "@/lib/api-guard";
 import { requireMember } from "@/lib/auth";
+import { scheduleClipCut } from "@/lib/clips/run";
 import { getData } from "@/lib/data";
 import { mediaUrl, uploadMedia } from "@/lib/data/storage";
 import { episodeNumber, handle, isResponse } from "../../../../_lib/handler";
@@ -33,6 +34,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string;
       video.type || undefined
     );
     const episode = await data.setEpisodeVideo(g.session, params.id, n, stored);
+    // The footage changed: cut the ad clips again from the new file (decision 2026-09-14).
+    scheduleClipCut(params.id, n, { force: true });
     return NextResponse.json({ episode, video_url: mediaUrl(stored) });
   });
 }

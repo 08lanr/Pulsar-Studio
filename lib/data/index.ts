@@ -38,6 +38,9 @@ import type {
   ChangeType,
   Character,
   Clip,
+  ClipMoment,
+  ClipRenderStatus,
+  ClipSource,
   ClipStatus,
   Episode,
   FeedbackDisposition,
@@ -210,6 +213,20 @@ export type NewClip = {
   model?: string | null;
   prompt_version?: string | null;
   job_id?: string | null;
+  /** Defaults: script / peak / none (decision 2026-09-14). */
+  source?: ClipSource;
+  moment?: ClipMoment;
+};
+
+/** The finished (or failed) 9:16 file of an auto-cut clip. */
+export type ClipRenderInput = {
+  render_status: ClipRenderStatus;
+  render_path?: string | null;
+  render_sha256?: string | null;
+  render_note?: string | null;
+  duration_ms?: number | null;
+  width?: number | null;
+  height?: number | null;
 };
 
 export type NewJob = {
@@ -265,8 +282,9 @@ export type CreatePromoCampaignInput = {
   experiment?: ExperimentInput | null;
 };
 
+/** `ready` puts a chosen creative back (unselect) so the pick can fit the budget. */
 export type PromoCreativeReviewInput = {
-  status: Extract<PromoCreativeStatus, "approved" | "rejected">;
+  status: Extract<PromoCreativeStatus, "approved" | "rejected" | "ready">;
   rejection_note?: string | null;
 };
 
@@ -500,14 +518,22 @@ export interface DataLayer {
   selectVariant(session: Session, variantId: string): Promise<Variant>;
   dismissVariant(session: Session, variantId: string, dismissed?: boolean): Promise<Variant>;
   listClips(session: Session, titleId: string, episodeNumber?: number): Promise<Clip[]>;
-  /** Replaces the episode's `suggested` rows, keeps shortlisted / dismissed; returns the episode's clips. */
+  /** Replaces the episode's `suggested` rows, keeps shortlisted / dismissed; returns the episode's clips. Needs a timed episode or one with video. */
   upsertClips(session: Session, episodeId: string, clips: NewClip[]): Promise<Clip[]>;
   setClipStatus(session: Session, clipId: string, status: ClipStatus): Promise<Clip>;
+  // auto-cut ad clips (decision 2026-09-14): readable by the title's producer; a foreign title is not found.
+  listEpisodeClips(session: Session, titleId: string, episodeNumber?: number): Promise<Clip[]>;
+  /** System, staff or a title editor: the clip's finished file (or why there is none). */
+  setClipRender(session: Session, clipId: string, render: ClipRenderInput): Promise<Clip>;
 
   // jobs and cost
   /** Idempotent: an existing 'done' row for the key is returned as is (callers check status). */
   recordJob(session: Session, job: NewJob): Promise<Job>;
   finishJob(jobId: string, result: JobResult): Promise<Job>;
+  /** The newest job of a kind on an episode (any status), or null; readable by whoever can read the title. */
+  latestEpisodeJob(session: Session, titleId: string, episodeNumber: number, kind: JobKind): Promise<Job | null>;
+  /** A long run says it is still alive (lib/clips/state.ts treats a quiet heartbeat as a dead run). */
+  heartbeatJob(jobId: string): Promise<void>;
   sumCostCents(titleId: string): Promise<number>;
 
   // partner portal

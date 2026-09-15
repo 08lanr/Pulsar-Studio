@@ -143,7 +143,7 @@ export function cloneFixtureDb(seed: FixtureSeed = defaultFixtureSeed()): Fixtur
   db.promo_results.push(...demo.results);
   db.company_accounts.push(...demo.accounts);
   db.promo_launches.push(...demo.launches);
-  db.promo_launches.push(...demo.launches);
+  db.clips.push(...demo.clips);
   db.analytics_links.push(...structuredClone(buildDemoAnalytics().links));
   return db;
 }

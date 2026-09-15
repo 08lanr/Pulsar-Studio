@@ -4,8 +4,9 @@ import { requireProducer } from "@/lib/auth";
 import { getData } from "@/lib/data";
 import { handle, parseJson } from "@/app/api/titles/_lib/handler";
 
+// `ready` unselects a chosen ad (decision 2026-09-14: the pick must fit the budget).
 const schema = z.object({
-  status: z.enum(["approved", "rejected"]),
+  status: z.enum(["approved", "rejected", "ready"]),
   rejection_note: z.string().trim().max(1000).nullable().optional(),
 });
 

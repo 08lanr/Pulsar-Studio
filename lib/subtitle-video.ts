@@ -12,6 +12,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Session } from "@/lib/auth";
+import { ffmpegBin } from "@/lib/clips/cut";
 import { DataError, getData } from "@/lib/data";
 import { mediaUrl, resolveUploadPath, storagePath } from "@/lib/data/storage";
 import { dataSource } from "@/lib/data-source";
@@ -107,7 +108,7 @@ export async function renderSubtitledVideo(
   const vf = `subtitles='${ffPath(srtFile)}':force_style='${forceStyle}'`;
 
   await new Promise<void>((resolve, reject) => {
-    const p = spawn("ffmpeg", ["-y", "-i", videoAbs, "-vf", vf, "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-c:a", "copy", outAbs]);
+    const p = spawn(ffmpegBin(), ["-y", "-i", videoAbs, "-vf", vf, "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-c:a", "copy", outAbs]);
     let err = "";
     p.stderr.on("data", (d) => (err += String(d)));
     const timer = setTimeout(() => {

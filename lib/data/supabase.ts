@@ -60,6 +60,8 @@ import type { ReportBatch, ReportRow, ResearchProfile, WatchRow } from "@/lib/re
 import type { CatalogRow } from "@/lib/research/engine";
 import { examplesFromApprovedVersions } from "@/lib/translation-memory";
 import { isSystemSession } from "@/lib/auth";
+import { budgetCheck, overBudgetMessage } from "@/lib/angles";
+import { creativesFromClips, FALLBACK_NOTE, pickClipsForRound } from "@/lib/clips/creatives";
 import { blockerMessage, isAssignedBusinessCenter, isReadyLaunchAccount, launchReadiness } from "@/lib/promote/launch-gate";
 import { launchMode } from "@/lib/tiktok";
 import type { AccountRequest, PromoLaunch } from "@/lib/types";
@@ -902,7 +904,8 @@ export const supabaseData: DataLayer = {
   async upsertClips(_session, episodeId, clips) {
     const c = db();
     const episode = await one<Episode>(core(c).from("episodes").select("*").eq("id", episodeId).maybeSingle(), "episode", episodeId);
-    if (!episode.has_timecodes) throw invalid("clips need a timed episode");
+    // Script clips need cue timecodes; footage clips (decision 2026-09-14) only need the video (guard_timecodes, 0010).
+    if (!episode.has_timecodes && !episode.video_path) throw invalid("clips need a timed episode or an episode with video");
     const adaptation = await adaptationOf(c, episode.title_id);
     // A re-run replaces 'suggested' rows only; shortlisted / dismissed keep their rank.
     const { error } = await studio(c).from("clips").delete().eq("episode_id", episodeId).eq("status", "suggested");
@@ -940,6 +943,9 @@ export const supabaseData: DataLayer = {
                 model: cl.model ?? null,
                 prompt_version: cl.prompt_version ?? null,
                 job_id: cl.job_id ?? null,
+                source: cl.source ?? "script",
+                moment: cl.moment ?? "peak",
+                render_status: "pending",
               };
             })
           )
@@ -951,6 +957,38 @@ export const supabaseData: DataLayer = {
 
   async setClipStatus(_session, clipId, status) {
     return one<Clip>(studio(db()).from("clips").update({ status }).eq("id", clipId).select("*").maybeSingle(), "clip", clipId);
+  },
+
+  async listEpisodeClips(session, titleId, episodeNumber) {
+    // RLS: a producer reads clips of their own titles only (producer_select, 0010); a foreign title's episode is not found.
+    const c = dbFor(session);
+    let q = studio(c).from("clips").select("*").eq("title_id", titleId);
+    if (episodeNumber !== undefined) {
+      const episode = await episodeByNumber(c, titleId, episodeNumber);
+      q = q.eq("episode_id", episode.id);
+    }
+    const [clips, episodes] = await Promise.all([
+      many<Clip>(q.order("rank")),
+      many<Pick<Episode, "id" | "number">>(core(c).from("episodes").select("id, number").eq("title_id", titleId)),
+    ]);
+    const number = new Map(episodes.map((e) => [e.id, e.number]));
+    return clips.sort((a, b) => (number.get(a.episode_id) ?? 0) - (number.get(b.episode_id) ?? 0) || a.rank - b.rank);
+  },
+
+  async setClipRender(session, clipId, render) {
+    const c = dbFor(session);
+    if (render.render_status === "rendered") {
+      if (!render.render_path) throw invalid("a rendered clip needs its file path");
+      if (!/^[0-9a-f]{64}$/.test(render.render_sha256 ?? "")) throw invalid("render checksum must be a sha256");
+    }
+    const patch: Record<string, unknown> = { render_status: render.render_status };
+    if (render.render_path !== undefined) patch.render_path = render.render_path;
+    if (render.render_sha256 !== undefined) patch.render_sha256 = render.render_sha256;
+    if (render.render_note !== undefined) patch.render_note = render.render_note;
+    if (render.duration_ms !== undefined) patch.duration_ms = render.duration_ms;
+    if (render.width !== undefined) patch.width = render.width;
+    if (render.height !== undefined) patch.height = render.height;
+    return one<Clip>(studio(c).from("clips").update(patch).eq("id", clipId).select("*").maybeSingle(), "clip", clipId);
   },
 
   // ---- jobs and cost ----
@@ -1006,6 +1044,17 @@ export const supabaseData: DataLayer = {
     if (result.output !== undefined) update.output = result.output;
     if (result.error !== undefined) update.error = result.error;
     return one<Job>(studio(db()).from("jobs").update(update).eq("id", jobId).select("*").maybeSingle(), "job", jobId);
+  },
+
+  async latestEpisodeJob(session, titleId, episodeNumber, kind) {
+    const c = dbFor(session);
+    const episode = await episodeByNumber(c, titleId, episodeNumber);
+    const rows = await many<Job>(studio(c).from("jobs").select("*").eq("episode_id", episode.id).eq("kind", kind).order("created_at", { ascending: false }).limit(1));
+    return rows[0] ?? null;
+  },
+
+  async heartbeatJob(jobId) {
+    await one<Job>(studio(db()).from("jobs").update({ heartbeat_at: now() }).eq("id", jobId).select("*").maybeSingle(), "job", jobId);
   },
 
   async sumCostCents(titleId) {
@@ -1134,6 +1183,14 @@ export const supabaseData: DataLayer = {
       many<Episode>(core(c).from("episodes").select("*").eq("title_id", campaign.title_id).not("video_path", "is", null).order("number")),
     ]);
     if (!episodes.length) throw invalid("upload at least one drama episode video before generating creatives");
+    // Ads come from the title's finished auto-cut clips (decision 2026-09-14); fixed offsets are the fallback.
+    const clips = await many<Clip>(studio(c).from("clips").select("*").eq("title_id", campaign.title_id).eq("render_status", "rendered"));
+    const rendered = pickClipsForRound(clips, episodes);
+    if (rendered.length) {
+      const rows = await many<PromoCreative>(promote(c).from("creatives").insert(creativesFromClips(rendered, title).map((d) => ({ campaign_id: campaign.id, title_id: campaign.title_id, ...d }))).select("*"));
+      await one<PromoCampaign>(promote(c).from("campaigns").update({ status: "review", status_note: null, updated_at: now() }).eq("id", campaign.id).select("*").maybeSingle(), "promotion campaign", campaign.id);
+      return rows;
+    }
     const kinds: PromoCreative["kind"][] = ["direct_clip", "ugc_story", "direct_clip", "ugc_reaction", "direct_clip"];
     const hypotheses = ["Open on the reversal before revealing how the characters got there.", "Frame the central conflict like a viewer telling a friend what they just watched.", "Lead with the highest-stakes confrontation and stop before the answer.", "Use a disbelief reaction to make the plot twist feel socially shareable.", "Build escalating cuts around the relationship power shift."];
     const payload = kinds.map((kind, index) => {
@@ -1144,13 +1201,19 @@ export const supabaseData: DataLayer = {
       return { campaign_id: campaign.id, title_id: campaign.title_id, kind, status: "ready", hypothesis: hypotheses[index], source_episode_id: episode.id, source_start_ms: start, source_end_ms: end, hook: kind === "direct_clip" ? "Wait for the moment everything changes." : "I thought this was a love story—then this happened.", caption: `${title.name_en || title.name_zh}: one choice changes everything.`, ad_description: `Watch ${title.name_en || title.name_zh} and see what happens next.`, duration_ms: end - start, width: 1080, height: 1920, render_settings: { schema: 1, format: "9:16", source: "concept_preview", captions: true } };
     });
     const rows = await many<PromoCreative>(promote(c).from("creatives").insert(payload).select("*"));
-    await one<PromoCampaign>(promote(c).from("campaigns").update({ status: opts?.rendering ? "generating" : "review", status_note: null, updated_at: now() }).eq("id", campaign.id).select("*").maybeSingle(), "promotion campaign", campaign.id);
+    await one<PromoCampaign>(promote(c).from("campaigns").update({ status: opts?.rendering ? "generating" : "review", status_note: FALLBACK_NOTE, updated_at: now() }).eq("id", campaign.id).select("*").maybeSingle(), "promotion campaign", campaign.id);
     return rows;
   },
 
   async reviewPromoCreative(_session, creativeId, input) {
     if (input.status === "rejected" && blank(input.rejection_note)) throw invalid("tell us what to change when rejecting a creative");
-    return one<PromoCreative>(promote(db()).from("creatives").update({ status: input.status, rejection_note: input.status === "rejected" ? input.rejection_note?.trim() || null : null, updated_at: now() }).eq("id", creativeId).select("*").maybeSingle(), "promotion creative", creativeId);
+    const c = db();
+    if (input.status === "ready") {
+      // Unselect only walks back a pick; a change request stays a change request (same rule as fixture).
+      const current = await one<PromoCreative>(promote(c).from("creatives").select("*").eq("id", creativeId).maybeSingle(), "promotion creative", creativeId);
+      if (current.status !== "approved") throw conflict("only a chosen ad can be unselected");
+    }
+    return one<PromoCreative>(promote(c).from("creatives").update({ status: input.status, rejection_note: input.status === "rejected" ? input.rejection_note?.trim() || null : null, updated_at: now() }).eq("id", creativeId).select("*").maybeSingle(), "promotion creative", creativeId);
   },
 
   async approveAllPromoCreatives(_session, campaignId) {
@@ -1163,6 +1226,13 @@ export const supabaseData: DataLayer = {
 
   async approvePromoCampaign(_session, campaignId) {
     const c = db();
+    // Each chosen ad reserves its angle's minimum; the pick must fit the experiment budget (lib/angles.ts), same as fixture.
+    const [before, chosen] = await Promise.all([
+      campaignById(c, campaignId),
+      many<PromoCreative>(promote(c).from("creatives").select("*").eq("campaign_id", campaignId).eq("status", "approved")),
+    ]);
+    const budget = budgetCheck(chosen, before.experiment?.budget_usd);
+    if (chosen.length && !budget.ok) throw invalid(overBudgetMessage(budget, before.experiment?.budget_usd ?? 0));
     const { error } = await promote(c).rpc("approve_campaign", { p_campaign_id: campaignId });
     if (error) throw mapError(error);
     const campaign = await one<PromoCampaign>(promote(c).from("campaigns").select("*").eq("id", campaignId).maybeSingle(), "promotion campaign", campaignId);

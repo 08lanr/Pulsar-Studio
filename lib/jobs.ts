@@ -35,6 +35,9 @@ import {
 import { gatherKnowledge } from "@/lib/memory";
 import { demoReplayActive } from "@/lib/data-source";
 import {
+  CLIP_MAX_S,
+  CLIP_MIN_S,
+  CLIP_PROMPT_VERSION,
   PROMPT_VERSION,
   buildAlternatives,
   buildCreativePack,
@@ -801,11 +804,29 @@ export type FindClipsResult = {
  * its current version and the prompt version; `force` starts a fresh run
  * (a new key) when the editor wants another look at the same version.
  */
+/**
+ * The cut a clip becomes (decision 2026-09-14): from the run's first line,
+ * the recommended length clamped to 20-30 s, extended past the last line
+ * when the lines are shorter, and never past the episode's end when known.
+ * Pure; the clip tests cover it.
+ */
+export function clampClipRange(startMs: number, lastLineEndMs: number, cutLengthS: number, episodeEndMs: number | null): { start_ms: number; end_ms: number } {
+  const want = Math.min(CLIP_MAX_S, Math.max(CLIP_MIN_S, Math.round(cutLengthS))) * 1000;
+  let start = Math.max(0, startMs);
+  let end = start + want;
+  if (episodeEndMs !== null && end > episodeEndMs) {
+    end = episodeEndMs;
+    start = Math.max(0, Math.min(start, end - want));
+  }
+  if (end <= start) end = Math.max(start + 1000, lastLineEndMs);
+  return { start_ms: start, end_ms: end };
+}
+
 export async function runFindClips(
   session: Session,
   titleId: string,
   episodeNumber: number,
-  opts: { force?: boolean } = {}
+  opts: { force?: boolean; durationMs?: number | null } = {}
 ): Promise<FindClipsResult> {
   assertModelCallsAllowed();
   const data = getData();
@@ -817,12 +838,15 @@ export async function runFindClips(
     .sort((a, b) => a.seq - b.seq);
   if (!lines.length) throw new DataError("invalid", `episode ${episodeNumber} has no timed lines`);
 
+  // Episode 1 carries the trailer-style opening besides its peak moments (decision 2026-09-14).
+  const wantsOpening = wb.episode.number === 1;
   const prompt = buildFindClips({
     bible: bibleFor(wb.title, wb.characters),
     episode_number: wb.episode.number,
     episode_name_zh: wb.episode.name_zh,
     scenes: scenesInOrder(wb),
     lines: lines.map((l) => toPromptLine(l, en)),
+    wants_opening: wantsOpening,
   });
   const versionKey = wb.version?.id ?? "source";
   const suffix = opts.force ? `:r${Date.now().toString(36)}` : "";
@@ -833,9 +857,9 @@ export async function runFindClips(
     version_id: wb.version?.id ?? null,
     target_type: "episode",
     target_id: wb.episode.id,
-    idempotency_key: `find_clips:${wb.episode.id}:${versionKey}:${PROMPT_VERSION}${suffix}`,
+    idempotency_key: `find_clips:${wb.episode.id}:${versionKey}:${PROMPT_VERSION}:${CLIP_PROMPT_VERSION}${suffix}`,
     model: prompt.model,
-    input: { prompt_version: PROMPT_VERSION, line_count: lines.length },
+    input: { prompt_version: PROMPT_VERSION, clip_prompt_version: CLIP_PROMPT_VERSION, line_count: lines.length, wants_opening: wantsOpening },
     run: async () => {
       const c = await callStructured(prompt);
       return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model };
@@ -847,16 +871,20 @@ export async function runFindClips(
     return { clips: current, job: r.job, skipped: true };
   }
   const bySeq = new Map(lines.map((l) => [l.seq, l]));
+  // The range the footage is cut to: the run's start, then the recommended
+  // length (clamped to the 20-30 s rule), never past the episode's end when known.
+  const episodeEnd = opts.durationMs ?? wb.episode.duration_ms ?? null;
   const rows: NewClip[] = r.output.clips.map((c, i) => {
     const from = bySeq.get(c.from_seq)!;
     const to = bySeq.get(c.to_seq)!;
     const sceneIds = Array.from(
       new Set(lines.filter((l) => l.seq >= c.from_seq && l.seq <= c.to_seq).map((l) => l.scene_id))
     );
+    const range = clampClipRange(from.start_ms!, to.end_ms!, c.cut_length_s, episodeEnd);
     return {
       rank: i + 1,
-      start_ms: from.start_ms!,
-      end_ms: to.end_ms!,
+      start_ms: range.start_ms,
+      end_ms: range.end_ms,
       scene_ids: sceneIds,
       hook_en: c.hook_en,
       why_en: c.why_en,
@@ -865,8 +893,10 @@ export async function runFindClips(
       cut_length_s: c.cut_length_s,
       angle: c.angle,
       model: r.job.model ?? prompt.model,
-      prompt_version: PROMPT_VERSION,
+      prompt_version: `${PROMPT_VERSION}:${CLIP_PROMPT_VERSION}`,
       job_id: r.job.id,
+      source: "script",
+      moment: c.moment,
     };
   });
   const clips = await data.upsertClips(session, wb.episode.id, rows);

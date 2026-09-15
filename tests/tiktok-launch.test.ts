@@ -37,11 +37,13 @@ async function prepared(opts: { budget?: number; destination?: string | null } =
   const campaign = await fixtureData.createPromoCampaign(producer(), {
     title_id: title.id, name: "Round 1", target_market: "US", destination_url: opts.destination === undefined ? "https://example.com/watch" : opts.destination,
     objective: "views", spoiler_level: "low",
-    experiment: { budget_usd: opts.budget ?? 100, hypothesis: "The reversal opening wins.", audience: "US women 25-44", first_batch: 2, signal: "views" },
+    experiment: { budget_usd: 100, hypothesis: "The reversal opening wins.", audience: "US women 25-44", first_batch: 2, signal: "views" },
   });
-  await fixtureData.generatePromoDrafts(producer(), campaign.id);
-  await fixtureData.approveAllPromoCreatives(producer(), campaign.id);
+  const drafts = await fixtureData.generatePromoDrafts(producer(), campaign.id);
+  // The $100 round covers two ads at the $50-per-ad minimum (decision 2026-09-14); a lower budget is set after the pick is frozen.
+  for (const c of drafts.slice(0, 2)) await fixtureData.reviewPromoCreative(producer(), c.id, { status: "approved" });
   await fixtureData.approvePromoCampaign(producer(), campaign.id);
+  if (opts.budget !== undefined && opts.budget !== 100) await fixtureData.setExperiment(producer(), campaign.id, { budget_usd: opts.budget, hypothesis: "The reversal opening wins.", audience: "US women 25-44", first_batch: 2, signal: "views" });
   await fixtureData.approveExperiment(producer(), campaign.id);
   return { title, campaign };
 }
@@ -148,7 +150,7 @@ test("the engine creates campaign → ad group → ads once, with the approved b
   assert.equal(snap.campaigns.length, 1);
   assert.equal(snap.adgroups.length, 1);
   assert.equal(snap.adgroups[0].budget, 100, "the ad group's lifetime budget is exactly the approved budget");
-  assert.equal(snap.ads.length, 5, "every approved creative became one ad");
+  assert.equal(snap.ads.length, 2, "every approved creative became one ad");
   const detail = await fixtureData.getPromoCampaign(producer(), campaign.id);
   assert.equal(detail.campaign.status, "submitted");
   assert.equal(detail.campaign.grow_campaign_id, snap.campaigns[0].campaignId);
@@ -160,7 +162,7 @@ test("the engine creates campaign → ad group → ads once, with the approved b
   await fixtureData.submitPromoCampaign(producer(), campaign.id);
   snap = fakeTikTokSnapshot();
   assert.equal(snap.campaigns.length, 1);
-  assert.equal(snap.ads.length, 5);
+  assert.equal(snap.ads.length, 2);
   assert.equal(scheduleDays(100), 5);
   assert.equal(scheduleDays(20), 1);
   assert.equal(scheduleDays(10_000), 30);
@@ -184,7 +186,7 @@ test("a failed launch resumes at its first unfinished step and does not duplicat
   const snap = fakeTikTokSnapshot();
   assert.equal(snap.campaigns.length, 1, "the recorded campaign id was reused");
   assert.equal(snap.adgroups.length, 1);
-  assert.equal(snap.ads.length, 10, "ads were re-created (their ids had been lost); the campaign and ad group were not");
+  assert.equal(snap.ads.length, 4, "ads were re-created (their ids had been lost); the campaign and ad group were not");
   await assert.rejects(fixtureData.updatePromoLaunch(sys, retried.id, { tiktok_campaign_id: "1" }), (e: Error & { code?: string }) => e.code === "frozen");
   await assert.rejects(fixtureData.updatePromoLaunch(staff(), retried.id, { error: "x" }), (e: Error & { code?: string }) => e.code === "forbidden");
 });

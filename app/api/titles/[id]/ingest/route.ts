@@ -15,6 +15,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { apiError } from "@/lib/api-guard";
 import { requireMember } from "@/lib/auth";
+import { scheduleClipCut } from "@/lib/clips/run";
 import { getData } from "@/lib/data";
 import { uploadImport, uploadMedia } from "@/lib/data/storage";
 import { ingestEpisodeFile, type IngestResult } from "@/lib/ingest";
@@ -48,6 +49,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (!subtitles && video) {
       const videoPath = await uploadMedia(params.id, folder, video.name, new Uint8Array(await video.arrayBuffer()), video.type || undefined);
       const episode = await getData().addVideoOnlyEpisode(g.session, params.id, fields.data.episode_number, videoPath);
+      // Ad clips cut themselves in the background once the video is stored (decision 2026-09-14).
+      scheduleClipCut(params.id, episode.number);
       return NextResponse.json({ episode, warnings: [], summary: { lines: 0, scenes: 0, has_timecodes: false } }, { status: 201 });
     }
 
@@ -69,6 +72,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       subtitlePath,
       videoPath,
     });
+    if (videoPath) scheduleClipCut(params.id, episode.number);
     return NextResponse.json(
       {
         episode,

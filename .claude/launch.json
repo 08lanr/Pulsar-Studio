@@ -15,9 +15,18 @@
       "runtimeExecutable": "cmd",
       "runtimeArgs": [
         "/c",
-        "set DATA_SOURCE=fixture&& set TIKTOK_MODE=sandbox&& npm run dev"
+        "set DATA_SOURCE=fixture&& set TIKTOK_MODE=sandbox&& set FFMPEG_PATH=%LOCALAPPDATA%\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-9.0.1-full_build\\bin\\ffmpeg.exe&& npm run dev"
       ],
       "port": 3200
+    },
+    {
+      "name": "studio-fixture-3201",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set DATA_SOURCE=fixture&& set TIKTOK_MODE=sandbox&& set FFMPEG_PATH=%LOCALAPPDATA%\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-9.0.1-full_build\\bin\\ffmpeg.exe&& npx next dev -p 3201"
+      ],
+      "port": 3201
     },
     {
       "name": "studio-prod",

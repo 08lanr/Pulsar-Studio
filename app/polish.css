@@ -68,8 +68,9 @@
 
 /* What to make next: the story-type board gets columns wide enough for their
    labels, and "See all" is its own line instead of the tail of a sentence. */
-.nx-board-head, .nx-board-row { grid-template-columns: 24px minmax(150px, 1.2fr) minmax(170px, 1.6fr) 104px 132px; }
-.nx-board-share small { display: block; }
+.nx-board-head, .nx-board-row { grid-template-columns: 24px minmax(150px, 1.2fr) minmax(170px, 1.6fr) 122px 132px; }
+.nx-board-share small { display: block; white-space: normal; overflow-wrap: anywhere; }
+.nx-board-row > *, .nx-board-head > * { min-width: 0; }
 .nx-board-see { display: inline-block; font-size: 12px; margin-top: 2px; color: var(--accent-text); text-decoration: none; white-space: nowrap; }
 .nx-board-see:hover { text-decoration: underline; }
 .nx-board-num small { white-space: nowrap; }

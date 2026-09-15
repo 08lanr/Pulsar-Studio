@@ -21,6 +21,7 @@
 import type {
   AdaptedLine,
   Adaptation,
+  Clip,
   CompanyAccount,
   CreativeResult,
   Episode,
@@ -38,7 +39,7 @@ import type { ReportBatch, ReportRow, ResearchProfile, WatchRow } from "@/lib/re
 import { PRODUCER_ID, PRODUCER_USER_ID, STAFF_USER_ID, ext, uuid } from "./ids";
 import { buildVersionSnapshot, snapshotSha256 } from "./snapshot";
 
-const B = { title: 0x30, episode: 0x31, scene: 0x32, line: 0x33, adapted: 0x34, version: 0x35, adaptation: 0x36, campaign: 0x37, creative: 0x38, result: 0x39, account: 0x3a, batch: 0x3b, row: 0x3c, approval: 0x3d, handoff: 0x3e, launch: 0x3f } as const;
+const B = { title: 0x30, episode: 0x31, scene: 0x32, line: 0x33, adapted: 0x34, version: 0x35, adaptation: 0x36, campaign: 0x37, creative: 0x38, result: 0x39, account: 0x3a, batch: 0x3b, row: 0x3c, approval: 0x3d, handoff: 0x3e, launch: 0x3f, clip: 0x40 } as const;
 
 /** The demo studio's TikTok ad account (assigned by staff from Pulsar's Business Center; a fake advertiser id, never a real one). */
 export const DEMO_BC_ID = "7000000000000000000";
@@ -122,6 +123,8 @@ export type DemoSeed = {
   launches: PromoLaunch[];
   results: CreativeResult[];
   accounts: CompanyAccount[];
+  /** Auto-cut ad clips of title 1's two finalized episodes (decision 2026-09-14). */
+  clips: Clip[];
 };
 
 export function buildDemoSeed(): DemoSeed {
@@ -437,5 +440,59 @@ export function buildDemoSeed(): DemoSeed {
     { id: uuid(B.account, 4), producer_id: PRODUCER_ID, provider: "meta", kind: "ad_account", name: "Meta ad account", external_ref: null, state: "unconnected", access: "none", note: null, ...noIdentity, updated_at: AT3 },
   ];
 
-  return { titles, episodes, adaptations, scenes, lines, adapted_lines, versions, profile, watchlist, report_batches, report_rows, campaigns, creatives, approvals, handoffs, launches, results, accounts };
+  // ---- ad clips (decision 2026-09-14) ----------------------------------------------------------
+  // Title 1's two finalized episodes carry the clips the cutter would have made: script-ranked
+  // moments with hooks, English captions from the approved version. The rows are seeded
+  // `pending`; the fixture store cuts the real files with ffmpeg the first time the seed loads
+  // (lib/data/fixture.ts ensureDemoClips) and caches them under .uploads/ with a sha sidecar, so
+  // the rehearsal shows genuine 9:16 cuts and a machine without ffmpeg shows the failure honestly.
+  const clips: Clip[] = [];
+  // The hooks are lines from the sample footage itself (docs/demo/xiangyuan-ep1.srt: the chairman is
+  // her grandfather, Mr. Yang thinks he has seen her before, the aides start to suspect), so what is
+  // shown beside the clip matches what plays in it. The demo catalog's own scripts are invented and
+  // never reach a clip. Nothing is burned into the picture.
+  const CLIP_SPECS: Array<{ ep: number; k: number; range: [number, number]; moment: Clip["moment"]; hook: string; why_en: string; why_zh: string; angle: Clip["angle"] }> = [
+    { ep: 1, k: 1, range: [0, 25_000], moment: "opening", hook: "So the chairman is your… grandfather?", why_en: "The secret is out in the first ten seconds: the new hire is the chairman's granddaughter.", why_zh: "开场十秒就抖出秘密：新来的人是董事长的孙女。", angle: "secret_identity" },
+    { ep: 1, k: 2, range: [15_000, 40_000], moment: "peak", hook: "Have we met somewhere before?", why_en: "Mr. Yang half-recognizes her; the question hangs and the assistant scrambles to cover.", why_zh: "杨总似曾相识的一问悬在空中，助理急忙打圆场。", angle: "secret_identity" },
+    { ep: 1, k: 3, range: [34_000, 62_000], moment: "peak", hook: "Doesn't she look like someone?", why_en: "The aides start whispering; the cut ends as the meeting is called to order with the doubt in the room.", why_zh: "随行的人开始嘀咕，会议在疑云中宣布开始，悬念收尾。", angle: "cliffhanger" },
+    { ep: 2, k: 1, range: [4_000, 30_000], moment: "peak", hook: "I'm no match for this girl.", why_en: "The chairman admits his granddaughter runs him; she walks in late without apology.", why_zh: "董事长自认管不住孙女，她迟到进门也不慌。", angle: "class_gap" },
+    { ep: 2, k: 2, range: [28_000, 55_000], moment: "peak", hook: "Our Director Xiang is young and capable.", why_en: "The assistant's cover story lands a beat too fast; the aides are not convinced.", why_zh: "助理的圆场说得太快，随行的人并不信。", angle: "secret_identity" },
+    { ep: 2, k: 3, range: [37_000, 62_000], moment: "peak", hook: "Now that everyone's here, let's begin.", why_en: "The report starts with her secret sitting at the table; a natural cliffhanger cut.", why_zh: "汇报开始，而她的秘密就坐在桌边，天然的悬念切点。", angle: "cliffhanger" },
+  ];
+  for (const s of CLIP_SPECS) {
+    const episode = episodes.find((e) => e.id === demoEpisodeId(1, s.ep))!;
+    clips.push({
+      id: uuid(B.clip, s.ep * 10 + s.k),
+      external_id: ext("clip", `demo:1:${s.ep}:${s.k}`),
+      title_id: demoTitleId(1),
+      episode_id: episode.id,
+      adaptation_id: adaptationId(1),
+      rank: s.k,
+      start_ms: s.range[0],
+      end_ms: s.range[1],
+      scene_ids: [],
+      hook_en: s.hook,
+      why_en: s.why_en,
+      why_zh: s.why_zh,
+      opening_text_en: null,
+      cut_length_s: Math.round((s.range[1] - s.range[0]) / 1000),
+      angle: s.angle,
+      status: "suggested",
+      model: "demo",
+      prompt_version: "demo",
+      job_id: null,
+      source: "script",
+      moment: s.moment,
+      render_path: `${demoTitleId(1)}/episode-${s.ep}/clip-demo-v3-${s.k}.mp4`,
+      render_sha256: null,
+      render_status: "pending",
+      render_note: null,
+      duration_ms: null,
+      width: null,
+      height: null,
+      created_at: AT3,
+    });
+  }
+
+  return { titles, episodes, adaptations, scenes, lines, adapted_lines, versions, profile, watchlist, report_batches, report_rows, campaigns, creatives, approvals, handoffs, launches, results, accounts, clips };
 }
