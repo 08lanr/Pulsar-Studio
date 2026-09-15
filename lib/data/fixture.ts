@@ -1047,6 +1047,146 @@ export const fixtureData: DataLayer = {
     return clone(episode);
   },
 
+  async attachIngestToEpisode(session, titleId, episodeNumber, ingest, files) {
+    const s = store();
+    const { db } = s;
+    const title = requireTitleEditor(db, session, titleId);
+    const episode = findEpisode(db, titleId, episodeNumber);
+    if (!ingest.lines.length) throw invalid("the file parsed to no lines");
+    const existingScenes = episodeScenes(db, episode.id);
+    const existingLines = episodeLines(db, new Set(existingScenes.map((sc) => sc.id)));
+    if (existingLines.length) {
+      throw conflict(`episode ${episodeNumber} already has a script (${existingLines.length} lines); a script is never silently replaced`);
+    }
+    if (existingScenes.length) {
+      // Scenes without a single line are the debris of a torn earlier
+      // attach (the writes are not one transaction); heal by replacing
+      // them instead of refusing forever.
+      const orphaned = new Set(existingScenes.map((sc) => sc.id));
+      db.scenes = db.scenes.filter((sc) => !orphaned.has(sc.id));
+    }
+    const at = now();
+    const adaptation = findAdaptation(db, titleId);
+
+    const lastEnd = ingest.lines.reduce<number | null>((m, l) => (l.end_ms !== null && (m === null || l.end_ms > m) ? l.end_ms : m), null);
+    episode.source_script_path = files.subtitlePath;
+    episode.script_format = files.scriptFormat ?? ingest.format;
+    episode.has_timecodes = ingest.hasTimecodes;
+    if (episode.duration_ms === null && ingest.hasTimecodes) episode.duration_ms = lastEnd;
+
+    // Speakers become characters, exactly as a fresh ingest would make them.
+    const known = new Map(db.characters.filter((c) => c.title_id === titleId).map((c) => [c.name_zh, c]));
+    for (const l of ingest.lines) {
+      const name = l.speaker?.trim();
+      if (!name || known.has(name)) continue;
+      const c: Character = { id: randomUUID(), title_id: titleId, name_zh: name, name_en: null, notes: null, created_at: at };
+      db.characters.push(c);
+      known.set(name, c);
+    }
+
+    const scenes: Scene[] = ingest.scenes.map((sc) => ({
+      id: randomUUID(),
+      external_id: extId("sc"),
+      title_id: titleId,
+      episode_id: episode.id,
+      number: sc.number,
+      start_ms: ingest.hasTimecodes ? sc.start_ms : null,
+      end_ms: ingest.hasTimecodes ? sc.end_ms : null,
+      context_zh: null,
+      context_en: null,
+      status: "draft",
+      status_by: null,
+      status_at: null,
+      created_at: at,
+    }));
+    const sceneFor = (seq: number): Scene => {
+      const i = ingest.scenes.findIndex((sc) => seq >= sc.from_seq && seq <= sc.to_seq);
+      return scenes[i >= 0 ? i : scenes.length - 1];
+    };
+    const lines: Line[] = ingest.lines.map((l) => {
+      const start = ingest.hasTimecodes ? l.start_ms : null;
+      const end = ingest.hasTimecodes ? l.end_ms : null;
+      const speaker = l.speaker?.trim() || null;
+      return {
+        id: randomUUID(),
+        external_id: extId("ln"),
+        title_id: titleId,
+        scene_id: sceneFor(l.seq).id,
+        seq: l.seq,
+        speaker,
+        character_id: speaker ? known.get(speaker)?.id ?? null : null,
+        start_ms: start,
+        end_ms: end,
+        duration_ms: start !== null && end !== null ? end - start : null,
+        text_zh: l.text_zh,
+        literal_en: null,
+        merged_into_id: null,
+        created_at: at,
+      };
+    });
+    db.scenes.push(...scenes);
+    db.lines.push(...lines);
+
+    // The cost-0 bookkeeping row: the episode's ingest state is derivable from jobs.
+    db.jobs.push({
+      id: randomUUID(),
+      title_id: titleId,
+      episode_id: episode.id,
+      version_id: null,
+      kind: "parse_subtitles",
+      target_type: "episode",
+      target_id: episode.id,
+      idempotency_key: `parse_subtitles:${episode.id}:1`,
+      status: "done",
+      provider: null,
+      model: null,
+      input: { format: episode.script_format, filename: files.subtitlePath },
+      output: { lines: lines.length, scenes: scenes.length, has_timecodes: ingest.hasTimecodes, warnings: ingest.warnings },
+      error: null,
+      usage: null,
+      cost_cents: 0,
+      heartbeat_at: at,
+      started_at: at,
+      finished_at: at,
+      created_at: at,
+    });
+
+    // A draft version so the first pass has somewhere to write.
+    if (!db.versions.some((v) => v.episode_id === episode.id && v.status === "draft")) {
+      db.versions.push({
+        id: randomUUID(),
+        external_id: extId("ver"),
+        title_id: titleId,
+        adaptation_id: adaptation.id,
+        episode_id: episode.id,
+        number: 1,
+        parent_version_id: null,
+        status: "draft",
+        submitted_at: null,
+        submitted_by: null,
+        approved_at: null,
+        approved_by: null,
+        approval_mode: null,
+        approval_evidence: null,
+        approval_note: null,
+        snapshot: null,
+        snapshot_sha256: null,
+        created_at: at,
+        updated_at: at,
+      });
+    }
+
+    if (title.status === "candidate" || title.status === "selected") title.status = "ingesting";
+    title.updated_at = at;
+    audit(s, session, "attach_script_to_episode", "core.episodes", episode.id, titleId, null, {
+      number: episodeNumber,
+      format: episode.script_format,
+      lines: lines.length,
+      scenes: scenes.length,
+    });
+    return clone(episode);
+  },
+
   async getWorkbench(session, titleId, episodeNumber) {
     const { db } = store();
     const title = readableTitle(db, session, titleId);

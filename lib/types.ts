@@ -43,7 +43,7 @@ export type TitleStatus =
   | "dropped";
 
 /** 'asr' arrives with the v1.1 migration; not a V1 value. */
-export type ScriptFormat = "srt" | "vtt" | "ass" | "txt" | "docx";
+export type ScriptFormat = "srt" | "vtt" | "ass" | "txt" | "docx" | "asr";
 
 /** The STAFF working status of a scene (never written by the partner). */
 export type SceneStatus = "draft" | "approved";

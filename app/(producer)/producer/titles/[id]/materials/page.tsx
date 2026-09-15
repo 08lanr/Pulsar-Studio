@@ -1,7 +1,9 @@
 import EpisodeClips from "@/components/producer/EpisodeClips";
 import TitleShell from "@/components/producer/TitleShell";
+import TranscribeEpisode from "@/components/producer/TranscribeEpisode";
 import UploadEpisodes from "@/components/producer/UploadEpisodes";
 import { isStaffPreview, portalSession, producerLocale } from "@/components/producer/server";
+import { asrAvailability } from "@/lib/asr";
 import { episodeClipsPayload } from "@/lib/clips/payload";
 import { t } from "@/lib/i18n";
 import { loadTitleWorkspace } from "@/lib/research/title-workspace";
@@ -48,6 +50,8 @@ export default async function MaterialsPage({ params }: { params: { id: string }
   // The auto-cut ad clips of every episode with video (decision 2026-09-14); the block polls while a run is going.
   const withVideo = episodes.filter((e) => e.has_video);
   const clipPayloads = new Map(await Promise.all(withVideo.map(async (e) => [e.id, await episodeClipsPayload(session, params.id, e.number)] as const)));
+  // Transcription for episodes that arrived with a video and no script (decision 2026-09-15).
+  const asr = asrAvailability();
 
   return (
     <TitleShell locale={locale} titleId={params.id} name_zh={detail.title.name_zh} name_en={detail.title.name_en} platform={w.platform} ads={w.ads.status} adStep={adStep} section="materials"
@@ -95,6 +99,9 @@ export default async function MaterialsPage({ params }: { params: { id: string }
                   {t(locale, actionKey(e))}
                 </a>
               </article>
+              {canEdit && e.has_video && e.lines_total === 0 && (
+                <TranscribeEpisode titleId={detail.title.id} episodeNumber={e.number} available={asr.available} reason={asr.available ? undefined : asr.reason} />
+              )}
               {clips && <EpisodeClips titleId={detail.title.id} episodeNumber={e.number} initial={clips} canEdit={canEdit} hasVideo={e.has_video} locale={locale} />}
             </div>
           );

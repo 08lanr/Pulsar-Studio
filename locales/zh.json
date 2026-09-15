@@ -2742,5 +2742,11 @@
   "fc.adTextEdit": "编辑",
   "fc.adTextSave": "保存",
   "fc.adTextCancel": "取消",
-  "fc.adTextHint": "显示在 TikTok 视频上方、账号名旁边。还可输入 {left} 个字符。"
+  "fc.adTextHint": "显示在 TikTok 视频上方、账号名旁边。还可输入 {left} 个字符。",
+  "tr.cta": "转写字幕",
+  "tr.busy": "正在转写…（约 1–2 分钟）",
+  "tr.hint": "用语音识别为这一集生成带时间轴的字幕，之后请在工作台核对文字与时间。",
+  "tr.unavailable": "自动转写未开通——请联系 Pulsar。",
+  "tr.done": "已生成 {n} 句字幕，页面即将刷新。",
+  "tr.failed": "转写失败：{detail}"
 }

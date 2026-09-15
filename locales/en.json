@@ -2742,5 +2742,11 @@
   "fc.adTextEdit": "Edit",
   "fc.adTextSave": "Save",
   "fc.adTextCancel": "Cancel",
-  "fc.adTextHint": "Shown above the video on TikTok, next to your account name. {left} characters left."
+  "fc.adTextHint": "Shown above the video on TikTok, next to your account name. {left} characters left.",
+  "tr.cta": "Transcribe subtitles",
+  "tr.busy": "Transcribing… (a minute or two)",
+  "tr.hint": "Generate timed subtitles from this episode's audio; review the text and timing in the studio afterwards.",
+  "tr.unavailable": "Transcription is not set up — contact Pulsar.",
+  "tr.done": "Transcribed {n} lines; the page is refreshing.",
+  "tr.failed": "Transcription failed: {detail}"
 }

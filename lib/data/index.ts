@@ -62,6 +62,7 @@ import type {
   SceneDecision,
   SceneDecisionKind,
   SceneStatus,
+  ScriptFormat,
   Title,
   TitleDetail,
   TitleStatus,
@@ -443,6 +444,21 @@ export interface DataLayer {
   ): Promise<Episode>;
   /** Promote intake: register a shared episode master before any subtitle/script exists. */
   addVideoOnlyEpisode(session: Session, titleId: string, episodeNumber: number, videoPath: string): Promise<Episode>;
+  /**
+   * Attach a parsed script to an EXISTING episode that has none yet (the
+   * video came first; the transcribe run or a later subtitle upload fills
+   * it). Writes scenes + lines + the cost-0 parse job and opens the draft
+   * version exactly like addEpisodeFromIngest; refuses an episode that
+   * already has lines — a script is never silently replaced.
+   * `scriptFormat` overrides the parsed format ('asr' for transcriptions).
+   */
+  attachIngestToEpisode(
+    session: Session,
+    titleId: string,
+    episodeNumber: number,
+    ingest: IngestResult,
+    files: { subtitlePath: string | null; scriptFormat?: ScriptFormat }
+  ): Promise<Episode>;
   getWorkbench(session: Session, titleId: string, episodeNumber: number): Promise<WorkbenchPayload>;
   /** Studio-wide approved bilingual pairs; server-only prompt context, never a route payload. */
   listApprovedTranslationMemory(session: Session, titleId: string): Promise<TranslationMemoryExample[]>;
