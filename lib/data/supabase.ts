@@ -61,7 +61,7 @@ import type { CatalogRow } from "@/lib/research/engine";
 import { examplesFromApprovedVersions } from "@/lib/translation-memory";
 import { isSystemSession } from "@/lib/auth";
 import { budgetCheck, overBudgetMessage } from "@/lib/angles";
-import { creativesFromClips, FALLBACK_NOTE, pickClipsForRound } from "@/lib/clips/creatives";
+import { AD_TEXT_MAX, clipIdOf, creativesFromClips, NO_CLIPS_MESSAGE, pickClipsForRound } from "@/lib/clips/creatives";
 import { blockerMessage, isAssignedBusinessCenter, isReadyLaunchAccount, launchReadiness } from "@/lib/promote/launch-gate";
 import { launchMode } from "@/lib/tiktok";
 import type { AccountRequest, PromoLaunch } from "@/lib/types";
@@ -1172,7 +1172,7 @@ export const supabaseData: DataLayer = {
     );
   },
 
-  async generatePromoDrafts(_session, campaignId, opts) {
+  async generatePromoDrafts(_session, campaignId) {
     const c = db();
     const campaign = await one<PromoCampaign>(promote(c).from("campaigns").select("*").eq("id", campaignId).maybeSingle(), "promotion campaign", campaignId);
     if (!["draft", "review", "generating"].includes(campaign.status)) throw conflict("this campaign is already approved");
@@ -1183,26 +1183,41 @@ export const supabaseData: DataLayer = {
       many<Episode>(core(c).from("episodes").select("*").eq("title_id", campaign.title_id).not("video_path", "is", null).order("number")),
     ]);
     if (!episodes.length) throw invalid("upload at least one drama episode video before generating creatives");
-    // Ads come from the title's finished auto-cut clips (decision 2026-09-14); fixed offsets are the fallback.
+    // Ads are the title's finished auto-cut clips, every one of them (decision 2026-09-14, no placeholders).
     const clips = await many<Clip>(studio(c).from("clips").select("*").eq("title_id", campaign.title_id).eq("render_status", "rendered"));
     const rendered = pickClipsForRound(clips, episodes);
-    if (rendered.length) {
-      const rows = await many<PromoCreative>(promote(c).from("creatives").insert(creativesFromClips(rendered, title).map((d) => ({ campaign_id: campaign.id, title_id: campaign.title_id, ...d }))).select("*"));
-      await one<PromoCampaign>(promote(c).from("campaigns").update({ status: "review", status_note: null, updated_at: now() }).eq("id", campaign.id).select("*").maybeSingle(), "promotion campaign", campaign.id);
-      return rows;
-    }
-    const kinds: PromoCreative["kind"][] = ["direct_clip", "ugc_story", "direct_clip", "ugc_reaction", "direct_clip"];
-    const hypotheses = ["Open on the reversal before revealing how the characters got there.", "Frame the central conflict like a viewer telling a friend what they just watched.", "Lead with the highest-stakes confrontation and stop before the answer.", "Use a disbelief reaction to make the plot twist feel socially shareable.", "Build escalating cuts around the relationship power shift."];
-    const payload = kinds.map((kind, index) => {
-      const episode = episodes[index % episodes.length];
-      const available = Math.max(15_000, episode.duration_ms ?? 45_000);
-      const start = Math.min(index * 4_000, Math.max(0, available - 15_000));
-      const end = Math.min(available, start + (kind === "direct_clip" ? 18_000 : 24_000));
-      return { campaign_id: campaign.id, title_id: campaign.title_id, kind, status: "ready", hypothesis: hypotheses[index], source_episode_id: episode.id, source_start_ms: start, source_end_ms: end, hook: kind === "direct_clip" ? "Wait for the moment everything changes." : "I thought this was a love story—then this happened.", caption: `${title.name_en || title.name_zh}: one choice changes everything.`, ad_description: `Watch ${title.name_en || title.name_zh} and see what happens next.`, duration_ms: end - start, width: 1080, height: 1920, render_settings: { schema: 1, format: "9:16", source: "concept_preview", captions: true } };
-    });
-    const rows = await many<PromoCreative>(promote(c).from("creatives").insert(payload).select("*"));
-    await one<PromoCampaign>(promote(c).from("campaigns").update({ status: opts?.rendering ? "generating" : "review", status_note: FALLBACK_NOTE, updated_at: now() }).eq("id", campaign.id).select("*").maybeSingle(), "promotion campaign", campaign.id);
+    if (!rendered.length) throw conflict(NO_CLIPS_MESSAGE);
+    const rows = await many<PromoCreative>(promote(c).from("creatives").insert(creativesFromClips(rendered, title).map((d) => ({ campaign_id: campaign.id, title_id: campaign.title_id, ...d }))).select("*"));
+    await one<PromoCampaign>(promote(c).from("campaigns").update({ status: "review", status_note: null, updated_at: now() }).eq("id", campaign.id).select("*").maybeSingle(), "promotion campaign", campaign.id);
     return rows;
+  },
+
+  async appendPromoDraftsFromClips(_session, campaignId) {
+    const c = db();
+    const campaign = await campaignById(c, campaignId);
+    if (campaign.status !== "review") throw conflict("new clips can only be added while the round is in review");
+    const [title, episodes, active, clips] = await Promise.all([
+      one<Title>(core(c).from("titles").select("*").eq("id", campaign.title_id).maybeSingle(), "title", campaign.title_id),
+      many<Episode>(core(c).from("episodes").select("*").eq("title_id", campaign.title_id)),
+      many<PromoCreative>(promote(c).from("creatives").select("*").eq("campaign_id", campaign.id).neq("status", "superseded")),
+      many<Clip>(studio(c).from("clips").select("*").eq("title_id", campaign.title_id).eq("render_status", "rendered")),
+    ]);
+    const used = new Set(active.map((x) => clipIdOf(x)).filter(Boolean));
+    const fresh = pickClipsForRound(clips, episodes).filter((x) => !used.has(x.id));
+    if (!fresh.length) return [];
+    return many<PromoCreative>(promote(c).from("creatives").insert(creativesFromClips(fresh, title).map((d) => ({ campaign_id: campaign.id, title_id: campaign.title_id, ...d }))).select("*"));
+  },
+
+  async setPromoCreativeText(_session, creativeId, hook) {
+    const c = db();
+    const creative = await one<PromoCreative>(promote(c).from("creatives").select("*").eq("id", creativeId).maybeSingle(), "promotion creative", creativeId);
+    const campaign = await campaignById(c, creative.campaign_id);
+    if (campaign.status !== "review") throw conflict("the ad text can be edited while the round is in review");
+    if (creative.status === "superseded" || creative.status === "not_selected") throw conflict("this creative is no longer in the round");
+    const text = hook.replace(/\s+/g, " ").trim();
+    if (!text) throw invalid("write the ad text first");
+    if (text.length > AD_TEXT_MAX) throw invalid(`the ad text is what TikTok shows: at most ${AD_TEXT_MAX} characters`);
+    return one<PromoCreative>(promote(c).from("creatives").update({ hook: text, updated_at: now() }).eq("id", creativeId).select("*").maybeSingle(), "promotion creative", creativeId);
   },
 
   async reviewPromoCreative(_session, creativeId, input) {
@@ -1233,6 +1248,7 @@ export const supabaseData: DataLayer = {
     ]);
     const budget = budgetCheck(chosen, before.experiment?.budget_usd);
     if (chosen.length && !budget.ok) throw invalid(overBudgetMessage(budget, before.experiment?.budget_usd ?? 0));
+    if (launchMode() !== "fake" && chosen.some((x) => !x.render_path || !x.render_sha256)) throw invalid("every chosen ad needs its finished file before approval; wait for the clips to finish or unselect the ad");
     const { error } = await promote(c).rpc("approve_campaign", { p_campaign_id: campaignId });
     if (error) throw mapError(error);
     const campaign = await one<PromoCampaign>(promote(c).from("campaigns").select("*").eq("id", campaignId).maybeSingle(), "promotion campaign", campaignId);

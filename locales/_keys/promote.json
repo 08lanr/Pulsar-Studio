@@ -112,8 +112,8 @@
     "zh": "目标市场"
   },
   "promote.new.objective": {
-    "en": "Primary objective",
-    "zh": "核心目标"
+    "en": "Business goal",
+    "zh": "业务目标"
   },
   "promote.new.direction": {
     "en": "Creative direction (optional)",
@@ -140,8 +140,8 @@
     "zh": "可以透露多少剧情？"
   },
   "promote.new.spoilerHint": {
-    "en": "This controls which moments can become hooks—not just the copy.",
-    "zh": "这决定哪些剧情能用作开头钩子，不只是文案。"
+    "en": "How much of the story may an ad give away? A note for Pulsar's review; clips are chosen per episode from the script.",
+    "zh": "广告可以透露多少剧情？这是给 Pulsar 审核的备注；切片按每集台词选出。"
   },
   "promote.new.outputTitle": {
     "en": "What happens next",
@@ -204,8 +204,8 @@
     "zh": "源视频已就绪"
   },
   "promote.workspace.readyHint": {
-    "en": "Generate five ads from the uploaded episode videos, then choose the ads for your first test. Review results before preparing another round.",
-    "zh": "根据已上传的分集视频生成 5 条广告，选择首轮测试的广告，查看结果后再准备下一轮。"
+    "en": "Every finished clip of the uploaded episodes becomes a candidate ad. Choose the ads for your first test; review results before preparing another round.",
+    "zh": "已上传分集的每条完成切片都会成为候选广告。选出首轮测试的广告，查看结果后再准备下一轮。"
   },
   "promote.workspace.generate": {
     "en": "Generate ads",
@@ -236,8 +236,8 @@
     "zh": "来源"
   },
   "promote.workspace.caption": {
-    "en": "Post caption",
-    "zh": "贴文文案"
+    "en": "Post caption (record only, not sent)",
+    "zh": "贴文文案（仅记录，不提交）"
   },
   "promote.workspace.description": {
     "en": "Ad description",

@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { MIN_BUDGET_USD } from "@/lib/angles";
 import { z } from "zod";
 import { requireProducer } from "@/lib/auth";
 import { getData } from "@/lib/data";
@@ -15,7 +16,7 @@ const createSchema = z.object({
   exclusions: z.string().trim().max(1000).nullable().optional(),
   experiment: z
     .object({
-      budget_usd: z.number().finite().min(1).max(100_000),
+      budget_usd: z.number().finite().min(MIN_BUDGET_USD).max(100_000),
       hypothesis: z.string().trim().min(10).max(400),
       audience: z.string().trim().min(3).max(200),
       first_batch: z.number().int().min(1).max(10),

@@ -85,9 +85,11 @@ export default function EpisodeSlots({ slots, setSlots, startNumber, busy }: Pro
   const [rowDrag, setRowDrag] = useState<number | null>(null);
 
   function applyCount(raw: number) {
-    const n = Math.max(0, Math.min(200, Math.floor(raw) || 0));
+    if (!Number.isFinite(raw) || raw <= 0) return; // a cleared field while retyping keeps every row
+    const n = Math.max(1, Math.min(200, Math.floor(raw)));
     setSlots((prev) => {
-      if (n <= prev.length) return prev.slice(0, n);
+      // Shrinking only drops rows that hold nothing yet (review 2026-09-14: keystrokes used to discard picked files).
+      if (n <= prev.length) return prev.filter((s, i) => i < n || s.subtitle || s.video || s.status === "ok");
       const next = [...prev];
       const taken = new Set(prev.map((s) => s.number));
       let cursor = startNumber;

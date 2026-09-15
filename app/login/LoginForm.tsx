@@ -16,11 +16,13 @@ type Props = {
   mode: DataSource;
   next: string | null;
   initialError: "callback" | null;
+  /** Demo mode: the companies a visitor can sign in as (the demo studio first). */
+  companies?: Array<{ id: string; name: string }>;
 };
 
 type LoginReply = { ok?: boolean; home?: string; sent?: boolean; error?: string };
 
-export default function LoginForm({ mode, next, initialError }: Props) {
+export default function LoginForm({ mode, next, initialError, companies = [] }: Props) {
   const { tt } = useT();
   return (
     <main className="page ps-login">
@@ -38,7 +40,7 @@ export default function LoginForm({ mode, next, initialError }: Props) {
         <h1>{tt("auth.login.title")}</h1>
         <p className="hint">{tt("auth.login.sub")}</p>
         {mode === "fixture" ? (
-          <DevPersonas next={next} />
+          <DevPersonas next={next} companies={companies} />
         ) : (
           <SupabaseForm next={next} initialError={initialError} />
         )}
@@ -166,7 +168,7 @@ function SupabaseForm({ next, initialError }: Omit<Props, "mode">) {
 
 // Fixture mode: plain HTML forms, no JavaScript needed. The route sets the
 // persona cookie and redirects, so the buttons work before hydration.
-function DevPersonas({ next }: { next: string | null }) {
+function DevPersonas({ next, companies }: { next: string | null; companies: Array<{ id: string; name: string }> }) {
   const { tt } = useT();
   return (
     <div>
@@ -178,13 +180,17 @@ function DevPersonas({ next }: { next: string | null }) {
           {tt("auth.dev.staff")}
         </button>
       </form>
-      <form method="post" action="/api/auth/dev" className="field">
-        <input type="hidden" name="kind" value="producer" />
-        {next && <input type="hidden" name="next" value={next} />}
-        <button type="submit" className="btn btn-outline btn-block">
-          {tt("auth.dev.producer")}
-        </button>
-      </form>
+      {/* One button per company (the demo studio first); a company created in the session signs in the same way. */}
+      {(companies.length ? companies : [{ id: "", name: tt("auth.dev.producer") }]).map((c) => (
+        <form method="post" action="/api/auth/dev" className="field" key={c.id || "default"}>
+          <input type="hidden" name="kind" value="producer" />
+          {c.id && <input type="hidden" name="producer_id" value={c.id} />}
+          {next && <input type="hidden" name="next" value={next} />}
+          <button type="submit" className="btn btn-outline btn-block">
+            {companies.length ? tt("auth.dev.company", { name: c.name }) : c.name}
+          </button>
+        </form>
+      ))}
     </div>
   );
 }

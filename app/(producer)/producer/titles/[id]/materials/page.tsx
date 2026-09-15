@@ -89,7 +89,7 @@ export default async function MaterialsPage({ params }: { params: { id: string }
                 </div>
                 <span className={`pill ${STATUS_PILL[e.status]}`}>{t(locale, `pw.epStatus.${e.status}`)}</span>
                 <a
-                  className={`btn btn-sm ${e.status === "ingested" || e.status === "adapting" ? "btn-primary" : "btn-outline"}`}
+                  className="btn btn-sm btn-outline"
                   href={`/producer/titles/${detail.title.id}/episodes/${e.number}${e.status === "approved" ? "/subtitles" : ""}`}
                 >
                   {t(locale, actionKey(e))}

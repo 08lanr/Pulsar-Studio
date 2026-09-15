@@ -3,7 +3,7 @@
 // the derived run state, the budget rule) and the fixture-mode flows (a
 // run without ffmpeg fails every row with a note and never spends; a
 // second run while one is going is refused; Generate ads builds from
-// rendered clips and falls back to fixed offsets with a note; the approver
+// rendered clips and refuses without them (the route starts cutting); the approver
 // cannot freeze a pick over budget and can unselect an ad).
 process.env.PROMO_RENDER = "off";
 
@@ -11,7 +11,8 @@ import { afterEach, test } from "node:test";
 import assert from "node:assert/strict";
 
 import { budgetCheck } from "@/lib/angles";
-import { FALLBACK_NOTE, MAX_ADS_FROM_CLIPS, pickClipsForRound } from "@/lib/clips/creatives";
+import { NO_CLIPS_MESSAGE, adTextOf, pickClipsForRound } from "@/lib/clips/creatives";
+import { generateAds, renderCampaign } from "@/lib/promote/generate";
 import { frameFilter } from "@/lib/clips/cut";
 import { parseDurationMs, parseLoudness, parseSceneCuts, scoreWindows } from "@/lib/clips/footage";
 import { cutEpisodeClips } from "@/lib/clips/run";
@@ -21,7 +22,7 @@ import { fixtureData, resetFixtureStore } from "@/lib/data/fixture";
 import { putStoredBytes } from "@/lib/data/storage";
 import { clampClipRange } from "@/lib/jobs";
 import type { Clip, Job } from "@/lib/types";
-import { producer, staff } from "./seed-minute";
+import { producer, seedRenderedClips, staff } from "./seed-minute";
 
 afterEach(() => resetFixtureStore());
 
@@ -170,30 +171,71 @@ test("footage clips are allowed on an untimed episode with video, producers read
   assert.deepEqual(pickClipsForRound(mine, [episode]).map((c) => c.id), [rows[0].id], "only rendered rows become ads");
 
   const campaign = await fixtureData.createPromoCampaign(producer(), { title_id: title.id, name: "US launch", target_market: "US", destination_url: "https://example.com/w", objective: "views", spoiler_level: "low", experiment: { budget_usd: 100, hypothesis: "h", audience: "a", first_batch: 2, signal: "views" } });
-  const creatives = await fixtureData.generatePromoDrafts(producer(), campaign.id, { rendering: true });
+  const creatives = await fixtureData.generatePromoDrafts(producer(), campaign.id);
   assert.equal(creatives.length, 1);
+  assert.equal(adTextOf(creatives[0]), creatives[0].caption, "a footage clip has no hook, so the caption is the TikTok ad text");
+  assert.equal(adTextOf({ hook: "Have we met somewhere before?", caption: "x" }), "Have we met somewhere before?", "with a hook, the hook is the TikTok ad text");
   assert.equal(creatives[0].render_path, videoPath);
   assert.equal(creatives[0].render_sha256, sha);
   assert.equal(creatives[0].kind, "direct_clip");
   assert.equal((creatives[0].render_settings as { source: string }).source, "auto_clip");
   const detail = await fixtureData.getPromoCampaign(producer(), campaign.id);
-  assert.equal(detail.campaign.status, "review", "nothing to render: review opens at once even when rendering was requested");
+  assert.equal(detail.campaign.status, "review", "nothing to render: review opens at once");
   assert.equal(detail.campaign.status_note, null);
-  assert.ok(MAX_ADS_FROM_CLIPS >= 5);
+  // A clip that finishes later joins the open round on request, once.
+  await fixtureData.setClipRender(systemSession(), rows[1].id, { render_status: "rendered", render_path: videoPath, render_sha256: "c".repeat(64), duration_ms: 25_000, width: 1080, height: 1920 });
+  const more = await generateAds(producer(), campaign.id);
+  assert.equal(more.added.length, 1);
+  assert.equal(more.creatives.length, 2);
+  assert.equal((await generateAds(producer(), campaign.id)).added.length, 0, "nothing new the second time");
 });
 
-test("without rendered clips Generate ads falls back to fixed offsets and says so", async () => {
+test("the producer writes the TikTok ad text of an ad in review; it is frozen once the round is approved", async () => {
+  const { title, episode, videoPath } = await titleWithVideo();
+  const [clip] = await fixtureData.upsertClips(staff(), episode.id, [{ rank: 1, start_ms: 0, end_ms: 25_000, scene_ids: [], hook_en: "", why_en: "footage", why_zh: "画面", source: "footage" }]);
+  await fixtureData.setClipRender(systemSession(), clip.id, { render_status: "rendered", render_path: videoPath, render_sha256: "e".repeat(64), duration_ms: 25_000, width: 1080, height: 1920 });
+  await fixtureData.assignLaunchAccount(staff(), FIXTURE_PRODUCER_ID, { advertiser_id: "7000000000000000001", name: "Test ad account", identity_id: "7000000000000000101", identity_type: "BC_AUTH_TT" });
+  const campaign = await fixtureData.createPromoCampaign(producer(), { title_id: title.id, name: "US launch", target_market: "US", destination_url: "https://example.com/w", objective: "views", spoiler_level: "low", experiment: { budget_usd: 100, hypothesis: "h", audience: "a", first_batch: 2, signal: "views" } });
+  const [ad] = await fixtureData.generatePromoDrafts(producer(), campaign.id);
+  assert.equal(ad.hook, "", "a footage clip has no hook until the producer writes one");
+  await assert.rejects(fixtureData.setPromoCreativeText(producer(), ad.id, "   "), /write the ad text/);
+  await assert.rejects(fixtureData.setPromoCreativeText(producer(), ad.id, "x".repeat(101)), /100 characters/);
+  const written = await fixtureData.setPromoCreativeText(producer(), ad.id, "  He never saw   the truck coming.  ");
+  assert.equal(written.hook, "He never saw the truck coming.");
+  assert.equal(adTextOf(written), "He never saw the truck coming.", "what TikTok gets is exactly what was written");
+  await fixtureData.reviewPromoCreative(producer(), ad.id, { status: "approved" });
+  await fixtureData.approvePromoCampaign(producer(), campaign.id);
+  await assert.rejects(fixtureData.setPromoCreativeText(producer(), ad.id, "Too late"), /in review/);
+});
+
+test("without finished clips there are no placeholder ads: generation refuses and the route starts cutting", async () => {
   const { title } = await titleWithVideo();
   const campaign = await fixtureData.createPromoCampaign(producer(), { title_id: title.id, name: "US launch", target_market: "US", destination_url: "https://example.com/w", objective: "views", spoiler_level: "low", experiment: { budget_usd: 100, hypothesis: "h", audience: "a", first_batch: 2, signal: "views" } });
-  const creatives = await fixtureData.generatePromoDrafts(producer(), campaign.id);
-  assert.equal(creatives.length, 5);
-  const detail = await fixtureData.getPromoCampaign(producer(), campaign.id);
-  assert.equal(detail.campaign.status_note, FALLBACK_NOTE);
+  await assert.rejects(fixtureData.generatePromoDrafts(producer(), campaign.id), new RegExp(NO_CLIPS_MESSAGE));
+  const out = await generateAds(producer(), campaign.id);
+  assert.equal(out.cutting, true);
+  assert.equal(out.creatives.length, 0);
+  assert.equal((await fixtureData.getPromoCampaign(producer(), campaign.id)).creatives.length, 0, "no fixed-offset rows were invented");
+});
+
+test("a staff revision has no file until it is rendered; the render pass reports why when ffmpeg is off", async () => {
+  const { title, episode, videoPath } = await titleWithVideo();
+  const [clip] = await fixtureData.upsertClips(staff(), episode.id, [{ rank: 1, start_ms: 0, end_ms: 25_000, scene_ids: [], hook_en: "Hook", why_en: "w", why_zh: "w", source: "footage" }]);
+  await fixtureData.setClipRender(systemSession(), clip.id, { render_status: "rendered", render_path: videoPath, render_sha256: "d".repeat(64), duration_ms: 25_000, width: 1080, height: 1920 });
+  const campaign = await fixtureData.createPromoCampaign(producer(), { title_id: title.id, name: "US launch", target_market: "US", destination_url: "https://example.com/w", objective: "views", spoiler_level: "low", experiment: { budget_usd: 100, hypothesis: "h", audience: "a", first_batch: 2, signal: "views" } });
+  const [first] = await fixtureData.generatePromoDrafts(producer(), campaign.id);
+  await fixtureData.reviewPromoCreative(producer(), first.id, { status: "rejected", rejection_note: "Start later." });
+  const revision = await fixtureData.revisePromoCreative(staff(), first.id, { hook: "New hook", caption: "c", ad_description: "d", source_start_ms: 5_000, source_end_ms: 30_000, revision_note: "Starts on the slap." });
+  assert.equal(revision.render_path, null, "a revision is a new range: it needs its own file");
+  const r = await renderCampaign(campaign.id);
+  assert.equal(r.rendered, 0);
+  assert.match(r.failed[0] ?? "", new RegExp(revision.external_id));
 });
 
 test("the approver cannot freeze a pick over budget; unselecting brings it back under", async () => {
   const { title } = await titleWithVideo();
   await fixtureData.assignLaunchAccount(staff(), FIXTURE_PRODUCER_ID, { advertiser_id: "7000000000000000001", name: "Test ad account", identity_id: "7000000000000000101", identity_type: "BC_AUTH_TT" });
+  await seedRenderedClips(title.id, (await fixtureData.getTitle(producer(), title.id)).episodes[0].id, 4);
   const campaign = await fixtureData.createPromoCampaign(producer(), { title_id: title.id, name: "US launch", target_market: "US", destination_url: "https://example.com/w", objective: "views", spoiler_level: "low", experiment: { budget_usd: 100, hypothesis: "h", audience: "a", first_batch: 2, signal: "views" } });
   const [a, b, c] = await fixtureData.generatePromoDrafts(producer(), campaign.id);
   for (const x of [a, b, c]) await fixtureData.reviewPromoCreative(producer(), x.id, { status: "approved" });

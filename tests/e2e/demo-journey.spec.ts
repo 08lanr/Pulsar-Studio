@@ -64,7 +64,8 @@ test("status board → market signal → matching owned title → its campaign",
   // What to make next is a sidebar item under US market.
   await page.getByRole("link", { name: "What to make next" }).first().click();
   await expect(page).toHaveURL(/\/producer\/insights\/next/);
-  const ceo = page.locator(".nx-board-row", { hasText: "CEO & billionaire" }).first();
+  // Match the row whose own title is the story type: another row may name it among its related types (today's market data does).
+  const ceo = page.locator(".nx-board-row").filter({ has: page.locator("a.nx-board-title", { hasText: "CEO & billionaire" }) }).first();
   await expect(ceo).toBeVisible();
   await expect(ceo).toContainText("ReelShort");
   await shot(page, "what-to-make-next");

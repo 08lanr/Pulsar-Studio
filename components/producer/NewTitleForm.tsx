@@ -26,6 +26,8 @@ export default function NewTitleForm({ returnTo }: { returnTo?: "promote" } = {}
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // A retry after a failed upload continues with the same title and skips the episodes already in (review 2026-09-14).
+  const [createdTitle, setCreatedTitle] = useState<Title | null>(null);
 
   const blocked = hasDuplicateNumbers(slots);
 
@@ -35,26 +37,35 @@ export default function NewTitleForm({ returnTo }: { returnTo?: "promote" } = {}
     setBusy(true);
     setError(null);
     try {
-      setProgress(tt("pw.new.creating"));
-      const created = unwrap(
-        await postJson<{ title?: Title } & ApiEnvelope>("/api/titles", {
-          name_zh: nameZh.trim(),
-          name_en: nameEn.trim() || null,
-          genre: genre.trim() || null,
-          synopsis_zh: synopsis.trim() || null,
-          character_notes: notes.trim() || null,
-        })
-      );
-      const title = created.title!;
-      for (const slot of slots) {
-        if (!slot.subtitle && !slot.video) continue;
+      let title = createdTitle;
+      if (!title) {
+        setProgress(tt("pw.new.creating"));
+        const created = unwrap(
+          await postJson<{ title?: Title } & ApiEnvelope>("/api/titles", {
+            name_zh: nameZh.trim(),
+            name_en: nameEn.trim() || null,
+            genre: genre.trim() || null,
+            synopsis_zh: synopsis.trim() || null,
+            character_notes: notes.trim() || null,
+          })
+        );
+        title = created.title!;
+        setCreatedTitle(title);
+      }
+      for (const [i, slot] of slots.entries()) {
+        if ((!slot.subtitle && !slot.video) || slot.status === "ok") continue;
         setProgress(tt("pw.new.uploadingEp", { n: slot.number }));
+        setSlots((s) => s.map((x, j) => (j === i ? { ...x, status: "busy", message: undefined } : x)));
         const form = new FormData();
         form.set("episode_number", String(slot.number));
         if (slot.subtitle) form.set("subtitles", slot.subtitle);
         if (slot.video) form.set("video", slot.video);
         const r = await postForm<ApiEnvelope>(`/api/titles/${title.id}/ingest`, form);
-        if (r.error) throw new Error(`${tt("pw.upload.episodeN")} ${slot.number}: ${r.error}`);
+        if (r.error) {
+          setSlots((s) => s.map((x, j) => (j === i ? { ...x, status: "error", message: r.error } : x)));
+          throw new Error(`${tt("pw.upload.episodeN")} ${slot.number}: ${r.error}`);
+        }
+        setSlots((s) => s.map((x, j) => (j === i ? { ...x, status: "ok" } : x)));
       }
       router.push(returnTo === "promote" ? `/producer/promote/new?title=${title.id}` : `/producer/titles/${title.id}`);
     } catch (err) {

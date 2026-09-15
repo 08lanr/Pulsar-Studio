@@ -33,6 +33,9 @@ export const ANGLES: Record<AngleId, Angle> = {
 
 export const ANGLE_ORDER: AngleId[] = ["direct_clip", "narration"];
 
+/** The one budget floor everywhere (create, edit, pick): one ad of the cheapest active angle. */
+export const MIN_BUDGET_USD = Math.min(...ANGLE_ORDER.filter((a) => ANGLES[a].status === "active").map((a) => ANGLES[a].min_budget_usd));
+
 /**
  * The angle a creative row belongs to. The legacy concept kinds (ugc_*)
  * are placeholders the fixed-offset fallback still produces; they are cut

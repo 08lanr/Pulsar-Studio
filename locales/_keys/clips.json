@@ -1,41 +1,326 @@
 {
-  "clips.title": { "en": "Ad clips", "zh": "广告切片" },
-  "clips.state.none": { "en": "No clips yet", "zh": "还没有切片" },
-  "clips.state.cutting": { "en": "Cutting clips", "zh": "正在切片" },
-  "clips.state.ready": { "en": "{n} ready", "zh": "{n} 条可用" },
-  "clips.state.failed": { "en": "Cutting failed", "zh": "切片失败" },
-  "clips.again": { "en": "Cut clips again", "zh": "重新切片" },
-  "clips.preview": { "en": "Preview", "zh": "预览" },
-  "clips.download": { "en": "Download", "zh": "下载" },
-  "clips.noFile": { "en": "No file", "zh": "没有文件" },
-  "clips.noHook": { "en": "No hook text; add one in the campaign", "zh": "没有开场文字，可在广告活动中添加" },
-  "clips.renderFailed": { "en": "Not rendered", "zh": "未生成" },
-  "clips.none.hint": { "en": "Clips are cut automatically a few minutes after an episode video is uploaded: 20–30 second vertical cuts, ready for TikTok or Meta.", "zh": "分集视频上传后几分钟内会自动切出 20–30 秒的竖版片段，可直接用于 TikTok 或 Meta 广告。" },
-  "clips.cutting.hint": { "en": "Cutting runs in the background; this list refreshes on its own.", "zh": "正在后台切片，列表会自动刷新。" },
-  "clips.moment.opening": { "en": "Opening", "zh": "开场" },
-  "clips.moment.peak": { "en": "Peak moment", "zh": "高能时刻" },
-  "clips.hook": { "en": "Hook", "zh": "开场文字" },
-  "clips.evidence.inferred": { "en": "Inferred", "zh": "推断" },
-  "angles.title": { "en": "Ad angles", "zh": "广告角度" },
-  "angles.direct_clip": { "en": "Direct clips", "zh": "高能直剪" },
-  "angles.direct_clip.hint": { "en": "20–30 second cuts of the drama itself; the hook is the ad's text, nothing is burned into the picture. Each reserves {min} of the budget.", "zh": "剧集本身的 20–30 秒直剪；开场文字作为广告文案，不会烧录进画面。每条占用 {min} 预算。" },
-  "angles.narration": { "en": "Narration", "zh": "解说" },
-  "angles.narration.hint": { "en": "A voice tells the story over the footage. Coming soon.", "zh": "配音解说剧情。即将推出。" },
-  "angles.comingSoon": { "en": "Coming soon", "zh": "即将推出" },
-  "angles.min": { "en": "min. {min} per ad", "zh": "每条至少 {min}" },
-  "angles.tab.count": { "en": "{n} ads", "zh": "{n} 条" },
-  "angles.reserves": { "en": "Reserves {min}", "zh": "占用 {min}" },
-  "angles.slots.title": { "en": "Ad slots", "zh": "广告名额" },
-  "angles.slots.budget": { "en": "Budget {budget} · {min} per ad", "zh": "预算 {budget} · 每条 {min}" },
-  "angles.slots.used": { "en": "{chosen} of {covers} slots used", "zh": "已用 {chosen} / {covers} 个名额" },
-  "angles.slots.left": { "en": "{n} more can be chosen", "zh": "还可选 {n} 条" },
-  "angles.slots.full": { "en": "Slots full. Unselect an ad, or raise the budget in the brief to open more.", "zh": "名额已满。取消一条广告，或在方案中提高预算以增加名额。" },
-  "angles.slots.none": { "en": "Set a budget in the brief to open ad slots.", "zh": "先在方案中设置预算，才有广告名额。" },
-  "angles.slots.chosenLabel": { "en": "chosen", "zh": "已选" },
-  "angles.slots.openLabel": { "en": "open", "zh": "空闲" },
-  "angles.budgetCovers": { "en": "Budget {budget} covers {covers} ads at {min} each · {chosen} chosen", "zh": "预算 {budget} 可投 {covers} 条广告（每条 {min}）· 已选 {chosen} 条" },
-  "angles.overBudget": { "en": "{chosen} ads chosen but the budget covers {covers}. Unselect {over} or raise the budget in the brief.", "zh": "已选 {chosen} 条，但预算只够 {covers} 条。请取消 {over} 条，或在方案中提高预算。" },
-  "angles.unselect": { "en": "Unselect", "zh": "取消选择" },
-  "angles.fromClips": { "en": "From the title's ad clips", "zh": "来自剧集的广告切片" },
-  "angles.fixedOffsets": { "en": "Cut at fixed offsets", "zh": "按固定时间点切出" }
+  "clips.title": {
+    "en": "Ad clips",
+    "zh": "广告切片"
+  },
+  "clips.state.none": {
+    "en": "No clips yet",
+    "zh": "还没有切片"
+  },
+  "clips.state.cutting": {
+    "en": "Cutting clips",
+    "zh": "正在切片"
+  },
+  "clips.state.ready": {
+    "en": "{n} ready",
+    "zh": "{n} 条可用"
+  },
+  "clips.state.failed": {
+    "en": "Cutting failed",
+    "zh": "切片失败"
+  },
+  "clips.again": {
+    "en": "Cut clips again",
+    "zh": "重新切片"
+  },
+  "clips.preview": {
+    "en": "Preview",
+    "zh": "预览"
+  },
+  "clips.download": {
+    "en": "Download",
+    "zh": "下载"
+  },
+  "clips.noFile": {
+    "en": "No file",
+    "zh": "没有文件"
+  },
+  "clips.noHook": {
+    "en": "No ad text yet: this clip was picked from footage, not a script. You write the TikTok ad text when you choose the ad in a campaign.",
+    "zh": "还没有广告文案：这条切片按画面选出，没有台词。在广告活动中选中广告时，由你来写 TikTok 广告文案。"
+  },
+  "clips.renderFailed": {
+    "en": "Not rendered",
+    "zh": "未生成"
+  },
+  "clips.none.hint": {
+    "en": "Clips are cut automatically a few minutes after an episode video is uploaded: 20–30 second vertical cuts, ready for TikTok or Meta.",
+    "zh": "分集视频上传后几分钟内会自动切出 20–30 秒的竖版片段，可直接用于 TikTok 或 Meta 广告。"
+  },
+  "clips.cutting.hint": {
+    "en": "Cutting runs in the background; this list refreshes on its own.",
+    "zh": "正在后台切片，列表会自动刷新。"
+  },
+  "clips.moment.opening": {
+    "en": "Opening",
+    "zh": "开场"
+  },
+  "clips.moment.peak": {
+    "en": "Peak moment",
+    "zh": "高能时刻"
+  },
+  "clips.hook": {
+    "en": "Ad text",
+    "zh": "广告文案"
+  },
+  "clips.evidence.inferred": {
+    "en": "Inferred",
+    "zh": "推断"
+  },
+  "angles.title": {
+    "en": "Ad angles",
+    "zh": "广告角度"
+  },
+  "angles.direct_clip": {
+    "en": "Direct clips",
+    "zh": "高能直剪"
+  },
+  "angles.direct_clip.hint": {
+    "en": "20–30 second cuts of the drama itself; the hook is the ad's text, nothing is burned into the picture. Each reserves {min} of the planned budget.",
+    "zh": "剧集本身的 20–30 秒直剪；开场文字作为广告文案，不会烧录进画面。每条占用 {min} 计划预算。"
+  },
+  "angles.narration": {
+    "en": "Narration",
+    "zh": "解说"
+  },
+  "angles.narration.hint": {
+    "en": "A voice tells the story over the footage. Coming soon.",
+    "zh": "配音解说剧情。即将推出。"
+  },
+  "angles.comingSoon": {
+    "en": "Coming soon",
+    "zh": "即将推出"
+  },
+  "angles.min": {
+    "en": "min. {min} per ad",
+    "zh": "每条至少 {min}"
+  },
+  "angles.tab.count": {
+    "en": "{n} ads",
+    "zh": "{n} 条"
+  },
+  "angles.reserves": {
+    "en": "Reserves {min}",
+    "zh": "占用 {min}"
+  },
+  "angles.slots.title": {
+    "en": "Planned ads this round",
+    "zh": "本轮计划广告数"
+  },
+  "angles.slots.budget": {
+    "en": "Budget {budget} · {min} per ad",
+    "zh": "预算 {budget} · 每条 {min}"
+  },
+  "angles.slots.used": {
+    "en": "{chosen} of {covers} slots used",
+    "zh": "已用 {chosen} / {covers} 个名额"
+  },
+  "angles.slots.left": {
+    "en": "{n} more can be chosen",
+    "zh": "还可选 {n} 条"
+  },
+  "angles.slots.full": {
+    "en": "Slots full. Unselect an ad, or raise the budget in the brief to open more.",
+    "zh": "名额已满。取消一条广告，或在方案中提高预算以增加名额。"
+  },
+  "angles.slots.none": {
+    "en": "Set a budget in the brief to open ad slots.",
+    "zh": "先在方案中设置预算，才有广告名额。"
+  },
+  "angles.slots.chosenLabel": {
+    "en": "chosen",
+    "zh": "已选"
+  },
+  "angles.slots.openLabel": {
+    "en": "open",
+    "zh": "空闲"
+  },
+  "angles.budgetCovers": {
+    "en": "Budget {budget} covers {covers} ads at {min} each · {chosen} chosen",
+    "zh": "预算 {budget} 可投 {covers} 条广告（每条 {min}）· 已选 {chosen} 条"
+  },
+  "angles.overBudget": {
+    "en": "{chosen} ads chosen but the budget covers {covers}. Unselect {over} or raise the budget in the brief.",
+    "zh": "已选 {chosen} 条，但预算只够 {covers} 条。请取消 {over} 条，或在方案中提高预算。"
+  },
+  "angles.unselect": {
+    "en": "Unselect",
+    "zh": "取消选择"
+  },
+  "angles.fromClips": {
+    "en": "From the title's ad clips",
+    "zh": "来自剧集的广告切片"
+  },
+  "angles.fixedOffsets": {
+    "en": "Cut at fixed offsets",
+    "zh": "按固定时间点切出"
+  },
+  "angles.slots.sharedNote": {
+    "en": "Slots are planning capacity: the budget runs as one shared TikTok ad group, and each ad needs about {min} to learn anything. Delivery is not split per ad.",
+    "zh": "名额是计划容量：预算作为一个共享的 TikTok 广告组投放，每条广告大约需要 {min} 才能看出结果。投放不会按条平均分配。"
+  },
+  "angles.slots.belowOne": {
+    "en": "The budget is below one ad slot ({min}). Raise it in the brief before choosing ads.",
+    "zh": "预算不足一个广告名额（{min}）。请先在方案中提高预算，再选择广告。"
+  },
+  "angles.slots.adjust": {
+    "en": "Adjust budget",
+    "zh": "调整预算"
+  },
+  "promote.workspace.clipsReadyTitle": {
+    "en": "{n} finished clips are ready",
+    "zh": "已有 {n} 条切片可用"
+  },
+  "promote.workspace.clipsReadyHint": {
+    "en": "Every finished clip becomes a candidate ad with its file already cut. Choose the ones to test, then approve.",
+    "zh": "每条已完成的切片都会成为候选广告，文件已切好。选出要测试的广告后批准即可。"
+  },
+  "promote.workspace.generateFrom": {
+    "en": "Generate ads from {n} clips",
+    "zh": "从 {n} 条切片生成广告"
+  },
+  "promote.workspace.noClipsTitle": {
+    "en": "No finished clips yet",
+    "zh": "还没有完成的切片"
+  },
+  "promote.workspace.noClipsHint": {
+    "en": "Ads are cut from the episodes' clips; none is finished for this title. Cut them now and come back when they are ready.",
+    "zh": "广告来自分集切片，这部剧集还没有完成的切片。现在开始切片，完成后再回来。"
+  },
+  "promote.workspace.cutNow": {
+    "en": "Cut clips now",
+    "zh": "开始切片"
+  },
+  "promote.workspace.cuttingTitle": {
+    "en": "Cutting clips",
+    "zh": "正在切片"
+  },
+  "promote.workspace.cuttingHint": {
+    "en": "{n} episodes are being cut in the background. This page refreshes on its own; generate the ads once clips are ready.",
+    "zh": "正在后台切 {n} 集的片段。页面会自动刷新，切片完成后即可生成广告。"
+  },
+  "promote.workspace.seeClips": {
+    "en": "See the clips",
+    "zh": "查看切片"
+  },
+  "promote.workspace.addClips": {
+    "en": "Add {n} new clips as ads",
+    "zh": "把 {n} 条新切片加为广告"
+  },
+  "fc.file.finished": {
+    "en": "Finished ad file",
+    "zh": "成品广告文件"
+  },
+  "fc.file.source": {
+    "en": "Source preview (not the ad file)",
+    "zh": "源视频预览（非成品）"
+  },
+  "fc.file.none": {
+    "en": "No file",
+    "zh": "没有文件"
+  },
+  "fc.adText": {
+    "en": "TikTok ad text · sent exactly like this",
+    "zh": "TikTok 广告文案 · 原样提交"
+  },
+  "fc.adTextCut": {
+    "en": "TikTok shows the first {n} characters; the rest is not sent.",
+    "zh": "TikTok 只显示前 {n} 个字符，其余不会提交。"
+  },
+  "fc.launchSummary": {
+    "en": "Launch summary: {n} ads · viewers go to {destination} · United States · TikTok website traffic, optimized for clicks.",
+    "zh": "投放摘要：{n} 条广告 · 观众跳转到 {destination} · 美国 · TikTok 网站流量，按点击优化。"
+  },
+  "clips.source.script": {
+    "en": "From the script",
+    "zh": "按台词选出"
+  },
+  "clips.source.footage": {
+    "en": "From footage signals",
+    "zh": "按画面信号选出"
+  },
+  "clips.stale": {
+    "en": "Refresh paused; retrying.",
+    "zh": "刷新暂停，正在重试。"
+  },
+  "promote.new.delivery": {
+    "en": "Delivery on TikTok",
+    "zh": "TikTok 投放设置"
+  },
+  "promote.new.deliveryFact": {
+    "en": "United States · website traffic to your destination link, optimized for clicks. These are the only settings the launch sends; nothing else on this form changes delivery.",
+    "zh": "美国 · 网站流量，跳转到你的落地页链接，按点击优化。投放只会发送这些设置，本表单的其他内容不影响投放。"
+  },
+  "promote.new.goalNote": {
+    "en": "For your records. TikTok is always set to website traffic; this does not change delivery.",
+    "zh": "仅作记录。TikTok 始终按网站流量投放，此项不影响投放。"
+  },
+  "promote.new.notesLabel": {
+    "en": "Notes for review",
+    "zh": "审核备注"
+  },
+  "promote.new.spoilerHint2": {
+    "en": "A note that rides with the brief for Pulsar's review. Clips are chosen per episode from the script; this does not filter them automatically.",
+    "zh": "随方案一起给 Pulsar 审核的备注。切片按每集台词选出，此项不会自动过滤。"
+  },
+  "promote.new.notesHint": {
+    "en": "Direction and content to avoid are review notes, not automatic filters.",
+    "zh": "创意方向和避免内容是审核备注，不是自动过滤。"
+  },
+  "clips.hidePreview": {
+    "en": "Hide preview",
+    "zh": "收起预览"
+  },
+  "clips.previewLabel": {
+    "en": "Preview of clip {n}",
+    "zh": "切片 {n} 预览"
+  },
+  "clips.previewHint": {
+    "en": "Shown at phone proportions: this is what an ad viewer sees.",
+    "zh": "按手机比例显示：这就是广告观众看到的画面。"
+  },
+  "admin.title.col.clips": {
+    "en": "Ad clips",
+    "zh": "广告切片"
+  },
+  "admin.episodeNext.videoOnly": {
+    "en": "Video only: ad clips are cut automatically; subtitles are optional for ads",
+    "zh": "仅有视频：广告切片会自动生成；做广告不需要字幕"
+  },
+  "admin.episodeNext.clipsReady": {
+    "en": "{n} ad clips ready — the producer chooses ads in a campaign",
+    "zh": "{n} 条广告切片可用，制片方在广告活动中选择"
+  },
+  "admin.episodeAction.open": {
+    "en": "Open",
+    "zh": "查看"
+  },
+  "auth.dev.company": {
+    "en": "Sign in as {name}",
+    "zh": "以 {name} 登录"
+  },
+  "fc.adTextMissing": {
+    "en": "Not written yet. Until you write it, TikTok would show: “{fallback}”",
+    "zh": "还没有写。写好之前，TikTok 会显示：“{fallback}”"
+  },
+  "fc.adTextWrite": {
+    "en": "Write the ad text",
+    "zh": "写广告文案"
+  },
+  "fc.adTextEdit": {
+    "en": "Edit",
+    "zh": "编辑"
+  },
+  "fc.adTextSave": {
+    "en": "Save",
+    "zh": "保存"
+  },
+  "fc.adTextCancel": {
+    "en": "Cancel",
+    "zh": "取消"
+  },
+  "fc.adTextHint": {
+    "en": "Shown above the video on TikTok, next to your account name. {left} characters left.",
+    "zh": "显示在 TikTok 视频上方、账号名旁边。还可输入 {left} 个字符。"
+  }
 }

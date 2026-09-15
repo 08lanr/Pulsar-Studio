@@ -17,6 +17,8 @@ import { dataSource } from "@/lib/data-source";
 
 const Body = z.object({
   kind: z.enum(["staff", "producer"]),
+  /** Fixture only: sign in as this company instead of the demo studio (a company created in the session, e.g. by staff). */
+  producer_id: z.string().uuid().nullish(),
   next: z.string().nullish(),
 });
 
@@ -25,7 +27,7 @@ async function readBody(req: NextRequest): Promise<unknown> {
   if (type.includes("application/json")) return req.json().catch(() => null);
   const form = await req.formData().catch(() => null);
   if (!form) return null;
-  return { kind: form.get("kind"), next: form.get("next") };
+  return { kind: form.get("kind"), producer_id: form.get("producer_id") || null, next: form.get("next") };
 }
 
 export async function POST(req: NextRequest) {
@@ -44,6 +46,7 @@ export async function POST(req: NextRequest) {
     new URL(next ?? homeFor(kind), externalOrigin(req)),
     303
   );
-  res.cookies.set(DEV_SESSION_COOKIE, kind, devCookieOptions());
+  const persona = kind === "producer" && parsed.data.producer_id ? `producer:${parsed.data.producer_id}` : kind;
+  res.cookies.set(DEV_SESSION_COOKIE, persona, devCookieOptions());
   return res;
 }

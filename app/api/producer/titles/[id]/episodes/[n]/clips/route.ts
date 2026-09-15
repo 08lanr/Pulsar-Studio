@@ -6,7 +6,7 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { requireProducer } from "@/lib/auth";
+import { requireProducer, requireSession } from "@/lib/auth";
 import { episodeClipsPayload } from "@/lib/clips/payload";
 import { cutEpisodeClips } from "@/lib/clips/run";
 import { jobIsRunning } from "@/lib/clips/state";
@@ -15,7 +15,8 @@ import { episodeNumber, handle, isResponse, parseJson } from "@/app/api/titles/_
 
 export async function GET(req: NextRequest, { params }: { params: { id: string; n: string } }) {
   return handle(req, async () => {
-    const g = await requireProducer();
+    // Read-only: a producer of any role, or staff previewing the portal (the data layer scopes the title).
+    const g = await requireSession();
     if (g.response) return g.response;
     const n = episodeNumber(params.n);
     if (isResponse(n)) return n;

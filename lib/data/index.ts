@@ -544,9 +544,13 @@ export interface DataLayer {
   listPromoCampaigns(session: Session): Promise<PromoCampaignSummary[]>;
   getPromoCampaign(session: Session, campaignId: string): Promise<PromoCampaignDetail>;
   createPromoCampaign(session: Session, input: CreatePromoCampaignInput): Promise<PromoCampaign>;
-  /** Five concept rows per round. With `rendering`, the campaign waits in `generating` until finishPromoGeneration; otherwise it opens for review at once. */
-  generatePromoDrafts(session: Session, campaignId: string, opts?: { rendering?: boolean }): Promise<PromoCreative[]>;
+  /** One ready creative per finished auto-cut clip of the title; review opens at once. Refuses (conflict, NO_CLIPS_MESSAGE) when the title has no finished clip. */
+  generatePromoDrafts(session: Session, campaignId: string): Promise<PromoCreative[]>;
+  /** Round in review: ready creatives for finished clips the round does not carry yet; returns only the new rows. */
+  appendPromoDraftsFromClips(session: Session, campaignId: string): Promise<PromoCreative[]>;
   reviewPromoCreative(session: Session, creativeId: string, input: PromoCreativeReviewInput): Promise<PromoCreative>;
+  /** Producer editor: the TikTok ad text (the hook) of a creative still in review; frozen once the round is approved. */
+  setPromoCreativeText(session: Session, creativeId: string, hook: string): Promise<PromoCreative>;
   /** Producer keeps every creative still waiting for a decision. */
   approveAllPromoCreatives(session: Session, campaignId: string): Promise<PromoCampaignDetail>;
   approvePromoCampaign(session: Session, campaignId: string): Promise<PromoCampaignDetail>;

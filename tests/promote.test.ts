@@ -6,7 +6,7 @@ import { fixtureData, resetFixtureStore } from "@/lib/data/fixture";
 import { putStoredBytes } from "@/lib/data/storage";
 import { resetFakeTikTok } from "@/lib/tiktok/fake";
 import { runLaunch } from "@/lib/tiktok/launch";
-import { producer, staff } from "./seed-minute";
+import { producer, seedRenderedClips, staff } from "./seed-minute";
 
 afterEach(() => { resetFixtureStore(); resetFakeTikTok(); });
 
@@ -17,7 +17,8 @@ async function campaignWithVideo() {
   const title = await fixtureData.createTitle(producer(), { name_zh: "向园", name_en: "Xiang Yuan", producer_id: "ignored" });
   const videoPath = `${title.id}/episode-1/source.mp4`;
   await putStoredBytes(videoPath, Buffer.from("not really an mp4, but bytes the fake TikTok accepts"), "video/mp4");
-  await fixtureData.addVideoOnlyEpisode(producer(), title.id, 1, videoPath);
+  const episode = await fixtureData.addVideoOnlyEpisode(producer(), title.id, 1, videoPath);
+  await seedRenderedClips(title.id, episode.id, 5); // five finished clips: the round's five candidates
   const campaign = await fixtureData.createPromoCampaign(producer(), {
     title_id: title.id,
     name: "US launch",
@@ -32,12 +33,11 @@ async function campaignWithVideo() {
   return { title, campaign };
 }
 
-test("Promote shares the title video and creates a varied five-concept review batch", async () => {
+test("Promote shares the title video and builds the review batch from its finished clips", async () => {
   const { campaign } = await campaignWithVideo();
   const creatives = await fixtureData.generatePromoDrafts(producer(), campaign.id);
-  assert.equal(creatives.length, 5, "one testable round at a time");
-  assert.ok(creatives.some((x) => x.kind === "direct_clip"));
-  assert.ok(creatives.some((x) => x.kind === "ugc_story"));
+  assert.equal(creatives.length, 5, "one candidate per finished clip");
+  assert.ok(creatives.every((x) => x.kind === "direct_clip" && x.render_path && x.render_sha256), "every candidate carries its finished file");
   assert.ok(creatives.every((x) => x.source_episode_id && x.source_end_ms! > x.source_start_ms!));
   const detail = await fixtureData.getPromoCampaign(producer(), campaign.id);
   assert.equal(detail.campaign.status, "review");

@@ -48,7 +48,18 @@ const KIND_COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // matches the refresh-token hori
 const DEV_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 
 export function parseUserKind(value: string | undefined | null): UserKind | null {
-  return value === "staff" || value === "producer" ? value : null;
+  return parseDevCookie(value)?.kind ?? null;
+}
+
+/**
+ * The fixture persona cookie: "staff", "producer", or "producer:<company uuid>"
+ * so a tester can sign in as a company created during the session (QA
+ * 2026-09-15: the demo login always opened the original company).
+ */
+export function parseDevCookie(value: string | undefined | null): { kind: UserKind; producerId?: string } | null {
+  if (value === "staff" || value === "producer") return { kind: value };
+  const m = value?.match(/^producer:([0-9a-f-]{36})$/i);
+  return m ? { kind: "producer", producerId: m[1] } : null;
 }
 
 export function kindCookieOptions() {
@@ -111,8 +122,10 @@ const FIXTURE_SESSIONS: Record<UserKind, Session> = {
   },
 };
 
-export function fixtureSession(kind: UserKind): Session {
-  return { ...FIXTURE_SESSIONS[kind] };
+export function fixtureSession(kind: UserKind, producerId?: string): Session {
+  const s = { ...FIXTURE_SESSIONS[kind] };
+  if (kind === "producer" && producerId) { s.producerId = producerId; s.displayName = `producer:${producerId.slice(0, 8)}`; }
+  return s;
 }
 
 // ---- the system actor --------------------------------------------------------
@@ -190,8 +203,10 @@ export async function loadProfile(
 /** The current user, or null. Server components and route handlers only. */
 export async function getSession(): Promise<Session | null> {
   if (dataSource() === "fixture") {
-    const kind = parseUserKind(cookies().get(DEV_SESSION_COOKIE)?.value);
-    return kind ? fixtureSession(kind) : null;
+    // Pure: this module is in the middleware bundle, so it never touches the fixture store; the portal
+    // shows the company's name from its own row, not from the persona.
+    const dev = parseDevCookie(cookies().get(DEV_SESSION_COOKIE)?.value);
+    return dev ? fixtureSession(dev.kind, dev.producerId) : null;
   }
   // Imported lazily so the module graph stays light for callers that never
   // take this branch (fixture mode, and the middleware bundle).

@@ -660,8 +660,8 @@
     "zh": "计划预算（美元）"
   },
   "ws.exp.budgetNote": {
-    "en": "This is the proposed budget for this round. Saving or approving it does not charge you. The current launch submission is a demo and spends nothing.",
-    "zh": "这是本轮拟定预算。保存或批准不会扣款，当前提交投放仅为演示，不产生花费。"
+    "en": "This is the proposed budget for this round. Saving or approving it does not charge you; the launch step does, on the account you approve.",
+    "zh": "这是本轮的建议预算。保存或批准预算不会扣费；扣费发生在投放时，从你批准的账户支出。"
   },
   "ws.exp.hypothesis": {
     "en": "What do you want to test?",

@@ -67,7 +67,9 @@ export function frameFilter(size: SourceSize | null): Framing {
   if (!size || size.width / size.height <= 0.75) return { filter: cover, pictureTop: null };
   const pictureHeight = Math.round((AD_WIDTH * size.height) / size.width / 2) * 2;
   const pictureTop = Math.max(0, Math.round(AD_HEIGHT * 0.65) - pictureHeight);
-  return { filter: `split=2[bg][fg];[bg]${cover},boxblur=24:4[bgb];[fg]scale=${AD_WIDTH}:-2[fgs];[bgb][fgs]overlay=(W-w)/2:${pictureTop}`, pictureTop };
+  // The blurred fill is built at a quarter of the size and scaled up: the same look, a fraction of the memory.
+  const small = `scale=${AD_WIDTH / 4}:${AD_HEIGHT / 4}:force_original_aspect_ratio=increase,crop=${AD_WIDTH / 4}:${AD_HEIGHT / 4},boxblur=6:2,scale=${AD_WIDTH}:${AD_HEIGHT}`;
+  return { filter: `split=2[bg][fg];[bg]${small}[bgb];[fg]scale=${AD_WIDTH}:-2[fgs];[bgb][fgs]overlay=(W-w)/2:${pictureTop}`, pictureTop };
 }
 
 export type CutInput = {
@@ -96,8 +98,34 @@ export async function cutClip(input: CutInput): Promise<RenderedAd> {
   return { render_path: input.storedPath, render_sha256, duration_ms: end - start, width: AD_WIDTH, height: AD_HEIGHT, bytes: bytes.length };
 }
 
+/**
+ * At most this many ffmpeg processes per web-server process, whatever asks
+ * (uploads, demo seeds, revisions). A 1080×1920 encode holds close to a
+ * gigabyte; an evening of demo resets once spawned dozens at a time
+ * (2026-09-14). Callers queue; nothing is refused.
+ */
+export const FFMPEG_CONCURRENCY = Number(process.env.FFMPEG_CONCURRENCY) > 0 ? Number(process.env.FFMPEG_CONCURRENCY) : 2;
+const gate = globalThis as unknown as { __studioFfmpegGate?: { running: number; queue: Array<() => void> } };
+const slotState = () => (gate.__studioFfmpegGate ??= { running: 0, queue: [] });
+
+async function withFfmpegSlot<T>(fn: () => Promise<T>): Promise<T> {
+  const s = slotState();
+  if (s.running >= FFMPEG_CONCURRENCY) await new Promise<void>((resolve) => s.queue.push(resolve));
+  s.running += 1;
+  try {
+    return await fn();
+  } finally {
+    s.running -= 1;
+    s.queue.shift()?.();
+  }
+}
+
 /** Run ffmpeg to completion; resolves with its stderr (the filters log there), rejects with a readable reason. */
 export function runFfmpeg(args: string[], opts: { timeoutMs?: number; tolerateExit?: boolean } = {}): Promise<string> {
+  return withFfmpegSlot(() => spawnFfmpeg(args, opts));
+}
+
+function spawnFfmpeg(args: string[], opts: { timeoutMs?: number; tolerateExit?: boolean }): Promise<string> {
   return new Promise<string>((resolve, reject) => {
     const p = spawn(ffmpegBin(), args);
     let err = "";

@@ -1,5 +1,8 @@
 import { notFound } from "next/navigation";
+import CampaignPoll from "@/components/producer/promote/CampaignPoll";
 import PromoWorkspace from "@/components/producer/promote/PromoWorkspace";
+import { clipIdOf, pickClipsForRound } from "@/lib/clips/creatives";
+import { episodeClipsPayload } from "@/lib/clips/payload";
 import ExperimentPanel from "@/components/producer/research/ExperimentPanel";
 import { StageStrip } from "@/components/producer/research/workspace-ui";
 import { isStaffPreview, portalSession, producerLocale } from "@/components/producer/server";
@@ -37,6 +40,15 @@ export default async function ExperimentPage({ params, searchParams }: { params:
   const st = summary ? experimentStage(summary, detail.results) : { stage: "brief" as const, waiting: "generate" as const };
   const media = Object.fromEntries(detail.episodes.map((e) => [e.id, mediaUrl(e.video_path)]));
   const renders = Object.fromEntries(detail.creatives.map((c) => [c.id, mediaUrl(c.render_path)]));
+  // The title's finished clips versus the round (decision 2026-09-14): what can be generated, what can be added, what is still cutting.
+  const withVideo = detail.episodes.filter((e) => e.video_path);
+  const clipStates = await Promise.all(withVideo.map((e) => episodeClipsPayload(session, detail.title.id, e.number)));
+  const readyClips = pickClipsForRound(clipStates.flatMap((s) => s.clips), detail.episodes);
+  const usedClipIds = new Set(detail.creatives.filter((c) => c.status !== "superseded").map((c) => clipIdOf(c)).filter(Boolean));
+  const newClips = readyClips.filter((c) => !usedClipIds.has(c.id)).length;
+  const cuttingEpisodes = clipStates.filter((s) => s.state === "cutting").length;
+  const activeCount = detail.creatives.filter((c) => c.status !== "superseded").length;
+  const polling = ["generating", "launching"].includes(detail.campaign.status) || (activeCount === 0 && cuttingEpisodes > 0);
   const canEdit = !isStaffPreview(session) && (session.producerRole === "approver" || session.producerRole === "reviewer");
   const canApprove = !isStaffPreview(session) && session.producerRole === "approver";
   const titleName = locale === "en" ? detail.title.name_en || detail.title.name_zh : detail.title.name_zh;
@@ -57,7 +69,7 @@ export default async function ExperimentPage({ params, searchParams }: { params:
   // Sections stay in step order on every visit: brief → ads → results. Past steps collapse; they never move.
   const briefSection = <div id="brief"><ExperimentPanel {...panelProps} section="brief" briefExpanded={flow.step === "prepare" || flow.step === "budget"} budgetStepReached={budgetStepReached} /></div>;
   const resultsSection = launched || detail.results.length > 0 ? <ExperimentPanel {...panelProps} section="results" /> : null;
-  const ads = detail.campaign.status === "generating" || (detail.campaign.status === "failed" && !detail.creatives.length) ? null : <section id="ads" className="fc-ads-section"><span id="concepts"/><header className="fc-section-heading"><h2>{t(locale, ["choose", "approveAds"].includes(flow.step) ? `workflow.step.${flow.step}` : "fc.ads")}</h2>{launched && <p>{t(locale, "fc.adsArchiveHint")}</p>}</header><PromoWorkspace detail={detail} media={media} renders={renders} canAct={canEdit} canApprove={canApprove} blockers={readiness.blockers} launchMode={mode} /></section>;
+  const ads = detail.campaign.status === "generating" || (detail.campaign.status === "failed" && !detail.creatives.length) ? null : <section id="ads" className="fc-ads-section"><span id="concepts"/><header className="fc-section-heading"><h2>{t(locale, ["choose", "approveAds"].includes(flow.step) ? `workflow.step.${flow.step}` : "fc.ads")}</h2>{launched && <p>{t(locale, "fc.adsArchiveHint")}</p>}</header><PromoWorkspace detail={detail} media={media} renders={renders} canAct={canEdit} canApprove={canApprove} blockers={readiness.blockers} launchMode={mode} clipsReady={readyClips.length} newClips={newClips} cuttingEpisodes={cuttingEpisodes} /></section>;
   const adSection = launched || flow.step === "budget" ? <details className="fc-disclosure fc-archive"><summary><span>{t(locale, "fc.adsArchive")}</span><span>{detail.creatives.filter(c => c.status !== "superseded").length}</span></summary>{ads}</details> : ads;
   const c = detail.campaign;
   const launchRecord = (launched || c.status === "failed") && (c.grow_campaign_id || c.status_note || detail.launch) ? (
@@ -76,6 +88,7 @@ export default async function ExperimentPage({ params, searchParams }: { params:
 
   return (
     <div className="fc-campaign">
+      <CampaignPoll active={polling} />
       <nav className="studio-crumbs" aria-label={t(locale, "v3.breadcrumbs")}>
         <a href="/producer/titles">{t(locale, "ws.nav.catalog")}</a>
         <span>›</span>

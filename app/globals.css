@@ -4553,3 +4553,10 @@ mark.key-phrase {
 .pd-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
 .pd-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .pd-list li { display: flex; align-items: center; gap: 8px; }
+
+/* Review pass 2026-09-14: upload rows stack on narrow screens so both pickers keep their full labels. */
+@media (max-width: 720px) {
+  .bulk-row { flex-wrap: wrap; row-gap: 8px; }
+  .bulk-row .bulk-slot { flex: 1 1 100%; width: 100%; min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+  .bulk-row .bulk-ok, .bulk-row .err { flex-basis: 100%; }
+}

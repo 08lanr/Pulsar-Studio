@@ -25,6 +25,7 @@
 import crypto from "node:crypto";
 import path from "node:path";
 import { systemSession } from "@/lib/auth";
+import { adTextOf } from "@/lib/clips/creatives";
 import { getData, isDataError } from "@/lib/data";
 import { readStoredBytes } from "@/lib/data/storage";
 import type { PromoCreative, PromoLaunch } from "@/lib/types";
@@ -250,9 +251,11 @@ async function runLocked(launchId: string): Promise<LaunchOutcome> {
   }
 
   // --- ads ---------------------------------------------------------------------------
-  if (!Object.keys(launch.ad_ids).length) {
+  // Per creative, never "all or nothing": a retry submits only the ads still missing.
+  {
     const submitted: Array<{ creative: PromoCreative; payload: Record<string, unknown> }> = [];
     usable.forEach((c, i) => {
+      if (launch.ad_ids[c.id]) return;
       const videoId = launch.uploaded_videos[c.id];
       const cover = videoId ? launch.covers[videoId] : undefined;
       if (!videoId || !cover) return;
@@ -265,24 +268,34 @@ async function runLocked(launchId: string): Promise<LaunchOutcome> {
           ad_format: "SINGLE_VIDEO",
           video_id: videoId,
           image_ids: [cover],
-          ad_text: (c.caption || campaign.name).slice(0, 100),
+          // The one string TikTok shows: the hook, exactly as the producer approved it (AD_TEXT_MAX).
+          ad_text: adTextOf(c, campaign.name),
           call_to_action: "WATCH_NOW",
           landing_page_url: launch.destination_url,
         },
       });
     });
-    if (!submitted.length) return fail("No ad was complete enough to submit (missing video or cover)");
-    const res = await tt.post("/ad/create/", token, { advertiser_id: launch.advertiser_id, adgroup_id: launch.tiktok_adgroup_id, creatives: submitted.map((s) => s.payload) });
-    const ids = (res.data as { ad_ids?: string[] } | undefined)?.ad_ids;
-    if (res.code !== 0 || !ids?.length) return fail(`TikTok refused the ads: ${res.message}`);
-    // ASSUMPTION, UNVERIFIED AGAINST THE LIVE API (Pulsar's note): ad_ids come
-    // back in submission order. The ad names are unique per creative so a
-    // later read of /ad/get/ can re-map by name if this does not hold.
-    const adIds: Record<string, string> = {};
-    submitted.forEach((s, i) => {
-      if (ids[i]) adIds[s.creative.id] = String(ids[i]);
-    });
-    await beat({ ad_ids: adIds });
+    if (submitted.length) {
+      const res = await tt.post("/ad/create/", token, { advertiser_id: launch.advertiser_id, adgroup_id: launch.tiktok_adgroup_id, creatives: submitted.map((s) => s.payload) });
+      const ids = (res.data as { ad_ids?: string[] } | undefined)?.ad_ids;
+      if (res.code !== 0 || !ids?.length) return fail(`TikTok refused the ads: ${res.message}`);
+      // ASSUMPTION, UNVERIFIED AGAINST THE LIVE API (Pulsar's note): ad_ids come
+      // back in submission order. The ad names are unique per creative so a
+      // later read of /ad/get/ can re-map by name if this does not hold.
+      const adIds: Record<string, string> = { ...launch.ad_ids };
+      submitted.forEach((s, i) => {
+        if (ids[i]) adIds[s.creative.id] = String(ids[i]);
+      });
+      await beat({ ad_ids: adIds });
+    }
+  }
+
+  // --- every approved ad must be on TikTok, or the launch is not done ----------------------
+  // A skipped upload, a missing cover or an ad TikTok did not return leaves the campaign
+  // in `failed` with the list, and a retry resumes here with the objects already created.
+  const missing = creatives.filter((c) => !launch.ad_ids[c.id]);
+  if (missing.length) {
+    return fail(`${missing.length} of ${creatives.length} approved ads were not submitted to TikTok (${missing.map((c) => c.external_id).join(", ")}); the campaign, ad group and the other ads are kept. Fix the files and retry.`);
   }
 
   // --- done -----------------------------------------------------------------------------

@@ -24,13 +24,15 @@ export default function EpisodeClips({ titleId, episodeNumber, initial, canEdit,
   const [data, setData] = useState<EpisodeClipsPayload>(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [stale, setStale] = useState(false);
+  const [open, setOpen] = useState<Record<string, boolean>>({});
   const url = `/api/producer/titles/${titleId}/episodes/${episodeNumber}/clips`;
   const cutting = data.state === "cutting";
 
   useEffect(() => {
     if (!cutting) return;
     const timer = setInterval(async () => {
-      try { setData(await getJson<EpisodeClipsPayload>(url)); } catch { /* keep the last state; the next tick tries again */ }
+      try { setData(await getJson<EpisodeClipsPayload>(url)); setStale(false); } catch { setStale(true); /* keep the last state; the next tick tries again */ }
     }, 5000);
     return () => clearInterval(timer);
   }, [cutting, url]);
@@ -60,7 +62,7 @@ export default function EpisodeClips({ titleId, episodeNumber, initial, canEdit,
       </header>
       {error && <p className="err" role="alert">{error}</p>}
       {data.state === "none" && <p className="hint">{tt("clips.none.hint")}</p>}
-      {data.state === "cutting" && <p className="hint">{tt("clips.cutting.hint")}</p>}
+      {data.state === "cutting" && <p className="hint">{tt("clips.cutting.hint")}{stale && <> {tt("clips.stale")}</>}</p>}
       {data.clips.length > 0 && (
         <ol className="ep-clip-list">
           {data.clips.map((c) => (
@@ -71,16 +73,18 @@ export default function EpisodeClips({ titleId, episodeNumber, initial, canEdit,
                   <span className="ep-clip-range">{mmss(c.start_ms)} – {mmss(c.end_ms)}</span>
                   <span className="pill pill-neutral">{tt(`clips.moment.${c.moment}`)}</span>
                   {c.angle && <span className="pill pill-neutral">{tt(`angle.${c.angle}`)}</span>}
+                  <span className="pill pill-neutral">{tt(`clips.source.${c.source}`)}</span>
                 </div>
                 {c.hook_en ? <blockquote lang="en"><span className="ep-clip-hooklabel">{tt("clips.hook")}</span> {c.hook_en}</blockquote> : <p className="ep-clip-nohook">{tt("clips.noHook")}</p>}
                 <p className="ep-clip-why"><span className="ep-clip-evidence">{tt("clips.evidence.inferred")}</span> <span lang={locale === "zh" ? "zh" : "en"}>{locale === "zh" ? c.why_zh : c.why_en}</span></p>
                 {c.render_status === "failed" && c.render_note && <p className="ep-clip-failed">{tt("clips.renderFailed")}: {c.render_note}</p>}
                 {c.render_status === "rendered" && c.render_note && <p className="ep-clip-note">{c.render_note}</p>}
+                {open[c.id] && c.download_url && <div className="ep-clip-player"><video src={c.download_url} controls preload="metadata" playsInline aria-label={tt("clips.previewLabel", { n: c.rank })} /><span>{tt("clips.previewHint")}</span></div>}
               </div>
               <span className="ep-clip-actions">
                 {c.download_url ? (
                   <>
-                    <a className="btn btn-outline btn-sm" href={c.download_url} target="_blank" rel="noreferrer">{tt("clips.preview")}</a>
+                    <button type="button" className="btn btn-outline btn-sm" aria-expanded={!!open[c.id]} onClick={() => setOpen((o) => ({ ...o, [c.id]: !o[c.id] }))}>{open[c.id] ? tt("clips.hidePreview") : tt("clips.preview")}</button>
                     <a className="btn btn-primary btn-sm" href={c.download_url} download>{tt("clips.download")}</a>
                   </>
                 ) : (

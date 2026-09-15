@@ -25,7 +25,7 @@ export function newRow(number: number): UploadRow {
 }
 
 export function readyRows(rows: UploadRow[]) {
-  return rows.filter((row) => row.subtitles && Number.isInteger(row.number) && row.number > 0);
+  return rows.filter((row) => (row.subtitles || row.video) && Number.isInteger(row.number) && row.number > 0);
 }
 
 export async function ingestRows(titleId: string, rows: UploadRow[]): Promise<IngestOutcome[]> {
@@ -33,7 +33,7 @@ export async function ingestRows(titleId: string, rows: UploadRow[]): Promise<In
     readyRows(rows).map(async (row) => {
       const form = new FormData();
       form.set("episode_number", String(row.number));
-      form.set("subtitles", row.subtitles as File);
+      if (row.subtitles) form.set("subtitles", row.subtitles);
       if (row.video) form.set("video", row.video);
       try {
         const result = await postForm<{

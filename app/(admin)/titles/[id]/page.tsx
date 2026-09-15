@@ -4,6 +4,7 @@ import ExportMenu from "@/components/admin/ExportMenu";
 import { formatCents, percent } from "@/components/admin/format";
 import { adminLocale, staffSession } from "@/components/admin/server";
 import { EpisodePill, episodeStatusKey } from "@/components/admin/StatusPill";
+import { episodeClipsPayload } from "@/lib/clips/payload";
 import { getData, isDataError } from "@/lib/data";
 import { t, type Locale } from "@/lib/i18n";
 import type { EpisodeSummary } from "@/lib/types";
@@ -50,6 +51,15 @@ function nextAction(locale: Locale, episode: EpisodeSummary) {
       tone: "waiting",
     };
   }
+  // A video without a script (QA 2026-09-15): nothing to adapt; the ad clips cut themselves and the producer picks ads.
+  if (episode.lines_total === 0 && episode.has_video) {
+    return {
+      label: t(locale, "admin.episodeAction.open"),
+      detail: t(locale, "admin.episodeNext.videoOnly"),
+      owner: t(locale, "admin.episodeOwner.producer"),
+      tone: "waiting",
+    };
+  }
   if (episode.lines_adapted < episode.lines_total) {
     return {
       label: episode.lines_adapted > 0
@@ -85,6 +95,8 @@ export default async function TitlePage({ params }: { params: { id: string } }) 
   try {
     const detail = await getData().getTitle(session, params.id);
     const next = Math.max(0, ...detail.episodes.map((episode) => episode.number)) + 1;
+    // Each episode's auto-cut ad clips (decision 2026-09-14): staff see readiness beside the subtitle status.
+    const clipStates = new Map(await Promise.all(detail.episodes.filter((e) => e.has_video).map(async (e) => [e.id, await episodeClipsPayload(session, detail.title.id, e.number)] as const)));
     const staffActions = detail.episodes.filter((episode) =>
       episode.status === "ingested" ||
       episode.status === "adapting" ||
@@ -143,12 +155,13 @@ export default async function TitlePage({ params }: { params: { id: string } }) 
           <p className="section-sub">{t(locale, "admin.title.episodesHelp")}</p>
           <div
             className="gtable gtable-flush episode-action-table"
-            style={{ "--cols": "72px minmax(120px, .8fr) 126px minmax(180px, 1fr) minmax(210px, 1fr) 124px" } as React.CSSProperties}
+            style={{ "--cols": "72px minmax(120px, .8fr) 126px 132px minmax(180px, 1fr) minmax(210px, 1fr) 124px" } as React.CSSProperties}
           >
             <div className="gt-row gt-head" aria-hidden="true">
               <span>{t(locale, "admin.title.col.episode")}</span>
               <span>{t(locale, "admin.title.col.name")}</span>
               <span>{t(locale, "admin.title.col.status")}</span>
+              <span>{t(locale, "admin.title.col.clips")}</span>
               <span>{t(locale, "admin.title.col.progress")}</span>
               <span>{t(locale, "admin.title.col.next")}</span>
               <span />
@@ -170,6 +183,15 @@ export default async function TitlePage({ params }: { params: { id: string } }) 
                     {episode.partner_scenes_needing_alternative > 0 && episode.partner_scenes_decided === episode.scenes_total
                       ? <span className="pill status-changes">{t(locale, "admin.episodeStatus.changes")}</span>
                       : <EpisodePill status={episode.status} label={t(locale, episodeStatusKey(episode.status))} />}
+                  </span>
+                  <span>
+                    {(() => {
+                      const clips = clipStates.get(episode.id);
+                      if (!clips) return <span className="pill pill-neutral">{t(locale, "clips.noFile")}</span>;
+                      const ready = clips.clips.filter((c) => c.render_status === "rendered").length;
+                      const cls = clips.state === "ready" ? "pill-success" : clips.state === "cutting" ? "pill-accent" : clips.state === "failed" ? "pill-error" : "pill-neutral";
+                      return <span className={`pill ${cls}`} title={clips.note ?? undefined}>{clips.state === "ready" ? t(locale, "clips.state.ready", { n: ready }) : t(locale, `clips.state.${clips.state}`)}</span>;
+                    })()}
                   </span>
                   <span>
                     <span>{t(locale, "admin.episode.progress", {

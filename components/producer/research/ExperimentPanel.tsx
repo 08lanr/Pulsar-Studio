@@ -7,6 +7,7 @@
 // round as its own campaign). Nothing here spends money.
 
 import { useState } from "react";
+import { MIN_BUDGET_USD } from "@/lib/angles";
 import { useRouter } from "next/navigation";
 import { useT } from "@/components/locale";
 import { feeLineVars } from "@/lib/promote/fee";
@@ -126,7 +127,7 @@ export default function ExperimentPanel({ campaign, creatives, results, canEdit,
         <form className="rs-form ws-brief-form" onSubmit={(ev) => { ev.preventDefault(); save(); }}>
           <fieldset disabled={!canEdit || locked || busy !== null}>
             <div className="ws-brief-grid">
-              <label>{tt("ws.exp.budget")}<input className="input" type="number" min={1} max={100000} value={budget} onChange={(x) => setBudget(x.target.value)} required /></label>
+              <label>{tt("ws.exp.budget")}<input className="input" type="number" min={MIN_BUDGET_USD} max={100000} value={budget} onChange={(x) => setBudget(x.target.value)} required /></label>
               <label>{tt("ws.exp.firstBatch")}<input className="input" type="number" min={1} max={10} value={batch} onChange={(x) => setBatch(x.target.value)} required /></label>
               <label>{tt("ws.exp.signal")}
                 <select className="select" value={signal} onChange={(x) => setSignal(x.target.value as ExperimentSpec["signal"])}>

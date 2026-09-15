@@ -20,7 +20,9 @@ import { normalizeReview, pollCampaignReview } from "@/lib/tiktok/review";
 import { tick } from "@/lib/tiktok/scheduler";
 import { switchCampaign } from "@/lib/tiktok/controls";
 import type { CompanyAccount } from "@/lib/types";
-import { producer, staff } from "./seed-minute";
+import { producer, seedRenderedClips, staff } from "./seed-minute";
+import { resolveUploadPath } from "@/lib/data/storage";
+import { renameSync } from "node:fs";
 
 const ADV = "7000000000000000001";
 const IDENTITY = "7000000000000000101";
@@ -33,7 +35,8 @@ async function prepared(opts: { budget?: number; destination?: string | null } =
   const title = await fixtureData.createTitle(producer(), { name_zh: "向园", name_en: "Xiang Yuan", producer_id: "ignored" });
   const videoPath = `${title.id}/episode-1/source.mp4`;
   await putStoredBytes(videoPath, Buffer.from("bytes the fake TikTok accepts as a video"), "video/mp4");
-  await fixtureData.addVideoOnlyEpisode(producer(), title.id, 1, videoPath);
+  const episode = await fixtureData.addVideoOnlyEpisode(producer(), title.id, 1, videoPath);
+  await seedRenderedClips(title.id, episode.id, 2);
   const campaign = await fixtureData.createPromoCampaign(producer(), {
     title_id: title.id, name: "Round 1", target_market: "US", destination_url: opts.destination === undefined ? "https://example.com/watch" : opts.destination,
     objective: "views", spoiler_level: "low",
@@ -59,6 +62,36 @@ async function launched() {
   return campaign.id;
 }
 
+test("an ad whose file cannot be read fails the launch with the list; the retry submits only the missing ad", async () => {
+  const { campaign } = await prepared();
+  await assign();
+  const before = await fixtureData.getPromoCampaign(producer(), campaign.id);
+  const chosen = before.creatives.filter((c) => c.status === "approved");
+  assert.equal(chosen.length, 2);
+  const missingFile = resolveUploadPath(chosen[1].render_path!);
+  renameSync(missingFile, `${missingFile}.away`);
+  try {
+    const sent = await fixtureData.submitPromoCampaign(producer(), campaign.id);
+    const first = await runLaunch(sent.launch!.id);
+    assert.equal(first.status, "failed");
+    assert.match(first.error ?? "", /1 of 2 approved ads were not submitted/);
+    const failed = await fixtureData.getPromoCampaign(producer(), campaign.id);
+    assert.equal(failed.campaign.status, "failed");
+    assert.match(failed.campaign.status_note ?? "", new RegExp(chosen[1].external_id));
+    assert.equal(Object.keys(failed.launch!.ad_ids).length, 1, "the ad that could be submitted is on TikTok and stays");
+    assert.ok(failed.launch!.tiktok_campaign_id, "the campaign was created and is kept");
+  } finally {
+    renameSync(`${missingFile}.away`, missingFile);
+  }
+  await fixtureData.retryPromoLaunch(staff(), campaign.id);
+  const again = await runLaunch((await fixtureData.getPromoCampaign(producer(), campaign.id)).launch!.id);
+  assert.equal(again.status, "done");
+  const done = await fixtureData.getPromoCampaign(producer(), campaign.id);
+  assert.equal(Object.keys(done.launch!.ad_ids).length, 2, "the retry added only the missing ad");
+  assert.equal(fakeTikTokSnapshot().campaigns.length, 1, "never a second TikTok campaign");
+  assert.equal(fakeTikTokSnapshot().ads.length, 2);
+});
+
 test("fixture mode always launches into the fake TikTok, whatever TIKTOK_MODE says", () => {
   const saved = process.env.TIKTOK_MODE;
   process.env.TIKTOK_MODE = "production";
@@ -70,7 +103,7 @@ test("the launch gate names every blocker, and a producer-recorded account is ne
   const { campaign } = await prepared({ destination: null, budget: 10 });
   const detail = await fixtureData.getPromoCampaign(producer(), campaign.id);
   const r = launchReadiness({ campaign: detail.campaign, approval: detail.approval, creatives: detail.creatives, account: null, mode: "production" });
-  assert.deepEqual(r.blockers, ["budget_below_minimum", "no_destination", "unrendered_creatives", "no_launch_account"]);
+  assert.deepEqual(r.blockers, ["budget_below_minimum", "no_destination", "no_launch_account"], "the clips are finished files, so nothing is unrendered");
   assert.match(blockerMessage("no_launch_account"), /no TikTok Business Center or ad account/);
   // The producer records a "connected" ad account themselves: it must not route Pulsar's token anywhere.
   const self = await fixtureData.upsertCompanyAccount(producer(), { provider: "tiktok", kind: "ad_account", name: "Mine", external_ref: "7009999999999999999", state: "connected", access: "owner_operated" });
