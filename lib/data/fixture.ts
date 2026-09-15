@@ -2194,6 +2194,12 @@ export const fixtureData: DataLayer = {
     const start = input.source_start_ms ?? parent.source_start_ms;
     const end = input.source_end_ms ?? parent.source_end_ms;
     if (start !== null && end !== null && end <= start) throw invalid("source end must come after source start");
+    // Clean cuts (decision 2026-09-14): the hook and copy are ad text, not
+    // pixels — a revision that keeps the parent's window keeps its finished
+    // file. Only a moved window invalidates the render; the revise route
+    // re-cuts it in the background so the answer to a change request never
+    // parks at the launch gate unrendered.
+    const windowChanged = start !== parent.source_start_ms || end !== parent.source_end_ms;
     const at = now();
     const revision: PromoCreative = {
       ...parent,
@@ -2209,8 +2215,8 @@ export const fixtureData: DataLayer = {
       source_start_ms: start,
       source_end_ms: end,
       duration_ms: start !== null && end !== null ? end - start : parent.duration_ms,
-      render_path: null,
-      render_sha256: null,
+      render_path: windowChanged ? null : parent.render_path,
+      render_sha256: windowChanged ? null : parent.render_sha256,
       rejection_note: null,
       revision_note: input.revision_note?.trim() || null,
       created_at: at,

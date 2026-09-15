@@ -26,6 +26,17 @@ export async function generateAds(session: Session, campaignId: string): Promise
   return { creatives, rendering: true };
 }
 
+/** Kick the campaign's unrendered creatives in the background — the revise
+ * route's way to give a moved-window revision its new cut, so answering a
+ * change request never parks at the launch gate's "unrendered creatives".
+ * No ffmpeg, no kick; the gate keeps saying so (fixture's fake launch still
+ * accepts the source file, decision 2026-09-09). */
+export async function renderCampaignInBackground(campaignId: string): Promise<boolean> {
+  if (!(await ffmpegAvailable())) return false;
+  void renderCampaign(campaignId).catch((e) => console.error(`[render] campaign ${campaignId} threw`, e));
+  return true;
+}
+
 /** Render every unrendered active creative, then open the campaign for review. Safe to re-run. */
 export async function renderCampaign(campaignId: string): Promise<{ rendered: number; failed: string[] }> {
   const data = getData();
