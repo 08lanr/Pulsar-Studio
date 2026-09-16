@@ -1,0 +1,128 @@
+/* One-page title report (/producer/titles/[id]/report, decision 2026-09-15).
+   The sheet is print-first: on screen it previews on the shell background;
+   in print the app chrome disappears and the sheet is the whole page. */
+
+/* Scoped past workflow.css's `.producer-main > :not(script):not(style)`
+   width rule, which would otherwise stretch the sheet to the full rail. */
+.report-page, .producer-main > .report-page { max-width: 880px; display: grid; gap: 16px; }
+.report-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.report-actions .hint { margin: 0; color: var(--text-muted); }
+
+.report-sheet { display: grid; gap: 18px; padding: 30px 34px 26px; border: 1px solid var(--border-strong); border-radius: 12px; background: var(--surface); }
+.report-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+.report-head h1 { margin: 0; font-size: 27px; line-height: 1.25; letter-spacing: -.03em; }
+.report-kicker { display: block; margin-bottom: 8px; font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--brand); }
+.report-secondary { margin: 4px 0 0; color: var(--text-muted); }
+.report-meta { margin: 10px 0 0; font-size: 13px; color: var(--text-muted); }
+.report-score { display: grid; justify-items: center; gap: 8px; flex: 0 0 auto; }
+
+/* Short sections sit side by side when there is room and stack when there
+   is not, so a sheet of mostly-short sections does not run to a second
+   page of whitespace. */
+.report-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px 28px; align-items: start; }
+
+.report-section { border-top: 1px solid var(--border); padding-top: 14px; display: grid; gap: 10px; align-content: start; }
+.report-section > h2 { margin: 0; font-size: 15px; }
+.report-line { margin: 0; font-size: 13px; color: var(--text-muted); }
+.report-line b { color: var(--text); }
+.report-note { margin: 0; font-size: 12px; color: var(--text-muted); }
+.report-empty { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); }
+
+.report-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.report-table th, .report-table td { padding: 6px 12px 6px 0; text-align: left; vertical-align: top; }
+.report-table thead th { font-size: 12px; font-weight: 500; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+.report-table thead th small { font-weight: 400; }
+.report-table tbody tr + tr :is(td, th) { border-top: 1px solid var(--border); }
+.report-table .report-num { text-align: right; white-space: nowrap; }
+.report-components th[scope="row"] { font-weight: 500; width: 32%; }
+.report-track { width: 38%; }
+.report-track-bar { height: 6px; margin-top: 5px; border-radius: 4px; background: var(--surface-3, var(--border)); overflow: hidden; }
+.report-track-bar span { display: block; height: 100%; border-radius: 4px; background: var(--brand); }
+.report-pts { text-align: right; white-space: nowrap; color: var(--text-muted); }
+.report-results .is-winner :is(td) { background: color-mix(in srgb, var(--brand) 7%, transparent); }
+.report-ad-text { display: block; margin-top: 2px; font-size: 12px; color: var(--text-muted); max-width: 46ch; }
+.report-winner { margin: 0; font-size: 13px; }
+.report-winner q { font-style: normal; quotes: "“" "”"; }
+
+/* Facts flow across the available width instead of locking to two columns,
+   so three short facts occupy one row rather than two. */
+.report-facts.tw-facts { margin: 0; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); }
+.report-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.report-list li .spacer { flex: 1; }
+.report-list li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; }
+.report-comp-name { font-weight: 500; }
+.report-comp-platform { font-size: 12px; color: var(--text-muted); }
+.report-next { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 13px; }
+.report-foot { border-top: 1px solid var(--border); padding-top: 12px; }
+.report-foot p { margin: 0; font-size: 12px; line-height: 1.6; color: var(--text-muted); }
+
+@media (max-width: 640px) {
+  .report-sheet { padding: 20px 16px; }
+  .report-head { flex-direction: column-reverse; }
+  /* A wide results table scrolls rather than forcing the sheet wider. */
+  .report-results { display: block; overflow-x: auto; }
+}
+
+/* Print: the sheet is the page. The chrome (sidebar, topbar, crumbs, the
+   print button itself) disappears, and the color tokens are pinned to
+   paper values so a dark-theme session still prints black on white. */
+@media print {
+  /* Every token the sheet touches is pinned to its paper (light) value, so
+     a dark-theme session prints black on white — including the status
+     colors that delta marks, band pills and chips resolve. */
+  :root, :root[data-theme="dark"] {
+    --text: #111;
+    --text-muted: #555;
+    --text-faint: #8a919e;
+    --border: #ccc;
+    --border-strong: #bbb;
+    --border-light: #eef0f3;
+    --surface: #fff;
+    --surface-2: #f8f9fa;
+    --surface-3: #f1f2f5;
+    --brand: #2557d6;
+    --brand-tint: #f0f5ff;
+    --accent-text: #1a44b8;
+    --success: #0b7a4b;
+    --success-bg: #e6f6ee;
+    --warning: #9a5b06;
+    --warning-bg: #fdf3e2;
+    --error: #c92a2a;
+    --error-bg: #fdecec;
+  }
+  body { background: #fff; }
+  .producer-sidebar, .producer-topbar, .producer-preview-note, .skip-link, .report-no-print { display: none !important; }
+  .producer-main { margin: 0 !important; padding: 0 !important; background: #fff !important; min-height: 0 !important; }
+  .report-page, .producer-main > .report-page { max-width: none; }
+  .report-sheet { border: 0; border-radius: 0; padding: 0; background: #fff; color: #111; gap: 12px; }
+  /* Paper is denser than screen: a title with a full round of results, four
+     comparables and every section filled still lands on one sheet. */
+  .report-head h1 { font-size: 21px; }
+  .report-head { gap: 14px; }
+  .report-meta { margin-top: 6px; }
+  .report-section { padding-top: 9px; gap: 7px; }
+  .report-pair { gap: 12px 24px; }
+  .report-table th, .report-table td { padding: 3px 10px 3px 0; }
+  .report-list { gap: 5px; }
+  .report-next { gap: 4px; }
+  .report-foot { padding-top: 8px; }
+  .report-foot p { font-size: 10px; line-height: 1.45; }
+  .report-sheet .ps-score b { font-size: 30px; }
+  .report-sheet a { color: inherit; text-decoration: none; }
+  .report-sheet .metric-label svg { display: none; }
+  /* Score bars survive "background graphics off": keep their paint and give
+     the track a printable border fallback. */
+  .report-track-bar { border: 1px solid #ccc; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .report-track-bar span, .report-results .is-winner td { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  /* A section may span a page boundary — keeping whole sections together
+     pushes anything that does not fit onto the next page and leaves the
+     rest of the current one blank. What must not split is a single row,
+     a heading from its content, or the header and footer blocks; a table
+     that spans pages repeats its column headers. */
+  .report-section { break-inside: auto; }
+  .report-section > h2 { break-after: avoid; }
+  .report-table thead { display: table-header-group; }
+  .report-table tr, .report-list li, .report-next li, .report-facts > div { break-inside: avoid; }
+  .report-head, .report-foot, .report-pair { break-inside: avoid; }
+  @page { margin: 11mm; }
+}
