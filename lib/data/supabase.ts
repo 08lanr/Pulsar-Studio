@@ -879,7 +879,7 @@ export const supabaseData: DataLayer = {
       line.start_ms = u.start_ms;
       line.end_ms = u.end_ms;
     }
-    await studio(c).from("episodes").update({ has_timecodes: true }).eq("id", wb.episode.id);
+    await core(c).from("episodes").update({ has_timecodes: true }).eq("id", wb.episode.id);
     await syncSupabaseTimingMirrors(c, wb.episode.id, wb.lines.filter((l) => !l.merged_into_id));
     return { updated: updates.length };
   },
@@ -1920,5 +1920,5 @@ async function syncSupabaseTimingMirrors(
   cues: { start_ms: number | null; end_ms: number | null }[]
 ): Promise<void> {
   const last = Math.max(0, ...cues.map((l) => l.end_ms ?? 0));
-  if (last > 0) await studio(c).from("episodes").update({ duration_ms: last }).eq("id", episodeId);
+  if (last > 0) await core(c).from("episodes").update({ duration_ms: last }).eq("id", episodeId);
 }

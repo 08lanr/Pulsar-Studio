@@ -26,9 +26,9 @@ drop policy if exists producer_update_episodes on core.episodes;
 create policy producer_update_episodes on core.episodes for update to authenticated
   using (core.can_edit_title(title_id)) with check (core.can_edit_title(title_id));
 revoke update on core.episodes from authenticated;
--- video_path is the replace-video flow's column (its supabase writes
--- currently address the wrong schema — a pre-existing defect noted in the
--- decision entry — but the intended writable surface includes it).
+-- video_path is the replace-video flow's column; setEpisodeVideo addresses
+-- core.episodes correctly. The two timing writes (updateLineTimings and the
+-- duration mirror) once hit studio.episodes; fixed 2026-09-15.
 grant update (source_script_path, script_format, has_timecodes, duration_ms, video_path)
   on core.episodes to authenticated;
 
