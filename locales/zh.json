@@ -2748,5 +2748,17 @@
   "tr.hint": "用语音识别为这一集生成带时间轴的字幕，之后请在工作台核对文字与时间。",
   "tr.unavailable": "自动转写未开通——请联系 Pulsar。",
   "tr.done": "已生成 {n} 句字幕，页面即将刷新。",
-  "tr.failed": "转写失败：{detail}"
+  "tr.failed": "转写失败：{detail}",
+  "rp.crumb": "一页报告",
+  "rp.export": "导出报告",
+  "rp.kicker": "剧集一页报告",
+  "rp.generated": "生成于 {date}",
+  "rp.print": "保存为 PDF",
+  "rp.printHint": "打开浏览器打印对话框，选择“另存为 PDF”。在“更多设置”里关闭“页眉和页脚”，导出的文件不会带上日期和网址。",
+  "rp.results": "广告测试结果",
+  "rp.budget": "预算",
+  "rp.adN": "广告 {n}",
+  "rp.winner": "本轮最佳广告：广告 {n}",
+  "rp.footer": "本报告由 Pulsar Studio 生成。数字均带证据标注（实测 / 推断 / 估算 / 合作方上报），未观测的值显示为不可用，绝不记为零；演示数据均已标注。",
+  "rp.pending": "尚无广告结果"
 }

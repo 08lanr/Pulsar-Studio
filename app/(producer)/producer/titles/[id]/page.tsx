@@ -43,7 +43,7 @@ export default async function TitleOverview({ params, searchParams }: { params: 
 
   return (
     <TitleShell locale={locale} titleId={params.id} name_zh={w.detail.title.name_zh} name_en={w.detail.title.name_en} platform={w.platform} ads={w.ads.status} adStep={step} section="overview" tiktokQuery={`?range=${range}`}
-      actions={<a className="btn btn-primary" href={next.href}>{next.label}</a>}>
+      actions={<><a className="btn btn-outline" href={`/producer/titles/${params.id}/report`}>{t(locale, "rp.export")}</a><a className="btn btn-primary" href={next.href}>{next.label}</a></>}>
       <p className="tw-next-hint">{next.hint}</p>
 
       <div className="tw-grid">
