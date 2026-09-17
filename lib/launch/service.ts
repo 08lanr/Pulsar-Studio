@@ -3,12 +3,22 @@ import { systemSession, type Session } from "@/lib/auth";
 import { getData } from "@/lib/data";
 import { launchEnvironment } from "./environment";
 import { assertCampaignBudget } from "./budget";
+import { isLaunchWaiting, providerRetryDelay, type WaitingState } from "./waiting";
 import { launchHash } from "@/lib/data/launch";
 import { conflict, forbidden, invalid, notFound } from "@/lib/data/errors";
 import type { DriverContext, LaunchCampaign, LaunchControl, LaunchDriver, LaunchRun } from "./types";
 
+// The monitor's snapshot derivation. It lives in `provider-errors.ts` because
+// the monitor is a client component and this module reaches the data layer;
+// it is re-exported here so the derivation stays part of the launch service's
+// surface and the service tests read it from one place.
+export { monitorState, needsFirstSweep, switchIsKnown, campaignPlatforms, type MonitorState } from "./provider-errors";
+
 const system = systemSession;
 const now = () => new Date().toISOString();
+/** How many times a provider may say "later" before the campaign reads as failed and waits for a person. */
+const MAX_PROVIDER_RETRIES = 12;
+const retriesLeft = (c: LaunchCampaign) => Number(c.state.provider_retries ?? 0) < MAX_PROVIDER_RETRIES;
 const message = (e: unknown) => e instanceof Error ? e.message : "Provider operation failed.";
 export async function launchDriver(run: LaunchRun): Promise<LaunchDriver> {
   return run.draft.provider === "meta" ? (await import("@/lib/meta/driver")).metaDriver : (await import("@/lib/tiktok/spark-driver")).tiktokSparkDriver;
@@ -58,7 +68,10 @@ async function locked(id: string, task: (run: LaunchRun, context: (c: LaunchCamp
         await refresh(); signed(run);
         if (!stopping) assertCampaignBudget(run, campaign);
         if (launching && campaign.state.desired_status && !(campaign.state.desired_status === "paused" && campaign.state.prepare_while_paused)) throw conflict(`Campaign ${campaign.state.desired_status} by its approver.`);
-        const assigned = await data.getLaunchConnections(actor, run.producer_id, run.draft.provider);
+        // Through the inventory's short cache: this runs before every provider
+        // write, and re-listing every ad account on each one is what would trip
+        // Meta's per-app call limit on a first launch.
+        const assigned = await data.getLaunchConnections(actor, run.producer_id, run.draft.provider, false);
         if (!assigned.some(a => a.id === connection.id && a.enabled && a.advertiser_id === connection.advertiser_id && a.page_id === connection.page_id && a.instagram_id === connection.instagram_id)) throw forbidden("Account assignment changed. Create and approve a new round.");
       },
     };
@@ -86,7 +99,7 @@ export async function executeLaunch(id: string): Promise<LaunchRun | null> {
         // immediately, even when the provider returned success.
         await ctx.checkpoint({ launch_complete: true, prepare_while_paused: false });
         if (campaign.state.desired_status) throw conflict("Stop requested during preparation.");
-        campaign.status = "done"; campaign.error = null;
+        campaign.status = "done"; campaign.error = null; delete campaign.state.waiting; delete campaign.state.provider_retries;
         campaign.snapshot = await driver.monitor(context(campaign));
       } catch (e) {
         // The returned IDs were checkpointed even when a pause raced a write.
@@ -98,11 +111,24 @@ export async function executeLaunch(id: string): Promise<LaunchRun | null> {
             campaign.status = campaign.state.launch_complete || campaign.state.desired_status === "ended" ? "done" : "failed";
             campaign.error = campaign.state.launch_complete ? null : "Stopped before preparation finished. Retry prepares it paused; Resume activates it.";
           } catch (stopError) { campaign.status = "failed"; campaign.error = message(stopError); }
+        } else if (isLaunchWaiting(e) || (providerRetryDelay(e) !== null && retriesLeft(campaign))) {
+          // Come back later: the row stays pending with its checkpoints, the run
+          // stays open for the sweep, and this process returns on its own. A
+          // provider that is rate-limiting, timing out or answering 5xx is the
+          // same wait, a bounded number of times; a lost write is reconciled by
+          // the driver's own intent record on the next attempt, never resent.
+          const delay = isLaunchWaiting(e) ? e.retryAfterMs : providerRetryDelay(e)!;
+          if (!isLaunchWaiting(e)) campaign.state.provider_retries = Number(campaign.state.provider_retries ?? 0) + 1;
+          campaign.status = "pending"; campaign.error = null;
+          campaign.state.waiting = { reason: message(e), since: new Date().toISOString(), retry_after_ms: delay } satisfies WaitingState;
+          // The test runner never waits for a wake-up; the sweep is its recovery.
+          if (process.env.NODE_ENV !== "test") setTimeout(() => queueLaunch(run.id), delay).unref?.();
         } else { campaign.status = "failed"; campaign.error = message(e); }
       }
       await persist();
     }
-    run.status = run.campaigns.some(c => c.status === "failed") ? "failed" : "done";
+    run.status = run.campaigns.some(c => c.status === "pending") ? "pending"
+      : run.campaigns.some(c => c.status === "failed") ? "failed" : "done";
     run.error = run.status === "failed" ? "Some campaigns need attention. Successful campaigns are preserved." : null;
     await persist();
   });

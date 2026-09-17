@@ -1,12 +1,16 @@
 import { z } from "zod";
 import { defaultLaunchSettings, defaultSalesLaunchSettings, launchSettingsSchema, validateLaunchSettings } from "@/lib/tiktok/settings";
-import type { LaunchConnection, LaunchDraft, LaunchPlan, LaunchProvider } from "./types";
+import type { LaunchAdSetPlan, LaunchConnection, LaunchContent, LaunchDraft, LaunchPlan, LaunchPlanIssue, LaunchProvider, MetaPlatform } from "./types";
 
 const cents = z.number().int().min(1).max(100_000_000);
 export const contentSchema = z.object({
   kind: z.enum(["spark", "facebook_post", "instagram_post", "video"]),
   value: z.string().trim().min(1).max(2000), label: z.string().max(200).optional(),
   text: z.string().max(2200).optional(), headline: z.string().max(200).optional(),
+  // Provenance for the preview, the confirm dialog and the monitor: which Studio
+  // clip this content is, and which post record published it. Both are verified
+  // against the company's own clip library before saving, never trusted as sent.
+  clip_id: z.string().uuid().optional(), post_id: z.string().uuid().optional(),
 }); // File paths, hashes and ownership are resolved from the data layer, never from the client.
 export const draftSchema = z.object({
   provider: z.enum(["tiktok", "meta"]), name: z.string().trim().min(1).max(80),
@@ -23,6 +27,7 @@ export const draftSchema = z.object({
     bid_cents: cents.nullable(), call_to_action: z.enum(["LEARN_MORE", "WATCH_MORE"]),
     start_time: z.string().datetime({ offset: true }), end_time: z.string().datetime({ offset: true }),
   }),
+  campid_start: z.string().trim().max(60).nullable().optional(),
 });
 
 export function defaultLaunchDraft(provider: LaunchProvider = "tiktok"): LaunchDraft {
@@ -30,7 +35,8 @@ export function defaultLaunchDraft(provider: LaunchProvider = "tiktok"): LaunchD
   const end = new Date(start.getTime() + 7 * 86400000);
   return { provider, name: "Launch", account_ids: [], campaigns_per_account: 1, content_per_campaign: provider === "tiktok" ? 5 : 1,
     allocation: "unique", content: [], destination_url: "", total_budget_cents: 50000,
-    daily_budget_cents: provider === "tiktok" ? 2000 : null, start_paused: true, tiktok_settings: { ...(provider === "tiktok" ? defaultSalesLaunchSettings() : defaultLaunchSettings()), start_paused: true },
+    daily_budget_cents: provider === "tiktok" ? 2000 : null, start_paused: true, campid_start: null,
+    tiktok_settings: { ...(provider === "tiktok" ? defaultSalesLaunchSettings() : defaultLaunchSettings()), start_paused: true },
     meta_settings: { countries: ["US"], placements: ["facebook"], optimization_goal: "LINK_CLICKS",
       bid_strategy: "LOWEST_COST_WITHOUT_CAP", bid_cents: null, call_to_action: "LEARN_MORE",
       start_time: start.toISOString(), end_time: end.toISOString() } };
@@ -55,47 +61,203 @@ export function campidForRun(externalId: string, index: number, launchName: stri
   return `${slug}-${externalId.slice(3)}-${String(index).padStart(3, "0")}`;
 }
 
+/** Meta's floor for an ad-set budget. The plan and the driver share this one number. */
+export const META_MIN_BUDGET_CENTS = 100;
+/**
+ * How far ahead a Meta end time must still lie at preview. A draft opened with
+ * a seven-day window and approved a week later would otherwise create the
+ * campaign and then have Meta refuse every ad set for ending in the past.
+ */
+export const META_SCHEDULE_MARGIN_MS = 15 * 60_000;
+/** Lowercase, 2–40 characters, starting on a letter or digit. */
+export const CAMPID_SHAPE = /^[a-z0-9][a-z0-9_-]{1,39}$/;
+
+/**
+ * overlord's mass-launch generator: the trailing digits of the first campid are
+ * the counter and their zero padding is preserved (`rlapple01, rlapple02, …`);
+ * a value with no trailing digits counts from `01`.
+ */
+export function campidSeries(start: string, count: number): string[] {
+  const base = start.trim().toLowerCase();
+  const digits = base.match(/^(.*?)(\d+)$/);
+  const prefix = digits ? digits[1] : base;
+  const first = digits ? Number(digits[2]) : 1;
+  const width = digits ? digits[2].length : 2;
+  return Array.from({ length: Math.max(0, count) }, (_, i) => `${prefix}${String(first + i).padStart(width, "0")}`);
+}
+
+/** Even whole-cent split that never throws; the minimum check reports what is too small. */
+function evenly(total: number, count: number): number[] {
+  if (count < 1) return [];
+  const base = Math.floor(Math.max(0, total) / count), remainder = Math.max(0, total) % count;
+  return Array.from({ length: count }, (_, i) => base + (i < remainder ? 1 : 0));
+}
+
+const AD_SET_ORDER: MetaPlatform[] = ["facebook", "instagram"];
+/** A post belongs to its own platform; an uploaded clip belongs to the chosen placements. */
+export function platformOfContent(item: LaunchContent): MetaPlatform | null {
+  return item.kind === "facebook_post" ? "facebook" : item.kind === "instagram_post" ? "instagram" : null;
+}
+/**
+ * The ad sets one campaign needs: one per platform that actually has content,
+ * each holding only that platform's ads, sharing the campaign's budget equally
+ * with the remainder on the first.
+ */
+export function deriveAdSets(content: LaunchContent[], placements: MetaPlatform[], budgetCents: number, dailyBudgetCents: number | null): LaunchAdSetPlan[] {
+  const groups = AD_SET_ORDER.map(platform => ({
+    platform,
+    content: content.filter(item => item.kind === "video" ? placements.includes(platform) : platformOfContent(item) === platform),
+  })).filter(group => group.content.length > 0);
+  const lifetime = evenly(budgetCents, groups.length);
+  const daily = dailyBudgetCents === null ? null : evenly(dailyBudgetCents, groups.length);
+  return groups.map((group, i) => ({ ...group, budget_cents: lifetime[i], daily_budget_cents: daily ? daily[i] : null }));
+}
+/** The amount Meta actually receives for an ad set: the daily budget when pacing is on, else the lifetime share. */
+export const adSetSpendCents = (set: LaunchAdSetPlan) => set.daily_budget_cents ?? set.budget_cents;
+
+/** The content each campaign carries, in the order the preview lists them. */
+export function campaignContentSlices(draft: Pick<LaunchDraft, "allocation" | "content" | "content_per_campaign">, count: number): LaunchContent[][] {
+  return Array.from({ length: Math.max(0, count) }, (_, index) => draft.allocation === "shared"
+    ? draft.content : draft.content.slice(index * draft.content_per_campaign, (index + 1) * draft.content_per_campaign));
+}
+
+function issueList() {
+  const issues: LaunchPlanIssue[] = [];
+  return {
+    issues,
+    add(code: string, message: string, vars?: Record<string, string | number>) {
+      if (!issues.some(issue => issue.code === code)) issues.push({ code, message, ...(vars ? { vars } : {}) });
+    },
+  };
+}
+
+/**
+ * The campid to start the next round from: the value after the last one this
+ * round stamped, so a new round never reuses a name the ad account already
+ * holds. Null when no first campid was typed.
+ */
+export function nextCampidStart(start: string | null | undefined, count: number): string | null {
+  if (!start?.trim() || !Number.isInteger(count) || count < 1) return null;
+  return campidSeries(start, count + 1)[count];
+}
+
+/**
+ * Campid problems, for both providers. `takenNames` are the campaign names the
+ * ad account already carries: the driver refuses a collision before creating,
+ * so preview says so first instead of failing halfway through a launch.
+ */
+export function campidIssues(start: string | null | undefined, count: number, takenNames: readonly string[] = []): LaunchPlanIssue[] {
+  const list = issueList();
+  if (!start?.trim()) return list.issues;
+  const series = campidSeries(start, Math.max(1, count));
+  if (series.some(value => !CAMPID_SHAPE.test(value)))
+    list.add("campidShape", "A campid uses 2 to 40 lowercase letters, digits, hyphens or underscores and starts with a letter or digit.");
+  if (new Set(series).size !== series.length) list.add("campidDuplicate", "Each campaign needs its own campid.");
+  const clash = series.filter(value => takenNames.includes(value));
+  if (clash.length) list.add("campidTaken", `The ad account already has a campaign named ${clash[0]}. Start from a different campid.`, { campid: clash[0] });
+  return list.issues;
+}
+
+/**
+ * Everything a Meta draft must fix before it can be previewed, collected rather
+ * than raised one at a time, so the screen can print one "Fix these first" list.
+ * Tolerant of an unfinished draft: counts and account choices are checked
+ * elsewhere and never reported twice here.
+ */
+export function metaDraftIssues(draft: LaunchDraft, connections: LaunchConnection[], takenNames: readonly string[] = []): LaunchPlanIssue[] {
+  const list = issueList();
+  if (draft.provider !== "meta") return list.issues;
+  const settings = draft.meta_settings;
+  const chosen = draft.account_ids.map(id => connections.find(c => c.id === id)).filter((c): c is LaunchConnection => !!c);
+  const count = chosen.length * Math.max(1, draft.campaigns_per_account);
+  // The shape checks every launch shares live here too, so the screen prints
+  // them in the same list instead of one refused preview at a time.
+  if (new Set(draft.account_ids).size !== draft.account_ids.length) list.add("duplicateAccounts", "Select each advertising account only once.");
+  if (new Set(chosen.map(a => a.advertiser_id.replace(/^act_/, ""))).size !== chosen.length) list.add("duplicateAccounts", "The same advertising account was assigned more than once. Select one assignment per account.");
+  let destination: URL | null = null;
+  try { destination = new URL(draft.destination_url); } catch { destination = null; }
+  if (!destination || !["https:", "http:"].includes(destination.protocol) || destination.username || destination.password)
+    list.add("destinationUrl", "Enter a complete destination URL: an HTTP(S) address without credentials.");
+  if (count > 0) {
+    const needed = draft.allocation === "shared" ? draft.content_per_campaign : count * draft.content_per_campaign;
+    if (draft.content.length !== needed) list.add("contentCount", `Need exactly ${needed} content entries; ${draft.content.length} provided.`, { needed, provided: draft.content.length });
+    if (count > 100) list.add("campaignCount", "A launch may contain up to 100 campaigns.");
+  }
+  if (new Set(draft.content.map(c => `${c.kind}:${c.value}`)).size !== draft.content.length)
+    list.add("duplicateContent", "Remove duplicate content entries. Use shared allocation to reuse content.");
+  for (const item of draft.content) {
+    if (item.kind === "spark") list.add("contentSpark", "Meta takes existing posts or finished clips, not Spark codes.");
+    if (item.kind === "facebook_post" && !/^\d+_\d+$/.test(item.value)) list.add("contentFacebookRef", "A Facebook post reference must be pageID_postID.");
+    if (item.kind === "instagram_post" && !/^\d+$/.test(item.value)) list.add("contentInstagramRef", "An Instagram post reference must be a media ID.");
+  }
+  if (chosen.some(account => !account.page_id)) list.add("accountPage", "Assign a Facebook Page to every selected Meta account.");
+  const start = Date.parse(settings.start_time), end = Date.parse(settings.end_time);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) list.add("schedule", "Meta needs a valid start and end time.");
+  else if (end <= Date.now() + META_SCHEDULE_MARGIN_MS) list.add("scheduleEnded", "The Meta end time has passed or is about to. Move it forward before previewing.");
+  if (settings.bid_strategy === "LOWEST_COST_WITH_BID_CAP" && !settings.bid_cents) list.add("bid", "Set the Meta bid cap.");
+  if (count > 0) {
+    const shares = evenly(draft.total_budget_cents, count);
+    if (shares.some(share => share < META_MIN_BUDGET_CENTS))
+      list.add("campaignMinimum", "Each Meta campaign needs at least $1 of allocated budget; account-specific minimums are checked by Meta.");
+    const slices = campaignContentSlices(draft, count);
+    for (let index = 0; index < count; index++) {
+      const daily = draft.daily_budget_cents;
+      const sets = deriveAdSets(slices[index], settings.placements, shares[index], daily);
+      if (!sets.length) { list.add("contentEmpty", "Every campaign needs at least one post or finished clip."); continue; }
+      if (sets.some(set => set.platform === "instagram") && chosen.some(account => !account.instagram_id))
+        list.add("accountInstagram", "Assign an Instagram identity: these campaigns include Instagram ads.");
+      if (sets.some(set => adSetSpendCents(set) < META_MIN_BUDGET_CENTS))
+        list.add("adSetMinimum", "Each ad set needs at least $1. Raise the budget, or run one platform at a time.", { platforms: sets.length });
+    }
+  }
+  for (const issue of campidIssues(draft.campid_start, count, takenNames)) list.add(issue.code, issue.message, issue.vars);
+  return list.issues;
+}
+
 export function trackingUrlForCampaign(destination: string, campid: string): string {
   const url = new URL(destination);
   url.searchParams.set("campid", campid);
   return url.toString();
 }
 
-export function buildLaunchPlan(input: LaunchDraft, connections: LaunchConnection[], savedRunExternalId?: string): LaunchPlan {
+export function buildLaunchPlan(input: LaunchDraft, connections: LaunchConnection[], savedRunExternalId?: string, takenNames: readonly string[] = []): LaunchPlan {
   const parsed = draftSchema.safeParse(input);
   if (!parsed.success) throw new Error(parsed.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; "));
   const d = parsed.data;
+  // A Meta draft collects every shape problem into one list; TikTok keeps
+  // raising them one at a time, as its own screen expects.
+  const collecting = d.provider === "meta";
   if (!d.account_ids.length) throw new Error("Select at least one assigned advertising account.");
-  if (new Set(d.account_ids).size !== d.account_ids.length) throw new Error("Select each account only once.");
-  let destination: URL;
-  try { destination = new URL(d.destination_url); } catch { throw new Error("Enter a complete destination URL."); }
-  if (!["https:", "http:"].includes(destination.protocol) || destination.username || destination.password) throw new Error("Destination must be an HTTP(S) URL without credentials.");
+  if (!collecting && new Set(d.account_ids).size !== d.account_ids.length) throw new Error("Select each account only once.");
+  if (!collecting) {
+    let destination: URL;
+    try { destination = new URL(d.destination_url); } catch { throw new Error("Enter a complete destination URL."); }
+    if (!["https:", "http:"].includes(destination.protocol) || destination.username || destination.password) throw new Error("Destination must be an HTTP(S) URL without credentials.");
+  }
   const chosen = d.account_ids.map(id => {
     const a = connections.find(c => c.id === id && c.provider === d.provider && c.enabled && c.assigned_by);
     if (!a) throw new Error("An account is unassigned, unavailable or belongs to a different platform.");
     if (a.currency !== "USD") throw new Error("This release supports USD advertising accounts.");
-    if (d.provider === "meta" && (!a.page_id || (d.meta_settings.placements.includes("instagram") && !a.instagram_id))) throw new Error("Assign a Facebook Page and the Instagram identity required by these placements.");
     return a;
   });
   const count = chosen.length * d.campaigns_per_account;
-  if (new Set(chosen.map(a => a.advertiser_id.replace(/^act_/, ""))).size !== chosen.length) throw new Error("The same advertising account was assigned more than once. Select one assignment per account.");
-  if (count > 100) throw new Error("A launch may contain up to 100 campaigns.");
-  const needed = d.allocation === "shared" ? d.content_per_campaign : count * d.content_per_campaign;
-  if (d.content.length !== needed) throw new Error(`Need exactly ${needed} content entries; ${d.content.length} provided.`);
-  if (new Set(d.content.map(c => `${c.kind}:${c.value}`)).size !== d.content.length) throw new Error("Remove duplicate content entries. Use shared allocation to reuse content.");
-  for (const c of d.content) {
-    if ((d.provider === "tiktok") !== (c.kind === "spark")) throw new Error("TikTok takes Spark codes; Meta takes posts or finished clips.");
-    if (c.kind === "facebook_post" && !/^\d+_\d+$/.test(c.value)) throw new Error("Facebook post reference must be pageID_postID.");
-    if (c.kind === "instagram_post" && !/^\d+$/.test(c.value)) throw new Error("Instagram post reference must be a media ID.");
-    if (c.kind === "instagram_post" && chosen.some(a => !a.instagram_id)) throw new Error("Assign an Instagram identity before using Instagram posts.");
+  if (!collecting) {
+    if (new Set(chosen.map(a => a.advertiser_id.replace(/^act_/, ""))).size !== chosen.length) throw new Error("The same advertising account was assigned more than once. Select one assignment per account.");
+    if (count > 100) throw new Error("A launch may contain up to 100 campaigns.");
+    const needed = d.allocation === "shared" ? d.content_per_campaign : count * d.content_per_campaign;
+    if (d.content.length !== needed) throw new Error(`Need exactly ${needed} content entries; ${d.content.length} provided.`);
+    if (new Set(d.content.map(c => `${c.kind}:${c.value}`)).size !== d.content.length) throw new Error("Remove duplicate content entries. Use shared allocation to reuse content.");
+    if (d.content.some(c => c.kind !== "spark")) throw new Error("TikTok takes Spark codes; Meta takes posts or finished clips.");
+  } else {
+    // One collected list, so the screen prints every reason at once instead of
+    // making the producer discover them one refused preview at a time.
+    const issues = metaDraftIssues(d as LaunchDraft, connections, takenNames);
+    if (issues.length) throw new Error(issues.map(issue => issue.message).join(" "));
   }
   const shares = splitBudget(d.total_budget_cents, count);
-  if (d.provider === "meta") {
-    const s = d.meta_settings, start = Date.parse(s.start_time), end = Date.parse(s.end_time);
-    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) throw new Error("Meta needs a valid start and end time.");
-    if (s.bid_strategy === "LOWEST_COST_WITH_BID_CAP" && !s.bid_cents) throw new Error("Set the Meta bid cap.");
-    if (shares.some(b => b < 100)) throw new Error("Each Meta campaign needs at least $1 of allocated budget; account-specific minimums are checked by Meta.");
-  } else {
+  if (!collecting) {
+    const campid = campidIssues(d.campid_start, count, takenNames);
+    if (campid.length) throw new Error(campid.map(issue => issue.message).join(" "));
     for (const share of shares) {
       const groups = d.tiktok_settings.duplicate_copies + 1;
       if (d.daily_budget_cents !== null && Math.floor(d.daily_budget_cents / groups) < 2000) throw new Error("TikTok's daily minimum is $20 per ad group, including planned copies.");
@@ -105,16 +267,22 @@ export function buildLaunchPlan(input: LaunchDraft, connections: LaunchConnectio
       validateLaunchSettings(s, share / 100);
     }
   }
-  const rows = chosen.flatMap(connection => Array.from({ length: d.campaigns_per_account }, () => connection)).map((connection, index) => ({
-    index: index + 1, connection_id: connection.id, advertiser_id: connection.advertiser_id,
-    name: savedRunExternalId ? campidForRun(savedRunExternalId, index + 1, d.name) : `${d.name}-${index + 1}`,
-    ...(savedRunExternalId ? {
-      campid: campidForRun(savedRunExternalId, index + 1, d.name),
-      tracking_url: trackingUrlForCampaign(d.destination_url, campidForRun(savedRunExternalId, index + 1, d.name)),
-    } : {}),
-    content: structuredClone(d.allocation === "shared" ? input.content : input.content.slice(index * d.content_per_campaign, (index + 1) * d.content_per_campaign)),
-    budget_cents: shares[index], daily_budget_cents: d.daily_budget_cents,
-  }));
+  // A typed first campid counts up per campaign, exactly as overlord does; an
+  // empty field keeps the identifier derived from the saved run.
+  const typed = d.campid_start?.trim() ? campidSeries(d.campid_start, count) : null;
+  const campidAt = (index: number) => typed ? typed[index] : savedRunExternalId ? campidForRun(savedRunExternalId, index + 1, d.name) : null;
+  const rows = chosen.flatMap(connection => Array.from({ length: d.campaigns_per_account }, () => connection)).map((connection, index) => {
+    const campid = campidAt(index);
+    const content = structuredClone(d.allocation === "shared" ? input.content : input.content.slice(index * d.content_per_campaign, (index + 1) * d.content_per_campaign));
+    return {
+      index: index + 1, connection_id: connection.id, advertiser_id: connection.advertiser_id,
+      name: campid ?? `${d.name}-${index + 1}`,
+      ...(campid ? { campid, tracking_url: trackingUrlForCampaign(d.destination_url, campid) } : {}),
+      content,
+      budget_cents: shares[index], daily_budget_cents: d.daily_budget_cents,
+      ...(d.provider === "meta" ? { ad_sets: deriveAdSets(content, d.meta_settings.placements, shares[index], d.daily_budget_cents) } : {}),
+    };
+  });
   return { rows, total_budget_cents: d.total_budget_cents, daily_total_cents: d.daily_budget_cents === null ? null : count * d.daily_budget_cents,
     campaign_count: count, account_count: chosen.length, content_count: d.content.length,
     warnings: d.provider === "tiktok" && d.tiktok_settings.duplicate_copies > 0 ? ["The approved budget includes all planned ad group copies."] : [] };

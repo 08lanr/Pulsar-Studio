@@ -104,6 +104,14 @@ export function resetFakeTikTokForDemo(campaignIds: readonly string[], runIds: r
 /** Tests reset the fake between cases, like resetFixtureStore(). */
 export function resetFakeTikTok(): void {
   delete stateStore.__studioFakeTikTok;
+  delete pageStore.__studioFakeTikTokPages;
+}
+
+/** Instant Pages the fake lists on /page/get/. Fixture creates answer a deterministic id without recording one, so a test seeds these. */
+type FakeInstantPage = { advertiserId: string; pageId: string; title: string };
+const pageStore = globalThis as unknown as { __studioFakeTikTokPages?: FakeInstantPage[] };
+export function seedFakeInstantPages(rows: FakeInstantPage[]): void {
+  pageStore.__studioFakeTikTokPages = rows.map((row) => ({ ...row }));
 }
 
 function nextId(prefix: string): string {
@@ -333,6 +341,11 @@ export const fakeTransport: TikTokTransport = {
       case "/bc/asset/get/": {
         if (String(params.bc_id) !== FAKE_BC_ID) return refuse("Business Center not found");
         return ok({ list: FAKE_BC_ACCOUNTS.map((id, i) => ({ asset_id: id, asset_name: `Fake ad account ${i + 1}` })), page_info: { total_page: 1 } });
+      }
+      case "/page/get/": {
+        if (params.business_type !== "TIKTOK_INSTANT_PAGE") return ok({ list: [], page_info: { total_page: 1 } });
+        const list = (pageStore.__studioFakeTikTokPages ?? []).filter((p) => p.advertiserId === String(params.advertiser_id));
+        return ok({ list: list.map((p) => ({ page_id: p.pageId, title: p.title, status: "PUBLISHED" })), page_info: { total_page: 1 } });
       }
       default:
         return refuse(`fake TikTok does not model GET ${pathname}`);

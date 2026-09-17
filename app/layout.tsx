@@ -12,6 +12,7 @@ import "./title-workspace.css";
 import "./tiktok-controls.css";
 import "./report.css";
 import "./launch-v2.css";
+import "./monitor-round2.css";
 import "./polish.css";
 import { cookies } from "next/headers";
 import { LocaleProvider } from "@/components/locale";

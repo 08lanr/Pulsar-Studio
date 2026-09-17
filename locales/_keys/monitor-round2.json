@@ -1,0 +1,122 @@
+{
+  "mr2.launchName": {
+    "en": "Launch name",
+    "zh": "投放名称"
+  },
+  "mr2.rename": {
+    "en": "Rename this launch",
+    "zh": "重命名这次投放"
+  },
+  "mr2.renameWhileRunning": {
+    "en": "You can rename this launch once it finishes launching.",
+    "zh": "投放创建完成后即可重命名。"
+  },
+  "mr2.adSet": {
+    "en": "Ad set",
+    "zh": "广告组"
+  },
+  "mr2.ads": {
+    "en": "Ads",
+    "zh": "广告"
+  },
+  "mr2.noAds": {
+    "en": "No ads yet.",
+    "zh": "还没有广告。"
+  },
+  "mr2.endsAt": {
+    "en": "Ends",
+    "zh": "结束时间"
+  },
+  "mr2.campid": {
+    "en": "Campid",
+    "zh": "Campid（投放编号）"
+  },
+  "mr2.trackingLink": {
+    "en": "Tracking link",
+    "zh": "跟踪链接"
+  },
+  "mr2.state.notChecked": {
+    "en": "Not checked yet",
+    "zh": "尚未检查"
+  },
+  "mr2.notLaunched": {
+    "en": "Not launched yet",
+    "zh": "尚未投放"
+  },
+  "mr2.state.createdPaused.meta": {
+    "en": "Created paused on Meta",
+    "zh": "已在 Meta 创建，处于暂停状态"
+  },
+  "mr2.state.createdPaused.tiktok": {
+    "en": "Created paused on TikTok",
+    "zh": "已在 TikTok 创建，处于暂停状态"
+  },
+  "mr2.switchPending": {
+    "en": "Waiting for the first read of this campaign's switch.",
+    "zh": "正在等待第一次读取该活动的开关状态。"
+  },
+  "mr2.sweeping": {
+    "en": "Checking now",
+    "zh": "正在检查"
+  },
+  "mr2.providerSaid": {
+    "en": "{provider} said:",
+    "zh": "{provider} 的原话："
+  },
+  "mr2.hint.meta.devMode": {
+    "en": "Your Meta app is in Development mode, so Meta will not build ads from it yet. That clears when business verification passes and you press Publish in the App Dashboard; then press Retry here.",
+    "zh": "你的 Meta 应用仍处于开发模式，Meta 暂不允许它创建广告。待商家验证通过并在应用面板中点击“发布”后，再在此处点击“重试”。"
+  },
+  "mr2.hint.meta.appPermission": {
+    "en": "The app is not allowed to manage this ad account. Check the app's Marketing API access and that it is attached to the business.",
+    "zh": "该应用无权管理这个广告账户。检查应用的 Marketing API 权限，以及它是否已关联到该商务管理平台。"
+  },
+  "mr2.hint.meta.token": {
+    "en": "The Meta access token has expired or was revoked. Generate a new one and update the server.",
+    "zh": "Meta 访问令牌已过期或被撤销。重新生成一个并更新到服务器。"
+  },
+  "mr2.hint.meta.policyBlock": {
+    "en": "Meta has temporarily blocked this account over a policy issue. Open Account Quality in Business Manager, clear the notice, then press Retry.",
+    "zh": "Meta 因政策问题暂时限制了该账户。在商务管理平台打开「账户质量」，处理其中的提示后再点击重试。"
+  },
+  "mr2.hint.meta.funding": {
+    "en": "This ad account has no working payment method. Add one in Ads Manager, then press Retry.",
+    "zh": "该广告账户没有可用的支付方式。在广告管理工具中添加一个，然后点击重试。"
+  },
+  "mr2.hint.meta.spendLimit": {
+    "en": "This ad account has reached its spending limit. Raise or reset it in Ads Manager, then press Retry.",
+    "zh": "该广告账户已达到消费上限。在广告管理工具中调高或重置后再点击重试。"
+  },
+  "mr2.hint.meta.accountDisabled": {
+    "en": "Meta has disabled this ad account. It cannot run ads until Meta reinstates it; launch on another assigned account.",
+    "zh": "Meta 已停用该广告账户。在 Meta 恢复之前无法投放，请改用另一个已分配的账户。"
+  },
+  "mr2.hint.meta.adAccount": {
+    "en": "Meta refused this ad account. Open it in Ads Manager, clear the notice shown there, then press Retry.",
+    "zh": "Meta 拒绝了这个广告账户。在广告管理工具中打开该账户，处理其中的提示后再点击重试。"
+  },
+  "mr2.hint.meta.transient": {
+    "en": "Meta was busy or rate-limited this request. Wait a few minutes, then press Retry.",
+    "zh": "Meta 当时繁忙或触发了频率限制。等几分钟后再点击重试。"
+  },
+  "mr2.state.waiting": {
+    "en": "Preparing on Meta",
+    "zh": "Meta 处理中"
+  },
+  "mr2.waitingLine": {
+    "en": "Meta is still processing the uploaded clip. Studio checks again in about a minute; nothing is re-uploaded.",
+    "zh": "Meta 仍在处理上传的切片。Studio 约一分钟后会再次检查，不会重复上传。"
+  },
+  "mr2.checkNow": {
+    "en": "Check now",
+    "zh": "立即检查"
+  },
+  "mr2.adOne": {
+    "en": "1 ad",
+    "zh": "1 条广告"
+  },
+  "mr2.adMany": {
+    "en": "{n} ads",
+    "zh": "{n} 条广告"
+  }
+}

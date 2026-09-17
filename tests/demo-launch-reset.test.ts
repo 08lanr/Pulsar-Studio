@@ -34,7 +34,8 @@ test("demo launch reset retains another company's run and assigned connection", 
   const demoRun = await save(FIXTURE_PRODUCER_ID);
   const foreignRun = await save(foreign.id);
   const removed = resetLaunchFixtureForProducer(FIXTURE_PRODUCER_ID);
-  assert.deepEqual(removed.map(run => run.id), [demoRun.id]);
+  assert.deepEqual(removed.runs.map(run => run.id), [demoRun.id]);
+  assert.deepEqual(removed.clipPosts, []);
   assert.equal((await data.getLaunchWorkspace(fixtureSession("producer", foreign.id))).runs[0].id, foreignRun.id);
   assert.equal((await data.getLaunchWorkspace(fixtureSession("producer", foreign.id))).connections.length, 1);
   assert.equal((await data.getLaunchWorkspace(fixtureSession("producer"))).runs.length, 0);

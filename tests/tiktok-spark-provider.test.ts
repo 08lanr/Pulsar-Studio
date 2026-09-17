@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { beforeEach, afterEach, test } from "node:test";
 import type { DriverContext, LaunchCampaign, LaunchRun } from "@/lib/launch/types";
-import { fakeTikTokSnapshot, fakeTransport, resetFakeTikTok } from "@/lib/tiktok/fake";
+import { fakeTikTokSnapshot, fakeTransport, resetFakeTikTok, seedFakeInstantPages } from "@/lib/tiktok/fake";
 import { defaultLaunchSettings, defaultSalesLaunchSettings } from "@/lib/tiktok/settings";
 import { reconcileTikTokSparks, redeemSparkCodes, tiktokSparkDriver } from "@/lib/tiktok/spark-driver";
 import { launchHash } from "@/lib/data/launch";
@@ -552,4 +552,39 @@ test("campaign adoption refuses a changed objective or budget cap", async () => 
   await assert.rejects(tiktokSparkDriver.launch(ctx), /objective or budget cap differs/);
   assert.equal(fakeTikTokSnapshot().campaigns.length, 1);
   assert.equal(fakeTikTokSnapshot().adgroups.length, 0);
+});
+
+test("a Sales page whose create answer was lost is settled by TikTok's own page list, never duplicated", async () => {
+  const sales = () => {
+    const ctx = context(["good-one"]);
+    ctx.run.draft.tiktok_settings = defaultSalesLaunchSettings();
+    ctx.run.draft.daily_budget_cents = 2000; ctx.campaign.daily_budget_cents = 2000;
+    ctx.campaign.campid = "sales-lost-a1b2c3d4e5f6-001"; ctx.campaign.name = ctx.campaign.campid;
+    ctx.campaign.tracking_url = `https://crazydramas.com/watch?campid=${ctx.campaign.campid}`;
+    ctx.run.snapshot_hash = launchHash(ctx.run.draft, ctx.run.connections!, ctx.run.campaigns);
+    return ctx;
+  };
+  const name = "studio-tip-run-1-1";
+  // Listed under its name: adopted, no second page.
+  const adopted = sales();
+  adopted.campaign.state.instant_page = { name, phase: "creating" };
+  seedFakeInstantPages([{ advertiserId: adopted.campaign.advertiser_id, pageId: "9900000000000001", title: name }]);
+  await tiktokSparkDriver.launch(adopted);
+  assert.deepEqual(adopted.campaign.state.instant_page, { name, phase: "published", id: "9900000000000001" });
+  assert.equal(fakeTikTokSnapshot().ads[0].body.page_id, "9900000000000001");
+  // Not listed: the create never landed, so it is sent again.
+  resetFakeTikTok();
+  const fresh = sales();
+  fresh.campaign.state.instant_page = { name, phase: "creating" };
+  await tiktokSparkDriver.launch(fresh);
+  const page = fresh.campaign.state.instant_page as { id: string; phase: string };
+  assert.equal(page.phase, "published");
+  assert.match(page.id, /^fake-tip-/);
+  // Two pages of that name: a person reconciles, nothing is created.
+  resetFakeTikTok();
+  const twice = sales();
+  twice.campaign.state.instant_page = { name, phase: "creating" };
+  seedFakeInstantPages([{ advertiserId: twice.campaign.advertiser_id, pageId: "1", title: name }, { advertiserId: twice.campaign.advertiser_id, pageId: "2", title: name }]);
+  await assert.rejects(tiktokSparkDriver.launch(twice), /uncertain result/);
+  assert.equal(fakeTikTokSnapshot().campaigns.length, 0);
 });

@@ -145,6 +145,27 @@ test("Meta posts require assigned identities and TikTok refuses uploaded-video l
   assert.throws(() => buildLaunchPlan(spark, [connection("one")]), /Spark codes/);
 });
 
+test("an approved Meta run carries its derived ad sets and its typed campids onto the campaign rows", async () => {
+  const data = getData();
+  const { id: _id, assigned_by: _assigned, verified_at: _verified, ...input } = connection("meta-one", "meta");
+  const account = await data.assignLaunchConnection(admin(), { ...input, producer_id: FIXTURE_PRODUCER_ID });
+  const meta: LaunchDraft = { ...defaultLaunchDraft("meta"), name: "Xinghai Meta", account_ids: [account.id],
+    destination_url: "https://crazydramas.com/watch", content_per_campaign: 2, campid_start: "rlapple07",
+    content: [{ kind: "facebook_post", value: "111_500" }, { kind: "instagram_post", value: "900500" }] };
+  const saved = await data.saveLaunchDraft(producer(), meta);
+  const preview = await data.previewLaunchRun(producer(), saved.id);
+  assert.deepEqual(preview.rows[0].ad_sets?.map(set => [set.platform, set.budget_cents]), [["facebook", 25_000], ["instagram", 25_000]]);
+  assert.equal(preview.rows[0].campid, "rlapple07");
+  assert.equal(preview.rows[0].name, "rlapple07");
+  assert.equal(new URL(preview.rows[0].tracking_url!).searchParams.get("campid"), "rlapple07");
+  const approved = await data.submitLaunchRun(producer(), saved.id, saved.revision);
+  assert.deepEqual(approved.campaigns[0].ad_sets?.map(set => set.content.map(item => item.value)), [["111_500"], ["900500"]]);
+  assert.equal(approvedCampaignBudget(approved, approved.campaigns[0]), 50_000);
+  const renamed = structuredClone(approved);
+  renamed.campaigns[0].campid = "rlapple99";
+  assert.throws(() => approvedCampaignBudget(renamed, renamed.campaigns[0]), /approval is missing or changed/);
+});
+
 test("reviewers save and preview, viewers read only, and only an approver or evidenced staff admin can submit", async () => {
   const { data, input } = await assignedDraft();
   await assert.rejects(data.saveLaunchDraft(viewer(), input), hasCode("forbidden"));

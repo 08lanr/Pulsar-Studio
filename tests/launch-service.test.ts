@@ -3,11 +3,11 @@ import assert from "node:assert/strict";
 import { FIXTURE_PRODUCER_ID, fixtureSession, systemSession } from "@/lib/auth";
 import { getData } from "@/lib/data";
 import { resetFixtureStore } from "@/lib/data/fixture";
-import { resetLaunchFixture } from "@/lib/data/launch";
+import { renameLaunchRun, resetLaunchFixture } from "@/lib/data/launch";
 import { defaultLaunchDraft } from "@/lib/launch/plan";
 import { defaultLaunchSettings } from "@/lib/tiktok/settings";
 import { scanLaunchAccounts } from "@/lib/launch/account-scan";
-import { controlLaunch, executeLaunch, monitorLaunch } from "@/lib/launch/service";
+import { controlLaunch, executeLaunch, monitorLaunch, monitorState, needsFirstSweep } from "@/lib/launch/service";
 import type { LaunchConnection, LaunchContent, LaunchProvider, LaunchRun } from "@/lib/launch/types";
 import { fakeMetaTransport, fakeMetaSnapshot, resetFakeMeta } from "@/lib/meta/fake";
 import { fakeTransport, fakeTikTokSnapshot, resetFakeTikTok } from "@/lib/tiktok/fake";
@@ -301,10 +301,136 @@ test("a stop during monitor-created Spark copy activation is applied before the 
   assert.equal(saved.campaigns[0].state.stop_applied, "paused");
 });
 
+test("a new round counts the campid on, so round 2 never collides with round 1 on the account", async () => {
+  const accounts = await connections("meta", 1);
+  const draft = defaultLaunchDraft("meta");
+  Object.assign(draft, {
+    name: "Campid rounds", account_ids: accounts.map(a => a.id), destination_url: "https://example.com/watch",
+    total_budget_cents: 20000, content_per_campaign: 1, campid_start: "rlapple01",
+    content: [{ kind: "facebook_post", value: "9000000000000010_123" }],
+  });
+  const saved = await getData().saveLaunchDraft(producer(), draft);
+  const first = await getData().submitLaunchRun(producer(), saved.id, saved.revision);
+  assert.deepEqual(first.campaigns.map(c => c.campid), ["rlapple01"]);
+  assert.equal((await executeLaunch(first.id))?.status, "done");
+
+  const next = await getData().newLaunchRound(producer(), first.id);
+  assert.equal(next.draft.campid_start, "rlapple02");
+  const plan = await getData().previewLaunchRun(producer(), next.id);
+  assert.deepEqual(plan.rows.map(row => row.campid), ["rlapple02"]);
+  assert.deepEqual(plan.rows.map(row => row.tracking_url), ["https://example.com/watch?campid=rlapple02"]);
+  const signed = await getData().submitLaunchRun(producer(), next.id, next.revision);
+  assert.deepEqual(signed.campaigns.map(c => c.campid), ["rlapple02"]);
+  // The account already holds rlapple01, so a repeat would be refused at launch.
+  const done = await executeLaunch(signed.id);
+  assert.equal(done?.campaigns[0].error, null);
+  assert.equal(done?.status, "done");
+  assert.deepEqual(fakeMetaSnapshot().filter(row => row.edge === "campaigns").map(row => String(row.name)).sort(), ["rlapple01", "rlapple02"]);
+  assert.equal(networkCalls, 0);
+});
+
+test("the monitor's state words come from the campaign itself, before and after the first sweep", async () => {
+  const { run } = await approved("meta", { count: 1 });
+  const fresh = await current(run);
+  // Approved, nothing created, nothing swept: the monitor says so and sweeps.
+  assert.equal(fresh.campaigns[0].snapshot, null);
+  assert.equal(monitorState(fresh.campaigns[0]), "not_checked");
+  assert.equal(needsFirstSweep(fresh.campaigns), true);
+  await executeLaunch(run.id);
+  const launched = await current(run);
+  assert.equal(needsFirstSweep(launched.campaigns), false);
+  assert.equal(monitorState(launched.campaigns[0]), "paused");
+  // Objects exist but no sweep has read the campaign's switch yet.
+  const owned = (await getData().claimLaunchRun(systemSession(), run.id, "state-owner"))!;
+  owned.campaigns[0].snapshot = { ...owned.campaigns[0].snapshot!, delivery: "submitted", configured_status: undefined };
+  owned.lease_owner = null; owned.lease_until = null;
+  await getData().updateLaunchRun(systemSession(), owned, "state-owner");
+  assert.equal(monitorState((await current(run)).campaigns[0]), "created_paused");
+  assert.equal(networkCalls, 0);
+});
+
+test("renaming a launch is the approver's or a staff administrator's, never a viewer's, and never mid-launch", async () => {
+  const { run } = await approved("meta", { count: 1 });
+  await executeLaunch(run.id);
+  const viewer = { ...producer(), producerRole: "viewer" as const };
+  await assert.rejects(renameLaunchRun(viewer, run.id, "Viewer rename"), /role/);
+  const reviewer = { ...producer(), producerRole: "reviewer" as const };
+  await assert.rejects(renameLaunchRun(reviewer, run.id, "Reviewer rename"), /approver/);
+  const foreign = { ...producer(), producerId: "another-company" };
+  await assert.rejects(renameLaunchRun(foreign, run.id, "Foreign rename"), /Launch/);
+  await assert.rejects(renameLaunchRun(producer(), run.id, "   "), /name/i);
+
+  const named = await renameLaunchRun(producer(), run.id, "  Xinghai · Sep 16  ");
+  assert.equal(named.draft.name, "Xinghai · Sep 16");
+  assert.ok(named.audit?.some(event => event.action === "renamed"));
+  // The name is re-signed, so every later control still reads a valid approval.
+  const controlled = await controlLaunch(producer(), run.id, run.campaigns[0].id, { action: "resume" });
+  assert.equal(controlled.campaigns[0].snapshot?.delivery, "live");
+  assert.equal(controlled.draft.name, "Xinghai · Sep 16");
+  // Staff administrators rename on a company's behalf; Meta objects keep their own names.
+  const byStaff = await renameLaunchRun(staff(), run.id, "Desk rename");
+  assert.equal(byStaff.draft.name, "Desk rename");
+  assert.deepEqual(fakeMetaSnapshot().filter(row => row.edge === "campaigns").map(row => row.name), run.campaigns.map(c => c.campid ?? c.name));
+
+  const owned = (await getData().claimLaunchRun(systemSession(), run.id, "rename-owner"))!;
+  owned.status = "running"; owned.lease_owner = null; owned.lease_until = null;
+  await getData().updateLaunchRun(systemSession(), owned, "rename-owner");
+  await assert.rejects(renameLaunchRun(producer(), run.id, "Mid-flight rename"), /still being created/);
+  assert.equal((await current(run)).draft.name, "Desk rename");
+  assert.equal(networkCalls, 0);
+});
+
 test("account scans reject a producer's foreign company before provider access", async () => {
   const assigned = await connections("meta", 1);
   const before = fakeMetaTransport.calls.length;
   await assert.rejects(scanLaunchAccounts(producer(), "00000000-0000-4000-8000-000000009999", assigned.map(a => a.id), true), /Company|company|not found|Launch/);
   assert.equal(fakeMetaTransport.calls.length, before);
+  assert.equal(networkCalls, 0);
+});
+
+test("a rate-limited provider makes the campaign wait and resume from its checkpoints, not fail", async () => {
+  const { run } = await approved("meta", { count: 1 });
+  fakeMetaTransport.failNext("POST", "act_9000000000000001/campaigns", { code: 4 });
+  const waiting = await executeLaunch(run.id);
+  assert.equal(waiting?.status, "pending");
+  assert.equal(waiting?.campaigns[0].status, "pending");
+  assert.equal(monitorState(waiting!.campaigns[0]), "waiting");
+  assert.equal(waiting?.campaigns[0].state.provider_retries, 1);
+  assert.match(String((waiting?.campaigns[0].state.waiting as { reason: string }).reason), /Injected/);
+  assert.equal(fakeMetaSnapshot().filter(row => row.edge === "campaigns").length, 0);
+  const done = await executeLaunch(run.id);
+  assert.equal(done?.status, "done");
+  assert.equal(done?.campaigns[0].state.provider_retries, undefined);
+  assert.equal(fakeMetaSnapshot().filter(row => row.edge === "campaigns").length, 1);
+  // A refusal no wait can fix still fails at once, with its reason.
+  const { run: refused } = await approved("meta", { count: 1 });
+  fakeMetaTransport.failNext("POST", "act_9000000000000001/campaigns", { code: 100 });
+  const result = await executeLaunch(refused.id);
+  assert.equal(result?.campaigns[0].status, "failed");
+  assert.equal(monitorState(result!.campaigns[0]), "failed");
+  assert.equal(networkCalls, 0);
+});
+
+test("a TikTok timeout is a wait too, and the wait is bounded", async () => {
+  const { run } = await approved("tiktok", { count: 1 });
+  fakeTransport.post = async (path, token, body) => path === "/campaign/create/"
+    ? { code: -1, message: "TikTok did not respond in time. Please try again." }
+    : originalTikTokPost(path, token, body);
+  let result = await executeLaunch(run.id);
+  assert.equal(result?.campaigns[0].status, "pending");
+  assert.equal(monitorState(result!.campaigns[0]), "waiting");
+  for (let attempt = 2; attempt <= 12; attempt++) result = await executeLaunch(run.id);
+  assert.equal(result?.campaigns[0].state.provider_retries, 12);
+  // The thirteenth "later" is a failure a person must look at.
+  result = await executeLaunch(run.id);
+  assert.equal(result?.campaigns[0].status, "failed");
+  assert.match(result?.campaigns[0].error || "", /did not respond/);
+  // Retry by hand starts the count over, and a provider that answers finishes the launch.
+  fakeTransport.post = originalTikTokPost;
+  await getData().retryLaunchRun(producer(), run.id);
+  const done = await executeLaunch(run.id);
+  assert.equal(done?.status, "done");
+  assert.equal(done?.campaigns[0].state.provider_retries, undefined);
+  assert.equal(fakeTikTokSnapshot().campaigns.length, 1);
   assert.equal(networkCalls, 0);
 });

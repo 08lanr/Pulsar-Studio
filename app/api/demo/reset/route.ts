@@ -6,7 +6,8 @@ import { dataSource } from "@/lib/data-source";
 import { FIXTURE_PRODUCER_ID, systemSession } from "@/lib/auth";
 import { currentFixtureSeed, fixtureData, resetFixtureStore } from "@/lib/data/fixture";
 import { resetFakeTikTokForDemo } from "@/lib/tiktok/fake";
-import { resetFakeMetaForRuns } from "@/lib/meta/fake";
+import { resetFakeMetaForClipPosts, resetFakeMetaForRuns } from "@/lib/meta/fake";
+import { resetMetaPagePostCache } from "@/lib/meta/publish";
 import { resetLaunchFixtureForProducer } from "@/lib/data/launch";
 import { handle, parseJson } from "@/app/api/titles/_lib/handler";
 
@@ -32,10 +33,13 @@ export async function POST(req: NextRequest) {
     const oldCampaignIds = (await fixtureData.listLaunchedPromoCampaigns(system, { all: true }))
       .filter(row => row.campaign.producer_id === FIXTURE_PRODUCER_ID)
       .map(row => row.launch.tiktok_campaign_id).filter((id): id is string => !!id);
-    const removedRuns = resetLaunchFixtureForProducer(FIXTURE_PRODUCER_ID, clipIds);
+    const { runs: removedRuns, clipPosts: removedPosts } = resetLaunchFixtureForProducer(FIXTURE_PRODUCER_ID, clipIds);
     resetFixtureStore(seed);
     resetFakeTikTokForDemo(oldCampaignIds, removedRuns.filter(run => run.draft.provider === "tiktok").map(run => run.id), seed);
     resetFakeMetaForRuns(removedRuns.filter(run => run.draft.provider === "meta"));
+    // The demo company's organic posts go with it, on the fake Page too.
+    resetFakeMetaForClipPosts(removedPosts);
+    resetMetaPagePostCache();
     return NextResponse.json({ ok: true, seed, reset_at: new Date().toISOString() });
   });
 }

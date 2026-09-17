@@ -602,5 +602,13 @@
   "admin.promote.episode": {
     "en": "Episode {n}",
     "zh": "第 {n} 集"
+  },
+  "admin.titles.count": {
+    "en": "{n} titles",
+    "zh": "{n} 部剧集"
+  },
+  "admin.titles.emptyProducer": {
+    "en": "No titles for this company yet.",
+    "zh": "该制片公司暂无剧集。"
   }
 }

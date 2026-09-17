@@ -247,7 +247,7 @@ function requireSystemOrStaff(session: Session): void {
  * so a producer session cannot forge or drop one; the system actor has no
  * profile row, so it is recorded as the service with no actor id.
  */
-async function auditEvent(session: Session, action: string, table_name: string, row_id: string | null, title_id: string | null, producer_id: string | null, before: unknown, after: unknown, note: string | null = null): Promise<void> {
+export async function auditEvent(session: Session, action: string, table_name: string, row_id: string | null, title_id: string | null, producer_id: string | null, before: unknown, after: unknown, note: string | null = null): Promise<void> {
   const system = isSystemSession(session);
   const { error } = await core(createServiceSupabase()).from("audit_events").insert({
     actor_id: system ? null : session.userId,

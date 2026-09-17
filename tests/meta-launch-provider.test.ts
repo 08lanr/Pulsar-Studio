@@ -7,6 +7,7 @@ import { defaultLaunchSettings } from "@/lib/tiktok/settings";
 import { putStoredBytes, resolveUploadPath } from "@/lib/data/storage";
 import { launchHash } from "@/lib/data/launch";
 import { createMetaDriver } from "@/lib/meta/driver";
+import { isLaunchWaiting } from "@/lib/launch/waiting";
 import { FakeMetaTransport } from "@/lib/meta/fake";
 import { metaTransport } from "@/lib/meta";
 import { liveMetaTransport } from "@/lib/meta/transport";
@@ -32,6 +33,15 @@ function context(content: LaunchContent[] = [{ kind: "facebook_post", value: "de
   };
   run.snapshot_hash = launchHash(run.draft, run.connections!);
   return { run, campaign, connection, checkpoint: async patch => { Object.assign(campaign.state, structuredClone(patch)); }, assertActive: async () => {} };
+}
+
+/** The campid is part of the approved intent, so stamping one re-signs the run. */
+function stampCampid(ctx: DriverContext, campid: string): DriverContext {
+  ctx.campaign.campid = campid;
+  ctx.campaign.name = campid;
+  ctx.campaign.tracking_url = `${ctx.run.draft.destination_url}?campid=${campid}`;
+  ctx.run.snapshot_hash = launchHash(ctx.run.draft, ctx.run.connections!, ctx.run.campaigns);
+  return ctx;
 }
 
 async function uploadContent(): Promise<LaunchContent> {
@@ -98,7 +108,9 @@ test("approved uploads check hashes, persist processing IDs and resume without a
   const ctx = context([content]);
   const driver = createMetaDriver(transport);
   transport.videoStatus = "processing";
-  await assert.rejects(driver.launch(ctx), /processing the clip/);
+  // Transcoding is a wait, not a failure: the driver signals it with a typed
+  // error the service turns into a pending row that resumes by itself.
+  await assert.rejects(driver.launch(ctx), (e: unknown) => isLaunchWaiting(e) && /still processing/.test((e as Error).message));
   assert.equal(transport.snapshot().filter(row => row.edge === "advideos").length, 1);
   assert.equal(transport.snapshot().filter(row => row.edge === "campaigns").length, 0);
   const video = transport.snapshot().find(row => row.edge === "advideos")!;
@@ -243,6 +255,195 @@ test("stop before parent activation prevents serving; foreign identity/account i
   await assert.rejects(driver.launch(foreign), /does not belong/);
 });
 
+// docs/launch-ux-round-2.md §1.2: one ad set per platform inside a campaign,
+// each holding only that platform's ads and half the signed budget.
+test("a campaign spanning both platforms creates one ad set per platform and lands each ad in its own", async () => {
+  const transport = new FakeMetaTransport();
+  const content = [{ kind: "facebook_post" as const, value: "demo-page_123" }, { kind: "instagram_post" as const, value: "178900001" }];
+  const ctx = context(content);
+  ctx.campaign.ad_sets = [
+    { platform: "facebook", content: [content[0]], budget_cents: 5_000, daily_budget_cents: null },
+    { platform: "instagram", content: [content[1]], budget_cents: 5_000, daily_budget_cents: null },
+  ];
+  const driver = createMetaDriver(transport);
+  await driver.launch(ctx);
+  const sets = transport.snapshot().filter(row => row.edge === "adsets");
+  assert.equal(sets.length, 2);
+  assert.deepEqual(sets.map(row => (row.targeting as { publisher_platforms: string[] }).publisher_platforms), [["facebook"], ["instagram"]]);
+  assert.deepEqual(sets.map(row => row.lifetime_budget), [5_000, 5_000]);
+  const ads = transport.snapshot().filter(row => row.edge === "ads");
+  assert.equal(ads.length, 2);
+  const creativeOf = (adsetId: string) => transport.objects.get(String((ads.find(ad => ad.adset_id === adsetId)!.creative as { id: string }).id))!;
+  assert.equal(creativeOf(sets[0].id).object_story_id, "demo-page_123");
+  assert.equal(creativeOf(sets[1].id).source_instagram_media_id, "178900001");
+  const snapshot = await driver.monitor(ctx);
+  assert.deepEqual(snapshot.groups?.map(group => group.platform), ["facebook", "instagram"]);
+  assert.equal(snapshot.delivery, "paused");
+  await driver.control(ctx, { action: "resume" });
+  assert.equal((await driver.monitor(ctx)).delivery, "live");
+  await driver.control(ctx, { action: "group", group_id: sets[1].id, enabled: false });
+  assert.equal((await driver.monitor(ctx)).delivery, "paused", "one paused ad set is not a delivering campaign");
+});
+
+test("a budget change re-splits across every ad set of the campaign", async () => {
+  const transport = new FakeMetaTransport();
+  const content = [{ kind: "facebook_post" as const, value: "demo-page_123" }, { kind: "instagram_post" as const, value: "178900001" }];
+  const ctx = context(content);
+  ctx.campaign.ad_sets = [
+    { platform: "facebook", content: [content[0]], budget_cents: 5_000, daily_budget_cents: null },
+    { platform: "instagram", content: [content[1]], budget_cents: 5_000, daily_budget_cents: null },
+  ];
+  const driver = createMetaDriver(transport);
+  await driver.launch(ctx);
+  ctx.campaign.budget_cents = 9_001;
+  await driver.control(ctx, { action: "budget", budget_cents: 9_001 });
+  assert.deepEqual(transport.snapshot().filter(row => row.edge === "adsets").map(row => row.lifetime_budget), [4_501, 4_500]);
+  await driver.control(ctx, { action: "resume" });
+  assert.equal((await driver.monitor(ctx)).delivery, "live");
+  await driver.control(ctx, { action: "schedule", end_time: new Date(Date.now() + 86_400_000).toISOString() });
+  assert.equal(new Set(transport.snapshot().filter(row => row.edge === "adsets").map(row => row.end_time)).size, 1);
+});
+
+test("a run created before the split still monitors and controls through its one legacy ad set", async () => {
+  const transport = new FakeMetaTransport();
+  const content = [{ kind: "facebook_post" as const, value: "demo-page_123" }, { kind: "instagram_post" as const, value: "178900001" }];
+  const ctx = context(content);
+  const driver = createMetaDriver(transport);
+  await driver.launch(ctx);
+  // Rewrite the saved state into the pre-split shape: one adset_id, ads keyed
+  // by content alone, and no record of which platform an ad belongs to.
+  const saved = ctx.campaign.state.meta as Record<string, unknown>;
+  const legacyGroup = String((saved.adset_ids as Record<string, string>).facebook);
+  const adIds = saved.ad_ids as Record<string, string>;
+  for (const id of Object.values(saved.adset_ids as Record<string, string>)) if (id !== legacyGroup) transport.objects.delete(id);
+  for (const [key, id] of Object.entries(adIds)) {
+    const plain = key.replace(/^(facebook|instagram)\//, "");
+    delete adIds[key];
+    adIds[plain] = id;
+    transport.objects.get(id)!.adset_id = legacyGroup;
+  }
+  transport.objects.get(legacyGroup)!.lifetime_budget = 10_000;
+  delete saved.adset_ids; delete saved.ad_platforms; delete saved.ad_content_keys;
+  saved.adset_id = legacyGroup;
+  delete (ctx.campaign as { ad_sets?: unknown }).ad_sets;
+
+  const snapshot = await driver.monitor(ctx);
+  assert.equal(snapshot.groups?.length, 1);
+  assert.equal(snapshot.groups?.[0].id, legacyGroup);
+  assert.equal(snapshot.delivery, "paused");
+  await driver.control(ctx, { action: "resume" });
+  assert.equal((await driver.monitor(ctx)).delivery, "live");
+  ctx.campaign.budget_cents = 9_000;
+  await driver.control(ctx, { action: "budget", budget_cents: 9_000 });
+  assert.equal(transport.objects.get(legacyGroup)!.lifetime_budget, 9_000);
+  await driver.control(ctx, { action: "end" });
+  assert.equal((await driver.monitor(ctx)).delivery, "ended");
+});
+
+test("a campid already used on the ad account is refused before anything is created", async () => {
+  const transport = new FakeMetaTransport();
+  const ctx = stampCampid(context(), "rlapple01");
+  transport.objects.set("foreign", { id: "foreign", edge: "campaigns", account_id: "demo-meta", name: "rlapple01", status: "ACTIVE" });
+  const driver = createMetaDriver(transport);
+  await assert.rejects(driver.launch(ctx), /already used by a campaign/);
+  assert.equal(transport.snapshot().filter(row => row.edge === "campaigns").length, 1, "no second campaign was created");
+  assert.equal(transport.snapshot().filter(row => row.edge === "adsets").length, 0);
+  transport.objects.delete("foreign");
+  await driver.launch(ctx);
+  assert.equal(transport.snapshot().find(row => row.edge === "campaigns")!.name, "rlapple01");
+  // Adoption by name still works: an interrupted create finds its own campaign.
+  const resumed = stampCampid(context(), "rlapple02");
+  const second = new FakeMetaTransport();
+  second.failNext("POST", "act_demo-meta/campaigns", { after: true, ambiguous: true });
+  await assert.rejects(createMetaDriver(second).launch(resumed), /Injected/);
+  await createMetaDriver(second).launch(resumed);
+  assert.equal(second.calls.filter(call => call.method === "POST" && call.path.endsWith("/campaigns")).length, 1);
+  assert.equal(second.snapshot().filter(row => row.edge === "campaigns").length, 1);
+});
+
+// A campaign is adopted by its exact name, so the account is read on every
+// attempt and only an object this run actually sent a POST for may be claimed.
+test("a create that never left the process refuses a stranger's campaign of the same campid on resume", async () => {
+  const transport = new FakeMetaTransport();
+  const ctx = stampCampid(context(), "rlapple01");
+  // The lease is lost exactly where the campaign create would have persisted
+  // its intent: after the creative check, before the POST leaves the process.
+  let live = true, seen = 0;
+  ctx.assertActive = async () => { if (!live && ++seen === 2) throw new Error("lease lost"); };
+  live = false;
+  await assert.rejects(createMetaDriver(transport).launch(ctx), /lease lost/);
+  const saved = ctx.campaign.state.meta as { campaign_id?: string; intents?: Record<string, { phase: string }> } | undefined;
+  assert.equal(saved?.campaign_id, undefined);
+  assert.equal(saved?.intents?.campaign, undefined, "a worker without its lease records no create intent");
+  assert.equal(transport.snapshot().filter(row => row.edge === "campaigns").length, 0);
+
+  transport.objects.set("foreign", { id: "foreign", edge: "campaigns", account_id: "demo-meta", name: "rlapple01", objective: "OUTCOME_TRAFFIC", status: "ACTIVE" });
+  live = true;
+  await assert.rejects(createMetaDriver(transport).launch(ctx), /already used by a campaign/);
+  assert.equal((ctx.campaign.state.meta as { campaign_id?: string }).campaign_id, undefined, "the stranger's campaign was not adopted");
+  assert.equal(transport.snapshot().filter(row => row.edge === "adsets").length, 0, "nothing hangs off it");
+});
+
+test("a rejected campaign create refuses a name a stranger took in the meantime, and never adopts it", async () => {
+  const transport = new FakeMetaTransport();
+  const ctx = stampCampid(context(), "rlapple03");
+  transport.failNext("POST", "act_demo-meta/campaigns");
+  await assert.rejects(createMetaDriver(transport).launch(ctx), /Injected/);
+  assert.equal((ctx.campaign.state.meta as { intents: Record<string, { phase: string }> }).intents.campaign.phase, "rejected");
+  transport.objects.set("foreign", { id: "foreign", edge: "campaigns", account_id: "demo-meta", name: "rlapple03", objective: "OUTCOME_TRAFFIC", status: "ACTIVE" });
+  await assert.rejects(createMetaDriver(transport).launch(ctx), /already used by a campaign/);
+  assert.equal(transport.snapshot().filter(row => row.edge === "campaigns").length, 1, "no duplicate-named campaign beside the stranger's");
+  transport.objects.delete("foreign");
+  await createMetaDriver(transport).launch(ctx);
+  assert.equal(transport.snapshot().filter(row => row.edge === "campaigns").length, 1);
+});
+
+test("our own ambiguous create is still adopted while an id seen before the send never is", async () => {
+  const transport = new FakeMetaTransport();
+  const ctx = stampCampid(context(), "rlapple04");
+  transport.failNext("POST", "act_demo-meta/campaigns", { after: true, ambiguous: true });
+  await assert.rejects(createMetaDriver(transport).launch(ctx), /Injected/);
+  const ours = transport.snapshot().find(row => row.edge === "campaigns")!.id;
+  await createMetaDriver(transport).launch(ctx);
+  assert.equal((ctx.campaign.state.meta as { campaign_id?: string }).campaign_id, ours, "our own campaign is adopted, never re-created");
+  assert.equal(transport.calls.filter(call => call.method === "POST" && call.path.endsWith("/campaigns")).length, 1);
+});
+
+// `campaign.ad_sets` is not covered by the approval hash, so the driver
+// re-derives the split and refuses a row that says something else.
+test("a tampered ad-set split never reaches Meta: wrong platform or inflated budget is refused before any call", async () => {
+  const facebookPost = { kind: "facebook_post" as const, value: "demo-page_123" };
+  for (const tampered of [
+    [{ platform: "instagram" as const, content: [facebookPost], budget_cents: 10_000, daily_budget_cents: null }],
+    [{ platform: "facebook" as const, content: [facebookPost], budget_cents: 500_000, daily_budget_cents: null }],
+    [{ platform: "facebook" as const, content: [facebookPost], budget_cents: 5_000, daily_budget_cents: null },
+     { platform: "instagram" as const, content: [facebookPost], budget_cents: 5_000, daily_budget_cents: null }],
+  ]) {
+    const transport = new FakeMetaTransport();
+    const ctx = context([facebookPost]);
+    ctx.campaign.ad_sets = tampered;
+    await assert.rejects(createMetaDriver(transport).launch(ctx), /differ from the approved content/);
+    assert.deepEqual(transport.calls, [], "no Meta call was made at all");
+  }
+});
+
+test("an approved split survives a budget reduction, and the reduced amount is what Meta receives", async () => {
+  const transport = new FakeMetaTransport();
+  const content = [{ kind: "facebook_post" as const, value: "demo-page_123" }, { kind: "instagram_post" as const, value: "178900001" }];
+  const ctx = context(content);
+  ctx.campaign.ad_sets = [
+    { platform: "facebook", content: [content[0]], budget_cents: 5_000, daily_budget_cents: null },
+    { platform: "instagram", content: [content[1]], budget_cents: 5_000, daily_budget_cents: null },
+  ];
+  const driver = createMetaDriver(transport);
+  await driver.launch(ctx);
+  ctx.campaign.budget_cents = 6_000;
+  await driver.control(ctx, { action: "budget", budget_cents: 6_000 });
+  assert.deepEqual(transport.snapshot().filter(row => row.edge === "adsets").map(row => row.lifetime_budget), [3_000, 3_000]);
+  await driver.control(ctx, { action: "resume" });
+  assert.equal((await driver.monitor(ctx)).delivery, "live");
+});
+
 test("pause before creation persists intent without calls; retry preparation still waits for explicit resume", async () => {
   const transport = new FakeMetaTransport();
   const ctx = context(undefined, { paused: false }); const driver = createMetaDriver(transport);
@@ -253,4 +454,44 @@ test("pause before creation persists intent without calls; retry preparation sti
   assert.equal((await driver.monitor(ctx)).delivery, "paused");
   await driver.control(ctx, { action: "resume" });
   assert.equal((await driver.monitor(ctx)).delivery, "live");
+});
+
+test("a new ad set declines Advantage+ audience and starts no earlier than now; a window that has closed creates nothing", async () => {
+  const day = 86_400_000;
+  const transport = new FakeMetaTransport();
+  const ctx = context();
+  ctx.run.draft.meta_settings.start_time = new Date(Date.now() - 3 * day).toISOString();
+  ctx.run.draft.meta_settings.end_time = new Date(Date.now() + 4 * day).toISOString();
+  ctx.run.snapshot_hash = launchHash(ctx.run.draft, ctx.run.connections!);
+  const before = Date.now();
+  await createMetaDriver(transport).launch(ctx);
+  const set = transport.snapshot().find(row => row.edge === "adsets")!;
+  assert.deepEqual((set.targeting as { targeting_automation: unknown }).targeting_automation, { advantage_audience: 0 });
+  assert.ok(Date.parse(String(set.start_time)) >= before, "a start behind the clock begins now, not in the past");
+  assert.equal(set.end_time, ctx.run.draft.meta_settings.end_time, "the signed end never moves");
+  // Once sent, the start time an intent carries is the one a retry compares against.
+  const intent = (ctx.campaign.state.meta as { intents: Record<string, { payload: { start_time: string } }> }).intents["adset/facebook"];
+  assert.equal(intent.payload.start_time, set.start_time);
+
+  const ended = context();
+  ended.run.draft.meta_settings.start_time = new Date(Date.now() - 8 * day).toISOString();
+  ended.run.draft.meta_settings.end_time = new Date(Date.now() - day).toISOString();
+  ended.run.snapshot_hash = launchHash(ended.run.draft, ended.run.connections!);
+  const second = new FakeMetaTransport();
+  await assert.rejects(createMetaDriver(second).launch(ended), /end time has already passed/);
+  assert.equal(second.snapshot().length, 0, "nothing is created for a window that has closed");
+});
+
+test("a refused ad set create is re-sent with a corrected start, while a sent one is frozen", async () => {
+  const transport = new FakeMetaTransport();
+  const ctx = context();
+  // First attempt: Meta refuses the ad set outright (nothing exists), so the
+  // intent is rejected and the next attempt may carry a fresh start time.
+  transport.failNext("POST", "act_demo-meta/adsets");
+  await assert.rejects(createMetaDriver(transport).launch(ctx), /Injected/);
+  const state = () => ctx.campaign.state.meta as { intents: Record<string, { phase: string; payload: { start_time: string } }> };
+  assert.equal(state().intents["adset/facebook"].phase, "rejected");
+  await createMetaDriver(transport).launch(ctx);
+  assert.equal(state().intents["adset/facebook"].phase, "confirmed");
+  assert.equal(transport.snapshot().filter(row => row.edge === "adsets").length, 1);
 });

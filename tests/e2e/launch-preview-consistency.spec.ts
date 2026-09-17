@@ -41,7 +41,7 @@ test("staff preview locks the selected company and draft until confirmation matc
     releasePreview();
   }
 
-  await expect(page.getByText(/1 campaigns across 1 accounts/)).toBeVisible();
+  await expect(page.getByText(/1 campaign across 1 ad account/)).toBeVisible();
   expect(await producer.inputValue()).toBe(chosenProducer);
   const saved = await page.request.get("/api/promote/launches/workspace?producer_id=" + encodeURIComponent(chosenProducer));
   expect(saved.ok()).toBe(true);
@@ -51,12 +51,12 @@ test("staff preview locks the selected company and draft until confirmation matc
   expect(run?.draft.destination_url).toBe("https://example.com/preview-check");
   expect(run?.draft.content.map(c => c.value)).toEqual(["PREVIEW-CONSISTENCY-SPARK"]);
 
-  await page.getByRole("button", { name: /Launch 1 campaigns/ }).click();
+  await page.getByRole("button", { name: /Launch 1 campaign/ }).click();
   const confirm = page.getByRole("dialog", { name: "Confirm launch" });
   await confirm.getByLabel(/Reason for launching on behalf of the producer/).fill("Regression test approval note");
   await expect(confirm).toContainText(run!.draft.name);
   await expect(confirm).toContainText(run!.draft.destination_url);
-  await expect(confirm).toContainText("1 campaigns across 1 accounts");
+  await expect(confirm).toContainText("1 campaign across 1 ad account");
   await expect(confirm).toContainText("$500.00");
   await confirm.getByRole("button", { name: "Cancel" }).click();
   expect(launchPosts).toBe(0);

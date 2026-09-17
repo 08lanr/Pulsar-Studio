@@ -58,22 +58,26 @@ export default function Nav({ displayName, role }: NavProps) {
     return () => desktop.removeEventListener("change", onResize);
   }, []);
 
+  // The staff rail reads the same words in the same order as the producer's
+  // (plan §5.3): Clips · Launch · Monitor · Connections · Legacy campaigns ·
+  // Titles · Producers. Connections is /tiktok, which carries a Meta section
+  // as well, so one entry covers both providers; /meta keeps working.
   const items: NavItem[] = [
+    { href: "/clips", label: tt("lv2.clips.title"), icon: <IconSparkle /> },
     { href: "/promote/launches", label: tt("lv2.launch.title"), icon: <IconSparkle /> },
     { href: "/promote/monitor", label: tt("lv2.monitor.title"), icon: <IconSparkle /> },
+    { href: "/tiktok", label: tt("admin.nav.connections"), icon: <IconSparkle /> },
     { href: "/promote", label: tt("lv2.legacyCampaigns"), icon: <IconSparkle /> },
-    { href: "/meta", label: tt("lv2.meta.title"), icon: <IconSparkle /> },
     { href: "/titles", label: tt("admin.nav.projects"), icon: <IconProjects /> },
     { href: "/producers", label: tt("admin.nav.producers"), icon: <IconProducers /> },
-    { href: "/tiktok", label: tt("admin.nav.tiktok"), icon: <IconSparkle /> },
   ];
 
-  // The header names the screen; derived from the path so no page threads a
-  // prop through. Deeper routes are matched first.
-  const title = pathname.startsWith("/meta") ? tt("lv2.meta.title") : pathname.startsWith("/promote/launches") ? tt("lv2.launch.title") : pathname.startsWith("/promote/monitor") ? tt("lv2.monitor.title") : pathname.startsWith("/tiktok")
-    ? tt("admin.head.tiktok")
+  // The header names the screen with the same word the rail uses; derived from
+  // the path so no page threads a prop through. Deeper routes are matched first.
+  const title = pathname.startsWith("/clips") ? tt("lv2.clips.title") : pathname.startsWith("/meta") ? tt("lv2.meta.title") : pathname.startsWith("/promote/launches") ? tt("lv2.launch.title") : pathname.startsWith("/promote/monitor") ? tt("lv2.monitor.title") : pathname.startsWith("/tiktok")
+    ? tt("admin.nav.connections")
     : pathname.startsWith("/promote")
-    ? tt("admin.head.promote")
+    ? tt("lv2.legacyCampaigns")
     : pathname.startsWith("/producers")
     ? tt("admin.nav.producers")
     : pathname === "/titles/new"

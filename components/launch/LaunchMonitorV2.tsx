@@ -7,30 +7,54 @@ import { useRouter } from "next/navigation";
 import { useT } from "@/components/locale";
 import { call, int, usd } from "@/components/tiktok/api";
 import { splitBudget } from "@/lib/launch/plan";
-import type { LaunchCampaign, LaunchControl, LaunchRun } from "@/lib/launch/types";
+import AdCard, { type AdCardProps } from "@/components/launch/AdCard";
+import {
+  adSetPlatforms, campaignPlatforms, explainProviderError, monitorState, needsFirstSweep,
+  providerCampaignId, switchState, type AdPlatform, type MonitorState,
+} from "@/lib/launch/provider-errors";
+import type { LaunchCampaign, LaunchContent, LaunchControl, LaunchRun } from "@/lib/launch/types";
+// app/monitor-round2.css is loaded by app/layout.tsx, immediately before polish.css.
 import "@/app/launch-monitor.css";
 
 const money = (cents: number | null | undefined) => usd(cents == null ? null : cents / 100);
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const date = (value: string | null | undefined) => value ? new Date(value).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—";
-const switchState = (value?: string | null): boolean | null => {
-  const status = value?.toUpperCase();
-  if (status === "ENABLE" || status === "ACTIVE") return true;
-  if (["DISABLE", "PAUSED", "ARCHIVED", "DELETED"].includes(status ?? "")) return false;
-  return null;
-};
-const friendlyName = (name: string) => name.replace(/-lr_[a-z0-9]+-r\d+(?=-\d+$|$)/i, "").trim() || name;
 const skippedOf = (c: LaunchCampaign): unknown[] => {
   const value = c.state.skipped ?? c.state.skipped_sparks;
   return Array.isArray(value) ? value : [];
 };
 const ended = (c: LaunchCampaign) => c.snapshot?.delivery === "ended" || c.state.desired_status === "ended" || c.state.stop_applied === "ended";
-const status = (c: LaunchCampaign) => c.status === "failed" && !c.snapshot ? "failed" : c.snapshot?.delivery ?? "unknown";
-const providerCampaignId = (c: LaunchCampaign): string | null => typeof c.state.campaign_id === "string" ? c.state.campaign_id : null;
 const total = (campaigns: LaunchCampaign[], field: "spend_cents" | "clicks" | "conversions") =>
   campaigns.length && campaigns.every(c => c.snapshot?.[field] != null)
     ? campaigns.reduce((sum, c) => sum + (c.snapshot?.[field] ?? 0), 0) : null;
-const reviewTone = (delivery: string) => ["failed", "rejected", "suspended"].includes(delivery) ? "error" : delivery === "live" ? "live" : ["review", "submitted"].includes(delivery) ? "review" : "neutral";
+const reviewTone = (state: MonitorState) => ["failed", "rejected", "suspended"].includes(state) ? "error"
+  : state === "live" ? "live" : ["review", "submitted"].includes(state) ? "review" : "neutral";
+
+const PLATFORM_LABEL: Record<AdPlatform | "tiktok", string> = { facebook: "Facebook", instagram: "Instagram", tiktok: "TikTok" };
+
+/**
+ * One card per ad the provider actually holds, drawn with the shared `AdCard`
+ * so step 3, the preview table, the confirm dialog and this expanded row can
+ * never describe the same ad differently: a post is its own platform's ad, and
+ * an uploaded clip is one card badged with every platform whose ad set holds it.
+ */
+function adsOf(content: LaunchContent[], platforms: AdPlatform[], provider: string): (AdCardProps & { key: string })[] {
+  return content.map((item, index) => {
+    // The card's kind chip already names a post, so a label that only repeats
+    // the ad's own words is dropped rather than printed twice.
+    const caption = item.text ?? null;
+    const base = {
+      kind: item.kind, label: item.label && item.label !== caption ? item.label : "", caption,
+      headline: item.headline ?? null, thumbnail_url: null, id: item.value, compact: true, key: `${index}-${item.kind}`,
+    };
+    if (provider === "tiktok" || item.kind === "spark") return { ...base, platform: "tiktok" as const };
+    if (item.kind === "facebook_post") return { ...base, platform: "facebook" as const };
+    if (item.kind === "instagram_post") return { ...base, platform: "instagram" as const };
+    const on = platforms.length ? platforms : (["facebook"] as AdPlatform[]);
+    return { ...base, platform: on[0], platforms: on };
+  });
+}
+
 type EditKind = "budget" | "daily_budget" | "bid" | "schedule" | "end";
 type Edit = { run: LaunchRun; campaign: LaunchCampaign; kind: EditKind };
 
@@ -59,8 +83,12 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
   const [provider, setProvider] = useState("all");
   const [filter, setFilter] = useState("all");
   const [focused, setFocused] = useState(!!focusId);
+  const [renaming, setRenaming] = useState("");
+  const [nameDraft, setNameDraft] = useState("");
   const returnFocus = useRef<HTMLElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
+  const cancelRename = useRef(false);
+  const sweptOnce = useRef(false);
   const busyRef = useRef("");
   busyRef.current = busy;
 
@@ -73,7 +101,19 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
     setCapabilities({ can_edit: r.can_edit, can_launch: r.can_launch });
     setProducers(Object.fromEntries((r.producers ?? []).map((p) => [p.id, p.name_en || p.name_zh])));
   }, [api, staff]);
+  const refreshDelivery = useCallback(async () => {
+    setRefreshing(true);
+    try { await refresh(true); } catch (e) { setError(message(e)); } finally { setRefreshing(false); }
+  }, [refresh]);
   useEffect(() => { void refresh().catch((e) => { setError(message(e)); setLoading(false); }); }, [refresh]);
+  // A launch nobody has swept reads "Not checked yet" for as long as this
+  // sweep takes and no longer: it starts as soon as the first list lands.
+  useEffect(() => {
+    if (loading || sweptOnce.current) return;
+    if (!runs.some((r) => r.status !== "draft" && needsFirstSweep(r.campaigns))) return;
+    sweptOnce.current = true;
+    void refreshDelivery();
+  }, [loading, runs, refreshDelivery]);
   useEffect(() => {
     const pending = runs.some((r) => r.status === "pending" || r.status === "running");
     const timer = window.setInterval(() => { void refresh().catch((e) => setError(message(e))); }, pending ? 5000 : 60000);
@@ -119,16 +159,12 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
     try { await navigator.clipboard.writeText(value); setCopied(value); }
     catch { setError(tt("monitorTable.copyFailed")); }
   }
-  async function refreshDelivery() {
-    setRefreshing(true);
-    try { await refresh(true); } catch (e) { setError(message(e)); } finally { setRefreshing(false); }
-  }
 
   const visible = useMemo(() => runs
     .filter((r) => !focused || !focusId || r.id === focusId || r.external_id === focusId)
     .filter((r) => provider === "all" || r.draft.provider === provider)
-    .filter((r) => filter === "all" || (filter === "active" ? r.campaigns.some((c) => ["live", "review", "submitted"].includes(status(c))) : r.status === filter))
-    .filter((r) => !query.trim() || [r.draft.name, r.external_id, producers[r.producer_id], ...r.campaigns.flatMap((c) => [c.name, c.advertiser_id, providerCampaignId(c)]), ...(r.connections ?? []).flatMap((c) => [c.name, c.advertiser_id])].some((x) => x?.toLowerCase().includes(query.trim().toLowerCase())))
+    .filter((r) => filter === "all" || (filter === "active" ? r.campaigns.some((c) => ["live", "review", "submitted"].includes(monitorState(c))) : r.status === filter))
+    .filter((r) => !query.trim() || [r.draft.name, r.external_id, producers[r.producer_id], ...r.campaigns.flatMap((c) => [c.name, c.campid, c.advertiser_id, providerCampaignId(c)]), ...(r.connections ?? []).flatMap((c) => [c.name, c.advertiser_id])].some((x) => x?.toLowerCase().includes(query.trim().toLowerCase())))
     .sort((a, b) => b.created_at.localeCompare(a.created_at)), [runs, focused, focusId, provider, filter, query, producers]);
 
   async function action(run: LaunchRun, suffix: "retry" | "round") {
@@ -138,6 +174,15 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
       if (suffix === "round") router.push(`${page}/${result.run.id}`);
       else await refresh(true);
     } catch (e) { setActionError((x) => ({ ...x, [run.id]: message(e) })); }
+    finally { setBusy(""); }
+  }
+  async function saveName(run: LaunchRun) {
+    const value = nameDraft.trim();
+    setRenaming("");
+    if (!value || value === run.draft.name) return;
+    setBusy(`${run.id}:rename`); setActionError((x) => ({ ...x, [run.id]: "" }));
+    try { await call(`${api}/${run.id}/rename`, "PUT", { name: value }); await refresh(); }
+    catch (e) { setActionError((x) => ({ ...x, [run.id]: message(e) })); }
     finally { setBusy(""); }
   }
   async function control(run: LaunchRun, c: LaunchCampaign, change: LaunchControl, inDialog = false) {
@@ -177,6 +222,17 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
     void control(run, campaign, change, true);
   }
 
+  /** The hint first, the provider's own sentence beneath, then Retry. */
+  function failure(run: LaunchRun, text: string, key: string) {
+    const { hint, code } = explainProviderError(run.draft.provider, text);
+    const providerName = run.draft.provider === "meta" ? "Meta" : "TikTok";
+    return <div className="note note-warn mr2-failure" role="alert" data-failure={key}>
+      {hint && <p className="mr2-hint">{tt(hint)}</p>}
+      <p className="mr2-said">{code ? <><span>{tt("mr2.providerSaid", { provider: providerName })}</span> {text}</> : text}</p>
+      {capabilities.can_launch && run.status === "failed" && <button className="lm-row-button" disabled={!!busy} onClick={() => void action(run, "retry")}>{tt("lv2.retry")}</button>}
+    </div>;
+  }
+
   return <div className="launch-flow lm" id="launch-monitor">
     <div className="page-head"><div><h1>{tt("lv2.monitor.title")}</h1><p className="page-sub">{tt("monitorV2.subtitle")}</p></div><div className="rs-tool-row">{!embedded && <Link className="btn btn-outline" href={page}>{tt("launchFeedback.createLaunch")}</Link>}<button className="btn btn-outline" disabled={!!busy || refreshing} onClick={() => void refreshDelivery()}>{tt(refreshing ? "common.loading" : "lv2.refresh")}</button></div></div>
     {error && <p className="note note-warn" role="alert">{error}</p>}
@@ -192,78 +248,139 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
       const spend = total(run.campaigns, "spend_cents");
       const clicks = total(run.campaigns, "clicks");
       const conversions = total(run.campaigns, "conversions");
+      const swept = run.campaigns.some(c => c.snapshot);
       const activeCount = run.campaigns.filter(c => switchState(c.snapshot?.configured_status) === true).length;
-      const knownStates = run.campaigns.every(c => switchState(c.snapshot?.configured_status) !== null);
       const averageCpc = spend != null && clicks ? Math.round(spend / clicks) : null;
       const checked = run.campaigns.map(c => c.snapshot?.checked_at).filter((at): at is string => !!at).sort().at(-1);
+      const renameBlocked = run.status === "running" || run.status === "pending";
+      const providerName = run.draft.provider === "meta" ? "Meta" : "TikTok";
       return <section className="lm-run" key={run.id} data-run-id={run.external_id}>
         <header className="lm-run-head">
           <div className="lm-run-identity">
-            <div className="lm-run-title"><h2><Link href={`${page}/${run.id}`}>{run.draft.name}</Link></h2><span className="lm-run-status">{run.status === "draft" ? tt("lv2.plan.draft") : tt(`lv2.run.${run.status === "done" ? "complete" : run.status}`)}</span></div>
-            <div className="lm-eyebrow"><span>{run.draft.provider === "meta" ? "Meta" : "TikTok"}</span>{staff && <span>{producers[run.producer_id] ?? tt("monitorV2.producer")}</span>}<span>{tt("lv2.round")} {run.round}</span><span><span>{tt("monitorV2.created")}</span> <time dateTime={run.created_at}>{date(run.created_at)}</time></span>{run.mode !== "production" && <span>{tt(run.mode === "fake" ? "lv2.demo" : "lv2.sandbox")}</span>}</div>
+            <div className="lm-run-title">
+              {renaming === run.id
+                ? <input className="mr2-name-input" autoFocus aria-label={tt("mr2.launchName")} value={nameDraft} maxLength={80}
+                    onChange={(e) => setNameDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); } else if (e.key === "Escape") { cancelRename.current = true; e.currentTarget.blur(); } }}
+                    onBlur={() => { if (cancelRename.current) { cancelRename.current = false; setRenaming(""); return; } void saveName(run); }} />
+                : <h2><Link href={`${page}/${run.id}`}>{run.draft.name}</Link></h2>}
+              {capabilities.can_launch && renaming !== run.id && <button className="mr2-pencil" disabled={renameBlocked || !!busy}
+                title={renameBlocked ? tt("mr2.renameWhileRunning") : tt("mr2.rename")} aria-label={tt("mr2.rename")}
+                onClick={() => { setNameDraft(run.draft.name); setRenaming(run.id); }}>
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M11.1 2.9a1.4 1.4 0 0 1 2 2L6 12l-2.7.7.7-2.7 7.1-7.1Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" /></svg>
+              </button>}
+              <span className="lm-run-status">{run.status === "draft" ? tt("lv2.plan.draft") : tt(`lv2.run.${run.status === "done" ? "complete" : run.status}`)}</span>
+            </div>
+            <div className="lm-eyebrow"><span>{providerName}</span>{staff && <span>{producers[run.producer_id] ?? tt("monitorV2.producer")}</span>}<span>{tt("lv2.round")} {run.round}</span><span><time dateTime={run.created_at}>{date(run.created_at)}</time></span>{run.mode !== "production" && <span>{tt(run.mode === "fake" ? "lv2.demo" : "lv2.sandbox")}</span>}</div>
           </div>
           <div className="lm-head-actions"><Link className="lm-toolbar-button" href={`${page}/${run.id}`}>{run.status === "draft" ? tt("lv2.openDraft") : tt("monitorTable.openLaunch")}</Link>{capabilities.can_edit && <button className="lm-toolbar-button" disabled={!!busy} onClick={() => void action(run, "round")}>{tt("lv2.round.new")}</button>}{capabilities.can_launch && run.status === "failed" && <button className="lm-toolbar-button" disabled={!!busy} onClick={() => void action(run, "retry")}>{tt("lv2.retry")}</button>}</div>
         </header>
         <div className="lm-summary" aria-label={tt("monitorTable.launchTotals")}>
-          <div><small>{tt("lv2.campaigns")}</small><strong>{knownStates ? activeCount : "—"}<span className="lm-stat-denominator"> / {run.campaigns.length}</span></strong><span className="lm-stat-hint">{tt("monitorTable.enabledCampaigns")}</span></div>
-          <div><small>{tt("lv2.spent")} · {run.draft.provider === "meta" ? "Meta" : "TikTok"}</small><strong>{money(spend)}</strong></div>
+          <div><small>{tt("lv2.campaigns")}</small><strong>{swept ? activeCount : "—"}<span className="lm-stat-denominator"> / {run.campaigns.length}</span></strong><span className="lm-stat-hint">{tt("monitorTable.enabledCampaigns")}</span></div>
+          <div><small>{tt("lv2.spent")} · {providerName}</small><strong>{money(spend)}</strong></div>
           <div><small>{tt("lv2.clicks")}</small><strong>{int(clicks)}</strong></div>
           <div><small>{tt("lv2.conversions")}</small><strong>{int(conversions)}</strong></div>
           <div><small>{tt("lv2.cpc")}</small><strong>{money(averageCpc)}</strong></div>
           <div><small>{tt(run.approved_at ? "monitorV2.approvedBudget" : "monitorTable.plannedBudget")}</small><strong>{money(run.draft.total_budget_cents)}</strong></div>
         </div>
-        {(run.error || actionError[run.id]) && <p className="note note-warn lm-run-error" role="alert">{actionError[run.id] || run.error}</p>}
+        {/* The run-level sentence only earns its place when no campaign row
+            explains the problem itself; one problem, one message, one Retry. */}
+        {(actionError[run.id] || (run.error && !run.campaigns.some(c => c.error && !ended(c)))) && <div className="lm-run-error">{failure(run, actionError[run.id] || run.error || "", `run-${run.external_id}`)}</div>}
         {run.campaigns.length > 0 ? <div className="lm-table-scroll"><table className="lm-table" aria-label={tt("lv2.campaigns")}>
           <colgroup><col className="lm-col-state" /><col className="lm-col-campaign" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-actions" /></colgroup>
           <thead><tr><th scope="col">{tt("lv2.state")}</th><th scope="col">{tt("lv2.campaign")}</th><th scope="col">{tt("lv2.spent")}</th><th scope="col">{tt("lv2.clicks")}</th><th scope="col">{tt("lv2.cpc")}</th><th scope="col">{tt("lv2.conversions")}</th><th scope="col">{tt("lv2.costPerConv")}</th><th scope="col">CTR</th><th scope="col"><span className="sr-only">{tt("lv2.actions")}</span></th></tr></thead>
           <tbody>{run.campaigns.map(c => {
             const active = switchState(c.snapshot?.configured_status);
+            const state = monitorState(c);
+            const switchKnown = active !== null;
             const canControl = capabilities.can_launch && c.status === "done" && !ended(c);
             const canEnd = capabilities.can_launch && run.status !== "draft" && !ended(c);
             const ceiling = splitBudget(run.draft.total_budget_cents, run.draft.account_ids.length * run.draft.campaigns_per_account)[c.index - 1];
             const campaignId = providerCampaignId(c);
-            const delivery = status(c);
+            const platforms = campaignPlatforms(run.draft, c);
+            const groupPlatform = adSetPlatforms(c);
             const controlError = actionError[c.id] || c.error || (typeof c.state.control_error === "string" ? c.state.control_error : null);
             const ctr = c.snapshot?.impressions && c.snapshot.clicks != null ? `${(c.snapshot.clicks / c.snapshot.impressions * 100).toFixed(2)}%` : "—";
             const costPerConversion = c.snapshot?.conversions && c.snapshot.spend_cents != null ? money(Math.round(c.snapshot.spend_cents / c.snapshot.conversions)) : "—";
+            const stateWord = state === "not_checked" ? tt("mr2.state.notChecked")
+              : state === "created_paused" ? tt(`mr2.state.createdPaused.${run.draft.provider}`)
+              : state === "waiting" ? tt("mr2.state.waiting")
+              : tt(`lv2.delivery.${state}`);
+            // The On/Off switch only exists once the provider holds a campaign;
+            // a row that never launched, is ended, or is still preparing has
+            // nothing to switch, so the pill is not drawn at all.
+            const showSwitch = !!campaignId && !ended(c) && state !== "waiting";
+            const cards = adsOf(c.content, platforms, run.draft.provider);
             return <Fragment key={c.id}>
               <tr className={`lm-campaign ${expanded[c.id] ? "is-expanded" : ""}`} data-campaign-id={c.id}>
                 <td className="lm-state-cell">
-                  {canControl && active !== null ? <button className={`lm-state-toggle ${active ? "is-on" : "is-off"}`} disabled={!!busy} aria-label={tt(active ? "monitorV2.pauseCampaign" : "monitorV2.resumeCampaign")} title={tt(active ? "monitorV2.pauseCampaign" : "monitorV2.resumeCampaign")} onClick={() => void control(run, c, { action: active ? "pause" : "resume" })}><i aria-hidden="true" />{tt(active ? "lv2.switchOn" : "lv2.switchOff")}</button> : <span className={`lm-state-toggle ${active ? "is-on" : "is-off"}`}><i aria-hidden="true" />{tt(active === null ? "lv2.switchUnknown" : active ? "lv2.switchOn" : "lv2.switchOff")}</span>}
-                  <span className={`lm-delivery lm-delivery-${reviewTone(delivery)}`}>{tt(`lv2.delivery.${delivery}`)}</span>
+                  {showSwitch && <button className={`lm-state-toggle ${active ? "is-on" : "is-off"}`} data-switch={switchKnown ? (active ? "on" : "off") : "unread"}
+                    disabled={!!busy || !canControl || !switchKnown}
+                    aria-label={switchKnown ? tt(active ? "monitorV2.pauseCampaign" : "monitorV2.resumeCampaign") : tt("mr2.switchPending")}
+                    title={switchKnown ? tt(active ? "monitorV2.pauseCampaign" : "monitorV2.resumeCampaign") : tt("mr2.switchPending")}
+                    onClick={() => { if (switchKnown && canControl) void control(run, c, { action: active ? "pause" : "resume" }); }}><i aria-hidden="true" />{tt(active ? "lv2.switchOn" : "lv2.switchOff")}</button>}
+                  <span className={`lm-delivery lm-delivery-${reviewTone(state)}`} data-state={state}>{stateWord}</span>
                 </td>
                 <td className="lm-campaign-cell">
-                  <button className="lm-campaign-name" aria-expanded={!!expanded[c.id]} aria-controls={`campaign-details-${c.id}`} onClick={() => setExpanded(x => ({ ...x, [c.id]: !x[c.id] }))}><svg className="lm-chevron" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m6 3 5 5-5 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>{friendlyName(c.name)}</button>
-                  <div className="lm-account-line"><span>{names.get(c.connection_id) ?? tt("monitorV2.account")}</span><button className="lm-copy-id" title={tt("monitorTable.copyAccountId")} aria-label={tt("monitorTable.copyAccountIdValue", { id: c.advertiser_id })} onClick={() => void copyId(c.advertiser_id)}>{c.advertiser_id}{copied === c.advertiser_id ? <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m3 8 3.2 3.2L13 4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg> : <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="5" y="4" width="8" height="9" rx="1" stroke="currentColor" strokeWidth="1.3" /><path d="M3 11H2V3a1 1 0 0 1 1-1h7v1" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></svg>}</button></div>
-                  <div className="lm-row-meta">{campaignId && <span title={tt("monitorTable.platformCampaignId")}>{tt("monitorTable.id")} {campaignId}</span>}<span>{tt("monitorTable.creatives", { count: c.content.length })}</span>{c.snapshot?.note && <span className="lm-provider-note" title={c.snapshot.note}>{c.snapshot.note}</span>}</div>
+                  <button className="lm-campaign-name" aria-expanded={!!expanded[c.id]} aria-controls={`campaign-details-${c.id}`} onClick={() => setExpanded(x => ({ ...x, [c.id]: !x[c.id] }))}><svg className="lm-chevron" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m6 3 5 5-5 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>{run.draft.name} · {c.index}</button>
+                  <div className="lm-account-line"><span>{names.get(c.connection_id) ?? tt("monitorV2.account")}</span>
+                    <span className="mr2-badges">{(platforms.length ? platforms : (run.draft.provider === "tiktok" ? ["tiktok" as const] : [])).map(p => <span className={`mr2-badge ad-card-badge ad-card-badge-${p}`} key={p}>{PLATFORM_LABEL[p]}</span>)}</span>
+                  </div>
+                  <div className="lm-row-meta"><span>{cards.length === 1 ? tt("mr2.adOne") : tt("mr2.adMany", { n: cards.length })}</span>{c.snapshot?.note && <span className="lm-provider-note" title={c.snapshot.note}>{c.snapshot.note}</span>}</div>
                 </td>
                 <td className="lm-number">{money(c.snapshot?.spend_cents)}</td><td className="lm-number">{int(c.snapshot?.clicks)}</td><td className="lm-number">{money(c.snapshot?.cpc_cents)}</td><td className="lm-number">{int(c.snapshot?.conversions)}</td><td className="lm-number">{costPerConversion}</td><td className="lm-number">{ctr}</td>
                 <td><div className="lm-actions"><button className="lm-row-button" aria-expanded={!!expanded[c.id]} aria-controls={`campaign-details-${c.id}`} onClick={() => setExpanded(x => ({ ...x, [c.id]: !x[c.id] }))}>{expanded[c.id] ? tt("lv2.hide") : tt("lv2.details")}</button>{(canControl || canEnd) && <button data-monitor-menu className="lm-row-button lm-more" aria-expanded={menu === c.id} aria-label={tt("monitorV2.moreActions")} onClick={event => { const rect = event.currentTarget.getBoundingClientRect(); setMenuPosition({ top: Math.max(12, Math.min(rect.bottom + 4, window.innerHeight - 300)), left: Math.max(12, Math.min(rect.right - 220, window.innerWidth - 232)) }); setMenu(menu === c.id ? "" : c.id); }}><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="3" cy="8" r="1.2" /><circle cx="8" cy="8" r="1.2" /><circle cx="13" cy="8" r="1.2" /></svg></button>}</div></td>
               </tr>
-              {controlError && <tr className="lm-error-row"><td colSpan={9}><p className="note note-warn" role="alert">{controlError}</p></td></tr>}
+              {state === "waiting" && <tr className="lm-error-row"><td colSpan={9}><div className="note mr2-waiting" role="status">
+                <p>{typeof c.state.waiting === "object" && c.state.waiting && "reason" in c.state.waiting ? String((c.state.waiting as { reason: string }).reason) : tt("mr2.waitingLine")}</p>
+                <p className="hint">{tt("mr2.waitingLine")}</p>
+                <button className="lm-row-button" disabled={!!busy || refreshing} onClick={() => void refresh(true)}>{tt("mr2.checkNow")}</button>
+              </div></td></tr>}
+              {controlError && !ended(c) && state !== "waiting" && <tr className="lm-error-row"><td colSpan={9}>{failure(run, controlError, `campaign-${c.index}`)}</td></tr>}
               {expanded[c.id] && <tr className="lm-detail-row"><td colSpan={9}><div className="lm-detail" id={`campaign-details-${c.id}`}>
                 <div className="lm-detail-facts"><span>{tt("lv2.campaignBudget")}: <strong>{money(c.budget_cents)}</strong></span><span>{tt("monitorV2.approvedCeiling")}: {money(ceiling)}</span><span>{tt("lv2.campaignDaily")}: {money(c.daily_budget_cents)}</span><span>{tt("lv2.lastChecked")}: {date(c.snapshot?.checked_at)}</span></div>
-                {c.snapshot?.groups?.map((g, i) => <div className="lm-group" key={g.id}><div><strong>{tt("lv2.group")} {i + 1}</strong><span>{g.id}</span><span>{tt(run.draft.provider === "tiktok" && run.draft.tiktok_settings.budget_mode === "BUDGET_MODE_DAY" ? "monitorV2.groupDaily" : "monitorV2.groupLifetime")} {money(g.budget_cents)}</span><span>{tt("lv2.bid")} {money(g.bid_cents)}</span></div>{canControl && run.draft.provider === "tiktok" && switchState(g.status) !== null ? <button className="lm-row-button" disabled={!!busy} onClick={() => void control(run, c, { action: "group", group_id: g.id, enabled: switchState(g.status) === false })}>{tt(switchState(g.status) === true ? "monitorV2.pauseGroup" : "monitorV2.resumeGroup")}</button> : <span>{switchState(g.status) === true ? tt("monitorV2.enabled") : switchState(g.status) === false ? tt("monitorV2.paused") : tt("monitorV2.unknown")}</span>}</div>)}
+                {c.snapshot?.groups?.map((g, i) => {
+                  // The driver names its ad set's platform; older rows are read back from what it recorded.
+                  const platform = g.platform ?? groupPlatform[g.id] ?? (platforms.length === 1 ? platforms[0] : undefined);
+                  const groupOn = switchState(g.status);
+                  return <div className="lm-group mr2-group" key={g.id}><div>
+                    <strong>{tt(run.draft.provider === "meta" ? "mr2.adSet" : "lv2.group")} {i + 1}</strong>
+                    {platform && <span className={`mr2-badge ad-card-badge ad-card-badge-${platform}`}>{PLATFORM_LABEL[platform]}</span>}
+                    <span>{groupOn === true ? tt("monitorV2.enabled") : groupOn === false ? tt("monitorV2.paused") : tt("mr2.state.notChecked")}</span>
+                    <span>{tt(run.draft.provider === "tiktok" && run.draft.tiktok_settings.budget_mode === "BUDGET_MODE_DAY" ? "monitorV2.groupDaily" : "monitorV2.groupLifetime")} {money(g.budget_cents)}</span>
+                    <span>{tt("lv2.bid")} {money(g.bid_cents)}</span>
+                    {g.end_time && <span>{tt("mr2.endsAt")} {date(g.end_time)}</span>}
+                  </div>{canControl && run.draft.provider === "tiktok" && groupOn !== null
+                    ? <button className="lm-row-button" disabled={!!busy} onClick={() => void control(run, c, { action: "group", group_id: g.id, enabled: groupOn === false })}>{tt(groupOn === true ? "monitorV2.pauseGroup" : "monitorV2.resumeGroup")}</button>
+                    : null}</div>;
+                })}
+                <div className="mr2-detail-links">
+                  {c.campid && <span>{tt("mr2.campid")}: <code>{c.campid}</code></span>}
+                  {c.tracking_url && <span>{tt("mr2.trackingLink")}: <a href={c.tracking_url} target="_blank" rel="noreferrer">{c.tracking_url}</a></span>}
+                  <span>{tt("monitorV2.account")}: <button className="lm-copy-id" title={tt("monitorTable.copyAccountId")} aria-label={tt("monitorTable.copyAccountIdValue", { id: c.advertiser_id })} onClick={() => void copyId(c.advertiser_id)}>{c.advertiser_id}{copied === c.advertiser_id ? <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m3 8 3.2 3.2L13 4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg> : <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="5" y="4" width="8" height="9" rx="1" stroke="currentColor" strokeWidth="1.3" /><path d="M3 11H2V3a1 1 0 0 1 1-1h7v1" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></svg>}</button></span>
+                  {campaignId && <span title={tt("monitorTable.platformCampaignId")}>{tt("monitorTable.id")} {campaignId}</span>}
+                </div>
+                <div className="mr2-ads" aria-label={tt("mr2.ads")}>{cards.length ? cards.map(({ key, ...card }) => <AdCard key={key} {...card} />) : <p>{tt("mr2.noAds")}</p>}</div>
                 {c.snapshot?.ads && c.snapshot.ads.length > 0 && <div className="lm-ad-statuses">{c.snapshot.ads.map((ad, i) => <span key={ad.id} title={`${ad.id}${ad.note ? ` · ${ad.note}` : ""}`}><strong>{tt("monitorV2.ad")} {i + 1}</strong><span>{ad.status.replaceAll("_", " ").toLowerCase()}</span></span>)}</div>}
                 {skippedOf(c).map((item, i) => <p className="note note-warn" key={i}>{typeof item === "string" ? item : JSON.stringify(item)}</p>)}
-                <details className="lm-authorization"><summary>{tt(run.draft.provider === "tiktok" ? "monitorTable.authorizationCodes" : "lv2.content")}</summary><p>{c.content.map(x => run.draft.provider === "tiktok" ? x.value : x.label ?? x.value).join(", ") || "—"}</p></details>
               </div></td></tr>}
               {menu === c.id && createPortal(<div data-monitor-menu className="lm-menu-list" style={{ top: menuPosition.top, left: menuPosition.left }}>{canControl && <><button onClick={() => openEdit(run, c, "budget")}>{tt("lv2.changeBudget")}</button>{c.daily_budget_cents != null && <button onClick={() => openEdit(run, c, "daily_budget")}>{tt("lv2.changeDaily")}</button>}<button onClick={() => openEdit(run, c, "bid")}>{tt("lv2.changeBid")}</button><button onClick={() => openEdit(run, c, "schedule")}>{tt("lv2.endDate")}</button>{run.draft.provider === "tiktok" && <button disabled={!!busy} onClick={() => void control(run, c, { action: "duplicate" })}>{tt("lv2.duplicate")}</button>}</>}{canEnd && <button className="lm-danger" onClick={() => openEdit(run, c, "end")}>{tt("monitorV2.endCampaign")}</button>}</div>, document.body)}
             </Fragment>;
           })}</tbody>
         </table></div> : <p className="lm-pending">{tt(run.status === "draft" ? "monitorTable.draftHint" : "monitorTable.creatingHint")}</p>}
-        <footer className="lm-run-footer"><span>{tt("lv2.lastChecked")}: {date(checked)}</span><details><summary>{tt("monitorTable.launchDetails")}</summary><div><span>{run.external_id}</span><span>{tt("monitorV2.approved")}: {date(run.approved_at)}</span>{run.approval_note && <p>{run.approval_note}</p>}</div></details></footer>
+        <footer className="lm-run-footer">
+          {/* A launch with no campaigns has nothing to sweep, so it never says
+              "not checked yet" — there is nothing out there to check. */}
+          <span className="mr2-checked">{run.campaigns.length === 0
+            ? tt("mr2.notLaunched")
+            : checked
+              ? <>{tt("lv2.lastChecked")}: <time dateTime={checked}>{date(checked)}</time></>
+              : refreshing ? <><i className="mr2-spinner" aria-hidden="true" />{tt("mr2.sweeping")}</> : tt("mr2.state.notChecked")}</span>
+          <details><summary>{tt("monitorTable.launchDetails")}</summary><div><span>{run.external_id}</span><span>{tt("monitorV2.approved")}: {date(run.approved_at)}</span>{run.approval_note && <p>{run.approval_note}</p>}</div></details>
+        </footer>
       </section>;
     })}
     <span className="sr-only" role="status">{copied ? tt("monitorTable.copied") : ""}</span>
-    {edit && <div className="lm-dialog-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) setEdit(null); }}><div ref={dialogRef} tabIndex={-1} className="lm-dialog" role="dialog" aria-modal="true" aria-labelledby="lm-dialog-title"><h2 id="lm-dialog-title">{edit.kind === "end" ? tt("monitorV2.endCampaign") : edit.kind === "schedule" ? tt("lv2.endDate") : tt(edit.kind === "budget" ? "lv2.changeBudget" : edit.kind === "daily_budget" ? "lv2.changeDaily" : "lv2.changeBid")}</h2><p className="lm-meta">{edit.campaign.name}</p>{edit.kind === "end" ? <p>{tt("monitorV2.endWarning")}</p> : edit.kind === "schedule" ? <label>{tt("monitorV2.newEndDate")}<input autoFocus type="datetime-local" value={endTime} onChange={(e) => setEndTime(e.target.value)} /></label> : <label>{tt(edit.kind === "budget" ? "lv2.campaignBudget" : edit.kind === "daily_budget" ? "lv2.campaignDaily" : "lv2.bid")}<input autoFocus type="number" min="0.01" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>}{edit.kind === "budget" && <p className="lm-meta">{tt("monitorV2.approvedCeiling")}: {money(splitBudget(edit.run.draft.total_budget_cents, edit.run.draft.account_ids.length * edit.run.draft.campaigns_per_account)[edit.campaign.index - 1])}</p>}{dialogError && <p className="note note-warn" role="alert">{dialogError}</p>}<div className="lm-dialog-actions"><button className="btn btn-outline" disabled={!!busy} onClick={() => setEdit(null)}>{tt("monitorV2.cancel")}</button><button className="btn btn-primary" disabled={!!busy} onClick={saveEdit}>{edit.kind === "end" ? tt("monitorV2.endCampaign") : tt("monitorV2.save")}</button></div></div></div>}
+    {edit && <div className="lm-dialog-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) setEdit(null); }}><div ref={dialogRef} tabIndex={-1} className="lm-dialog" role="dialog" aria-modal="true" aria-labelledby="lm-dialog-title"><h2 id="lm-dialog-title">{edit.kind === "end" ? tt("monitorV2.endCampaign") : edit.kind === "schedule" ? tt("lv2.endDate") : tt(edit.kind === "budget" ? "lv2.changeBudget" : edit.kind === "daily_budget" ? "lv2.changeDaily" : "lv2.changeBid")}</h2><p className="lm-meta">{edit.run.draft.name} · {edit.campaign.index}</p>{edit.kind === "end" ? <p>{tt("monitorV2.endWarning")}</p> : edit.kind === "schedule" ? <label>{tt("monitorV2.newEndDate")}<input autoFocus type="datetime-local" value={endTime} onChange={(e) => setEndTime(e.target.value)} /></label> : <label>{tt(edit.kind === "budget" ? "lv2.campaignBudget" : edit.kind === "daily_budget" ? "lv2.campaignDaily" : "lv2.bid")}<input autoFocus type="number" min="0.01" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>}{edit.kind === "budget" && <p className="lm-meta">{tt("monitorV2.approvedCeiling")}: {money(splitBudget(edit.run.draft.total_budget_cents, edit.run.draft.account_ids.length * edit.run.draft.campaigns_per_account)[edit.campaign.index - 1])}</p>}{dialogError && <p className="note note-warn" role="alert">{dialogError}</p>}<div className="lm-dialog-actions"><button className="btn btn-outline" disabled={!!busy} onClick={() => setEdit(null)}>{tt("monitorV2.cancel")}</button><button className="btn btn-primary" disabled={!!busy} onClick={saveEdit}>{edit.kind === "end" ? tt("monitorV2.endCampaign") : tt("monitorV2.save")}</button></div></div></div>}
   </div>;
 }
-
-
-
-
-
-
-
-

@@ -101,6 +101,9 @@ export async function tick(opts: { metrics?: boolean } = {}): Promise<TickSummar
     invalidateMonitor();
     try { await (await import("@/lib/launch/service")).tickLaunches(); }
     catch (e) { summary.errors.push(`launch sweep: ${(e as Error).message}`); }
+    // 4. resume organic clip posts a dead process or a rate limit left open
+    try { await (await import("@/lib/meta/publish")).tickClipPosts(); }
+    catch (e) { summary.errors.push(`clip post sweep: ${(e as Error).message}`); }
   } finally {
     s.ticking = false;
     s.lastTickAt = Date.now();

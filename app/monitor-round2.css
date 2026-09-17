@@ -1,0 +1,45 @@
+/* Monitor, round 2 (docs/launch-ux-round-2.md §3): the inline rename, the
+   platform badges, the plain-language failure block and the compact ad cards.
+   Loaded immediately before polish.css, which stays last. */
+
+/* ---- the launch name and its pencil ---- */
+.mr2-pencil { display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; padding:0; border:0; border-radius:4px; background:none; color:var(--text-faint); cursor:pointer; }
+.mr2-pencil:hover:not(:disabled) { background:var(--surface-2); color:var(--accent-text); }
+.mr2-pencil:disabled { opacity:.4; cursor:not-allowed; }
+.mr2-pencil svg { width:14px; height:14px; }
+.mr2-name-input { min-width:min(320px,60vw); padding:3px 7px; border:1px solid var(--accent-text); border-radius:5px; background:var(--surface); color:var(--text); font:inherit; font-size:16px; font-weight:600; }
+
+/* ---- platform badges ----
+   The look is the shared AdCard's own `.ad-card-badge`, carried here so a
+   campaign row and the cards inside it never badge Facebook two ways. */
+.mr2-badges { display:inline-flex; flex-wrap:wrap; gap:4px; }
+.mr2-badge { white-space:nowrap; }
+
+/* ---- the switch that has not been read yet ---- */
+.lm-state-toggle[data-switch="unread"] { opacity:.55; cursor:not-allowed; border-style:dashed; }
+
+/* ---- what to do about a refusal ---- */
+.lm .mr2-failure { display:grid; gap:6px; justify-items:start; margin:0; }
+.mr2-failure .mr2-hint { margin:0; font-weight:600; line-height:1.5; }
+.mr2-failure .mr2-said { margin:0; font-size:11.5px; line-height:1.5; color:var(--text-muted); overflow-wrap:anywhere; }
+.mr2-failure .mr2-said span { color:var(--text-faint); }
+.lm .lm-run-error { margin:8px 14px; }
+
+/* ---- expanded row: groups, campid, tracking link, ads ---- */
+.mr2-group > div { align-items:baseline; }
+.mr2-detail-links { display:flex; flex-wrap:wrap; align-items:center; gap:6px 18px; margin:10px 0 0; padding-top:9px; border-top:1px solid var(--border-light); font-size:10.5px; }
+.mr2-detail-links code { font-size:10.5px; }
+.mr2-detail-links a { color:var(--accent-text); overflow-wrap:anywhere; }
+/* The shared AdCard keeps its own look; the monitor only says how many fit on
+   a row, and lets the empty frame stay a frame — a launch row has no rendered
+   preview to show, so the placeholder words would only spill over the card. */
+.mr2-ads { display:flex; flex-wrap:wrap; gap:8px 14px; margin:10px 0 0; }
+.mr2-ads > p { margin:0; color:var(--text-faint); }
+.mr2-ads > .ad-card { width:min(280px,100%); }
+.mr2-ads .ad-card-thumb-empty { font-size:0; }
+
+/* ---- "Checking now" while the first sweep runs ---- */
+.mr2-checked { display:inline-flex; align-items:center; gap:6px; }
+.mr2-spinner { display:inline-block; width:10px; height:10px; border:1.5px solid var(--border); border-top-color:var(--accent-text); border-radius:50%; animation:mr2-spin .8s linear infinite; }
+@keyframes mr2-spin { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .mr2-spinner { animation-duration:3s; } }

@@ -21,6 +21,11 @@ export function POST(req: NextRequest) { return handle(req, async () => {
   if (!inventory.pages.some(p => p.id === b.data.page_id)) throw invalid("Facebook Page is not accessible to this integration.");
   if (b.data.instagram_id && !inventory.instagram.some(i => i.id === b.data.instagram_id && i.account_id === id))
     throw invalid("Choose an Instagram account accessible to this ad account.");
+  // Studio publishes Reels through the Page, and a Page can only post to its own
+  // Instagram account: a Page that has one may not be paired with another.
+  const linked = inventory.pages.find(p => p.id === b.data.page_id)?.instagram_business_account?.id;
+  if (b.data.instagram_id && linked && b.data.instagram_id !== linked)
+    throw invalid("Choose the Instagram account linked to this Page; organic posts are published through the Page and reach only its own Instagram account.");
   const connection = await getData().assignLaunchConnection(g.session, { producer_id: b.data.producer_id, provider: "meta", advertiser_id: id, name: account.name, currency: account.currency, timezone: account.timezone_name, page_id: b.data.page_id, instagram_id: b.data.instagram_id || null, business_id: account.business?.id || null, enabled: true });
   return NextResponse.json({ connection });
 }); }

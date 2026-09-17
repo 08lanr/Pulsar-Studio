@@ -14,12 +14,14 @@ export const controlSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("bid"), bid_cents: money }), z.object({ action: z.literal("schedule"), end_time: z.string().datetime({ offset: true }) }),
   z.object({ action: z.literal("duplicate") }), z.object({ action: z.literal("group"), group_id: z.string().min(1).max(100), enabled: z.boolean() }),
 ]);
-type Operation = "workspace" | "scan" | "list" | "create" | "get" | "update" | "preview" | "launch" | "round" | "retry" | "controls";
+type Operation = "workspace" | "scan" | "list" | "create" | "get" | "update" | "preview" | "launch" | "round" | "retry" | "controls" | "rename";
 const bodySchema = {
   create: z.object({ draft: draftSchema, producer_id: z.string().uuid().optional() }),
   update: z.object({ draft: draftSchema, revision: z.number().int().positive() }),
   launch: z.object({ revision: z.number().int().positive(), note: z.string().trim().max(2000).optional() }),
   controls: z.object({ campaign_id: z.string().uuid(), control: controlSchema }),
+  // The name people read on the monitor. Meta and TikTok objects are never renamed by it.
+  rename: z.object({ name: z.string().trim().min(1).max(80) }),
 };
 function publicJson(value: unknown) {
   // Local storage paths and content hashes are server-side provenance, never
@@ -58,6 +60,7 @@ export function launchRoute(req: NextRequest, staff: boolean, op: Operation, id 
     if (op === "round") return publicJson({ run: await data.newLaunchRound(s, id) });
     if (op === "retry") { const run = await data.retryLaunchRun(s, id); queueLaunch(run.id); return publicJson({ run }); }
     if (op === "controls") { const b = await parse(req, bodySchema.controls); return publicJson({ run: await controlLaunch(s, id, b.campaign_id, b.control) }); }
+    if (op === "rename") { const b = await parse(req, bodySchema.rename); return publicJson({ run: await data.renameLaunchRun(s, id, b.name) }); }
     const b = await parse(req, bodySchema.launch);
     let run;
     try { run = await data.submitLaunchRun(s, id, b.revision, b.note); }

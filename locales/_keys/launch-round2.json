@@ -1,0 +1,162 @@
+{
+  "lr2.kind.video": {
+    "en": "Uploaded clip",
+    "zh": "上传的切片"
+  },
+  "lr2.kind.facebook_post": {
+    "en": "Facebook post",
+    "zh": "Facebook 帖子"
+  },
+  "lr2.kind.instagram_post": {
+    "en": "Instagram post",
+    "zh": "Instagram 帖子"
+  },
+  "lr2.kind.spark": {
+    "en": "Spark code",
+    "zh": "Spark 授权码"
+  },
+  "lr2.pasteMediaId": {
+    "en": "Instagram media ID",
+    "zh": "Instagram 媒体 ID"
+  },
+  "lr2.noPreview": {
+    "en": "No preview available",
+    "zh": "暂无预览"
+  },
+  "lr2.noCaption": {
+    "en": "No text yet",
+    "zh": "还没有文案"
+  },
+  "lr2.postCaptionHint": {
+    "en": "This ad uses the post's own caption. Edit it on Facebook or Instagram.",
+    "zh": "这条广告使用帖子自带的文案。请在 Facebook 或 Instagram 上修改。"
+  },
+  "lr2.runsOn": {
+    "en": "Each campaign will run on {platforms}.",
+    "zh": "每个广告活动将投放在 {platforms}。"
+  },
+  "lr2.runsOnNone": {
+    "en": "The content decides the platforms. Choose a post or a clip first.",
+    "zh": "素材决定投放平台。请先选择帖子或切片。"
+  },
+  "lr2.adSetBudget": {
+    "en": "{platform} ad set: {budget}",
+    "zh": "{platform} 广告组：{budget}"
+  },
+  "lr2.placementsClipsOnly": {
+    "en": "Placements apply to uploaded clips only. A post always runs where it was published.",
+    "zh": "版位只作用于上传的切片。帖子始终在其发布的平台投放。"
+  },
+  "lr2.campidStart": {
+    "en": "Campaign tag (campid)",
+    "zh": "投放标记（campid）"
+  },
+  "lr2.campidNaming": {
+    "en": "You type the first tag; Studio numbers the rest: {names}.",
+    "zh": "你只需填写第一个标记，其余由 Studio 顺序编号：{names}。"
+  },
+  "lr2.campidEmpty": {
+    "en": "Optional. Leave it empty and Studio makes a tag for you.",
+    "zh": "可选。留空则由 Studio 自动生成标记。"
+  },
+  "lr2.dailyOptional": {
+    "en": "(optional)",
+    "zh": "（选填）"
+  },
+  "lr2.dailyHint": {
+    "en": "Daily pacing is optional: the lifetime total still caps what a campaign can spend.",
+    "zh": "每日节奏是选填项：总预算仍然是广告活动花费的上限。"
+  },
+  "lr2.fixFirst": {
+    "en": "Fix these first",
+    "zh": "请先解决这些问题"
+  },
+  "lr2.issue.contentSpark": {
+    "en": "Meta takes existing posts or finished clips, not Spark codes.",
+    "zh": "Meta 使用现有帖子或成片切片，不使用 Spark 授权码。"
+  },
+  "lr2.issue.contentFacebookRef": {
+    "en": "A Facebook post reference must be pageID_postID.",
+    "zh": "Facebook 帖子编号必须是 pageID_postID 的形式。"
+  },
+  "lr2.issue.contentInstagramRef": {
+    "en": "An Instagram post reference must be a media ID.",
+    "zh": "Instagram 帖子编号必须是媒体 ID。"
+  },
+  "lr2.issue.contentEmpty": {
+    "en": "Every campaign needs at least one post or finished clip.",
+    "zh": "每个广告活动至少需要一个帖子或成片切片。"
+  },
+  "lr2.issue.accountPage": {
+    "en": "Assign a Facebook Page to every selected Meta account.",
+    "zh": "请为每个已选 Meta 账户分配 Facebook 公共主页。"
+  },
+  "lr2.issue.accountInstagram": {
+    "en": "Assign an Instagram identity: these campaigns include Instagram ads.",
+    "zh": "请分配 Instagram 身份：这些广告活动包含 Instagram 广告。"
+  },
+  "lr2.issue.schedule": {
+    "en": "Set a start time and an end time that follows it.",
+    "zh": "请设置开始时间，以及晚于开始时间的结束时间。"
+  },
+  "lr2.issue.bid": {
+    "en": "Set the bid cap, or switch back to lowest cost.",
+    "zh": "请设置出价上限，或改回最低成本。"
+  },
+  "lr2.issue.campaignMinimum": {
+    "en": "Each campaign needs at least $1 of budget. Raise the total or launch fewer campaigns.",
+    "zh": "每个广告活动至少需要 1 美元预算。请提高总预算或减少广告活动数量。"
+  },
+  "lr2.issue.adSetMinimum": {
+    "en": "Each ad set needs at least $1. Raise the budget, or run one platform at a time.",
+    "zh": "每个广告组至少需要 1 美元。请提高预算，或一次只投放一个平台。"
+  },
+  "lr2.issue.campidShape": {
+    "en": "A campid uses 2 to 40 lowercase letters, digits, hyphens or underscores, and starts with a letter or digit.",
+    "zh": "campid 由 2 到 40 个小写字母、数字、连字符或下划线组成，并以字母或数字开头。"
+  },
+  "lr2.issue.campidDuplicate": {
+    "en": "Each campaign needs its own campid.",
+    "zh": "每个广告活动都需要自己的 campid。"
+  },
+  "lr2.issue.campidTaken": {
+    "en": "The ad account already has a campaign named {campid}. Start from a different campid.",
+    "zh": "该广告账户已有名为 {campid} 的广告活动。请换一个起始 campid。"
+  },
+  "lr2.issue.destinationUrl": {
+    "en": "Enter a complete destination URL: an http:// or https:// address without a user name or password.",
+    "zh": "请填写完整的落地页网址：以 http:// 或 https:// 开头，且不含用户名或密码。"
+  },
+  "lr2.issue.duplicateAccounts": {
+    "en": "Select each advertising account only once.",
+    "zh": "每个广告账户只能选择一次。"
+  },
+  "lr2.issue.contentCount": {
+    "en": "This plan needs {needed} pieces of content; {provided} are chosen.",
+    "zh": "这个方案需要 {needed} 个素材，目前选了 {provided} 个。"
+  },
+  "lr2.issue.duplicateContent": {
+    "en": "Remove the repeated content, or switch to the same content in every campaign.",
+    "zh": "请移除重复的素材，或改为每个广告活动使用相同素材。"
+  },
+  "lr2.issue.campaignCount": {
+    "en": "A launch may contain up to 100 campaigns.",
+    "zh": "一次投放最多包含 100 个广告活动。"
+  },
+  "lr2.campidNamingOne": {
+    "en": "The campaign will be named {names}.",
+    "zh": "广告活动将命名为 {names}。"
+  },
+  "lr2.campidLink": {
+    "en": "Ads send people to {url}, so the tag tells you which campaign a visit came from.",
+    "zh": "广告会把用户带到 {url}，这个标记用于识别访问来自哪个广告活动。"
+  },
+  "lr2.budgetMathOne": {
+    "en": "One campaign; about {share} lifetime, divided among its ad group copies.",
+    "zh": "1 个广告活动；约 {share} 终身预算，由其广告组副本分配。"
+  },
+  "lr2.issue.scheduleEnded": {
+    "en": "The end time has already passed, or will within minutes. Move it forward.",
+    "zh": "结束时间已过或即将到期，请向后调整。"
+  }
+}

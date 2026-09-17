@@ -41,7 +41,7 @@ test("Launch keeps account, Spark, settings and validation decisions together", 
   await expect(preview.getByRole("alert")).toBeVisible();
   await page.getByLabel("Destination URL").fill("https://example.com/watch");
   await page.getByRole("button", { name: "Preview campaigns" }).click();
-  await expect(preview.getByText(/4 campaigns across 2 accounts/)).toBeVisible();
+  await expect(preview.getByText(/4 campaigns across 2 ad accounts/)).toBeVisible();
   await page.getByRole("button", { name: /Launch 4 campaigns/ }).click();
   await page.getByRole("dialog", { name: "Confirm launch" }).getByRole("button", { name: "Confirm launch", exact: true }).click();
   await expect(page).toHaveURL(/\/producer\/monitor\?run=/);

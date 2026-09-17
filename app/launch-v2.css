@@ -57,7 +57,107 @@
 .launch-confirm-dialog { height:auto; max-height:90vh; border-radius:14px; border:1px solid var(--border); }
 .launch-confirm-dialog .rs-tool-row { display:flex; justify-content:flex-end; gap:12px; margin-top:24px; }
 
+/* Clips desk and the content picker (docs/meta-organic-plan.md §5). Colours and
+   spacing come from the tokens in globals.css; the action column is a fixed
+   width and its buttons never wrap. */
+.clips-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 16px; margin: 14px 0 18px; }
+.clips-filters label { display: grid; gap: 6px; min-width: 0; }
+.clips-filters label > span { font-size: var(--t-small); color: var(--text-muted); }
+.clips-filters .select, .clips-filters .input { min-width: 150px; }
+.clips-filter-count { font-size: var(--t-small); color: var(--text-muted); align-self: center; white-space: nowrap; }
+.clips-table .gt-head, .clips-table .gt-row { min-width: 1000px; align-items: start; }
+.clips-row { row-gap: 6px; }
+.clips-poster { display: flex; align-items: flex-start; gap: 6px; }
+/* The data layer has no thumbnail yet, so an unloaded poster must still read as
+   a video box rather than a broken image: fixed 9:16 frame, tinted, bordered. */
+.clips-poster video { display: block; width: 56px; aspect-ratio: 9 / 16; min-height: 96px; object-fit: cover; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-3); }
+.clips-poster input[type="checkbox"] { margin-top: 4px; flex: none; }
+.clips-thumb { display: block; width: 56px; aspect-ratio: 9 / 16; min-height: 96px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-3) center / cover no-repeat; }
+.clips-hook { overflow-wrap: anywhere; }
+.clips-state { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; font-size: var(--t-small); }
+.clips-state small { color: var(--text-muted); font-size: var(--t-micro); }
+.clips-state-idle { color: var(--text-muted); }
+.clips-state-busy { color: var(--warning); }
+.clips-state-good { color: var(--success); }
+.clips-state-good a { color: inherit; }
+.clips-state-bad { color: var(--error); overflow-wrap: anywhere; }
+.clips-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.clips-actions > .btn { white-space: nowrap; }
+.clips-row-error { flex-basis: 100%; margin: 4px 0 0; }
+.clips-post-dialog .rs-tool-row { justify-content: flex-end; }
+.clips-post-clip { display: grid; gap: 2px; margin: 4px 0 14px; }
+.clips-post-clip small { color: var(--text-muted); }
+.clips-post-clip .label { color: var(--text-muted); font-size: var(--t-small); }
+.clips-post-field { display: grid; gap: 6px; }
+
+.content-picker-backdrop { align-items: center; }
+.content-picker .seg { margin-bottom: 12px; }
+.content-picker-body { display: grid; gap: 8px; max-height: 42vh; overflow-y: auto; padding-right: 4px; }
+.content-picker-body h3, .content-picker-chosen h3 { margin: 12px 0 6px; font-size: var(--t-lead); }
+.content-pick-row, .content-chosen-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 12px; }
+.content-pick-row > span { min-width: 0; }
+.content-pick-name { display: grid; gap: 2px; flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
+.content-pick-name small { color: var(--text-muted); font-size: var(--t-micro); }
+/* A flex row has no column header, so each state cell names its own platform. */
+.content-pick-state { display: grid; gap: 2px; flex: 0 1 150px; min-width: 0; }
+.content-pick-state > small { color: var(--text-faint); font-size: var(--t-micro); text-transform: uppercase; letter-spacing: var(--track-label); }
+.content-pick-note { flex-basis: 100%; color: var(--text-muted); font-size: var(--t-micro); }
+.content-pick-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.content-pick-actions > .btn { white-space: nowrap; }
+.content-picker-chosen { border-top: 1px solid var(--border); margin-top: 16px; padding-top: 8px; display: grid; gap: 8px; }
+.content-chosen-row { justify-content: space-between; }
+
+.launch-content-list { display: grid; gap: 10px; margin: 14px 0; }
+.launch-content-item { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 16px; border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
+.launch-content-item label { display: grid; gap: 6px; flex: 1 1 200px; min-width: 0; }
+.launch-content-item > .btn { white-space: nowrap; }
+.launch-content-cell { display: grid; gap: 6px; min-width: 0; }
+
 .launch-confirm-rows { display:grid; gap:10px; margin:16px 0; }
 .launch-confirm-row { display:flex; flex-wrap:wrap; gap:8px 18px; border:1px solid var(--border); padding:12px; border-radius:8px; }
 .launch-confirm-row p { flex-basis:100%; margin:0; overflow-wrap:anywhere; }
+.launch-confirm-head { display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
+.launch-confirm-budget { font-variant-numeric:tabular-nums; white-space:nowrap; }
+.launch-confirm-ref { display:grid; gap:2px; margin-top:6px; }
+.launch-confirm-ref small { color:var(--text-muted); font-size:var(--t-micro, 11px); }
 .launch-confirm-note { display:grid; gap:8px; }
+
+/* One ad, drawn once (docs/launch-ux-round-2.md §2.1): step 3, the preview
+   table and the confirm dialog share this card, so they cannot disagree. The
+   media frame is always 9:16 and always drawn, so a post with no picture still
+   reads as an ad rather than as a broken image. */
+.ad-card { display: flex; align-items: flex-start; gap: 10px; min-width: 0; text-align: left; }
+.ad-card-media { flex: none; }
+.ad-card-media video, .ad-card-thumb { display: block; width: 54px; aspect-ratio: 9 / 16; min-height: 92px; object-fit: cover; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-3) center / cover no-repeat; }
+.ad-card-thumb-empty { display: flex; align-items: center; justify-content: center; padding: 4px; color: var(--text-faint); font-size: var(--t-micro); text-align: center; overflow: hidden; }
+.ad-card-body { display: grid; gap: 3px; min-width: 0; overflow-wrap: anywhere; }
+.ad-card-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+/* The badge reads on both themes: the word is ordinary text on a surface, and
+   the platform's hue is only a small dot beside it, so contrast never depends
+   on a brand colour. The hues are tokens, redefined for dark like the rest. */
+:root { --platform-facebook: #3b5998; --platform-instagram: #c13584; --platform-tiktok: #111; }
+:root[data-theme="dark"] { --platform-facebook: #8ab4f8; --platform-instagram: #f2a3d0; --platform-tiktok: #e6e6e6; }
+.ad-card-badge { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); color: var(--text); font-size: var(--t-micro); line-height: 1.7; white-space: nowrap; }
+.ad-card-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--platform-facebook); flex: none; }
+.ad-card-badge-instagram::before { background: var(--platform-instagram); }
+.ad-card-badge-tiktok::before { background: var(--platform-tiktok); }
+.ad-card-kind { color: var(--text-faint); font-size: var(--t-micro); text-transform: uppercase; letter-spacing: var(--track-label); }
+.ad-card-label { line-height: 1.35; }
+.ad-card-headline { font-size: var(--t-small); }
+.ad-card-caption { color: var(--text-muted); font-size: var(--t-small); line-height: 1.45; }
+.ad-card-caption-empty { color: var(--text-faint); font-style: italic; }
+.ad-card-link { font-size: var(--t-small); }
+.ad-card-id { color: var(--text-faint); font-size: var(--t-micro); }
+.ad-card-compact .ad-card-media video, .ad-card-compact .ad-card-thumb { width: 40px; min-height: 70px; }
+.ad-card-compact .ad-card-caption { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+.launch-content-item { align-items: flex-start; }
+.launch-content-item > .ad-card { flex: 1 1 260px; }
+.launch-content-copy { display: grid; gap: 8px; flex: 1 1 260px; min-width: 0; margin: 0; }
+.launch-content-copy label { display: grid; gap: 6px; min-width: 0; }
+.launch-runs-on { margin-top: 10px; }
+.launch-flow .launch-content-cell { gap: 10px; }
+.launch-fix-first { display: grid; gap: 6px; }
+.launch-fix-first ul { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.launch-confirm-ads { flex-basis: 100%; display: grid; gap: 10px; min-width: 0; }
+@media (min-width: 720px) { .launch-confirm-ads { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); } }

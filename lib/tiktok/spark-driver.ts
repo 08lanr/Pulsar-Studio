@@ -142,6 +142,26 @@ function names(ctx: DriverContext) {
   };
 }
 
+/**
+ * TikTok's public listing of an advertiser's Instant Pages (the builder itself
+ * has no read). Only `business_type` TIKTOK_INSTANT_PAGE returns Sales pages;
+ * without it the endpoint answers an empty list (overlord, verified live).
+ */
+async function findInstantPageByName(c: Client, name: string): Promise<{ id: string | null; error?: string }> {
+  const rows: Row[] = [];
+  for (let page = 1; page <= 20; page++) {
+    const res = await c.tt.get("/page/get/", c.token, { advertiser_id: c.advertiser, business_type: "TIKTOK_INSTANT_PAGE", page, page_size: 50 });
+    if (res.code !== 0) return { id: null, error: res.message || "TikTok did not list Instant Pages" };
+    const list = (res.data?.list ?? []) as Row[];
+    rows.push(...list);
+    const pages = (res.data?.page_info as { total_page?: number } | undefined)?.total_page ?? 1;
+    if (page >= pages || list.length < 50) break;
+  }
+  const matches = rows.filter((r) => str(r.title ?? r.page_name ?? r.name) === name);
+  if (matches.length > 1) return { id: null, error: `TikTok lists ${matches.length} Instant Pages named ${name}` };
+  return { id: matches.length ? str(matches[0].page_id ?? matches[0].id) : null };
+}
+
 async function ensureSalesPage(ctx: DriverContext): Promise<void> {
   const settings = state(ctx).settings;
   if (settings?.objective_type !== "WEB_CONVERSIONS") return;
@@ -153,8 +173,17 @@ async function ensureSalesPage(ctx: DriverContext): Promise<void> {
   const pageName = `studio-tip-${ctx.run.id}-${ctx.campaign.index}`;
   let page = state(ctx).instant_page;
   if (page && page.name !== pageName) throw new Error("The saved Instant Page intent differs from this approved campaign.");
-  if (page?.phase === "creating" && !page.id)
-    throw new Error("Instant Page creation has an uncertain result. Reconcile the named page in TikTok before retrying; no duplicate page will be created automatically.");
+  if (page?.phase === "creating" && !page.id) {
+    // The create was sent and its answer lost. The page name is unique to this
+    // campaign, so TikTok's own listing settles it: exactly one page of that
+    // name is ours and is adopted; none means the create never landed and it
+    // is sent again; anything else is reconciled by a person, never guessed.
+    const found = await findInstantPageByName(client(ctx), pageName);
+    if (found.error) throw new Error(`Instant Page creation has an uncertain result and TikTok's page list could not settle it (${found.error}). Reconcile the page named ${pageName} in TikTok before retrying; no duplicate page will be created automatically.`);
+    if (found.id) await ctx.checkpoint({ instant_page: { name: pageName, phase: "created", id: found.id } });
+    else await ctx.checkpoint({ instant_page: null });
+    page = state(ctx).instant_page;
+  }
   if (!page) {
     let pageId: string;
     try {
@@ -441,7 +470,7 @@ async function report(c: Client, ctx: DriverContext, level: "AUCTION_CAMPAIGN" |
 
 async function monitor(ctx: DriverContext): Promise<DeliverySnapshot> {
   const out: DeliverySnapshot = { delivery: "unknown", note: null, checked_at: new Date().toISOString(), spend_cents: null, impressions: null, clicks: null, conversions: null, cpc_cents: null };
-  if (!state(ctx).campaign_id) return { ...out, delivery: state(ctx).ended ? "ended" : ctx.campaign.state.desired_status === "paused" ? "paused" : "unknown", note: ctx.campaign.error ?? "No TikTok campaign has been created." };
+  if (!state(ctx).campaign_id) return { ...out, delivery: state(ctx).ended ? "ended" : ctx.campaign.state.desired_status === "paused" ? "paused" : ctx.campaign.status === "failed" ? "failed" : "unknown", note: ctx.campaign.error ?? "No TikTok campaign has been created." };
   const c = client(ctx);
   const errors: string[] = [];
   let campaign: Row | undefined;

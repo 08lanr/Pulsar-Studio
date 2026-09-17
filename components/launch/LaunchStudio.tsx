@@ -4,18 +4,29 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useT } from "@/components/locale";
+import { launchButtonLabel, planSummary } from "./plan-summary";
 import { call, usd } from "@/components/tiktok/api";
 import LaunchSettingsDialog from "@/components/launch/LaunchSettingsDialog";
 import LaunchPresetPicker from "@/components/launch/LaunchPresetPicker";
 import InstantPageTemplatePicker from "@/components/launch/InstantPageTemplatePicker";
 import LaunchAccountPicker from "@/components/launch/LaunchAccountPicker";
 import LaunchConfirmDialog from "@/components/launch/LaunchConfirmDialog";
+import ContentPicker from "@/components/launch/ContentPicker";
+import AdCard, { type AdCardProps } from "@/components/launch/AdCard";
 import { summarizeLaunchSettings } from "@/lib/tiktok/settings";
-import { defaultLaunchDraft } from "@/lib/launch/plan";
+import { campidSeries, defaultLaunchDraft, deriveAdSets, metaDraftIssues } from "@/lib/launch/plan";
 import { feeLineVars } from "@/lib/promote/fee";
-import type { LaunchContent, LaunchDraft, LaunchPlan, LaunchProvider, LaunchRun, LaunchWorkspace } from "@/lib/launch/types";
+import type { MetaPagePost, MetaPagePostList } from "@/lib/launch/clip-posts";
+import type { LaunchContent, LaunchDraft, LaunchPlan, LaunchProvider, LaunchRun, LaunchWorkspace, MetaPlatform } from "@/lib/launch/types";
+
+/** The link an ad will carry once the tag is on it; shown under the campid field. */
+function campidLink(destination: string, campid: string): string {
+  try { const url = new URL(destination); url.searchParams.set("campid", campid); return url.toString(); }
+  catch { return `${destination || "https://…"}?campid=${campid}`; }
+}
 
 type Props = { staff?: boolean; runId?: string };
+const PLATFORM_WORD: Record<MetaPlatform, string> = { facebook: "Facebook", instagram: "Instagram" };
 const DIRECT_ACCOUNTS = "__direct_accounts__";
 const money = (cents: number | null | undefined) => usd(cents == null ? null : cents / 100);
 const errorText = (e: unknown) => e instanceof Error ? e.message : String(e);
@@ -25,7 +36,7 @@ const localDateTime = (iso: string) => {
 };
 
 export default function LaunchStudio({ staff = false, runId }: Props) {
-  const { tt } = useT();
+  const { tt, locale } = useT();
   const router = useRouter();
   const base = staff ? "/api/promote/launches" : "/api/producer/launch";
   const pageBase = staff ? "/promote/launches" : "/producer/launch";
@@ -55,11 +66,15 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
     }
   }, [error]);
   const workspaceRequest = useRef(0);
-  const [postKind, setPostKind] = useState<"facebook_post" | "instagram_post">("facebook_post");
-  const [postValue, setPostValue] = useState("");
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [codesRaw, setCodesRaw] = useState("");
   const [localReady, setLocalReady] = useState(false);
   useEffect(() => setLocalReady(true), []);
+  // What the Page listing said about the posts this draft holds. Read only, kept
+  // in memory: a post preview never becomes a stored draft field.
+  const [postMeta, setPostMeta] = useState<Record<string, MetaPagePost>>({});
+  const mergePostMeta = useCallback((posts: Record<string, MetaPagePost>) => setPostMeta(current => ({ ...current, ...posts })), []);
+  const namedOnce = useRef(false);
 
   const workspaceUrl = `${base}/workspace${staff && producerId ? `?producer_id=${encodeURIComponent(producerId)}` : ""}`;
   const reload = useCallback(async () => {
@@ -94,6 +109,27 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
       .catch((e) => { if (active) { setError(errorText(e)); setRunLoadFailed(true); setLoadedRunId(runId); } });
     return () => { active = false; };
   }, [base, runId]);
+
+  const metaPostsUrl = staff ? "/api/promote/launch/meta-posts" : "/api/producer/launch/meta-posts";
+  const previewAccount = draft.account_ids[0] ?? "";
+  const missingPosts = draft.provider === "meta"
+    ? draft.content.filter((x) => (x.kind === "facebook_post" || x.kind === "instagram_post") && !postMeta[x.value]).map((x) => x.value).join(",")
+    : "";
+  const postProducerId = staff ? producerId || run?.producer_id || "" : "";
+  // A reloaded page shows the posts it already holds without opening the picker:
+  // the listing route is cached server-side, so this costs one read.
+  useEffect(() => {
+    if (!missingPosts || !previewAccount) return;
+    let active = true;
+    const query = new URLSearchParams({ connection_id: previewAccount, ...(postProducerId ? { producer_id: postProducerId } : {}) });
+    void call<MetaPagePostList>(`${metaPostsUrl}?${query}`)
+      .then((listed) => {
+        if (!active) return;
+        setPostMeta((current) => ({ ...current, ...Object.fromEntries([...listed.facebook, ...listed.instagram].map((post) => [post.id, post])) }));
+      })
+      .catch(() => { /* the picker reports its own failures; a missing preview is not an error here */ });
+    return () => { active = false; };
+  }, [missingPosts, previewAccount, metaPostsUrl, postProducerId]);
 
   const connections = useMemo(() => (workspace?.connections ?? []).filter((c) => c.provider === draft.provider && c.enabled), [workspace, draft.provider]);
   const businessCenters = useMemo(() => {
@@ -175,7 +211,57 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
 
   const canEdit = workspace?.can_edit ?? false;
   const canLaunch = workspace?.can_launch ?? false;
+  // Staff screens name a producer, never its UUID (plan §5.3).
+  const producerName = (id: string) => { const found = producers.find((p) => p.id === id); return found ? found.name_en || found.name_zh : tt("monitorV2.producer"); };
+  // The launch name is the thing people see everywhere afterwards, so a new
+  // draft opens with the company and today's date instead of the word "Launch".
+  const namedCompany = producers.find((p) => p.id === (producerId || workspace?.producer_id));
+  const companyName = namedCompany ? namedCompany.name_en || namedCompany.name_zh : workspace?.library[0]?.producer_name ?? "";
+  useEffect(() => {
+    if (namedOnce.current || runId || run || !workspace || (staff && !companyName)) return;
+    namedOnce.current = true;
+    const today = new Date().toLocaleDateString(locale === "zh" ? "zh-CN" : "en-US", { month: "short", day: "numeric" });
+    setDraft((d) => (d.name === defaultLaunchDraft(d.provider).name ? { ...d, name: companyName ? `${companyName} · ${today}` : today } : d));
+  }, [workspace, runId, run, companyName, locale, staff]);
+  // The content decides the platforms; the derived ad sets are what Meta will
+  // actually receive, so the screen shows them rather than the raw placements.
+  const hasClips = draft.provider === "meta" && draft.content.some((x) => x.kind === "video");
+  const campaignAdSets = useMemo(() => {
+    if (draft.provider !== "meta") return [];
+    const first = draft.allocation === "shared" ? draft.content : draft.content.slice(0, draft.content_per_campaign);
+    const share = campaigns > 0 ? Math.floor(draft.total_budget_cents / campaigns) : draft.total_budget_cents;
+    return deriveAdSets(first, draft.meta_settings.placements, share, draft.daily_budget_cents);
+  }, [draft.provider, draft.allocation, draft.content, draft.content_per_campaign, draft.meta_settings.placements, draft.total_budget_cents, draft.daily_budget_cents, campaigns]);
+  // Every reason this draft cannot be previewed, collected into one list.
+  const issues = useMemo(() => draft.provider === "meta" ? metaDraftIssues(draft, connections) : [], [draft, connections]);
+  const campidPreview = draft.campid_start?.trim() ? campidSeries(draft.campid_start, Math.min(Math.max(campaigns, 1), 3)) : [];
   const posted = !!run && run.status !== "draft";
+  /** One ad, resolved from the clip library or the Page listing, never from a new draft field. */
+  const cardFor = useCallback((item: LaunchContent, compact = false): AdCardProps => {
+    const asset = item.kind === "video" ? workspace?.library.find((x) => x.id === item.value) : undefined;
+    const post = item.kind === "facebook_post" || item.kind === "instagram_post" ? postMeta[item.value] : undefined;
+    const excerpt = post?.caption.split("\n")[0].slice(0, 60);
+    const caption = item.kind === "video" ? (item.text ?? asset?.text ?? null) : (post?.caption ?? null);
+    // A label that only repeats the ad's own words is dropped rather than
+    // printed twice; the card then names the content by what it is.
+    // A clip is named by its hook alone (the picker's "title · hook" label is
+    // for the picker); in step 3 the two inputs beside the card already carry
+    // the copy, so the full-size clip card shows the name and nothing twice.
+    const named = item.kind === "video" ? (asset?.label || item.label?.split(" · ").pop() || "") : (item.label || excerpt || "");
+    const clipInStepThree = item.kind === "video" && !compact;
+    return {
+      platform: item.kind === "instagram_post" ? "instagram" : item.kind === "spark" ? "tiktok" : "facebook",
+      platforms: item.kind === "video" ? [...draft.meta_settings.placements] : undefined,
+      kind: item.kind, label: named && named !== excerpt && named !== caption ? named : "",
+      caption: clipInStepThree ? null : caption,
+      headline: item.kind === "video" && !clipInStepThree ? (item.headline ?? asset?.headline ?? null) : null,
+      thumbnail_url: asset?.thumbnail_url ?? post?.thumbnail_url ?? null,
+      media_url: asset?.media_url ?? null, permalink: post?.permalink ?? asset?.post_url ?? null,
+      id: item.value, compact,
+    };
+  }, [workspace, postMeta, draft.meta_settings.placements]);
+  const cards = useMemo(() => Object.fromEntries((plan?.rows ?? []).flatMap((row) => row.content)
+    .map((item) => [`${item.kind}:${item.value}`, cardFor(item, true)])), [plan, cardFor]);
   if (runId && (loadedRunId !== runId || runLoadFailed)) return <div className="launch-flow">
     <div className="page-head"><h1>{tt("lv2.launch.title")}</h1></div>
     {runLoadFailed ? <p className="note note-warn" role="alert" tabIndex={-1} ref={errorBox}>{error}</p> : <p>{tt("common.loading")}</p>}
@@ -183,7 +269,7 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
   </div>;
   return <div className="launch-flow">
     <div className="page-head"><div><h1>{tt("lv2.launch.title")}</h1><p className="page-sub">{tt("lv2.launch.sub")}</p></div><div className="rs-tool-row"><Link className="btn btn-outline" href={staff ? "/promote/monitor" : "/producer/monitor"}>{tt("lv2.monitor.title")}</Link></div></div>
-    {staff && <div className="rs-panel"><label>{tt("lv2.producerId")} <select className="select" value={producerId} onChange={(e) => { setWorkspace(null); setRun(null); setError(""); setBusinessId(""); setDraft((d) => ({ ...d, account_ids: [], content: [] })); setCodesRaw(""); setPlan(null); setProducerId(e.target.value); }} disabled={!!runId || busy}><option value="">{tt("lv2.choose")}</option>{producers.map((p) => <option key={p.id} value={p.id}>{p.name_en || p.name_zh}</option>)}</select></label>{run && <p className="hint">{tt("lv2.onBehalf")}: {run.producer_id}</p>}</div>}
+    {staff && <div className="rs-panel"><label>{tt("lv2.producerId")} <select className="select" value={producerId} onChange={(e) => { setWorkspace(null); setRun(null); setError(""); setBusinessId(""); setDraft((d) => ({ ...d, account_ids: [], content: [] })); setCodesRaw(""); setPlan(null); setProducerId(e.target.value); }} disabled={!!runId || busy}><option value="">{tt("lv2.choose")}</option>{producers.map((p) => <option key={p.id} value={p.id}>{p.name_en || p.name_zh}</option>)}</select></label>{run && <p className="hint">{tt("lv2.onBehalf")}: {producerName(run.producer_id)}</p>}</div>}
     {posted ? <section className="rs-panel"><h2>{run.draft.name}</h2><p>{tt("lv2.status")}: {run.status} · {tt("lv2.round")} {run.round} · {tt("lv2.signedBy")} {run.approved_by ?? "—"} · {run.approved_at ? new Date(run.approved_at).toLocaleString() : "—"}</p><p>{tt("lv2.budget")}: {money(run.draft.total_budget_cents)} · {tt("lv2.campaigns")}: {run.campaigns.length}</p><div className="rs-tool-row"><Link className="btn btn-primary" href={`${staff ? "/promote/monitor" : "/producer/monitor"}?run=${run.id}`}>{tt("lv2.monitor.open")}</Link><button className="btn btn-outline" disabled={busy} onClick={() => void newRound()}>{tt("lv2.round.new")}</button></div>{error && <p className="note note-warn" role="alert" tabIndex={-1} ref={errorBox}>{error}</p>}</section> : <>
       <fieldset className="launch-edit-region" disabled={busy}><section className="rs-panel"><h2>1. {tt("lv2.provider")}</h2><div className="seg"><button className={`seg-btn${draft.provider === "tiktok" ? " on" : ""}`} onClick={() => setProvider("tiktok")} disabled={!!run}>TikTok</button><button className={`seg-btn${draft.provider === "meta" ? " on" : ""}`} onClick={() => setProvider("meta")} disabled={!!run}>Meta · Facebook / Instagram</button></div></section>
       <section className="rs-panel"><h2>2. {tt("lv2.accounts")}</h2>
@@ -198,11 +284,45 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
         <p className="hint">{draft.allocation === "unique" ? tt(draft.provider === "meta" ? "launchRedesign.metaUniqueExplainer" : "launchRedesign.uniqueExplainer") : tt(draft.provider === "meta" ? "launchRedesign.metaSharedExplainer" : "launchRedesign.sharedExplainer")}</p>
         <div className={`launch-spark-count${available === required && required > 0 ? " ready" : ""}`} role="status"><strong>{available} / {required}</strong><span>{draft.provider === "tiktok" ? tt("launchRedesign.sparkCount") : tt("launchRedesign.creativeCount")}</span><small>{draft.allocation === "unique" ? tt(draft.provider === "meta" ? "launchRedesign.metaUniqueMath" : "launchRedesign.uniqueMath", { perCampaign: draft.content_per_campaign, perAccount: draft.campaigns_per_account * draft.content_per_campaign, total: required, campaignsPerAccount: draft.campaigns_per_account, accounts: draft.account_ids.length }) : tt(draft.provider === "meta" ? "launchRedesign.metaSharedMath" : "launchRedesign.sharedMath", { perCampaign: draft.content_per_campaign, campaigns })}</small></div>
         {draft.provider === "tiktok" ? <><label className="tk-label" htmlFor="lv2-codes">{tt("lv2.codes")}</label><textarea id="lv2-codes" className="input" rows={5} value={codesRaw} onChange={(e) => setCodes(e.target.value)} placeholder={tt("lv2.codesHint")} /><p className="hint">{tt("lv2.manualTikTok")}</p></> : <p className="hint">{tt("lv2.metaHint")}</p>}
-      {draft.provider === "tiktok" ? <Link href="/producer/clips">{tt("lv2.clips.title")}&nbsp;→</Link> : <><div className="tk-field tk-row"><select className="select" value={postKind} onChange={(e) => setPostKind(e.target.value as "facebook_post" | "instagram_post")} aria-label={tt("lv2.postType")}><option value="facebook_post">Facebook post</option><option value="instagram_post">Instagram post</option></select><input className="input" value={postValue} onChange={(e) => setPostValue(e.target.value)} placeholder={postKind === "facebook_post" ? "pageID_postID" : "Instagram media ID"} aria-label={tt("lv2.postId")} /><button className="btn btn-outline" disabled={!postValue.trim()} onClick={() => { if (postValue.trim()) { const value = postValue.trim(); if (!draft.content.some((item) => item.kind === postKind && item.value === value)) update("content", [...draft.content, { kind: postKind, value }]); setPostValue(""); } }}>{tt("lv2.addPost")}</button></div><div className="tk-chips">{draft.content.filter((x) => x.kind !== "video").map((item) => <button className="filter-chip on" key={`${item.kind}:${item.value}`} onClick={() => toggleContent(item)}>{item.kind}: {item.value} ×</button>)}{(workspace?.library ?? []).filter((x) => x.kind === "video").map((item) => <label key={item.id} className="filter-chip"><input type="checkbox" checked={draft.content.some((x) => x.kind === item.kind && x.value === item.value)} onChange={() => toggleContent({ kind: item.kind, value: item.value, creative_id: item.creative_id, title_id: item.title_id, label: `${item.title_name} · ${item.label ?? item.value}` })} /> {item.title_name} · {item.label ?? item.value}</label>)}</div>{draft.content.map((item) => <div className="tk-field tk-row" key={`${item.kind}:${item.value}`}><strong>{item.label ?? item.value}</strong><label>{tt("lv2.primaryText")} <input className="input" value={item.text ?? ""} onChange={(e) => setContentField(item, "text", e.target.value)} /></label><label>{tt("lv2.headline")} <input className="input" value={item.headline ?? ""} onChange={(e) => setContentField(item, "headline", e.target.value)} /></label></div>)}</>}</section>
-      <section className="rs-panel"><h2>4. {tt("lv2.delivery")}</h2><div className="tk-field tk-row"><label htmlFor="lv2-name">{tt("lv2.name")}</label><input id="lv2-name" className="input" value={draft.name} onChange={(e) => update("name", e.target.value)} /><label htmlFor="lv2-dest">{tt("lv2.destination")}</label><input id="lv2-dest" className="input" type="url" value={draft.destination_url} onChange={(e) => update("destination_url", e.target.value)} placeholder="https://" /></div><div className="tk-field tk-row"><label htmlFor="lv2-total">{tt("lv2.budget")}</label><input id="lv2-total" className="input tk-num" type="number" min={1} step="0.01" value={draft.total_budget_cents / 100} onChange={(e) => update("total_budget_cents", Math.round((Number(e.target.value) || 0) * 100))} /><label htmlFor="lv2-daily">{tt("lv2.dailyTotal")}</label><input id="lv2-daily" className="input tk-num" type="number" min={0} step="0.01" value={draft.daily_budget_cents == null ? "" : draft.daily_budget_cents / 100} onChange={(e) => update("daily_budget_cents", e.target.value === "" ? null : Math.round(Number(e.target.value) * 100))} /></div><p className="hint">{tt("lv2.budgetMath", { campaigns, share: campaigns ? money(Math.floor(draft.total_budget_cents / campaigns)) : "—" })}</p><label className="tk-check"><input type="checkbox" checked={draft.start_paused} onChange={(e) => update("start_paused", e.target.checked)} /> {tt("lv2.startPaused")}</label></section>
-      <section className="rs-panel"><h2>5. {tt("lv2.settings")}</h2>{draft.provider === "tiktok" ? <><LaunchPresetPicker value={editorSettings} onSelect={(v) => updateTikTokSettings({ ...v, start_paused: draft.start_paused })} />{draft.tiktok_settings.objective_type === "WEB_CONVERSIONS" && <InstantPageTemplatePicker value={draft.tiktok_settings.instant_page_template} onChange={template => update("tiktok_settings", { ...draft.tiktok_settings, instant_page_template: template })} />}<button className="btn btn-outline" onClick={() => setSettingsOpen(!settingsOpen)}>{settingsOpen ? tt("lv2.hideSettings") : tt("lv2.customize")}</button><p className="hint">{summarizeLaunchSettings(editorSettings).join(" · ")}</p>{settingsOpen && <LaunchSettingsDialog value={editorSettings} onChange={updateTikTokSettings} budgetUsd={campaigns ? draft.total_budget_cents / 100 / campaigns : 0} regionsEndpoint={staff ? "/api/admin/tiktok/regions" : "/api/producer/tiktok/regions"} onClose={closeSettings} />}</> : <div className="tk-field tk-row"><label>{tt("lv2.countries")} <input className="input" value={draft.meta_settings.countries.join(", ")} onChange={(e) => update("meta_settings", { ...draft.meta_settings, countries: e.target.value.split(",").map((x) => x.trim()).filter(Boolean) })} /></label><label>{tt("lv2.placements")} <select className="select" value={draft.meta_settings.placements.join(",")} onChange={(e) => update("meta_settings", { ...draft.meta_settings, placements: e.target.value.split(",") as ("facebook" | "instagram")[] })}><option value="facebook,instagram">Facebook + Instagram</option><option value="facebook">Facebook</option><option value="instagram">Instagram</option></select></label><label>{tt("lv2.goal")} <select className="select" value={draft.meta_settings.optimization_goal} onChange={(e) => update("meta_settings", { ...draft.meta_settings, optimization_goal: e.target.value as "LINK_CLICKS" | "LANDING_PAGE_VIEWS" })}><option value="LINK_CLICKS">Link clicks</option><option value="LANDING_PAGE_VIEWS">Landing page views</option></select></label><label>{tt("lv2.cta")} <select className="select" value={draft.meta_settings.call_to_action} onChange={(e) => update("meta_settings", { ...draft.meta_settings, call_to_action: e.target.value as "LEARN_MORE" | "WATCH_MORE" })}><option value="LEARN_MORE">Learn more</option><option value="WATCH_MORE">Watch more</option></select></label><label>{tt("lv2.bid")} <input className="input tk-num" type="number" min={0} step="0.01" value={draft.meta_settings.bid_cents == null ? "" : draft.meta_settings.bid_cents / 100} onChange={(e) => update("meta_settings", { ...draft.meta_settings, bid_cents: e.target.value === "" ? null : Math.round(Number(e.target.value) * 100), bid_strategy: e.target.value === "" ? "LOWEST_COST_WITHOUT_CAP" : "LOWEST_COST_WITH_BID_CAP" })} /></label><label>{tt("lv2.start")} <input className="input" type="datetime-local" value={localReady ? localDateTime(draft.meta_settings.start_time) : draft.meta_settings.start_time.slice(0, 16)} onChange={(e) => update("meta_settings", { ...draft.meta_settings, start_time: e.target.value ? new Date(e.target.value).toISOString() : "" })} /></label><label>{tt("lv2.end")} <input className="input" type="datetime-local" value={localReady ? localDateTime(draft.meta_settings.end_time) : draft.meta_settings.end_time.slice(0, 16)} onChange={(e) => update("meta_settings", { ...draft.meta_settings, end_time: e.target.value ? new Date(e.target.value).toISOString() : "" })} /></label><span className="hint">{tt("lv2.localTime")} ({localReady ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC"})</span></div>}</section>
-      </fieldset><section className="rs-panel" aria-busy={busy}><h2>6. {tt("launchFeedback.reviewLaunch")}</h2>{!plan && <p className="hint">{tt("launchFeedback.launchHelp", { provider: draft.provider === "tiktok" ? "TikTok" : "Meta" })}</p>}{!workspace && !error && <p role="status">{tt("common.loading")}</p>}{workspace && !canEdit && <p className="note">{tt(staff && !producerId ? "launchFeedback.chooseProducer" : "launchFeedback.cannotEdit")}</p>}<div className="rs-tool-row">{!plan && <button type="button" className="btn btn-primary" disabled={busy || !workspace} onClick={() => void prepareLaunch()}>{busy ? tt("launchFeedback.preparing") : tt("launchFeedback.launchOn", { provider: draft.provider === "tiktok" ? "TikTok" : "Meta" })}</button>}<button className="btn btn-outline" disabled={busy || !canEdit} onClick={() => void save(false)}>{tt("lv2.save")}</button><button className="btn btn-outline" disabled={busy || !canEdit} onClick={() => void save(true)}>{busy ? tt("common.loading") : tt("lv2.preview")}</button></div>{plan && <><p>{run?.mode !== "production" && <span className="pill pill-accent">{tt(run?.mode === "sandbox" ? "lv2.sandbox" : "lv2.demo")}</span>}</p><p>{tt("lv2.planSummary", { count: plan.campaign_count, accounts: plan.account_count, total: money(plan.total_budget_cents), daily: money(plan.daily_total_cents) })}</p>{draft.provider === "tiktok" && draft.tiktok_settings.objective_type === "WEB_CONVERSIONS" && draft.tiktok_settings.instant_page_template && <p className="note">{tt("salesLaunch.sales")}: {draft.tiktok_settings.instant_page_template.name} · {tt("tipTemplates.button")}: {draft.tiktok_settings.instant_page_template.button_text} · {tt(`tipTemplates.background.${draft.tiktok_settings.instant_page_template.background}`)}{draft.tiktok_settings.instant_page_template.hand_cursor ? ` · ${tt("tipTemplates.handCursor")}` : ""}</p>}{plan.warnings.length > 0 && <div className="note"><ul>{plan.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul></div>}<div className="gtable" style={{ "--cols": "48px minmax(180px,2fr) minmax(140px,1fr) minmax(200px,2fr) 110px" } as React.CSSProperties}><div className="gt-head"><span>#</span><span>{tt("lv2.campaign")}</span><span>{tt("lv2.account")}</span><span>{tt("lv2.content")}</span><span>{tt("lv2.campaignBudget")}</span></div>{plan.rows.map((row) => <div className="gt-row" key={row.index}><span>{row.index}</span><span>{row.name}{row.campid && <small className="gt-muted">{tt("salesLaunch.campid")}: {row.campid}</small>}{row.tracking_url && <small className="gt-muted">{tt("salesLaunch.tracking")}: {row.tracking_url}</small>}</span><span>{row.advertiser_id}</span><span>{row.content.map((x) => x.label ?? x.value).join(", ")}</span><span>{money(row.budget_cents)}</span></div>)}</div><p className="note">{tt("lv2.feeLine", feeLineVars(plan.total_budget_cents / 100))}</p>{draft.provider === "meta" && <div className="rs-panel"><p>{tt("lv2.destination")}: {draft.destination_url} · {draft.meta_settings.countries.join(", ")} · {draft.meta_settings.placements.join(" / ")} · {draft.meta_settings.optimization_goal} · {draft.meta_settings.call_to_action}</p>{plan.rows.map((row) => { const account = connections.find((x) => x.id === row.connection_id); return <article key={row.index} className="rs-panel"><strong>{row.name}</strong><p>{account?.name ?? "—"} · Facebook Page {account?.page_id ?? "—"} · Instagram {account?.instagram_id ?? "—"}</p>{row.content.map((item, i) => { const asset = workspace?.library.find((x) => x.id === item.value); return <div key={`${item.kind}:${item.value}:${i}`} className="tk-field"><strong>{item.label ?? asset?.label ?? item.kind}</strong><p>{tt("lv2.primaryText")}: {item.text ?? asset?.text ?? "—"}</p><p>{tt("lv2.headline")}: {item.headline ?? asset?.headline ?? "—"}</p>{asset?.media_url ? <video src={asset.media_url} controls playsInline preload="metadata" style={{ maxWidth: 180, aspectRatio: "9 / 16" }} /> : <p className="hint">{tt("lv2.existingPostMedia")}: {item.value}</p>}</div>; })}</article>; })}</div>}<button className="btn btn-approve" disabled={busy} onClick={requestLaunch}>{busy ? tt("launchFeedback.submitting") : tt("lv2.launchButton", { count: plan.campaign_count, state: draft.start_paused ? tt("lv2.paused") : tt("lv2.live") })}</button>{!canLaunch && <p className="hint">{tt("lv2.needsApprover")}</p>}</>}{error && <p className="note note-warn" role="alert" tabIndex={-1} ref={errorBox}>{error}</p>}</section>
+      {draft.provider === "tiktok" ? <Link href={staff ? "/clips" : "/producer/clips"}>{tt("lv2.clips.title")}&nbsp;→</Link> : <>
+        <div className="rs-tool-row"><button type="button" className="btn btn-outline" onClick={() => setPickerOpen(true)}>{tt("contentPicker.open")}</button><span className="hint">{tt("contentPicker.chosen", { n: draft.content.length })}</span></div>
+        {/* An uploaded clip carries the copy Studio sends; an existing post
+            carries its own caption, so it gets no boxes that would be dropped. */}
+        <div className="launch-content-list">{draft.content.map((item) => <div className="launch-content-item" key={`${item.kind}:${item.value}`}>
+          <AdCard {...cardFor(item)} />
+          {item.kind === "video" ? <div className="launch-content-copy">
+            <label>{tt("lv2.primaryText")} <input className="input" value={item.text ?? ""} onChange={(e) => setContentField(item, "text", e.target.value)} /></label>
+            <label>{tt("lv2.headline")} <input className="input" value={item.headline ?? ""} onChange={(e) => setContentField(item, "headline", e.target.value)} /></label>
+          </div> : <p className="hint launch-content-copy">{tt("lr2.postCaptionHint")}</p>}
+          <button type="button" className="btn btn-outline btn-sm" onClick={() => toggleContent(item)}>{tt("contentPicker.remove")}</button>
+        </div>)}</div>
+        <p className="hint launch-runs-on">{campaignAdSets.length
+          ? tt("lr2.runsOn", { platforms: campaignAdSets.map((set) => PLATFORM_WORD[set.platform]).join(" · ") })
+          : tt("lr2.runsOnNone")}</p>
+      </>}</section>
+      <section className="rs-panel"><h2>4. {tt("lv2.delivery")}</h2><div className="tk-field tk-row"><label htmlFor="lv2-name">{tt("lv2.name")}</label><input id="lv2-name" className="input" value={draft.name} onChange={(e) => { namedOnce.current = true; update("name", e.target.value); }} /><label htmlFor="lv2-dest">{tt("lv2.destination")}</label><input id="lv2-dest" className="input" type="url" value={draft.destination_url} onChange={(e) => update("destination_url", e.target.value)} placeholder="https://" /></div><div className="tk-field tk-row"><label htmlFor="lv2-total">{tt("lv2.budget")}</label><input id="lv2-total" className="input tk-num" type="number" min={1} step="0.01" value={draft.total_budget_cents / 100} onChange={(e) => update("total_budget_cents", Math.round((Number(e.target.value) || 0) * 100))} /><label htmlFor="lv2-daily">{tt("lv2.dailyTotal")} {tt("lr2.dailyOptional")}</label><input id="lv2-daily" className="input tk-num" type="number" min={0} step="0.01" value={draft.daily_budget_cents == null ? "" : draft.daily_budget_cents / 100} onChange={(e) => { const cents = Math.round(Number(e.target.value) * 100); update("daily_budget_cents", e.target.value === "" || !(cents > 0) ? null : cents); }} /></div><p className="hint">{(campaigns === 1 ? tt("lr2.budgetMathOne", { campaigns, share: campaigns ? money(Math.floor(draft.total_budget_cents / campaigns)) : "—" }) : tt("lv2.budgetMath", { campaigns, share: campaigns ? money(Math.floor(draft.total_budget_cents / campaigns)) : "—" }))}</p><p className="hint">{tt("lr2.dailyHint")}</p>
+      {/* overlord's mass launch: one campid per campaign, counted up from the
+          first, appended to the destination as the tracking link. */}
+      <div className="tk-field tk-row"><label htmlFor="lv2-campid">{tt("lr2.campidStart")}</label><input id="lv2-campid" className="input" value={draft.campid_start ?? ""} placeholder="rlapple01" onChange={(e) => update("campid_start", e.target.value)} /></div>
+      <p className="hint" role="status">{campidPreview.length
+        ? <>{tt(campaigns > 1 ? "lr2.campidNaming" : "lr2.campidNamingOne", { names: `${campidPreview.join(", ")}${campaigns > campidPreview.length ? ", …" : ""}` })}<br />{tt("lr2.campidLink", { url: campidLink(draft.destination_url, campidPreview[0]) })}</>
+        : tt("lr2.campidEmpty")}</p>
+      <label className="tk-check"><input type="checkbox" checked={draft.start_paused} onChange={(e) => update("start_paused", e.target.checked)} /> {tt("lv2.startPaused")}</label></section>
+      <section className="rs-panel"><h2>5. {tt("lv2.settings")}</h2>{draft.provider === "tiktok" ? <><LaunchPresetPicker value={editorSettings} onSelect={(v) => updateTikTokSettings({ ...v, start_paused: draft.start_paused })} />{draft.tiktok_settings.objective_type === "WEB_CONVERSIONS" && <InstantPageTemplatePicker value={draft.tiktok_settings.instant_page_template} onChange={template => update("tiktok_settings", { ...draft.tiktok_settings, instant_page_template: template })} />}<button className="btn btn-outline" onClick={() => setSettingsOpen(!settingsOpen)}>{settingsOpen ? tt("lv2.hideSettings") : tt("lv2.customize")}</button><p className="hint">{summarizeLaunchSettings(editorSettings).join(" · ")}</p>{settingsOpen && <LaunchSettingsDialog value={editorSettings} onChange={updateTikTokSettings} budgetUsd={campaigns ? draft.total_budget_cents / 100 / campaigns : 0} regionsEndpoint={staff ? "/api/admin/tiktok/regions" : "/api/producer/tiktok/regions"} onClose={closeSettings} />}</> : <div className="tk-field tk-row"><label>{tt("lv2.countries")} <input className="input" value={draft.meta_settings.countries.join(", ")} onChange={(e) => update("meta_settings", { ...draft.meta_settings, countries: e.target.value.split(",").map((x) => x.trim()).filter(Boolean) })} /></label>{/* Posts already say which platform they belong to, so the control only
+    appears when the draft carries an uploaded clip, and governs only those. */}
+{hasClips && <label>{tt("lv2.placements")} <select className="select" value={draft.meta_settings.placements.join(",")} onChange={(e) => update("meta_settings", { ...draft.meta_settings, placements: e.target.value.split(",") as ("facebook" | "instagram")[] })}><option value="facebook,instagram">Facebook + Instagram</option><option value="facebook">Facebook</option><option value="instagram">Instagram</option></select></label>}
+{hasClips && <span className="hint">{tt("lr2.placementsClipsOnly")}</span>}<label>{tt("lv2.goal")} <select className="select" value={draft.meta_settings.optimization_goal} onChange={(e) => update("meta_settings", { ...draft.meta_settings, optimization_goal: e.target.value as "LINK_CLICKS" | "LANDING_PAGE_VIEWS" })}><option value="LINK_CLICKS">Link clicks</option><option value="LANDING_PAGE_VIEWS">Landing page views</option></select></label><label>{tt("lv2.cta")} <select className="select" value={draft.meta_settings.call_to_action} onChange={(e) => update("meta_settings", { ...draft.meta_settings, call_to_action: e.target.value as "LEARN_MORE" | "WATCH_MORE" })}><option value="LEARN_MORE">Learn more</option><option value="WATCH_MORE">Watch more</option></select></label><label>{tt("lv2.bid")} <input className="input tk-num" type="number" min={0} step="0.01" value={draft.meta_settings.bid_cents == null ? "" : draft.meta_settings.bid_cents / 100} onChange={(e) => update("meta_settings", { ...draft.meta_settings, bid_cents: e.target.value === "" ? null : Math.round(Number(e.target.value) * 100), bid_strategy: e.target.value === "" ? "LOWEST_COST_WITHOUT_CAP" : "LOWEST_COST_WITH_BID_CAP" })} /></label><label>{tt("lv2.start")} <input className="input" type="datetime-local" value={localReady ? localDateTime(draft.meta_settings.start_time) : draft.meta_settings.start_time.slice(0, 16)} onChange={(e) => update("meta_settings", { ...draft.meta_settings, start_time: e.target.value ? new Date(e.target.value).toISOString() : "" })} /></label><label>{tt("lv2.end")} <input className="input" type="datetime-local" value={localReady ? localDateTime(draft.meta_settings.end_time) : draft.meta_settings.end_time.slice(0, 16)} onChange={(e) => update("meta_settings", { ...draft.meta_settings, end_time: e.target.value ? new Date(e.target.value).toISOString() : "" })} /></label><span className="hint">{tt("lv2.localTime")} ({localReady ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC"})</span></div>}</section>
+      </fieldset><section className="rs-panel" aria-busy={busy}><h2>6. {tt("launchFeedback.reviewLaunch")}</h2>{!plan && <p className="hint">{tt("launchFeedback.launchHelp", { provider: draft.provider === "tiktok" ? "TikTok" : "Meta" })}</p>}{!workspace && !error && <p role="status">{tt("common.loading")}</p>}{workspace && !canEdit && <p className="note">{tt(staff && !producerId ? "launchFeedback.chooseProducer" : "launchFeedback.cannotEdit")}</p>}{issues.length > 0 && <div className="note note-warn launch-fix-first" role="alert"><strong>{tt("lr2.fixFirst")}</strong><ul>{issues.map((issue) => <li key={issue.code}>{tt(`lr2.issue.${issue.code}`, issue.vars)}</li>)}</ul></div>}<div className="rs-tool-row">{!plan && <button type="button" className="btn btn-primary" disabled={busy || !workspace} onClick={() => void prepareLaunch()}>{busy ? tt("launchFeedback.preparing") : tt("launchFeedback.launchOn", { provider: draft.provider === "tiktok" ? "TikTok" : "Meta" })}</button>}<button className="btn btn-outline" disabled={busy || !canEdit} onClick={() => void save(false)}>{tt("lv2.save")}</button><button className="btn btn-outline" disabled={busy || !canEdit} onClick={() => void save(true)}>{busy ? tt("common.loading") : tt("lv2.preview")}</button></div>{plan && <><p>{run?.mode !== "production" && <span className="pill pill-accent">{tt(run?.mode === "sandbox" ? "lv2.sandbox" : "lv2.demo")}</span>}</p><p>{planSummary(tt, plan, money)}</p>{draft.provider === "tiktok" && draft.tiktok_settings.objective_type === "WEB_CONVERSIONS" && draft.tiktok_settings.instant_page_template && <p className="note">{tt("salesLaunch.sales")}: {draft.tiktok_settings.instant_page_template.name} · {tt("tipTemplates.button")}: {draft.tiktok_settings.instant_page_template.button_text} · {tt(`tipTemplates.background.${draft.tiktok_settings.instant_page_template.background}`)}{draft.tiktok_settings.instant_page_template.hand_cursor ? ` · ${tt("tipTemplates.handCursor")}` : ""}</p>}{plan.warnings.length > 0 && <div className="note"><ul>{plan.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul></div>}<div className="gtable" style={{ "--cols": "48px minmax(180px,2fr) minmax(140px,1fr) minmax(200px,2fr) 110px" } as React.CSSProperties}><div className="gt-head"><span>#</span><span>{tt("lv2.campaign")}</span><span>{tt("lv2.account")}</span><span>{tt("lv2.content")}</span><span>{tt("lv2.campaignBudget")}</span></div>{plan.rows.map((row) => <div className="gt-row" key={row.index}><span>{row.index}</span><span>{draft.name} · {row.index}{row.campid && <small className="gt-muted">{tt("mr2.campid")}: {row.campid}</small>}{row.tracking_url && <small className="gt-muted">{tt("mr2.trackingLink")}: <a href={row.tracking_url} target="_blank" rel="noreferrer">{row.tracking_url}</a></small>}</span><span>{connections.find((c) => c.id === row.connection_id)?.name ?? tt("lv2.account")}<small className="gt-muted">{row.advertiser_id}</small></span><span className="launch-content-cell">{(row.ad_sets?.length ? row.ad_sets.flatMap((set) => set.content.map((x) => ({ item: x, platform: set.platform }))) : row.content.map((x) => ({ item: x, platform: undefined })))
+          .map(({ item, platform }, i) => <AdCard key={`${platform ?? ""}:${item.kind}:${item.value}:${i}`} {...cardFor(item, true)} {...(platform ? { platform, platforms: undefined } : {})} />)}</span><span>{money(row.budget_cents)}{row.ad_sets && row.ad_sets.length > 1 && <small className="gt-muted">{row.ad_sets.map((set) => tt("lr2.adSetBudget", { platform: PLATFORM_WORD[set.platform], budget: money(set.daily_budget_cents ?? set.budget_cents) })).join(" · ")}</small>}</span></div>)}</div><p className="note">{tt("lv2.feeLine", feeLineVars(plan.total_budget_cents / 100))}</p>{draft.provider === "meta" && <p className="hint">{tt("lv2.destination")}: {draft.destination_url} · {draft.meta_settings.countries.join(", ")} · {campaignAdSets.map((set) => PLATFORM_WORD[set.platform]).join(" / ")} · {draft.meta_settings.optimization_goal} · {draft.meta_settings.call_to_action}</p>}<button className="btn btn-approve" disabled={busy} onClick={requestLaunch}>{busy ? tt("launchFeedback.submitting") : launchButtonLabel(tt, plan.campaign_count, draft.start_paused ? tt("lv2.paused") : tt("lv2.live"))}</button>{!canLaunch && <p className="hint">{tt("lv2.needsApprover")}</p>}</>}{error && <p className="note note-warn" role="alert" tabIndex={-1} ref={errorBox}>{error}</p>}</section>
     </>}
-    {confirmOpen && plan && <LaunchConfirmDialog name={draft.name} plan={plan} destination={draft.destination_url} startPaused={draft.start_paused} provider={draft.provider} mode={run?.mode ?? "fake"} accountNames={Object.fromEntries(connections.map(c => [c.id, c.name]))} pageDesign={draft.provider === "tiktok" && draft.tiktok_settings.objective_type === "WEB_CONVERSIONS" ? draft.tiktok_settings.instant_page_template : undefined} staff={staff} note={note} onNoteChange={value => { setNote(value); setConfirmError(""); }} error={confirmError} onClose={closeConfirm} onConfirm={() => void launch()} />}
+    {pickerOpen && <ContentPicker
+      clipsBase={staff ? "/api/promote/clips" : "/api/producer/clips"}
+      pagePostsUrl={staff ? "/api/promote/launch/meta-posts" : "/api/producer/launch/meta-posts"}
+      producerId={staff ? producerId || run?.producer_id : undefined}
+      library={(workspace?.library ?? []).filter((x) => x.kind === "video")}
+      connections={connections} accountIds={draft.account_ids} placements={draft.meta_settings.placements}
+      content={draft.content} canPost={canLaunch}
+      onChange={(next) => update("content", next)} onClose={() => setPickerOpen(false)} onPostMeta={mergePostMeta} />}
+    {confirmOpen && plan && <LaunchConfirmDialog name={draft.name} plan={plan} destination={draft.destination_url} startPaused={draft.start_paused} provider={draft.provider} mode={run?.mode ?? "fake"} accountNames={Object.fromEntries(connections.map(c => [c.id, c.name]))} cards={cards} pageDesign={draft.provider === "tiktok" && draft.tiktok_settings.objective_type === "WEB_CONVERSIONS" ? draft.tiktok_settings.instant_page_template : undefined} staff={staff} note={note} onNoteChange={value => { setNote(value); setConfirmError(""); }} error={confirmError} onClose={closeConfirm} onConfirm={() => void launch()} />}
   </div>;
 }

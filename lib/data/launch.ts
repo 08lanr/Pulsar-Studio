@@ -7,15 +7,31 @@ import path from "node:path";
 import { FIXTURE_PRODUCER_ID, isSystemSession, type Session } from "@/lib/auth";
 import { dataSource } from "@/lib/data-source";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
-import { buildLaunchPlan, draftSchema } from "@/lib/launch/plan";
+import { buildLaunchPlan, draftSchema, nextCampidStart } from "@/lib/launch/plan";
 import { launchEnvironment } from "@/lib/launch/environment";
 import { eligibleMetaAssignment, eligibleTikTokBcAccount } from "@/lib/launch/account-authority";
-import type { LaunchConnection, LaunchDataLayer, LaunchDraft, LaunchLibraryItem, LaunchRun, LaunchProvider, LaunchPlanRow } from "@/lib/launch/types";
+import type { ClipLibraryFilter, ClipLibraryRow, ClipPost, ClipPostPlatform, ClipPostStatus, ClipPostStep } from "@/lib/launch/clip-posts";
+import type { ClipPostPatch, LaunchConnection, LaunchDataLayer, LaunchDraft, LaunchLibraryItem, LaunchRun, LaunchProvider, LaunchPlanRow } from "@/lib/launch/types";
 import type { DataLayer } from "./index";
 import { conflict, forbidden, invalid, notFound } from "./errors";
 import { mediaUrl } from "./storage";
 
-type Store = { runs: LaunchRun[]; connections: LaunchConnection[]; sparks: Record<string, { code: string; url: string }>; defaults: Record<string, string> };
+/**
+ * The campaign names already on the chosen Meta accounts, so a typed campid
+ * that collides is a "Fix these first" line at preview rather than a failed
+ * campaign after approval. Only a typed campid can collide (the derived id
+ * embeds the run's external id), and a listing that fails is not fatal here:
+ * the driver refuses the same collision again before it creates anything.
+ */
+async function takenCampaignNames(draft: LaunchDraft, own: LaunchConnection[]): Promise<string[]> {
+  if (draft.provider !== "meta" || !draft.campid_start) return [];
+  const [{ listMetaCampaignNames }, { metaTransport }] = await Promise.all([import("@/lib/meta/driver"), import("@/lib/meta")]);
+  const chosen = own.filter(c => draft.account_ids.includes(c.id));
+  const names = await Promise.all(chosen.map(c => listMetaCampaignNames(metaTransport(), c.advertiser_id).catch(() => [] as string[])));
+  return [...new Set(names.flat())];
+}
+
+type Store = { runs: LaunchRun[]; connections: LaunchConnection[]; sparks: Record<string, { code: string; url: string }>; defaults: Record<string, string>; clipPosts: ClipPost[] };
 const globalStore = globalThis as unknown as { __studioLaunchV2?: Store };
 const file = () => path.join(process.cwd(), ".uploads", "launch-state.json");
 const persistOn = () => process.env.FIXTURE_PERSIST !== "off" && process.env.NODE_ENV !== "test";
@@ -25,7 +41,9 @@ function store(): Store {
   if (!globalStore.__studioLaunchV2) {
     let saved: Store | undefined;
     if (persistOn() && existsSync(file())) { try { saved = JSON.parse(readFileSync(file(), "utf8")); } catch { /* recover a corrupt fixture file without live calls */ } }
-    globalStore.__studioLaunchV2 = saved?.runs && saved.connections ? saved : { runs: [], connections: [], sparks: {}, defaults: {} };
+    globalStore.__studioLaunchV2 = saved?.runs && saved.connections ? saved : { runs: [], connections: [], sparks: {}, defaults: {}, clipPosts: [] };
+    // A state file written before organic posting existed has no clip posts.
+    if (!globalStore.__studioLaunchV2.clipPosts) globalStore.__studioLaunchV2.clipPosts = [];
   }
   return globalStore.__studioLaunchV2;
 }
@@ -35,17 +53,19 @@ function persist() {
   const temp = `${file()}.${process.pid}.tmp`;
   writeFileSync(temp, JSON.stringify(store())); renameSync(temp, file());
 }
-export function resetLaunchFixture() { globalStore.__studioLaunchV2 = { runs: [], connections: [], sparks: {}, defaults: {} }; persist(); }
-/** Demo replay removes only one company's launch records and clip Spark notes. */
-export function resetLaunchFixtureForProducer(producerId: string, clipIds: readonly string[] = []): LaunchRun[] {
+export function resetLaunchFixture() { globalStore.__studioLaunchV2 = { runs: [], connections: [], sparks: {}, defaults: {}, clipPosts: [] }; persist(); }
+/** Demo replay removes only one company's launch records, clip Spark notes and organic posts. */
+export function resetLaunchFixtureForProducer(producerId: string, clipIds: readonly string[] = []): { runs: LaunchRun[]; clipPosts: ClipPost[] } {
   const s = store();
   const removed = s.runs.filter(r => r.producer_id === producerId);
+  const removedPosts = s.clipPosts.filter(p => p.producer_id === producerId);
   s.runs = s.runs.filter(r => r.producer_id !== producerId);
+  s.clipPosts = s.clipPosts.filter(p => p.producer_id !== producerId);
   s.connections = s.connections.filter(c => c.producer_id !== producerId);
   delete s.defaults[producerId];
   for (const clipId of clipIds) delete s.sparks[clipId];
   persist();
-  return copy(removed);
+  return { runs: copy(removed), clipPosts: copy(removedPosts) };
 }
 function authorize(s: Session, producerId: string, mode: "read" | "edit" | "launch" = "read") {
   if (s.kind === "staff") {
@@ -57,6 +77,20 @@ function authorize(s: Session, producerId: string, mode: "read" | "edit" | "laun
   if (mode === "launch" && s.producerRole !== "approver") throw forbidden("Requires the approver role.");
 }
 function worker(s: Session) { if (!isSystemSession(s)) throw forbidden("Launch worker only."); }
+/**
+ * Who may publish a clip organically: a staff administrator, or the company's
+ * approver — the same rule as launching, because a public post is
+ * money-adjacent. One function, so the data layer and the publishing engine
+ * can never drift apart.
+ */
+export function assertMayPublishClip(s: Session, producerId: string) {
+  if (s.kind === "staff") {
+    if (s.staffRole !== "admin") throw forbidden("A staff administrator must authorize publishing.");
+    return;
+  }
+  if (s.producerId !== producerId) throw notFound("Clip");
+  if (s.producerRole !== "approver") throw forbidden("Requires the approver role.");
+}
 export function launchHash(draft: LaunchDraft, connections: LaunchConnection[], campaignRows?: LaunchPlanRow[]) {
   const canonical = (v: unknown): unknown => Array.isArray(v) ? v.map(canonical) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b)).map(([k, x]) => [k, canonical(x)])) : v;
   const intent = campaignRows?.map(row => ({ index: row.index, connection_id: row.connection_id,
@@ -97,6 +131,115 @@ async function readConnections(s: Session, producerId: string): Promise<LaunchCo
   const { data, error } = await dbFor(s).schema("promote").from("launch_connections").select("payload").eq("producer_id", producerId);
   if (error) throw invalid(`Launch account storage unavailable (${error.code}).`);
   return (data ?? []).map(r => r.payload as LaunchConnection);
+}
+
+// ---- organic clip posts (promote.clip_posts, docs/meta-organic-plan.md) ------
+// One code path; dataSource() branches at storage only, as everywhere else in
+// this file. No column ever carries credential material.
+
+const CLIP_POST_FIRST_STEP: Record<ClipPostPlatform, ClipPostStep> = { facebook: "uploading", instagram: "container" };
+
+function toClipPost(row: Record<string, unknown>): ClipPost {
+  const text = (v: unknown) => (v === null || v === undefined ? null : String(v));
+  const stamp = (v: unknown) => (v ? new Date(String(v)).toISOString() : null);
+  return {
+    id: String(row.id), producer_id: String(row.producer_id), clip_id: String(row.clip_id),
+    connection_id: String(row.connection_id), platform: row.platform as ClipPostPlatform,
+    status: row.status as ClipPostStatus, step: row.step as ClipPostStep,
+    external_video_id: text(row.external_video_id), external_post_id: text(row.external_post_id),
+    permalink: text(row.permalink), caption: String(row.caption ?? ""), sha256: String(row.sha256 ?? ""),
+    error: text(row.error), attempted_at: stamp(row.attempted_at), superseded_by: text(row.superseded_by),
+    lease_owner: text(row.lease_owner), leased_until: stamp(row.leased_until),
+    created_by: String(row.created_by),
+    created_at: stamp(row.created_at) ?? now(), updated_at: stamp(row.updated_at) ?? now(),
+    published_at: stamp(row.published_at), revision: Number(row.revision),
+  };
+}
+/** The audit copy is fixture-only bookkeeping; Supabase writes core.audit_events. */
+function clipPostRow(post: ClipPost) { const { audit: _audit, ...row } = post; return row; }
+
+async function readClipPosts(s: Session): Promise<ClipPost[]> {
+  if (dataSource() === "fixture") return copy(store().clipPosts.filter(p => s.kind === "staff" || p.producer_id === s.producerId));
+  const { data, error } = await dbFor(s).schema("promote").from("clip_posts").select("*").order("created_at", { ascending: false });
+  if (error) throw invalid(`Clip post storage unavailable. Apply 0014_clip_posts.sql. ${error.code}`);
+  return (data ?? []).map(row => toClipPost(row as Record<string, unknown>));
+}
+
+const DUPLICATE_POST = "This clip is already published to that account. Use Post again to publish a second time.";
+async function writeClipPost(post: ClipPost, expected: number | null): Promise<ClipPost> {
+  const next = copy(post);
+  if (expected !== null) { next.revision = expected + 1; next.updated_at = now(); }
+  if (dataSource() === "fixture") {
+    const list = store().clipPosts, index = list.findIndex(p => p.id === next.id);
+    if (expected === null && index !== -1) throw conflict("This post already exists.");
+    if (expected !== null && (index === -1 || list[index].revision !== expected)) throw conflict("This post changed. Reload and try again.");
+    // Mirrors the partial unique index of 0014_clip_posts.sql: the write is
+    // refused before it lands, so no row is ever rolled back. A superseded row
+    // has stepped aside for its replacement and no longer holds the slot.
+    if (next.status === "published" && !next.superseded_by && list.some(p => p.id !== next.id && p.status === "published"
+      && !p.superseded_by && p.clip_id === next.clip_id && p.platform === next.platform && p.connection_id === next.connection_id)) throw conflict(DUPLICATE_POST);
+    if (index === -1) list.push(next); else list[index] = next;
+    persist(); return copy(next);
+  }
+  const table = createServiceSupabase().schema("promote").from("clip_posts");
+  const query = expected === null ? table.insert(clipPostRow(next)) : table.update(clipPostRow(next)).eq("id", next.id).eq("revision", expected);
+  const { data, error } = await query.select("*").maybeSingle();
+  if (error) throw error.code === "23505" ? conflict(DUPLICATE_POST) : invalid(`Clip post storage write failed (${error.code}).`);
+  if (!data) throw conflict("This post changed. Reload and try again.");
+  return toClipPost(data as Record<string, unknown>);
+}
+
+/** Appends the audit entry to the row (fixture) or to core.audit_events (Supabase). Call before writing. */
+async function auditClipPost(s: Session, post: ClipPost, action: string, note?: string): Promise<void> {
+  if (dataSource() === "fixture") {
+    post.audit = [...(post.audit ?? []), { at: now(), actor: isSystemSession(s) ? null : s.userId, action, ...(note ? { note } : {}) }];
+    return;
+  }
+  const { auditEvent } = await import("./supabase");
+  await auditEvent(s, action, "promote.clip_posts", post.id, null, post.producer_id,
+    null, { platform: post.platform, clip_id: post.clip_id, connection_id: post.connection_id, status: post.status, step: post.step }, note ?? null);
+}
+
+/**
+ * Rename a launch — the name people read on the monitor and nothing else.
+ * Provider objects keep the names they were created with (the Meta campaign is
+ * its campid), so this never reaches Meta or TikTok.
+ *
+ * One code path for both backends: `readRuns` and `save` branch at storage, as
+ * everywhere else in this file. Authorization is the launch authorization —
+ * the company's approver or a staff administrator — and a run that is still
+ * being created is refused, because its campaigns are being written by the
+ * worker at that moment.
+ *
+ * The approval hash covers the whole draft, so the name has to be re-signed or
+ * every later control would read as a changed approval. That is only ever done
+ * when the approval still verifies exactly as it stands — a drifted approval is
+ * refused rather than quietly re-signed — and the audit row records both names,
+ * so the record still says who changed what and when.
+ *
+ * Exposed on the data layer as `renameLaunchRun`; routes reach it through
+ * `getData()` like every other launch write. The standalone export is the same
+ * function, for the tests that exercise it without a data object.
+ */
+export async function renameLaunchRun(s: Session, id: string, name: string): Promise<LaunchRun> {
+  const trimmed = name.trim();
+  if (!trimmed) throw invalid("Give the launch a name.");
+  if (trimmed.length > 80) throw invalid("A launch name may be at most 80 characters.");
+  const run = (await readRuns(s)).find(r => r.id === id || r.external_id === id);
+  if (!run) throw notFound("Launch");
+  authorize(s, run.producer_id, "launch");
+  if (run.status === "running" || run.status === "pending") throw conflict("This launch is still being created. Rename it once it finishes.");
+  if (run.lease_owner && Date.parse(run.lease_until || "") > Date.now()) throw conflict("This launch is being updated. Try again shortly.");
+  if (run.draft.name === trimmed) return run;
+  const rows = run.campaigns.some(c => c.campid) ? run.campaigns : undefined;
+  if (run.snapshot_hash && launchHash(run.draft, run.connections || [], rows) !== run.snapshot_hash) {
+    throw conflict("Launch approval is missing or changed. Create and approve a new round.");
+  }
+  const previous = run.draft.name;
+  run.draft = { ...run.draft, name: trimmed };
+  if (run.snapshot_hash) run.snapshot_hash = launchHash(run.draft, run.connections || [], rows);
+  audit(run, s, "renamed", undefined, { from: previous, to: trimmed });
+  return save(run, run.revision);
 }
 
 function demoMeta(producerId: string, existing: LaunchConnection[]): LaunchConnection[] {
@@ -158,19 +301,57 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
     }
     return provider ? items.filter(c => c.provider === provider) : items;
   }
-  async function library(s: Session, producerId: string): Promise<LaunchLibraryItem[]> {
-    const titles = (await base.listTitles(s)).filter(t => t.producer_id === producerId);
-    const out: LaunchLibraryItem[] = [];
+  /** Episode id → the episode's number, for the Clips tab's episode column and filter. */
+  async function episodeNumbers(s: Session, titleId: string): Promise<Map<string, string>> {
+    try { return new Map((await base.getTitle(s, titleId)).episodes.map(e => [e.id, String(e.number)])); }
+    catch { return new Map(); } // A title whose detail is unreadable still lists its clips.
+  }
+  function postedMatches(row: ClipLibraryRow, posted: ClipLibraryFilter["posted"]): boolean {
+    if (!posted || posted === "any") return true;
+    if (posted === "posted") return row.posts.some(p => p.status === "published");
+    if (posted === "failed") return row.posts.some(p => p.status === "failed");
+    return !row.posts.some(p => p.status === "published");
+  }
+  /**
+   * Every rendered, non-dismissed clip with a stored SHA-256, joined with its
+   * posts. Staff with no `producer_id` see every company; a producer session is
+   * always scoped to its own, and the filter's `producer_id` is ignored.
+   */
+  async function clipLibrary(s: Session, filter: ClipLibraryFilter, withEpisodes = true): Promise<ClipLibraryRow[]> {
+    const scoped = s.kind === "producer" ? s.producerId! : (filter.producer_id || "");
+    if (scoped) authorize(s, scoped);
+    const titles = (await base.listTitles(s)).filter(t => (!scoped || t.producer_id === scoped) && (!filter.title_id || t.id === filter.title_id));
+    const posts = await readClipPosts(s);
+    const search = filter.search?.trim().toLowerCase() || "";
+    const out: ClipLibraryRow[] = [];
     for (const title of titles) {
-      const clips = await base.listEpisodeClips(s, title.id);
-      for (const clip of clips.filter(c => c.render_status === "rendered" && c.render_path && c.render_sha256 && c.status !== "dismissed")) {
+      const clips = (await base.listEpisodeClips(s, title.id))
+        .filter(c => c.render_status === "rendered" && c.render_path && c.render_sha256 && c.status !== "dismissed")
+        .filter(c => !filter.episode_id || c.episode_id === filter.episode_id);
+      if (!clips.length) continue;
+      const episodes = withEpisodes ? await episodeNumbers(s, title.id) : new Map<string, string>();
+      const name = title.name_en || title.name_zh;
+      for (const clip of clips) {
         const saved = dataSource() === "fixture" ? store().sparks[clip.id] : undefined;
-        out.push({ id: clip.id, kind: "video", value: clip.id, creative_id: clip.id, title_id: title.id, title_name: title.name_en || title.name_zh, label: clip.hook_en || clip.external_id,
-          file_path: clip.render_path!, sha256: clip.render_sha256!, text: clip.hook_en, headline: title.name_en || title.name_zh,
-          media_url: mediaUrl(clip.render_path), spark_code: saved?.code ?? null, post_url: saved?.url ?? null });
+        out.push({
+          id: clip.id, external_id: clip.external_id, kind: "video", value: clip.id, creative_id: clip.id, clip_id: clip.id,
+          producer_id: title.producer_id, producer_name: title.producer_name_en || title.producer_name_zh,
+          title_id: title.id, title_name: name, episode_id: clip.episode_id ?? null,
+          episode_label: episodes.get(clip.episode_id) ?? null, label: clip.hook_en || clip.external_id,
+          duration_ms: clip.duration_ms ?? null, rendered_at: clip.created_at ?? null,
+          file_path: clip.render_path!, sha256: clip.render_sha256!, text: clip.hook_en, headline: name,
+          media_url: mediaUrl(clip.render_path), thumbnail_url: null,
+          spark_code: saved?.code ?? null, post_url: saved?.url ?? null,
+          posts: posts.filter(p => p.clip_id === clip.id).sort((a, b) => b.created_at.localeCompare(a.created_at)),
+        });
       }
     }
-    return out;
+    return out.filter(row => postedMatches(row, filter.posted))
+      .filter(row => !search || `${row.label} ${row.title_name}`.toLowerCase().includes(search));
+  }
+  /** The launch workspace's view of the same rows; episode labels are not needed to resolve a draft. */
+  async function library(s: Session, producerId: string): Promise<LaunchLibraryItem[]> {
+    return clipLibrary(s, { producer_id: producerId }, false);
   }
   async function find(s: Session, id: string) {
     const run = (await readRuns(s)).find(r => r.id === id || r.external_id === id);
@@ -180,12 +361,16 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
     const parsed = draftSchema.safeParse(draft);
     if (!parsed.success) throw invalid(parsed.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; "));
     const safe = parsed.data;
-    const own = safe.content.some(c => c.kind === "video") ? await library(s, producerId) : [];
+    const own = safe.content.some(c => c.kind === "video" || c.clip_id) ? await library(s, producerId) : [];
     return { ...safe, content: safe.content.map(c => {
-      if (c.kind !== "video") return c;
+      // Clip provenance is display only, so an unknown one is dropped rather
+      // than refused; it never reaches the provider payload.
+      const known = c.clip_id && own.some(a => a.id === c.clip_id) ? c.clip_id : undefined;
+      const provenance = { ...c, clip_id: known, post_id: known ? c.post_id : undefined };
+      if (c.kind !== "video") return provenance;
       const asset = own.find(a => a.id === c.value);
       if (!asset) throw notFound("Finished clip");
-      return { ...c, creative_id: asset.id, title_id: asset.title_id, file_path: asset.file_path, sha256: asset.sha256,
+      return { ...provenance, creative_id: asset.id, clip_id: asset.id, title_id: asset.title_id, file_path: asset.file_path, sha256: asset.sha256,
         text: c.text ?? asset.text, headline: c.headline ?? asset.headline };
     }) };
   }
@@ -208,7 +393,8 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
       }
       const metaIds = [...new Set(available.filter(c => c.provider === "meta" && c.business_id).map(c => c.business_id!))];
       for (const id of metaIds) businessCenters.push({ provider: "meta", business_id: id, name: available.find(c => c.provider === "meta" && c.business_id === id)?.business_name || id, account_ids: available.filter(c => c.provider === "meta" && c.business_id === id).map(c => c.id) });
-      return { producer_id: producerId, runs, connections: available, business_centers: businessCenters, account_warnings: accountWarnings, library: producerId ? await library(s, producerId) : [],
+      return { producer_id: producerId, runs, connections: available, business_centers: businessCenters, account_warnings: accountWarnings,
+        library: producerId ? await clipLibrary(s, { producer_id: producerId }) : [],
         default_destination_url: runs.find(r => r.draft.destination_url)?.draft.destination_url || "", can_edit: s.kind === "staff" || ["reviewer", "approver"].includes(s.producerRole || ""),
         can_launch: s.kind === "staff" ? s.staffRole === "admin" : s.producerRole === "approver", producers };
     },
@@ -231,7 +417,8 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
       audit(run, s, existing ? "draft_updated" : "draft_created"); return save(run, existing?.revision ?? null);
     },
     async previewLaunchRun(s, id) {
-      const r = await find(s, id); return buildLaunchPlan(r.draft, await connections(s, r.producer_id, r.draft.provider), r.external_id);
+      const r = await find(s, id); const own = await connections(s, r.producer_id, r.draft.provider);
+      return buildLaunchPlan(r.draft, own, r.external_id, await takenCampaignNames(r.draft, own));
     },
     async submitLaunchRun(s, id, revision, note) {
       const r = await find(s, id); authorize(s, r.producer_id, "launch");
@@ -241,7 +428,7 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
       if (s.kind === "staff" && !note?.trim()) throw invalid("Explain the on-behalf authorization.");
       const currentDraft = await resolved(s, r.draft, r.producer_id);
       if (launchHash(currentDraft, []) !== launchHash(r.draft, [])) throw conflict("A selected clip changed. Save and preview the draft again.");
-      const own = await connections(s, r.producer_id, r.draft.provider), plan = buildLaunchPlan(r.draft, own, r.external_id);
+      const own = await connections(s, r.producer_id, r.draft.provider), plan = buildLaunchPlan(r.draft, own, r.external_id, await takenCampaignNames(r.draft, own));
       if (r.connections && connectionSignature(r.connections) !== connectionSignature(own.filter(a => r.draft.account_ids.includes(a.id)))) throw conflict("Account assignment changed. Save and preview the draft again.");
       r.connections = own.filter(a => r.draft.account_ids.includes(a.id));
       r.snapshot_hash = launchHash(r.draft, r.connections, plan.rows); r.approved_by = s.userId; r.approved_at = now(); r.approval_note = note?.trim() || null;
@@ -254,6 +441,13 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
     async newLaunchRound(s, id) {
       const original = await find(s, id); authorize(s, original.producer_id, "edit");
       const nextDraft = copy(original.draft);
+      // A round is fresh provider objects, so it needs fresh campids: the parent
+      // already holds rlapple01…, and the driver refuses a campaign name that
+      // exists on the account. Count on from where the parent actually stopped —
+      // its own campaigns once it is approved, its planned count before that —
+      // or round 2 would preview and approve cleanly and only fail at launch.
+      const used = original.campaigns.length || original.draft.account_ids.length * original.draft.campaigns_per_account;
+      nextDraft.campid_start = nextCampidStart(nextDraft.campid_start, Math.max(1, used));
       const duration = Math.max(86400000, Date.parse(nextDraft.meta_settings.end_time) - Date.parse(nextDraft.meta_settings.start_time));
       nextDraft.meta_settings.start_time = new Date(Date.now() + 3600000).toISOString();
       nextDraft.meta_settings.end_time = new Date(Date.now() + 3600000 + duration).toISOString();
@@ -267,12 +461,13 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
       if (r.status !== "failed") return r;
       if (r.lease_owner && Date.parse(r.lease_until || "") > Date.now()) throw conflict("Launch is still being updated.");
       for (const c of r.campaigns) if (c.status === "failed" && c.state.desired_status !== "ended") {
-        c.status = "pending"; c.error = null;
+        c.status = "pending"; c.error = null; delete c.state.provider_retries;
         if (c.state.desired_status === "paused") c.state.prepare_while_paused = true;
       }
       if (!r.campaigns.some(c => c.status === "pending")) throw conflict("No failed campaigns are eligible for retry. Create a new round for stopped campaigns.");
       r.status = "pending"; r.error = null; r.lease_owner = null; r.lease_until = null; audit(r, s, "retry"); return save(r, r.revision);
     },
+    renameLaunchRun,
     async recordClipSpark(s, creativeId, code, postUrl = "") {
       // Manual Spark entry is the primary launch flow. Retained only as a fixture library convenience.
       if (dataSource() !== "fixture") throw invalid("Paste Spark codes directly in Launch.");
@@ -312,6 +507,59 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
       c.state.stop_request_id = randomUUID();
       audit(r, s, end ? "end_requested" : "pause_requested", undefined, { campaign_id: campaignId });
       return save(r, r.revision);
+    },
+
+    listClipLibrary: (s, filter) => clipLibrary(s, filter),
+    async createClipPost(s, input) {
+      // Scoped read first: a foreign clip is not found before any role is discussed.
+      const clip = (await clipLibrary(s, {}, false)).find(row => row.id === input.clip_id);
+      if (!clip) throw notFound("Clip");
+      assertMayPublishClip(s, clip.producer_id);
+      if (input.sha256 !== clip.sha256) throw invalid("This clip changed after it was rendered. Render it again before posting.");
+      const connection = (await connections(s, clip.producer_id, "meta")).find(c => c.id === input.connection_id);
+      if (!connection) throw notFound("Meta account");
+      if (!connection.enabled || connection.provider !== "meta") throw invalid("Choose an enabled Meta account for this company.");
+      if (!connection.page_id) throw invalid("Assign a Facebook Page to this account before posting.");
+      if (input.platform === "instagram" && !connection.instagram_id) throw invalid("Assign an Instagram account to this Page before posting a Reel.");
+      const caption = input.caption.trim();
+      if (!caption) throw invalid("Write a caption.");
+      // A clip's internal reference is not a caption anybody wants published.
+      if (caption === clip.external_id) throw invalid("Write a caption: a clip reference is not one.");
+      if (caption.length > 2200) throw invalid("A caption may be at most 2,200 characters.");
+      const siblings = (await readClipPosts(s)).filter(p => p.clip_id === clip.id && p.platform === input.platform && p.connection_id === input.connection_id);
+      if (siblings.some(p => p.status === "publishing")) throw conflict("This clip is already being published to that account.");
+      if (!input.again && siblings.some(p => p.status === "published" && !p.superseded_by)) throw conflict(DUPLICATE_POST);
+      const post: ClipPost = {
+        id: randomUUID(), producer_id: clip.producer_id, clip_id: clip.id, connection_id: connection.id,
+        platform: input.platform, status: "publishing", step: CLIP_POST_FIRST_STEP[input.platform],
+        external_video_id: null, external_post_id: null, permalink: null, caption, sha256: clip.sha256,
+        error: null, attempted_at: null, superseded_by: null, lease_owner: null, leased_until: null,
+        created_by: s.userId, created_at: now(), updated_at: now(), published_at: null, revision: 1,
+      };
+      await auditClipPost(s, post, "clip_post_created");
+      return writeClipPost(post, null);
+    },
+    async getClipPost(s, id) {
+      const post = (await readClipPosts(s)).find(p => p.id === id);
+      if (!post) throw notFound("Clip post");
+      return post;
+    },
+    async listClipPosts(s, filter = {}) {
+      return (await readClipPosts(s))
+        .filter(p => (!filter.producer_id || p.producer_id === filter.producer_id) && (!filter.clip_id || p.clip_id === filter.clip_id))
+        .sort((a, b) => b.created_at.localeCompare(a.created_at));
+    },
+    async updateClipPost(s, id, expectedRevision, patch: ClipPostPatch, opts = {}) {
+      worker(s);
+      const current = (await readClipPosts(s)).find(p => p.id === id);
+      if (!current) throw notFound("Clip post");
+      if (current.revision !== expectedRevision) throw conflict("This post changed. Reload and try again.");
+      if (current.status === "published" && patch.status && patch.status !== "published") throw conflict("A published post cannot be reopened. Use Post again instead.");
+      const next: ClipPost = { ...current, ...patch };
+      const action = opts.action ?? (next.status === current.status ? null
+        : next.status === "published" ? "clip_post_published" : next.status === "failed" ? "clip_post_failed" : null);
+      if (action) await auditClipPost(opts.actor ?? s, next, action, next.error ?? undefined);
+      return writeClipPost(next, expectedRevision);
     },
   };
   return api;

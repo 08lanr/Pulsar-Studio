@@ -1,16 +1,76 @@
 import { createHash } from "node:crypto";
 import { readStoredBytes } from "@/lib/data/storage";
-import { assertCampaignBudget } from "@/lib/launch/budget";
-import type { DeliverySnapshot, DriverContext, LaunchContent, LaunchControl, LaunchDriver } from "@/lib/launch/types";
+import { approvedCampaignBudget, assertCampaignBudget } from "@/lib/launch/budget";
+import { deriveAdSets, META_MIN_BUDGET_CENTS } from "@/lib/launch/plan";
+import { LaunchWaiting } from "@/lib/launch/waiting";
+import type { DeliverySnapshot, DriverContext, LaunchAdSetPlan, LaunchContent, LaunchControl, LaunchDriver, MetaLaunchSettings, MetaPlatform } from "@/lib/launch/types";
 import { metaTransport } from "./index";
 import { MetaApiError, metaList, type MetaObject, type MetaTransport } from "./transport";
 
 type Intent = { edge: string; payload: MetaObject; phase: "sending" | "rejected" | "confirmed"; id?: string };
 type MetaState = {
-  version: 1; intents: Record<string, Intent>; campaign_id?: string; adset_id?: string;
+  version: 1; intents: Record<string, Intent>; campaign_id?: string;
+  /**
+   * The ad set of each platform this campaign runs on. `adset_id` is the legacy
+   * alias — the single ad set of a run created before campaigns were split per
+   * platform — and is kept written so anything reading it still finds one.
+   */
+  adset_ids?: Partial<Record<MetaPlatform, string>>; adset_id?: string;
+  /**
+   * The campaign ids that already carried this campaign's name when we last
+   * looked, before we ever sent a create. They are somebody else's by
+   * definition, so a reconciliation after a lost response may never adopt them.
+   */
+  campaign_name_taken?: string[];
   creative_ids: Record<string, string>; ad_ids: Record<string, string>; video_ids: Record<string, string>;
+  /** Which ad set an ad belongs to, and which creative key it carries. Absent on legacy single-ad-set runs. */
+  ad_platforms?: Record<string, MetaPlatform>; ad_content_keys?: Record<string, string>;
   content_values: Record<string, string>; stopped?: boolean; paused?: boolean; activated?: boolean;
 };
+type ResolvedAdSet = LaunchAdSetPlan & { platforms: MetaPlatform[]; id?: string };
+
+/**
+ * The ad sets this campaign runs on. `campaign.ad_sets` is NOT covered by the
+ * approval hash, so it is never trusted: the driver re-derives the split from
+ * the signed content, placements and budget and sends that. A campaign created
+ * before the split keeps its single ad set holding all of its content.
+ */
+function adSetsOf(ctx: DriverContext, current: MetaState): ResolvedAdSet[] {
+  const settings = ctx.run.draft.meta_settings;
+  if (current.adset_id && !current.adset_ids) {
+    const platform: MetaPlatform = settings.placements.includes("facebook") ? "facebook" : "instagram";
+    return [{ platform, platforms: [...settings.placements], content: ctx.campaign.content,
+      budget_cents: ctx.campaign.budget_cents, daily_budget_cents: ctx.campaign.daily_budget_cents, id: current.adset_id }];
+  }
+  return deriveAdSets(ctx.campaign.content, settings.placements, ctx.campaign.budget_cents, ctx.campaign.daily_budget_cents)
+    .map(set => ({ ...set, platforms: [set.platform], id: current.adset_ids?.[set.platform] }));
+}
+const adSetShape = (sets: LaunchAdSetPlan[]) => sets
+  .map(set => `${set.platform}:${set.budget_cents}:${set.daily_budget_cents}:${set.content.map(item => `${item.kind}:${item.value}`).join(",")}`).join("|");
+/**
+ * Refuse a stored ad-set split that is not the one the approval implies, before
+ * a single Meta write: a tampered row must not place a Facebook post in an
+ * Instagram ad set, nor create an inflated ad set for Meta to refuse later.
+ * The comparison uses the signed ceiling, so an approved budget *reduction*
+ * through the controls still matches.
+ */
+function assertPlannedAdSets(ctx: DriverContext) {
+  const planned = ctx.campaign.ad_sets;
+  if (!planned?.length) return;
+  const signed = deriveAdSets(ctx.campaign.content, ctx.run.draft.meta_settings.placements,
+    approvedCampaignBudget(ctx.run, ctx.campaign), ctx.run.draft.daily_budget_cents);
+  if (adSetShape(planned) !== adSetShape(signed))
+    throw new Error("Meta ad sets differ from the approved content, placements and budget. Create and approve a new round.");
+}
+/** Whole-cent re-split across the ad sets, the same shape the plan used. */
+function splitAcross(total: number, count: number): number[] {
+  const base = Math.floor(total / count), remainder = total % count;
+  return Array.from({ length: count }, (_, i) => base + (i < remainder ? 1 : 0));
+}
+function rememberAdSet(current: MetaState, platform: MetaPlatform, id: string) {
+  current.adset_ids = { ...current.adset_ids, [platform]: id };
+  current.adset_id = current.adset_ids.facebook ?? current.adset_ids.instagram;
+}
 
 function state(ctx: DriverContext): MetaState {
   const saved = ctx.campaign.state.meta as MetaState | undefined;
@@ -20,6 +80,16 @@ async function save(ctx: DriverContext, next: MetaState) { await ctx.checkpoint(
 function account(ctx: DriverContext) { return `act_${ctx.connection.advertiser_id.replace(/^act_/, "")}`; }
 function key(content: LaunchContent, index: number) { return `${index}-${createHash("sha256").update(`${content.kind}:${content.value}`).digest("hex").slice(0, 16)}`; }
 function amount(value: number) { if (!Number.isSafeInteger(value) || value <= 0) throw new Error("Meta budget and bid amounts must be positive integer cents."); return value; }
+/**
+ * Meta refuses an ad set whose start lies in the past. An approved start that
+ * has slipped behind the clock (a draft approved days after it was opened, a
+ * retry, a wait for transcoding) begins a minute from now instead; the signed
+ * end time is never moved, and a window that has closed is refused outright.
+ */
+function adSetStartTime(settings: MetaLaunchSettings): string {
+  const soon = Date.now() + 60_000;
+  return Date.parse(settings.start_time) <= soon ? new Date(soon).toISOString() : settings.start_time;
+}
 function requireMeta(ctx: DriverContext, transport: MetaTransport) {
   if (ctx.run.draft.provider !== "meta" || ctx.connection.provider !== "meta" || !ctx.connection.enabled || !ctx.connection.assigned_by) throw new Error("An assigned Meta account is required.");
   if (ctx.connection.producer_id !== ctx.run.producer_id || ctx.connection.id !== ctx.campaign.connection_id) throw new Error("Meta account does not belong to this launch.");
@@ -52,25 +122,34 @@ function matchFields(edge: string, payload: MetaObject): MetaObject {
   return selected;
 }
 
-/** Persist an intent before sending. A dropped POST is reconciled, never blindly repeated. */
-async function create(ctx: DriverContext, transport: MetaTransport, current: MetaState, intentKey: string, edge: string, payload: MetaObject, bytes?: Uint8Array): Promise<string> {
+/**
+ * Persist an intent before sending. A dropped POST is reconciled, never blindly
+ * repeated. `foreign` names objects that already existed when the caller looked:
+ * a reconciliation may never adopt one of those, whoever created it.
+ */
+async function create(ctx: DriverContext, transport: MetaTransport, current: MetaState, intentKey: string, edge: string, payload: MetaObject, bytes?: Uint8Array, foreign: readonly string[] = []): Promise<string> {
   const existing = current.intents[intentKey];
-  if (existing && (existing.edge !== edge || fingerprint(existing.payload) !== fingerprint(payload))) throw new Error("Meta create intent differs from the approved launch; start a new round.");
+  // A rejected intent created nothing, so a corrected payload (a start time
+  // moved up to now) may replace it; an intent that was sent or confirmed is frozen.
+  if (existing && existing.phase !== "rejected" && (existing.edge !== edge || fingerprint(existing.payload) !== fingerprint(payload))) throw new Error("Meta create intent differs from the approved launch; start a new round.");
   if (existing?.id) return existing.id;
   if (existing?.phase === "sending") {
     const expected = matchFields(edge, payload);
     const fields = ["id", ...(edge === "advideos" ? [] : ["account_id"]), ...Object.keys(expected)].join(",");
     const candidates = (await metaList(transport, `${account(ctx)}/${edge}`, { fields })).filter(row =>
-      (!row.account_id || String(row.account_id) === ctx.connection.advertiser_id.replace(/^act_/, "")) && includes(row, expected));
+      (!row.account_id || String(row.account_id) === ctx.connection.advertiser_id.replace(/^act_/, "")) && includes(row, expected) && !foreign.includes(String(row.id)));
     if (candidates.length !== 1) throw new Error(`Meta ${edge} create outcome is ambiguous (${candidates.length} matches). Reconcile the recorded intent before retrying.`);
     const id = String(candidates[0].id);
     current.intents[intentKey] = { ...existing, id, phase: "confirmed" };
     await save(ctx, current);
     return id;
   }
+  // Ownership is checked BEFORE the intent is written: a worker that has lost
+  // its lease must not leave a "sending" intent behind, because that intent is
+  // what later lets a reconciliation adopt an object by name.
+  await ctx.assertActive();
   current.intents[intentKey] = { edge, payload, phase: "sending" };
   await save(ctx, current);
-  await ctx.assertActive();
   let response: MetaObject;
   try {
     response = bytes
@@ -86,11 +165,11 @@ async function create(ctx: DriverContext, transport: MetaTransport, current: Met
   return response.id;
 }
 
-async function readAccount(ctx: DriverContext, transport: MetaTransport) {
+async function readAccount(ctx: DriverContext, transport: MetaTransport, sets: ResolvedAdSet[]) {
   const result = await transport.get(account(ctx), { fields: "id,account_status,currency,timezone_name" });
   if (Number(result.account_status) !== 1) throw new Error("Meta ad account is not active.");
   if (result.currency !== ctx.connection.currency) throw new Error("Meta account currency differs from the approved connection.");
-  if (ctx.run.draft.meta_settings.placements.includes("instagram")) {
+  if (sets.some(set => set.platforms.includes("instagram"))) {
     if (!ctx.connection.instagram_id) throw new Error("Instagram placements require an assigned Instagram identity.");
     const identities = await metaList(transport, `${account(ctx)}/instagram_accounts`, { fields: "id" });
     if (!identities.some(row => row.id === ctx.connection.instagram_id)) throw new Error("Instagram identity is not available to this ad account.");
@@ -129,8 +208,13 @@ async function launch(ctx: DriverContext, transport: MetaTransport) {
   const settings = ctx.run.draft.meta_settings;
   if (!ctx.campaign.content.length) throw new Error("No eligible Meta content; no campaign was created.");
   assertCampaignBudget(ctx.run, ctx.campaign);
+  assertPlannedAdSets(ctx);
   if (!Number.isFinite(Date.parse(settings.start_time)) || Date.parse(settings.end_time) <= Date.parse(settings.start_time)) throw new Error("Meta needs a valid start and end time.");
-  await readAccount(ctx, transport);
+  if (Date.parse(settings.end_time) <= Date.now() + 60_000) throw new Error("The approved Meta end time has already passed. Create a new round with a later end time.");
+  const sets = adSetsOf(ctx, current);
+  if (!sets.length) throw new Error("No eligible Meta content; no campaign was created.");
+  if (sets.some(set => (set.daily_budget_cents ?? set.budget_cents) < META_MIN_BUDGET_CENTS)) throw new Error("Each Meta ad set needs at least $1 of allocated budget. Create and approve a new round.");
+  await readAccount(ctx, transport, sets);
   const payloads: { content: LaunchContent; key: string; payload: MetaObject }[] = [];
   for (let index = 0; index < ctx.campaign.content.length; index++) {
     const content = ctx.campaign.content[index];
@@ -148,7 +232,10 @@ async function launch(ctx: DriverContext, transport: MetaTransport) {
       }
       const details = await transport.get(current.video_ids[contentKey], { fields: "id,status,thumbnails" });
       const status = (details.status as MetaObject | undefined)?.video_status;
-      if (status !== "ready") throw new Error(status === "error" ? "Meta video processing failed; campaign remains paused." : "Meta is processing the clip. Retry to continue without re-uploading.");
+      if (status === "error") throw new Error("Meta could not process the uploaded clip. The campaign was not created.");
+      // Transcoding takes a minute or two. Not a failure: the video id is
+      // checkpointed, so the resume continues from here without re-uploading.
+      if (status !== "ready") throw new LaunchWaiting("Meta is still processing the uploaded clip.");
       const thumbnails = (details.thumbnails as { data?: { uri?: string; is_preferred?: boolean }[] } | undefined)?.data || [];
       const thumbnail = (thumbnails.find(row => row.is_preferred) || thumbnails[0])?.uri;
       if (!thumbnail?.startsWith("https://")) throw new Error("Meta has not returned a usable video thumbnail yet.");
@@ -170,30 +257,65 @@ async function launch(ctx: DriverContext, transport: MetaTransport) {
     ...(daily !== null ? { spend_cap: ctx.campaign.budget_cents } : {}),
   };
   if (!current.campaign_id) {
-    current.campaign_id = await create(ctx, transport, current, "campaign", "campaigns", campaignPayload);
+    // The campaign name is the campid, and the driver adopts a campaign by exact
+    // name after a lost response. So the account is read EVERY time, not only on
+    // a first attempt: a name somebody else took stops the launch, and the ids
+    // that already carried the name can never be adopted as our own.
+    const name = String(campaignPayload.name);
+    const intent = current.intents.campaign;
+    // "sending" means this run really did reach the POST: only then may an
+    // object that appeared since be our own. Anything else — no intent, a
+    // rejected one, a confirmed one we already hold — is checked outright.
+    const sending = intent?.phase === "sending";
+    const matching = (await metaList(transport, `${account(ctx)}/campaigns`, { fields: "id,name" }))
+      .filter(row => String(row.name) === name).map(row => String(row.id));
+    const known = sending ? (current.campaign_name_taken ?? []) : matching.filter(id => id !== intent?.id);
+    const collision = sending ? matching.filter(id => known.includes(id)) : known;
+    if (collision.length) throw new Error(`The campid "${name}" is already used by a campaign on this ad account. Choose a different first campid.`);
+    if (!sending) { current.campaign_name_taken = known; await save(ctx, current); }
+    current.campaign_id = await create(ctx, transport, current, "campaign", "campaigns", campaignPayload, undefined, known);
     await save(ctx, current);
   }
-  const adsetPayload: MetaObject = {
-    name: `${ctx.run.external_id}/${ctx.campaign.index}/group`, campaign_id: current.campaign_id,
-    status: "PAUSED", destination_type: "WEBSITE", billing_event: "IMPRESSIONS", optimization_goal: settings.optimization_goal,
-    bid_strategy: settings.bid_strategy, ...(settings.bid_strategy === "LOWEST_COST_WITH_BID_CAP" ? { bid_amount: amount(settings.bid_cents ?? 0) } : {}),
-    start_time: settings.start_time, end_time: settings.end_time,
-    ...(daily === null ? { lifetime_budget: ctx.campaign.budget_cents } : { daily_budget: daily }),
-    targeting: { geo_locations: { countries: settings.countries }, publisher_platforms: settings.placements, age_min: 18 },
-  };
-  if (!current.adset_id) { current.adset_id = await create(ctx, transport, current, "adset", "adsets", adsetPayload); await save(ctx, current); }
-  for (const item of payloads) {
-    if (!current.creative_ids[item.key]) {
-      current.creative_ids[item.key] = await create(ctx, transport, current, `creative/${item.key}`, "adcreatives", item.payload);
+  const multiple = sets.length > 1;
+  const byValue = new Map(payloads.map(item => [`${item.content.kind}:${item.content.value}`, item]));
+  for (const set of sets) {
+    if (!set.id) {
+      // An intent already sent keeps the start time it was sent with, so the
+      // reconciliation after a lost response compares like with like.
+      const sent = current.intents[`adset/${set.platform}`];
+      const sentStart = sent && sent.phase !== "rejected" ? (sent.payload as { start_time?: string }).start_time : undefined;
+      const adsetPayload: MetaObject = {
+        name: `${ctx.run.external_id}/${ctx.campaign.index}/group/${set.platform}`, campaign_id: current.campaign_id,
+        status: "PAUSED", destination_type: "WEBSITE", billing_event: "IMPRESSIONS", optimization_goal: settings.optimization_goal,
+        bid_strategy: settings.bid_strategy, ...(settings.bid_strategy === "LOWEST_COST_WITH_BID_CAP" ? { bid_amount: amount(settings.bid_cents ?? 0) } : {}),
+        start_time: sentStart ?? adSetStartTime(settings), end_time: settings.end_time,
+        ...(set.daily_budget_cents === null ? { lifetime_budget: amount(set.budget_cents) } : { daily_budget: amount(set.daily_budget_cents) }),
+        // Meta asks every new ad set whether Advantage+ audience may widen the
+        // targeting beyond what was set; the approved audience is the audience.
+        targeting: { geo_locations: { countries: settings.countries }, publisher_platforms: set.platforms, age_min: 18, targeting_automation: { advantage_audience: 0 } },
+      };
+      set.id = await create(ctx, transport, current, `adset/${set.platform}`, "adsets", adsetPayload);
+      rememberAdSet(current, set.platform, set.id);
       await save(ctx, current);
     }
-    if (!current.ad_ids[item.key]) {
-      current.ad_ids[item.key] = await create(ctx, transport, current, `ad/${item.key}`, "ads", {
-        name: `${ctx.run.external_id}/${ctx.campaign.index}/${item.key}`, adset_id: current.adset_id,
-        creative: { creative_id: current.creative_ids[item.key] }, status: "PAUSED",
-      });
-      current.content_values[current.ad_ids[item.key]] = item.content.value;
-      await save(ctx, current);
+    for (const content of set.content) {
+      const item = byValue.get(`${content.kind}:${content.value}`);
+      if (!item) throw new Error("Meta ad set holds content that is not part of the approved campaign.");
+      const adKey = multiple ? `${set.platform}/${item.key}` : item.key;
+      if (!current.creative_ids[item.key]) {
+        current.creative_ids[item.key] = await create(ctx, transport, current, `creative/${item.key}`, "adcreatives", item.payload);
+        await save(ctx, current);
+      }
+      if (!current.ad_ids[adKey]) {
+        current.ad_ids[adKey] = await create(ctx, transport, current, `ad/${adKey}`, "ads", {
+          name: `${ctx.run.external_id}/${ctx.campaign.index}/${adKey}`, adset_id: set.id,
+          creative: { creative_id: current.creative_ids[item.key] }, status: "PAUSED",
+        });
+        current.content_values[current.ad_ids[adKey]] = item.content.value;
+        current.ad_platforms = { ...current.ad_platforms, [adKey]: set.platform };
+        current.ad_content_keys = { ...current.ad_content_keys, [adKey]: item.key };
+        await save(ctx, current);
+      }
     }
   }
   await hierarchy(ctx, transport, current, true);
@@ -201,21 +323,33 @@ async function launch(ctx: DriverContext, transport: MetaTransport) {
 }
 
 async function hierarchy(ctx: DriverContext, transport: MetaTransport, current: MetaState, checkBudget = false) {
-  if (!current.campaign_id || !current.adset_id) throw new Error("Meta launch hierarchy is incomplete.");
+  const sets = adSetsOf(ctx, current);
+  if (!current.campaign_id || !sets.length || sets.some(set => !set.id)) throw new Error("Meta launch hierarchy is incomplete.");
   const campaign = await transport.get(current.campaign_id, { fields: "id,account_id,status,effective_status,spend_cap" });
-  const group = await transport.get(current.adset_id, { fields: "id,account_id,campaign_id,status,effective_status,lifetime_budget,daily_budget,bid_amount,end_time" });
-  if (String(campaign.account_id) !== ctx.connection.advertiser_id.replace(/^act_/, "") || String(group.campaign_id) !== current.campaign_id) throw new Error("Meta hierarchy does not match the assigned account.");
+  if (String(campaign.account_id) !== ctx.connection.advertiser_id.replace(/^act_/, "")) throw new Error("Meta hierarchy does not match the assigned account.");
+  const groups: { set: ResolvedAdSet; group: MetaObject }[] = [];
+  for (const set of sets) {
+    const group = await transport.get(set.id!, { fields: "id,account_id,campaign_id,status,effective_status,lifetime_budget,daily_budget,bid_amount,end_time" });
+    if (String(group.campaign_id) !== current.campaign_id) throw new Error("Meta hierarchy does not match the assigned account.");
+    groups.push({ set, group });
+  }
   if (checkBudget) {
     assertCampaignBudget(ctx.run, ctx.campaign);
-    const ceiling = ctx.campaign.daily_budget_cents === null ? Number(group.lifetime_budget) : Number(campaign.spend_cap);
+    // Every ad set of a campaign shares its one signed ceiling, so the read-back
+    // is the sum across them, never one group's share.
+    const lifetime = groups.reduce((sum, row) => sum + Number(row.group.lifetime_budget || 0), 0);
+    const ceiling = ctx.campaign.daily_budget_cents === null ? lifetime : Number(campaign.spend_cap);
     if (ceiling !== ctx.campaign.budget_cents) throw new Error("Meta budget read-back differs from the approved lifetime ceiling.");
-    if (ctx.campaign.daily_budget_cents !== null && Number(group.daily_budget) !== ctx.campaign.daily_budget_cents) throw new Error("Meta daily budget read-back differs from the approved pacing.");
+    const daily = groups.reduce((sum, row) => sum + Number(row.group.daily_budget || 0), 0);
+    if (ctx.campaign.daily_budget_cents !== null && daily !== ctx.campaign.daily_budget_cents) throw new Error("Meta daily budget read-back differs from the approved pacing.");
   }
   const ads: MetaObject[] = [];
-  for (const adId of Object.values(current.ad_ids)) {
+  for (const [adKey, adId] of Object.entries(current.ad_ids)) {
     const ad = await transport.get(adId, { fields: "id,account_id,adset_id,status,effective_status,issues_info,creative{id}" });
-    const contentKey = Object.keys(current.ad_ids).find(key => current.ad_ids[key] === adId)!;
-    if (String(ad.adset_id) !== current.adset_id || String((ad.creative as MetaObject | undefined)?.id) !== current.creative_ids[contentKey]) throw new Error("Meta ad does not belong to the approved ad set and creative.");
+    const contentKey = current.ad_content_keys?.[adKey] ?? adKey;
+    const platform = current.ad_platforms?.[adKey];
+    const owner = platform ? groups.find(row => row.set.platform === platform)?.set.id : groups[0].set.id;
+    if (String(ad.adset_id) !== owner || String((ad.creative as MetaObject | undefined)?.id) !== current.creative_ids[contentKey]) throw new Error("Meta ad does not belong to the approved ad set and creative.");
     ads.push(ad);
   }
   if (checkBudget) {
@@ -227,7 +361,7 @@ async function hierarchy(ctx: DriverContext, transport: MetaTransport, current: 
       if (!includes(creative, expected)) throw new Error("Meta creative read-back differs from the approved content, identity or destination.");
     }
   }
-  return { campaign, group, ads };
+  return { campaign, groups, ads };
 }
 
 function controlMatches(observed: MetaObject, patch: MetaObject) {
@@ -253,11 +387,13 @@ async function set(ctx: DriverContext, transport: MetaTransport, id: string, pat
 async function activate(ctx: DriverContext, transport: MetaTransport, current: MetaState) {
   if (current.stopped) throw new Error("Ended Meta launches require a new round.");
   assertCampaignBudget(ctx.run, ctx.campaign);
-  if (Object.keys(current.ad_ids).length !== ctx.campaign.content.length) throw new Error("Meta activation requires every approved creative.");
+  const sets = adSetsOf(ctx, current);
+  const expectedAds = sets.reduce((sum, item) => sum + item.content.length, 0);
+  if (Object.keys(current.ad_ids).length !== expectedAds) throw new Error("Meta activation requires every approved creative.");
   await hierarchy(ctx, transport, current, true);
   // Parent last: children remain unable to serve while activation is in progress.
   for (const id of Object.values(current.ad_ids)) await set(ctx, transport, id, { status: "ACTIVE" });
-  await set(ctx, transport, current.adset_id!, { status: "ACTIVE" });
+  for (const item of sets) await set(ctx, transport, item.id!, { status: "ACTIVE" });
   await set(ctx, transport, current.campaign_id!, { status: "ACTIVE" });
   current.activated = true;
   await save(ctx, current);
@@ -272,18 +408,19 @@ async function monitor(ctx: DriverContext, transport: MetaTransport): Promise<De
   requireMeta(ctx, transport);
   const current = state(ctx);
   const base = { checked_at: new Date().toISOString(), spend_cents: null, impressions: null, clicks: null, conversions: null, cpc_cents: null };
-  if (!current.campaign_id || !current.adset_id) return { ...base, delivery: ctx.campaign.status === "failed" ? "failed" : "submitted", note: ctx.campaign.error };
-  const { campaign, group, ads } = await hierarchy(ctx, transport, current);
+  if (!current.campaign_id || !adSetsOf(ctx, current).some(set => set.id)) return { ...base, delivery: ctx.campaign.status === "failed" ? "failed" : "submitted", note: ctx.campaign.error };
+  const { campaign, groups, ads } = await hierarchy(ctx, transport, current);
   const report = await metaList(transport, `${current.campaign_id}/insights`, { fields: "spend,impressions,clicks", date_preset: "maximum", level: "campaign" });
   const spend = metric(report[0]?.spend);
   const clicks = metric(report[0]?.clicks);
   const statuses = ads.map(ad => String(ad.effective_status || ad.status || "UNKNOWN"));
   const configured = String(campaign.status || "UNKNOWN");
   const effective = String(campaign.effective_status || configured);
-  const delivery = current.stopped || ["DELETED", "ARCHIVED"].includes(effective) || Date.parse(String(group.end_time)) <= Date.now() ? "ended"
+  const ended = groups.every(row => Date.parse(String(row.group.end_time)) <= Date.now());
+  const delivery = current.stopped || ["DELETED", "ARCHIVED"].includes(effective) || ended ? "ended"
     : statuses.includes("DISAPPROVED") ? "rejected"
     : ["WITH_ISSUES", "IN_PROCESS"].includes(effective) || statuses.includes("WITH_ISSUES") ? "suspended"
-    : configured === "PAUSED" || String(group.status) === "PAUSED" ? "paused"
+    : configured === "PAUSED" || groups.some(row => String(row.group.status) === "PAUSED") ? "paused"
     : statuses.some(status => ["PENDING_REVIEW", "IN_PROCESS", "PREAPPROVED"].includes(status)) ? "review"
     : effective === "ACTIVE" && statuses.length > 0 && statuses.every(status => status === "ACTIVE") ? "live" : "unknown";
   return {
@@ -291,7 +428,7 @@ async function monitor(ctx: DriverContext, transport: MetaTransport): Promise<De
     spend_cents: spend === null ? null : Math.round(spend * 100), impressions: metric(report[0]?.impressions), clicks,
     cpc_cents: spend !== null && clicks !== null && clicks > 0 ? Math.round(spend * 100 / clicks) : null,
     ads: ads.map(ad => ({ id: String(ad.id), status: String(ad.effective_status || ad.status || "UNKNOWN"), content_value: current.content_values[String(ad.id)], ...(Array.isArray(ad.issues_info) && ad.issues_info.length ? { note: "Meta reports an ad review or delivery issue." } : {}) })),
-    groups: [{ id: current.adset_id!, status: String(group.effective_status || group.status || "UNKNOWN"), budget_cents: Number(group.lifetime_budget || group.daily_budget) || undefined, bid_cents: metric(group.bid_amount), end_time: String(group.end_time || "") }],
+    groups: groups.map(({ set: adSet, group }) => ({ id: adSet.id!, platform: adSet.platform, status: String(group.effective_status || group.status || "UNKNOWN"), budget_cents: Number(group.lifetime_budget || group.daily_budget) || undefined, bid_cents: metric(group.bid_amount), end_time: String(group.end_time || "") })),
   };
 }
 
@@ -314,28 +451,51 @@ async function control(ctx: DriverContext, transport: MetaTransport, command: La
   }
   if (current.stopped) throw new Error("Ended Meta launches require a new round.");
   assertCampaignBudget(ctx.run, ctx.campaign);
+  assertPlannedAdSets(ctx);
   if (command.action === "resume") { await activate(ctx, transport, current); current.paused = false; await save(ctx, current); return; }
-  if (!current.adset_id) throw new Error("Meta ad set has not been created yet.");
+  const sets = adSetsOf(ctx, current);
+  if (!sets.length || sets.some(item => !item.id)) throw new Error("Meta ad set has not been created yet.");
   await hierarchy(ctx, transport, current);
   if (command.action === "group") {
-    if (command.group_id !== current.adset_id) throw new Error("Ad set does not belong to this launch.");
+    const target = sets.find(item => item.id === command.group_id);
+    if (!target) throw new Error("Ad set does not belong to this launch.");
     if (command.enabled) await hierarchy(ctx, transport, current, true);
-    await set(ctx, transport, current.adset_id, { status: command.enabled ? "ACTIVE" : "PAUSED" });
+    await set(ctx, transport, target.id!, { status: command.enabled ? "ACTIVE" : "PAUSED" });
   } else if (command.action === "budget") {
     assertCampaignBudget(ctx.run, ctx.campaign, command.budget_cents);
     const observed = await monitor(ctx, transport);
     if (observed.spend_cents !== null && command.budget_cents <= observed.spend_cents) throw new Error("New Meta lifetime budget must exceed recorded spend.");
-    await set(ctx, transport, ctx.campaign.daily_budget_cents === null ? current.adset_id : current.campaign_id, ctx.campaign.daily_budget_cents === null ? { lifetime_budget: command.budget_cents } : { spend_cap: command.budget_cents });
+    if (ctx.campaign.daily_budget_cents === null) {
+      // The ceiling belongs to the campaign, so a change is re-split across its
+      // ad sets exactly as the plan split the approved amount.
+      const shares = splitAcross(command.budget_cents, sets.length);
+      if (shares.some(share => share < META_MIN_BUDGET_CENTS)) throw new Error("Each Meta ad set needs at least $1 of allocated budget.");
+      for (let i = 0; i < sets.length; i++) await set(ctx, transport, sets[i].id!, { lifetime_budget: shares[i] });
+    } else {
+      await set(ctx, transport, current.campaign_id, { spend_cap: command.budget_cents });
+    }
   } else if (command.action === "daily_budget") {
     if (ctx.campaign.daily_budget_cents === null) throw new Error("Switching a Meta lifetime budget to daily pacing requires a new round.");
+    const shares = splitAcross(amount(command.daily_budget_cents), sets.length);
+    if (shares.some(share => share < META_MIN_BUDGET_CENTS)) throw new Error("Each Meta ad set needs at least $1 of daily budget.");
     await set(ctx, transport, current.campaign_id, { spend_cap: ctx.campaign.budget_cents });
-    await set(ctx, transport, current.adset_id, { daily_budget: amount(command.daily_budget_cents) });
+    for (let i = 0; i < sets.length; i++) await set(ctx, transport, sets[i].id!, { daily_budget: shares[i] });
   } else if (command.action === "bid") {
-    await set(ctx, transport, current.adset_id, { bid_strategy: "LOWEST_COST_WITH_BID_CAP", bid_amount: amount(command.bid_cents) });
+    for (const item of sets) await set(ctx, transport, item.id!, { bid_strategy: "LOWEST_COST_WITH_BID_CAP", bid_amount: amount(command.bid_cents) });
   } else if (command.action === "schedule") {
     if (!Number.isFinite(Date.parse(command.end_time)) || Date.parse(command.end_time) <= Date.now()) throw new Error("Meta schedule end must be in the future.");
-    await set(ctx, transport, current.adset_id, { end_time: command.end_time });
+    for (const item of sets) await set(ctx, transport, item.id!, { end_time: command.end_time });
   }
+}
+
+/**
+ * The campaign names an ad account already carries, for preview: the driver
+ * refuses a campid that collides, so the launch screen says so first. Read only
+ * — the fixture's fake answers it exactly as Meta does.
+ */
+export async function listMetaCampaignNames(transport: MetaTransport, advertiserId: string): Promise<string[]> {
+  const rows = await metaList(transport, `act_${advertiserId.replace(/^act_/, "")}/campaigns`, { fields: "id,name" });
+  return [...new Set(rows.map(row => String(row.name ?? "")).filter(Boolean))];
 }
 
 export function createMetaDriver(transport: MetaTransport): LaunchDriver {

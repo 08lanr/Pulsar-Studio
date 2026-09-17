@@ -56,8 +56,8 @@ test("built-in Sales preset and saved Instant Page design reach the launch previ
     await expect(review).toContainText("See episodes");
     await expect(review).toContainText("Black");
     await expect(review).toContainText("Show animated tap hint");
-    await expect(review).toContainText("Campaign ID");
-    await expect(review).toContainText("Tracking URL");
+    await expect(review).toContainText("Campid");
+    await expect(review).toContainText("Tracking link");
     await page.screenshot({ path: `docs/demo/launch-v2/2026-09-16-${test.info().project.name}-sales-launch-preview.png`, fullPage: true });
     const runResponse = await page.request.get("/api/producer/launch/workspace");
     const data = await runResponse.json() as { workspace: { runs: { draft: { tiktok_settings: { objective_type?: string; bid_usd?: number | null; instant_page_template?: { name: string; button_text: string; background: string; hand_cursor: boolean } } } }[] } };

@@ -73,14 +73,14 @@ test("staff authorization and confirmation keep a preview intact when launch fai
   await page.getByLabel("Destination URL").fill("https://example.com/watch");
   await page.getByRole("button", { name: "Preview campaigns" }).click();
   const preview = page.locator(".launch-flow > .rs-panel").last();
-  await expect(preview.getByText(/1 campaigns across 1 accounts/)).toBeVisible();
+  await expect(preview.getByText(/1 campaign across 1 ad account/)).toBeVisible();
 
   let posts = 0;
   await page.route("**/api/promote/launches/*/launch", async route => {
     posts++;
     await route.fulfill({ status: 400, contentType: "application/json", body: JSON.stringify({ error: "Simulated launch rejection", code: "invalid" }) });
   });
-  await page.getByRole("button", { name: /Launch 1 campaigns/ }).click();
+  await page.getByRole("button", { name: /Launch 1 campaign/ }).click();
   const confirm = page.getByRole("dialog", { name: "Confirm launch" });
   await expect(confirm).toBeVisible();
   await confirm.getByRole("button", { name: "Confirm launch", exact: true }).click();
@@ -90,11 +90,11 @@ test("staff authorization and confirmation keep a preview intact when launch fai
   await confirm.getByRole("button", { name: "Cancel" }).click();
   await expect(confirm).toBeHidden();
   expect(posts).toBe(0);
-  await page.getByRole("button", { name: /Launch 1 campaigns/ }).click();
+  await page.getByRole("button", { name: /Launch 1 campaign/ }).click();
   await confirm.getByLabel(/Reason for launching on behalf of the producer/).fill("Approved support request");
   await confirm.getByRole("button", { name: "Confirm launch", exact: true }).click();
   await expect(preview.getByRole("alert")).toContainText("Simulated launch rejection");
-  await expect(preview.getByText(/1 campaigns across 1 accounts/)).toBeVisible();
+  await expect(preview.getByText(/1 campaign across 1 ad account/)).toBeVisible();
   expect(posts).toBe(1);
 });
 
@@ -125,7 +125,7 @@ test("Clips handoff, TikTok monitor, and Meta post plus finished-file paused lau
   await page.route("**/api/producer/launch/*/launch", async route => { providerLaunchPosts++; await route.continue(); });
   await page.getByRole("button", { name: "Launch on TikTok", exact: true }).click();
   const primaryConfirm = page.getByRole("dialog", { name: "Confirm launch" });
-  await expect(primaryConfirm.getByText(/1 campaigns across 1 accounts/)).toBeVisible();
+  await expect(primaryConfirm.getByText(/1 campaign across 1 ad account/)).toBeVisible();
   await expect(primaryConfirm).toContainText("TEST-LAUNCH-V2-SPARK");
   await expect(primaryConfirm).toContainText("https://example.com/watch");
   expect(providerLaunchPosts).toBe(0);
@@ -133,12 +133,12 @@ test("Clips handoff, TikTok monitor, and Meta post plus finished-file paused lau
   await primaryConfirm.screenshot({ path: `docs/demo/launch-v2/2026-09-16-${test.info().project.name}-launch-confirmation.png` });
   await primaryConfirm.getByRole("button", { name: "Cancel" }).click();
   await expect(primaryConfirm).toBeHidden();
-  await expect(page.getByText(/1 campaigns across 1 accounts/)).toBeVisible();
+  await expect(page.getByText(/1 campaign across 1 ad account/)).toBeVisible();
   expect(providerLaunchPosts).toBe(0);
   await page.evaluate(() => { (document.activeElement as HTMLElement | null)?.blur(); window.scrollTo(0, 0); });
   await page.screenshot({ path: `docs/demo/launch-v2/2026-09-16-${test.info().project.name}-launch-preview-final.png`, fullPage: true });
-  await expect(page.getByRole("button", { name: /Launch 1 campaigns/ })).toBeEnabled();
-  await page.getByRole("button", { name: /Launch 1 campaigns/ }).click();
+  await expect(page.getByRole("button", { name: /Launch 1 campaign/ })).toBeEnabled();
+  await page.getByRole("button", { name: /Launch 1 campaign/ }).click();
   await page.getByRole("dialog", { name: "Confirm launch" }).getByRole("button", { name: "Confirm launch", exact: true }).click();
   await expect(page).toHaveURL(/\/producer\/monitor\?run=/);
   expect(providerLaunchPosts).toBe(1);
@@ -151,14 +151,14 @@ test("Clips handoff, TikTok monitor, and Meta post plus finished-file paused lau
   }, { timeout: 20_000 }).toBe("done");
   await page.getByRole("button", { name: "Refresh delivery" }).click();
   const launchedCampaign = page.locator("tr[data-campaign-id]").first();
-  await expect(launchedCampaign).toContainText("7000000000000000001");
+  // Round 2: the row names the account; the account id lives in the expanded row.
+  await expect(launchedCampaign).toContainText("Demo TikTok 1");
   await expect(page.getByRole("table", { name: "Campaigns" }).first()).toBeVisible();
   await expect(page.getByText("TEST-LAUNCH-V2-SPARK", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Details" }).first().click();
-  const authorizationCodes = page.locator(".lm-detail").first().getByText("Authorization codes", { exact: true });
-  await expect(authorizationCodes).toBeVisible();
-  await expect(page.getByText("TEST-LAUNCH-V2-SPARK", { exact: true })).toBeHidden();
-  await authorizationCodes.click();
+  await expect(page.locator(".lm-detail").first()).toContainText("7000000000000000001");
+  // Round 2: the expanded row is the ads themselves, one card each.
+  await expect(page.locator(".lm-detail").first().locator(".ad-card")).toContainText("TEST-LAUNCH-V2-SPARK");
   await expect(page.getByText("TEST-LAUNCH-V2-SPARK", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Off", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Paused", { exact: true }).first()).toBeVisible();
@@ -173,15 +173,6 @@ test("Clips handoff, TikTok monitor, and Meta post plus finished-file paused lau
   await page.evaluate(() => { (document.activeElement as HTMLElement | null)?.blur(); window.scrollTo(0, 0); });
   await page.screenshot({ path: `docs/demo/launch-v2/2026-09-16-${test.info().project.name}-monitor-final.png`, fullPage: true });
 
-  await page.goto("/producer/launch");
-  await page.getByRole("button", { name: /Meta · Facebook/ }).click();
-  await expect(page.getByLabel(/^(Items|Spark codes) per campaign$/)).toHaveValue("1");
-  await chooseAccount(page, /Demo Meta 1/);
-  await page.getByLabel(/^(Items|Spark codes) per campaign$/).fill("2");
-  await page.getByLabel("Destination URL").fill("https://example.com/watch");
-  await page.getByLabel("Existing post ID").fill("9000000000000010_9000000000001000");
-  await page.getByRole("button", { name: "Add post" }).click();
-  await expect(page.getByText(/facebook_post: 9000000000000010_9000000000001000/)).toBeVisible();
   await expect.poll(async () => {
     const response = await page.request.get("/api/producer/launch/workspace");
     const data = await response.json() as { workspace: { library: { id: string; kind: string; label?: string }[] } };
@@ -190,12 +181,34 @@ test("Clips handoff, TikTok monitor, and Meta post plus finished-file paused lau
   const workspaceResponse = await page.request.get("/api/producer/launch/workspace");
   const workspaceData = await workspaceResponse.json() as { workspace: { library: { id: string; kind: string; label?: string }[] } };
   const video = workspaceData.workspace.library.find((item) => item.kind === "video")!;
-  await page.locator("label.filter-chip").filter({ hasText: video.label ?? video.id }).getByRole("checkbox").first().check();
+
+  await page.goto("/producer/launch");
+  await page.getByRole("button", { name: /Meta · Facebook/ }).click();
+  await expect(page.getByLabel(/^(Items|Spark codes) per campaign$/)).toHaveValue("1");
+  await chooseAccount(page, /Demo Meta 1/);
+  await page.getByLabel(/^(Items|Spark codes) per campaign$/).fill("2");
+  await page.getByLabel("Destination URL").fill("https://example.com/watch");
+  // Since plan §5.2 the bare id box is one tab of the Choose content popup.
+  await page.getByRole("button", { name: "Choose content", exact: true }).click();
+  const contentPicker = page.getByRole("dialog", { name: "Choose ad content" });
+  await contentPicker.getByRole("tab", { name: "Paste an id" }).click();
+  await contentPicker.getByLabel("Existing post ID").fill("9000000000000010_9000000000001000");
+  await contentPicker.getByRole("button", { name: "Add post" }).click();
+  await expect(contentPicker.locator(".content-chosen-row")).toContainText("9000000000000010_9000000000001000");
+  await contentPicker.getByRole("tab", { name: "Studio clips" }).click();
+  await contentPicker.locator(`[data-clip-id="${video.id}"]`).getByRole("button", { name: "Use the finished file", exact: true }).click();
+  await expect(contentPicker.locator(".content-chosen-row")).toHaveCount(2);
+  await contentPicker.getByRole("button", { name: "Done", exact: true }).click();
+  await expect(contentPicker).toBeHidden();
   await expect(page.locator(".launch-spark-count")).toContainText("2");
   await page.getByRole("button", { name: "Preview campaigns" }).click();
-  await expect(page.getByText(/1 campaigns across 1 accounts/)).toBeVisible();
-  await expect(page.locator(".gt-row").filter({ hasText: video.label ?? video.id })).toContainText("9000000000000010_9000000000001000");
-  await page.getByRole("button", { name: /Launch 1 campaigns/ }).click();
+  await expect(page.getByText(/1 campaign across 1 ad account/)).toBeVisible();
+  const mixedRow = page.locator(".gt-row").filter({ hasText: video.label ?? video.id });
+  await expect(mixedRow.locator(".ad-card")).toHaveCount(2);
+  // A pasted reference is named by what it is; the reference itself stays in the
+  // card's title, so no cell leads with an id.
+  await expect(mixedRow.locator(".ad-card").filter({ hasText: "Facebook post" })).toHaveAttribute("title", "9000000000000010_9000000000001000");
+  await page.getByRole("button", { name: /Launch 1 campaign/ }).click();
   await page.getByRole("dialog", { name: "Confirm launch" }).getByRole("button", { name: "Confirm launch", exact: true }).click();
   await expect(page).toHaveURL(/\/producer\/monitor\?run=/);
   await expect.poll(async () => {
@@ -208,6 +221,71 @@ test("Clips handoff, TikTok monitor, and Meta post plus finished-file paused lau
   await expect(page.locator(".lm-eyebrow").getByText("Meta", { exact: true }).first()).toBeVisible();
   await page.evaluate(() => { (document.activeElement as HTMLElement | null)?.blur(); window.scrollTo(0, 0); });
   await page.screenshot({ path: `docs/demo/launch-v2/2026-09-16-${test.info().project.name}-meta-monitor-paused-final.png`, fullPage: true });
+});
+
+// docs/launch-ux-round-2.md §2.5: the content decides the platforms, so a
+// post-only draft shows two ad cards with no copy boxes and no Placements
+// control, the first campid names the campaigns, and the confirm dialog is a
+// preview of the ads with no provider id anywhere in it.
+test("Meta posts carry their own platform: cards without copy boxes, no Placements, campid naming, clean confirm", async ({ page }) => {
+  const base = test.info().project.use.baseURL ?? "http://localhost:3200";
+  expect((await page.request.post("/api/auth/dev", { form: { kind: "staff" }, maxRedirects: 0 })).status()).toBe(303);
+  await page.context().addCookies([{ name: "pulsar_studio_locale", value: "en", url: base }]);
+  expect((await page.request.post("/api/demo/reset", { data: { seed: "demo" } })).ok()).toBe(true);
+
+  await page.goto("/promote/launches");
+  await page.getByRole("combobox", { name: "Producer", exact: true }).selectOption({ index: 1 });
+  await page.getByRole("button", { name: /Meta · Facebook/ }).click();
+  await chooseAccount(page, /Demo Meta 1/);
+  await page.getByLabel(/^(Items|Spark codes) per campaign$/).fill("2");
+  await page.getByLabel("Destination URL").fill("https://example.com/watch");
+
+  await page.getByRole("button", { name: "Choose content", exact: true }).click();
+  const picker = page.getByRole("dialog", { name: "Choose ad content" });
+  await picker.getByRole("tab", { name: "From the Page" }).click();
+  await picker.getByRole("combobox", { name: "Read posts from" }).selectOption({ label: "Demo Meta 1" });
+  for (const caption of ["Behind the scenes from the set.", "Reel: the confession scene."])
+    await picker.locator(".content-pick-row").filter({ hasText: caption }).getByRole("button", { name: "Add", exact: true }).click();
+  // A pasted reference joins the draft named by what it is, never by its digits.
+  await picker.getByRole("tab", { name: "Paste an id" }).click();
+  await picker.getByLabel("Existing post ID").fill("9000000000000010_9000000000007777");
+  await picker.getByRole("button", { name: "Add post", exact: true }).click();
+  await picker.getByRole("button", { name: "Done", exact: true }).click();
+  await expect(picker).toBeHidden();
+  await page.getByLabel(/^(Items|Spark codes) per campaign$/).fill("3");
+
+  const chosen = page.locator(".launch-content-item");
+  await expect(chosen).toHaveCount(3);
+  await expect(chosen.first().locator(".ad-card-badge")).toHaveText("Facebook");
+  await expect(chosen.nth(1).locator(".ad-card-badge")).toHaveText("Instagram");
+  await expect(chosen.locator("input")).toHaveCount(0);
+  await expect(chosen.first()).toContainText("This ad uses the post's own caption.");
+  await expect(page.locator(".launch-runs-on")).toContainText("Facebook · Instagram");
+  await expect(page.getByLabel("Placements")).toHaveCount(0);
+
+  await page.getByLabel("Campaign tag (campid)").fill("rlapple01");
+  await expect(page.getByText(/will be named rlapple01/)).toBeVisible();
+  await expect(page.getByText(/campid=rlapple01/)).toBeVisible();
+  await expect(page.getByLabel("Daily total per campaign (USD)")).toBeVisible();
+
+  await page.getByRole("button", { name: "Preview campaigns" }).click();
+  await expect(page.getByText(/1 campaign across 1 ad account/)).toBeVisible();
+  const row = page.locator(".gt-row").first();
+  await expect(row).toContainText("rlapple01");
+  await expect(row.getByRole("link", { name: /campid=rlapple01$/ })).toBeVisible();
+  await expect(row.locator(".ad-card")).toHaveCount(3);
+
+  await page.getByRole("button", { name: /Launch 1 campaign/ }).click();
+  const confirm = page.getByRole("dialog", { name: "Confirm launch" });
+  await expect(confirm.locator(".ad-card")).toHaveCount(3);
+  await expect(confirm).toContainText("Demo Meta 1");
+  await expect(confirm).toContainText("Behind the scenes from the set.");
+  await expect(confirm).toContainText("Facebook post");
+  await expect(confirm).toContainText("rlapple01");
+  // No provider reference of any kind is printed in the dialog.
+  expect(await confirm.innerText()).not.toMatch(/\d{10,}/);
+  await confirm.getByRole("button", { name: "Cancel" }).click();
+  await expect(confirm).toBeHidden();
 });
 
 test("Multi-account plan assigns distinct Spark posts to every campaign and monitors named accounts", async ({ page }) => {
@@ -226,7 +304,7 @@ test("Multi-account plan assigns distinct Spark posts to every campaign and moni
   await page.getByLabel("Paste all Spark codes, one per line").fill(codes.join("\n"));
   await page.getByLabel("Destination URL").fill("https://example.com/watch");
   await page.getByRole("button", { name: "Preview campaigns" }).click();
-  await expect(page.getByText(/4 campaigns across 2 accounts/)).toBeVisible();
+  await expect(page.getByText(/4 campaigns across 2 ad accounts/)).toBeVisible();
   for (let i = 0; i < 4; i++) {
     const row = page.locator(".gt-row").filter({ hasText: `TEST-MULTI-SPARK-${2 * i + 1}` });
     await expect(row).toContainText(`TEST-MULTI-SPARK-${2 * i + 2}`);
@@ -262,16 +340,13 @@ test("Multi-account plan assigns distinct Spark posts to every campaign and moni
   await expect(launch.getByRole("columnheader", { name: "$/Conversion" })).toBeVisible();
   await expect(launch.getByRole("columnheader", { name: "CTR" })).toBeVisible();
   await expect(launch.locator("tr[data-campaign-id]").first()).toContainText("Demo TikTok 1");
-  await expect(launch.locator("tr[data-campaign-id]").first()).toContainText("7000000000000000001");
   await expect(launch.locator("tr[data-campaign-id]").last()).toContainText("Demo TikTok 2");
-  await expect(launch.locator("tr[data-campaign-id]").last()).toContainText("7000000000000000002");
   const monitorResponse = await page.request.get("/api/producer/monitor?force=1");
   expect(monitorResponse.ok()).toBe(true);
   const monitorRuns = await monitorResponse.json() as { runs: { draft: { content: { value: string }[] }; campaigns: { state: { campaign_id?: string }; snapshot: { spend_cents?: number | null; clicks?: number | null } | null }[] }[] };
   const monitoredRun = monitorRuns.runs.find(run => run.draft.content.some(content => content.value === codes[0]));
   const externalCampaignId = monitoredRun?.campaigns[0]?.state.campaign_id;
   expect(externalCampaignId).toBeTruthy();
-  await expect(launch.locator("tr[data-campaign-id]").first()).toContainText(externalCampaignId!);
   const totalCost = monitoredRun!.campaigns.reduce((sum, campaign) => sum + (campaign.snapshot?.spend_cents ?? 0), 0);
   const totalClicks = monitoredRun!.campaigns.reduce((sum, campaign) => sum + (campaign.snapshot?.clicks ?? 0), 0);
   if (monitoredRun!.campaigns.every(campaign => campaign.snapshot?.spend_cents != null))
@@ -279,7 +354,9 @@ test("Multi-account plan assigns distinct Spark posts to every campaign and moni
   if (monitoredRun!.campaigns.every(campaign => campaign.snapshot?.clicks != null))
     await expect(launch.locator(".lm-summary")).toContainText(new Intl.NumberFormat("en-US").format(totalClicks));
   await page.getByRole("button", { name: "Details" }).first().click();
-  await page.locator(".lm-detail").first().getByText("Authorization codes", { exact: true }).click();
+  // The provider's own campaign id is expanded detail, never the row's headline.
+  await expect(page.locator(".lm-detail").first()).toContainText(externalCampaignId!);
+  await expect(page.locator(".lm-detail").first()).toContainText("7000000000000000001");
   await expect(page.locator(".lm-detail").first().getByText(/TEST-MULTI-SPARK-1/).first()).toBeVisible();
   await expect(page.locator(".lm-detail").first().getByText(/TEST-MULTI-SPARK-2/).first()).toBeVisible();
   await expect(page.getByText("Campaign lifetime budget (USD): $125.00", { exact: false })).toBeVisible();
@@ -327,7 +404,7 @@ test("Daily cost-cap launch, controls, staff monitor, and higher-budget round", 
   const plan = (await (await firstPreview).json()) as { plan: { campaign_count: number; total_budget_cents: number; daily_total_cents: number; rows: { budget_cents: number; daily_budget_cents: number; content: unknown[] }[] } };
   expect(plan.plan).toMatchObject({ campaign_count: 4, total_budget_cents: 50_000, daily_total_cents: 8_000 });
   expect(plan.plan.rows.map((row) => [row.budget_cents, row.daily_budget_cents, row.content.length])).toEqual(Array(4).fill([12_500, 2_000, 2]));
-  await expect(page.getByText(/4 campaigns across 2 accounts/)).toBeVisible();
+  await expect(page.getByText(/4 campaigns across 2 ad accounts/)).toBeVisible();
   await expect(page.getByText(/\$500\.00 lifetime total · \$80\.00 daily total/)).toBeVisible();
   const firstSubmit = page.waitForResponse((response) => response.url().endsWith("/launch") && response.request().method() === "POST");
   await page.getByRole("button", { name: /Launch 4 campaigns/ }).click();
@@ -364,8 +441,9 @@ test("Daily cost-cap launch, controls, staff monitor, and higher-budget round", 
 
   const staffPage = await staffContext.newPage();
   await staffPage.goto("/promote/monitor");
-  const displayedCampaignName = launched.campaigns[0].name.replace(/-lr_[a-z0-9]+-r\d+(?=-\d+$|$)/i, "").trim();
-  await expect(staffPage.locator(`[data-campaign-id="${launched.campaigns[0].id}"]`)).toContainText(displayedCampaignName);
+  // Round 2: Studio shows "<launch name> · <n>", never the campid or an lr_ key.
+  await expect(staffPage.locator(`[data-campaign-id="${launched.campaigns[0].id}"]`)).toContainText("Acceptance pacing · 1");
+  await expect(staffPage.locator(`[data-campaign-id="${launched.campaigns[0].id}"]`)).not.toContainText(launched.campaigns[0].name);
   const staffResponse = await staffContext.request.get("/api/promote/launches?force=1");
   expect(staffResponse.ok()).toBe(true);
   const staffRuns = (await staffResponse.json()) as { runs: Run[] };

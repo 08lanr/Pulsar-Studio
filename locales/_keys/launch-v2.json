@@ -1,152 +1,630 @@
 {
-  "lv2.launch.title": { "en": "Launch", "zh": "投放" },
-  "lv2.launch.sub": { "en": "Choose accounts, content, and a signed budget. Preview every campaign before launch.", "zh": "选择账户和素材，设置审批预算。投放前预览每个广告活动。" },
-  "lv2.monitor.title": { "en": "Monitor", "zh": "投放监控" },
-  "lv2.monitor.sub": { "en": "Review delivery, spend, clicks, and controls for every launch.", "zh": "查看每次投放的状态、花费、点击和操作。" },
-  "lv2.monitor.empty": { "en": "No launches yet.", "zh": "还没有投放。" },
-  "lv2.monitor.open": { "en": "Open monitor", "zh": "打开监控" },
-  "lv2.legacyCampaigns": { "en": "Earlier campaigns", "zh": "早期广告活动" },
-  "lv2.plan.draft": { "en": "Plan draft", "zh": "计划草稿" },
-  "lv2.plan.approved": { "en": "Plan approved", "zh": "计划已审批" },
-  "lv2.run.pending": { "en": "Launch queued", "zh": "等待投放" },
-  "lv2.run.running": { "en": "Launching campaigns", "zh": "正在创建广告活动" },
-  "lv2.run.complete": { "en": "Campaigns created", "zh": "广告活动已创建" },
-  "lv2.run.failed": { "en": "Launch needs attention", "zh": "投放需要处理" },
-  "lv2.budgetPrompt": { "en": "New campaign lifetime budget (USD). Approved maximum: {max}. For more, create a new round and approve its preview.", "zh": "新的活动终身预算（美元）。审批上限：{max}。如需提高上限，请新建一轮并审批预览。" },
-  "lv2.budgetOverCap": { "en": "This campaign's approved maximum is {max}. Create a new round to raise it.", "zh": "这个活动的审批上限为 {max}。如需提高上限，请新建一轮。" },
-  "lv2.clips.title": { "en": "Clips", "zh": "切片" },
-  "lv2.clips.sub": { "en": "Review and download finished clips for your posts and ads.", "zh": "查看并下载已完成的切片，用于发布和广告。" },
-  "lv2.clips.steps": { "en": "For TikTok: download a finished clip, post it to your own account, get its Spark authorization code, then paste that code in Launch. Meta can use a finished file or an existing Facebook or Instagram post.", "zh": "TikTok：下载成品切片，用自己的账号发布，取得 Spark 授权码，再到“投放”粘贴授权码。Meta 可使用成品文件或现有的 Facebook、Instagram 帖子。" },
-  "lv2.clips.empty": { "en": "No finished clips yet. Add an episode video from a title's Materials page; clips are cut automatically.", "zh": "还没有成品切片。在剧集的“素材”页上传分集视频，切片会自动生成。" },
-  "lv2.clips.openTitles": { "en": "Open titles", "zh": "查看剧集" },
-  "lv2.clips.materials": { "en": "Open title materials", "zh": "打开剧集素材" },
-  "lv2.clips.choose": { "en": "Choose", "zh": "选择" },
-  "lv2.clips.selected": { "en": "{n} chosen · show chosen", "zh": "已选 {n} 条 · 仅显示已选" },
-  "lv2.clips.downloadSelected": { "en": "Download chosen ZIP", "zh": "打包下载已选切片" },
-  "lv2.clips.downloadAll": { "en": "Download all ZIP", "zh": "打包下载全部切片" },
-  "lv2.clips.zipLimit": { "en": "Choose 1–30 clips per ZIP.", "zh": "每个 ZIP 请选择 1–30 条切片。" },
-  "lv2.provider": { "en": "Platform", "zh": "平台" },
-  "lv2.accounts": { "en": "Ad accounts", "zh": "广告账户" },
-  "lv2.searchAccounts": { "en": "Search accounts", "zh": "搜索账户" },
-  "lv2.selectAll": { "en": "Select all", "zh": "全选" },
-  "lv2.clear": { "en": "Clear", "zh": "清空" },
-  "lv2.noAccounts": { "en": "No assigned account for this platform. Ask your Studio contact to connect one.", "zh": "此平台还没有分配广告账户。请联系 Studio 完成连接。" },
-  "lv2.accountFilter.all": { "en": "All", "zh": "全部" },
-  "lv2.accountFilter.never": { "en": "Never launched", "zh": "从未投放" },
-  "lv2.accountFilter.active": { "en": "Has active", "zh": "有投放中活动" },
-  "lv2.accountFilter.inactive": { "en": "Nothing active", "zh": "没有投放中活动" },
-  "lv2.accountFilter.full": { "en": "Full geo", "zh": "完整地区" },
-  "lv2.accountFilter.limited": { "en": "Limited geo", "zh": "有限地区" },
-  "lv2.rescan": { "en": "Rescan account usage", "zh": "重新扫描账户使用情况" },
-  "lv2.geo": { "en": "geo", "zh": "地区" },
-  "lv2.studioHistory": { "en": "Studio history", "zh": "Studio 历史记录" },
-  "lv2.quickPick": { "en": "Pick first", "zh": "选择前" },
-  "lv2.quickInactive": { "en": "with nothing active", "zh": "个无投放中活动的账户" },
-  "lv2.quickAny": { "en": "from any account", "zh": "个任意账户" },
-  "lv2.content": { "en": "Ad content", "zh": "广告素材" },
-  "lv2.unique": { "en": "Unique per campaign", "zh": "每个活动使用不同素材" },
-  "lv2.shared": { "en": "Same content every campaign", "zh": "每个活动使用相同素材" },
-  "lv2.contentNeeded": { "en": "{available} selected; {required} needed for this plan.", "zh": "已选择 {available} 条；本计划需要 {required} 条。" },
-  "lv2.codes": { "en": "Paste all Spark codes, one per line", "zh": "粘贴全部 Spark 授权码，每行一个" },
-  "lv2.codesHint": { "en": "One authorization code per line", "zh": "每行一个授权码" },
-  "lv2.manualTikTok": { "en": "Download clips, post them on TikTok, and get authorization codes from those posts. Codes are checked against each ad account during launch.", "zh": "下载切片并发布到 TikTok，再从帖子取得授权码。投放时会按广告账户验证授权码。" },
-  "lv2.metaHint": { "en": "Choose finished files or existing Facebook and Instagram posts from your library.", "zh": "从素材库选择成品文件或已有的 Facebook、Instagram 帖子。" },
-  "lv2.postType": { "en": "Post platform", "zh": "帖子平台" },
-  "lv2.postId": { "en": "Existing post ID", "zh": "现有帖子的 ID" },
-  "lv2.primaryText": { "en": "Primary text", "zh": "正文" },
-  "lv2.headline": { "en": "Headline", "zh": "标题" },
-  "lv2.existingPostMedia": { "en": "Existing post media on Meta", "zh": "Meta 现有帖子素材" },
-  "lv2.addPost": { "en": "Add post", "zh": "添加帖子" },
-  "lv2.delivery": { "en": "Campaign delivery", "zh": "活动投放" },
-  "lv2.name": { "en": "Launch name", "zh": "投放名称" },
-  "lv2.destination": { "en": "Destination URL", "zh": "落地页网址" },
-  "lv2.campaignsPerAccount": { "en": "Campaigns per account", "zh": "每个账户的活动数" },
-  "lv2.contentPerCampaign": { "en": "Items per campaign", "zh": "每个活动的素材数" },
-  "lv2.budget": { "en": "Overall lifetime budget (USD)", "zh": "总终身预算（美元）" },
-  "lv2.campaignBudget": { "en": "Campaign lifetime budget (USD)", "zh": "活动终身预算（美元）" },
-  "lv2.campaignDaily": { "en": "Campaign daily pacing (USD)", "zh": "活动每日节奏（美元）" },
-  "lv2.switchOn": { "en": "On", "zh": "开启" },
-  "lv2.switchOff": { "en": "Off", "zh": "关闭" },
-  "lv2.switchUnknown": { "en": "Switch unknown", "zh": "开关状态未知" },
-  "lv2.dailyTotal": { "en": "Daily total per campaign (USD)", "zh": "每个活动的每日总预算（美元）" },
-  "lv2.budgetMath": { "en": "{campaigns} campaigns; about {share} lifetime per campaign, divided among its ad group copies.", "zh": "共 {campaigns} 个活动；每个活动约 {share} 终身预算，由其广告组副本分配。" },
-  "lv2.startPaused": { "en": "Start paused; turn on after review", "zh": "默认暂停，审核后再开启" },
-  "lv2.settings": { "en": "Ad group settings", "zh": "广告组设置" },
-  "lv2.hideSettings": { "en": "Hide settings", "zh": "收起设置" },
-  "lv2.customize": { "en": "Customize for this launch", "zh": "自定义本次投放" },
-  "lv2.countries": { "en": "Countries", "zh": "国家或地区" },
-  "lv2.placements": { "en": "Placements", "zh": "版位" },
-  "lv2.goal": { "en": "Optimization goal", "zh": "优化目标" },
-  "lv2.cta": { "en": "Call to action", "zh": "行动号召" },
-  "lv2.bid": { "en": "Bid cap (USD, optional)", "zh": "出价上限（美元，可选）" },
-  "lv2.start": { "en": "Start time", "zh": "开始时间" },
-  "lv2.end": { "en": "End time", "zh": "结束时间" },
-  "lv2.preview": { "en": "Preview campaigns", "zh": "预览广告活动" },
-  "lv2.save": { "en": "Save draft", "zh": "保存草稿" },
-  "lv2.planSummary": { "en": "{count} campaigns across {accounts} accounts · {total} lifetime total · {daily} daily total", "zh": "{accounts} 个账户、{count} 个活动 · 终身总预算 {total} · 每日总预算 {daily}" },
-  "lv2.fixFirst": { "en": "Fix these first", "zh": "请先解决这些问题" },
-  "lv2.campaign": { "en": "Campaign", "zh": "广告活动" },
-  "lv2.account": { "en": "Ad account", "zh": "广告账户" },
-  "lv2.launchButton": { "en": "Launch {count} campaigns ({state})", "zh": "投放 {count} 个活动（{state}）" },
-  "lv2.paused": { "en": "paused", "zh": "暂停" },
-  "lv2.live": { "en": "live", "zh": "开启" },
-  "lv2.needsApprover": { "en": "An approver must launch this plan.", "zh": "需要审批人发起投放。" },
-  "lv2.confirm": { "en": "Launch this approved plan?", "zh": "确认投放这份已审批的计划？" },
-  "lv2.confirmEnd": { "en": "End this campaign?", "zh": "确认结束这个广告活动？" },
-  "lv2.status": { "en": "Status", "zh": "状态" },
-  "lv2.draft": { "en": "Draft", "zh": "草稿" },
-  "lv2.openDraft": { "en": "Open draft", "zh": "打开草稿" },
-  "lv2.round": { "en": "Round", "zh": "轮次" },
-  "lv2.signedBy": { "en": "Signed by", "zh": "审批人" },
-  "lv2.campaigns": { "en": "campaigns", "zh": "个活动" },
-  "lv2.round.new": { "en": "New round", "zh": "新一轮" },
-  "lv2.producerId": { "en": "Producer", "zh": "制片公司" },
-  "lv2.load": { "en": "Load", "zh": "加载" },
-  "lv2.onBehalf": { "en": "Launching on behalf of", "zh": "代为投放" },
-  "lv2.onBehalfNote": { "en": "Reason for launching on behalf of the producer", "zh": "代制片方投放的原因" },
-  "lv2.spent": { "en": "Cost", "zh": "花费" },
-  "lv2.clicks": { "en": "Clicks", "zh": "点击" },
-  "lv2.cpc": { "en": "$/Click", "zh": "每次点击费用" },
-  "lv2.conversions": { "en": "Conversions", "zh": "转化" },
-  "lv2.costPerConv": { "en": "$/Conversion", "zh": "每次转化费用" },
-  "lv2.actions": { "en": "Actions", "zh": "操作" },
-  "lv2.details": { "en": "Details", "zh": "详情" },
-  "lv2.hide": { "en": "Hide", "zh": "收起" },
-  "lv2.state": { "en": "State", "zh": "状态" },
-  "lv2.group": { "en": "Ad group", "zh": "广告组" },
-  "lv2.lastChecked": { "en": "Last checked", "zh": "上次检查" },
-  "lv2.switch": { "en": "Switch", "zh": "切换" },
-  "lv2.pause": { "en": "Pause", "zh": "暂停" },
-  "lv2.resume": { "en": "Resume", "zh": "开启" },
-  "lv2.changeBudget": { "en": "Change lifetime budget", "zh": "修改终身预算" },
-  "lv2.changeDaily": { "en": "Change daily budget", "zh": "修改每日预算" },
-  "lv2.changeBid": { "en": "Set bid cap", "zh": "设置出价上限" },
-  "lv2.endDate": { "en": "Move end date", "zh": "修改结束时间" },
-  "lv2.duplicate": { "en": "Duplicate group", "zh": "复制广告组" },
-  "lv2.end": { "en": "End", "zh": "结束" },
-  "lv2.localTime": { "en": "Your local time zone", "zh": "你的本地时区" },
-  "lv2.feeLine": { "en": "Media budget ${budget} + Pulsar service fee {pct}% (${fee}) = ${total} total billed. The platform receives only the media budget.", "zh": "媒体预算 ${budget} + Pulsar 服务费 {pct}%（${fee}）= 总账单 ${total}。平台只收到媒体预算。" },
-  "lv2.retry": { "en": "Retry", "zh": "重试" },
-  "lv2.refresh": { "en": "Refresh delivery", "zh": "刷新投放状态" },
-  "lv2.invalidAmount": { "en": "Enter a positive amount.", "zh": "请输入大于零的金额。" },
-  "lv2.invalidDate": { "en": "Enter a valid end date.", "zh": "请输入有效的结束日期。" },
-  "lv2.demo": { "en": "Demo", "zh": "演示" },
-  "lv2.sandbox": { "en": "Sandbox", "zh": "沙盒" },
-  "lv2.delivery.submitted": { "en": "In review", "zh": "审核中" },
-  "lv2.delivery.review": { "en": "In review", "zh": "审核中" },
-  "lv2.delivery.live": { "en": "Delivering", "zh": "投放中" },
-  "lv2.delivery.paused": { "en": "Paused", "zh": "已暂停" },
-  "lv2.delivery.ended": { "en": "Ended", "zh": "已结束" },
-  "lv2.delivery.rejected": { "en": "Rejected", "zh": "已拒绝" },
-  "lv2.delivery.failed": { "en": "Failed to launch", "zh": "投放失败" },
-  "lv2.delivery.suspended": { "en": "Account suspended", "zh": "账户已停用" },
-  "lv2.delivery.unknown": { "en": "Checking", "zh": "检查中" },
-  "lv2.meta.title": { "en": "Meta accounts", "zh": "Meta 账户" },
-  "lv2.meta.sub": { "en": "Assign a verified ad account, Facebook Page, and Instagram identity to a producer.", "zh": "为制片公司分配已验证的广告账户、Facebook 公共主页和 Instagram 身份。" },
-  "lv2.meta.assign": { "en": "Assign to producer", "zh": "分配给制片公司" },
-  "lv2.meta.available": { "en": "Available ad accounts", "zh": "可用广告账户" },
-  "lv2.meta.empty": { "en": "No Meta accounts are available in this connection.", "zh": "当前连接中没有可用的 Meta 广告账户。" },
-  "lv2.meta.saved": { "en": "Account assigned.", "zh": "账户已分配。" },
-  "lv2.choose": { "en": "Choose…", "zh": "请选择…" },
-  "lv2.none": { "en": "None", "zh": "无" }
+  "lv2.launch.title": {
+    "en": "Launch",
+    "zh": "投放"
+  },
+  "lv2.launch.sub": {
+    "en": "Choose accounts, content, and a signed budget. Preview every campaign before launch.",
+    "zh": "选择账户和素材，设置审批预算。投放前预览每个广告活动。"
+  },
+  "lv2.monitor.title": {
+    "en": "Monitor",
+    "zh": "投放监控"
+  },
+  "lv2.monitor.sub": {
+    "en": "Review delivery, spend, clicks, and controls for every launch.",
+    "zh": "查看每次投放的状态、花费、点击和操作。"
+  },
+  "lv2.monitor.empty": {
+    "en": "No launches yet.",
+    "zh": "还没有投放。"
+  },
+  "lv2.monitor.open": {
+    "en": "Open monitor",
+    "zh": "打开监控"
+  },
+  "lv2.legacyCampaigns": {
+    "en": "Earlier campaigns",
+    "zh": "早期广告活动"
+  },
+  "lv2.plan.draft": {
+    "en": "Plan draft",
+    "zh": "计划草稿"
+  },
+  "lv2.plan.approved": {
+    "en": "Plan approved",
+    "zh": "计划已审批"
+  },
+  "lv2.run.pending": {
+    "en": "Launch queued",
+    "zh": "等待投放"
+  },
+  "lv2.run.running": {
+    "en": "Launching campaigns",
+    "zh": "正在创建广告活动"
+  },
+  "lv2.run.complete": {
+    "en": "Campaigns created",
+    "zh": "广告活动已创建"
+  },
+  "lv2.run.failed": {
+    "en": "Launch needs attention",
+    "zh": "投放需要处理"
+  },
+  "lv2.budgetPrompt": {
+    "en": "New campaign lifetime budget (USD). Approved maximum: {max}. For more, create a new round and approve its preview.",
+    "zh": "新的活动终身预算（美元）。审批上限：{max}。如需提高上限，请新建一轮并审批预览。"
+  },
+  "lv2.budgetOverCap": {
+    "en": "This campaign's approved maximum is {max}. Create a new round to raise it.",
+    "zh": "这个活动的审批上限为 {max}。如需提高上限，请新建一轮。"
+  },
+  "lv2.clips.title": {
+    "en": "Clips",
+    "zh": "切片"
+  },
+  "lv2.clips.sub": {
+    "en": "Review and download finished clips for your posts and ads.",
+    "zh": "查看并下载已完成的切片，用于发布和广告。"
+  },
+  "lv2.clips.steps": {
+    "en": "For TikTok: download a finished clip, post it to your own account, get its Spark authorization code, then paste that code in Launch. Meta can use a finished file or an existing Facebook or Instagram post.",
+    "zh": "TikTok：下载成品切片，用自己的账号发布，取得 Spark 授权码，再到“投放”粘贴授权码。Meta 可使用成品文件或现有的 Facebook、Instagram 帖子。"
+  },
+  "lv2.clips.empty": {
+    "en": "No finished clips yet. Add an episode video from a title's Materials page; clips are cut automatically.",
+    "zh": "还没有成品切片。在剧集的“素材”页上传分集视频，切片会自动生成。"
+  },
+  "lv2.clips.openTitles": {
+    "en": "Open titles",
+    "zh": "查看剧集"
+  },
+  "lv2.clips.materials": {
+    "en": "Open title materials",
+    "zh": "打开剧集素材"
+  },
+  "lv2.clips.choose": {
+    "en": "Choose",
+    "zh": "选择"
+  },
+  "lv2.clips.selected": {
+    "en": "{n} chosen · show chosen",
+    "zh": "已选 {n} 条 · 仅显示已选"
+  },
+  "lv2.clips.downloadSelected": {
+    "en": "Download chosen ZIP",
+    "zh": "打包下载已选切片"
+  },
+  "lv2.clips.downloadAll": {
+    "en": "Download all ZIP",
+    "zh": "打包下载全部切片"
+  },
+  "lv2.clips.zipLimit": {
+    "en": "Choose 1–30 clips per ZIP.",
+    "zh": "每个 ZIP 请选择 1–30 条切片。"
+  },
+  "lv2.provider": {
+    "en": "Platform",
+    "zh": "平台"
+  },
+  "lv2.accounts": {
+    "en": "Ad accounts",
+    "zh": "广告账户"
+  },
+  "lv2.searchAccounts": {
+    "en": "Search accounts",
+    "zh": "搜索账户"
+  },
+  "lv2.selectAll": {
+    "en": "Select all",
+    "zh": "全选"
+  },
+  "lv2.clear": {
+    "en": "Clear",
+    "zh": "清空"
+  },
+  "lv2.noAccounts": {
+    "en": "No assigned account for this platform. Ask your Studio contact to connect one.",
+    "zh": "此平台还没有分配广告账户。请联系 Studio 完成连接。"
+  },
+  "lv2.accountFilter.all": {
+    "en": "All",
+    "zh": "全部"
+  },
+  "lv2.accountFilter.never": {
+    "en": "Never launched",
+    "zh": "从未投放"
+  },
+  "lv2.accountFilter.active": {
+    "en": "Has active",
+    "zh": "有投放中活动"
+  },
+  "lv2.accountFilter.inactive": {
+    "en": "Nothing active",
+    "zh": "没有投放中活动"
+  },
+  "lv2.accountFilter.full": {
+    "en": "Full geo",
+    "zh": "完整地区"
+  },
+  "lv2.accountFilter.limited": {
+    "en": "Limited geo",
+    "zh": "有限地区"
+  },
+  "lv2.rescan": {
+    "en": "Rescan account usage",
+    "zh": "重新扫描账户使用情况"
+  },
+  "lv2.geo": {
+    "en": "geo",
+    "zh": "地区"
+  },
+  "lv2.studioHistory": {
+    "en": "Studio history",
+    "zh": "Studio 历史记录"
+  },
+  "lv2.quickPick": {
+    "en": "Pick first",
+    "zh": "选择前"
+  },
+  "lv2.quickInactive": {
+    "en": "with nothing active",
+    "zh": "个无投放中活动的账户"
+  },
+  "lv2.quickAny": {
+    "en": "from any account",
+    "zh": "个任意账户"
+  },
+  "lv2.content": {
+    "en": "Ad content",
+    "zh": "广告素材"
+  },
+  "lv2.unique": {
+    "en": "Unique per campaign",
+    "zh": "每个活动使用不同素材"
+  },
+  "lv2.shared": {
+    "en": "Same content every campaign",
+    "zh": "每个活动使用相同素材"
+  },
+  "lv2.contentNeeded": {
+    "en": "{available} selected; {required} needed for this plan.",
+    "zh": "已选择 {available} 条；本计划需要 {required} 条。"
+  },
+  "lv2.codes": {
+    "en": "Paste all Spark codes, one per line",
+    "zh": "粘贴全部 Spark 授权码，每行一个"
+  },
+  "lv2.codesHint": {
+    "en": "One authorization code per line",
+    "zh": "每行一个授权码"
+  },
+  "lv2.manualTikTok": {
+    "en": "Download clips, post them on TikTok, and get authorization codes from those posts. Codes are checked against each ad account during launch.",
+    "zh": "下载切片并发布到 TikTok，再从帖子取得授权码。投放时会按广告账户验证授权码。"
+  },
+  "lv2.metaHint": {
+    "en": "Choose finished files or existing Facebook and Instagram posts from your library.",
+    "zh": "从素材库选择成品文件或已有的 Facebook、Instagram 帖子。"
+  },
+  "lv2.postType": {
+    "en": "Post platform",
+    "zh": "帖子平台"
+  },
+  "lv2.postId": {
+    "en": "Existing post ID",
+    "zh": "现有帖子的 ID"
+  },
+  "lv2.primaryText": {
+    "en": "Primary text",
+    "zh": "正文"
+  },
+  "lv2.headline": {
+    "en": "Headline",
+    "zh": "标题"
+  },
+  "lv2.existingPostMedia": {
+    "en": "Existing post media on Meta",
+    "zh": "Meta 现有帖子素材"
+  },
+  "lv2.addPost": {
+    "en": "Add post",
+    "zh": "添加帖子"
+  },
+  "lv2.delivery": {
+    "en": "Campaign delivery",
+    "zh": "活动投放"
+  },
+  "lv2.name": {
+    "en": "Launch name",
+    "zh": "投放名称"
+  },
+  "lv2.destination": {
+    "en": "Destination URL",
+    "zh": "落地页网址"
+  },
+  "lv2.campaignsPerAccount": {
+    "en": "Campaigns per account",
+    "zh": "每个账户的活动数"
+  },
+  "lv2.contentPerCampaign": {
+    "en": "Items per campaign",
+    "zh": "每个活动的素材数"
+  },
+  "lv2.budget": {
+    "en": "Overall lifetime budget (USD)",
+    "zh": "总终身预算（美元）"
+  },
+  "lv2.campaignBudget": {
+    "en": "Campaign lifetime budget (USD)",
+    "zh": "活动终身预算（美元）"
+  },
+  "lv2.campaignDaily": {
+    "en": "Campaign daily pacing (USD)",
+    "zh": "活动每日节奏（美元）"
+  },
+  "lv2.switchOn": {
+    "en": "On",
+    "zh": "开启"
+  },
+  "lv2.switchOff": {
+    "en": "Off",
+    "zh": "关闭"
+  },
+  "lv2.dailyTotal": {
+    "en": "Daily total per campaign (USD)",
+    "zh": "每个活动的每日总预算（美元）"
+  },
+  "lv2.budgetMath": {
+    "en": "{campaigns} campaigns; about {share} lifetime per campaign, divided among its ad group copies.",
+    "zh": "共 {campaigns} 个活动；每个活动约 {share} 终身预算，由其广告组副本分配。"
+  },
+  "lv2.startPaused": {
+    "en": "Start paused; turn on after review",
+    "zh": "默认暂停，审核后再开启"
+  },
+  "lv2.settings": {
+    "en": "Ad group settings",
+    "zh": "广告组设置"
+  },
+  "lv2.hideSettings": {
+    "en": "Hide settings",
+    "zh": "收起设置"
+  },
+  "lv2.customize": {
+    "en": "Customize for this launch",
+    "zh": "自定义本次投放"
+  },
+  "lv2.countries": {
+    "en": "Countries",
+    "zh": "国家或地区"
+  },
+  "lv2.placements": {
+    "en": "Placements",
+    "zh": "版位"
+  },
+  "lv2.goal": {
+    "en": "Optimization goal",
+    "zh": "优化目标"
+  },
+  "lv2.cta": {
+    "en": "Call to action",
+    "zh": "行动号召"
+  },
+  "lv2.bid": {
+    "en": "Bid cap (USD, optional)",
+    "zh": "出价上限（美元，可选）"
+  },
+  "lv2.start": {
+    "en": "Start time",
+    "zh": "开始时间"
+  },
+  "lv2.end": {
+    "en": "End",
+    "zh": "结束"
+  },
+  "lv2.preview": {
+    "en": "Preview campaigns",
+    "zh": "预览广告活动"
+  },
+  "lv2.save": {
+    "en": "Save draft",
+    "zh": "保存草稿"
+  },
+  "lv2.planSummary": {
+    "en": "{count} campaigns across {accounts} accounts · {total} lifetime total · {daily} daily total",
+    "zh": "{accounts} 个账户、{count} 个活动 · 终身总预算 {total} · 每日总预算 {daily}"
+  },
+  "lv2.fixFirst": {
+    "en": "Fix these first",
+    "zh": "请先解决这些问题"
+  },
+  "lv2.campaign": {
+    "en": "Campaign",
+    "zh": "广告活动"
+  },
+  "lv2.account": {
+    "en": "Ad account",
+    "zh": "广告账户"
+  },
+  "lv2.launchButton": {
+    "en": "Launch {count} campaigns ({state})",
+    "zh": "投放 {count} 个活动（{state}）"
+  },
+  "lv2.paused": {
+    "en": "paused",
+    "zh": "暂停"
+  },
+  "lv2.live": {
+    "en": "live",
+    "zh": "开启"
+  },
+  "lv2.needsApprover": {
+    "en": "An approver must launch this plan.",
+    "zh": "需要审批人发起投放。"
+  },
+  "lv2.confirm": {
+    "en": "Launch this approved plan?",
+    "zh": "确认投放这份已审批的计划？"
+  },
+  "lv2.confirmEnd": {
+    "en": "End this campaign?",
+    "zh": "确认结束这个广告活动？"
+  },
+  "lv2.status": {
+    "en": "Status",
+    "zh": "状态"
+  },
+  "lv2.draft": {
+    "en": "Draft",
+    "zh": "草稿"
+  },
+  "lv2.openDraft": {
+    "en": "Open draft",
+    "zh": "打开草稿"
+  },
+  "lv2.round": {
+    "en": "Round",
+    "zh": "轮次"
+  },
+  "lv2.signedBy": {
+    "en": "Signed by",
+    "zh": "审批人"
+  },
+  "lv2.campaigns": {
+    "en": "campaigns",
+    "zh": "个活动"
+  },
+  "lv2.round.new": {
+    "en": "New round",
+    "zh": "新一轮"
+  },
+  "lv2.producerId": {
+    "en": "Producer",
+    "zh": "制片公司"
+  },
+  "lv2.load": {
+    "en": "Load",
+    "zh": "加载"
+  },
+  "lv2.onBehalf": {
+    "en": "Launching on behalf of",
+    "zh": "代为投放"
+  },
+  "lv2.onBehalfNote": {
+    "en": "Reason for launching on behalf of the producer",
+    "zh": "代制片方投放的原因"
+  },
+  "lv2.spent": {
+    "en": "Cost",
+    "zh": "花费"
+  },
+  "lv2.clicks": {
+    "en": "Clicks",
+    "zh": "点击"
+  },
+  "lv2.cpc": {
+    "en": "$/Click",
+    "zh": "每次点击费用"
+  },
+  "lv2.conversions": {
+    "en": "Conversions",
+    "zh": "转化"
+  },
+  "lv2.costPerConv": {
+    "en": "$/Conversion",
+    "zh": "每次转化费用"
+  },
+  "lv2.actions": {
+    "en": "Actions",
+    "zh": "操作"
+  },
+  "lv2.details": {
+    "en": "Details",
+    "zh": "详情"
+  },
+  "lv2.hide": {
+    "en": "Hide",
+    "zh": "收起"
+  },
+  "lv2.state": {
+    "en": "State",
+    "zh": "状态"
+  },
+  "lv2.group": {
+    "en": "Ad group",
+    "zh": "广告组"
+  },
+  "lv2.lastChecked": {
+    "en": "Last checked",
+    "zh": "上次检查"
+  },
+  "lv2.switch": {
+    "en": "Switch",
+    "zh": "切换"
+  },
+  "lv2.pause": {
+    "en": "Pause",
+    "zh": "暂停"
+  },
+  "lv2.resume": {
+    "en": "Resume",
+    "zh": "开启"
+  },
+  "lv2.changeBudget": {
+    "en": "Change lifetime budget",
+    "zh": "修改终身预算"
+  },
+  "lv2.changeDaily": {
+    "en": "Change daily budget",
+    "zh": "修改每日预算"
+  },
+  "lv2.changeBid": {
+    "en": "Set bid cap",
+    "zh": "设置出价上限"
+  },
+  "lv2.endDate": {
+    "en": "Move end date",
+    "zh": "修改结束时间"
+  },
+  "lv2.duplicate": {
+    "en": "Duplicate group",
+    "zh": "复制广告组"
+  },
+  "lv2.localTime": {
+    "en": "Your local time zone",
+    "zh": "你的本地时区"
+  },
+  "lv2.feeLine": {
+    "en": "Media budget ${budget} + Pulsar service fee {pct}% (${fee}) = ${total} total billed. The platform receives only the media budget.",
+    "zh": "媒体预算 ${budget} + Pulsar 服务费 {pct}%（${fee}）= 总账单 ${total}。平台只收到媒体预算。"
+  },
+  "lv2.retry": {
+    "en": "Retry",
+    "zh": "重试"
+  },
+  "lv2.refresh": {
+    "en": "Refresh delivery",
+    "zh": "刷新投放状态"
+  },
+  "lv2.invalidAmount": {
+    "en": "Enter a positive amount.",
+    "zh": "请输入大于零的金额。"
+  },
+  "lv2.invalidDate": {
+    "en": "Enter a valid end date.",
+    "zh": "请输入有效的结束日期。"
+  },
+  "lv2.demo": {
+    "en": "Demo",
+    "zh": "演示"
+  },
+  "lv2.sandbox": {
+    "en": "Sandbox",
+    "zh": "沙盒"
+  },
+  "lv2.delivery.submitted": {
+    "en": "In review",
+    "zh": "审核中"
+  },
+  "lv2.delivery.review": {
+    "en": "In review",
+    "zh": "审核中"
+  },
+  "lv2.delivery.live": {
+    "en": "Delivering",
+    "zh": "投放中"
+  },
+  "lv2.delivery.paused": {
+    "en": "Paused",
+    "zh": "已暂停"
+  },
+  "lv2.delivery.ended": {
+    "en": "Ended",
+    "zh": "已结束"
+  },
+  "lv2.delivery.rejected": {
+    "en": "Rejected",
+    "zh": "已拒绝"
+  },
+  "lv2.delivery.failed": {
+    "en": "Failed to launch",
+    "zh": "投放失败"
+  },
+  "lv2.delivery.suspended": {
+    "en": "Account suspended",
+    "zh": "账户已停用"
+  },
+  "lv2.meta.title": {
+    "en": "Meta accounts",
+    "zh": "Meta 账户"
+  },
+  "lv2.meta.sub": {
+    "en": "Assign a verified ad account, Facebook Page, and Instagram identity to a producer.",
+    "zh": "为制片公司分配已验证的广告账户、Facebook 公共主页和 Instagram 身份。"
+  },
+  "lv2.meta.assign": {
+    "en": "Assign to producer",
+    "zh": "分配给制片公司"
+  },
+  "lv2.meta.available": {
+    "en": "Available ad accounts",
+    "zh": "可用广告账户"
+  },
+  "lv2.meta.empty": {
+    "en": "No Meta accounts are available in this connection.",
+    "zh": "当前连接中没有可用的 Meta 广告账户。"
+  },
+  "lv2.meta.saved": {
+    "en": "Account assigned.",
+    "zh": "账户已分配。"
+  },
+  "lv2.choose": {
+    "en": "Choose…",
+    "zh": "请选择…"
+  },
+  "lv2.none": {
+    "en": "None",
+    "zh": "无"
+  },
+  "lv2.campaignsOne": {
+    "en": "1 campaign",
+    "zh": "1 个广告活动"
+  },
+  "lv2.campaignsMany": {
+    "en": "{n} campaigns",
+    "zh": "{n} 个广告活动"
+  },
+  "lv2.accountsOne": {
+    "en": "1 ad account",
+    "zh": "1 个广告账户"
+  },
+  "lv2.accountsMany": {
+    "en": "{n} ad accounts",
+    "zh": "{n} 个广告账户"
+  },
+  "lv2.planSummaryLine": {
+    "en": "{campaigns} across {accounts} · {total} lifetime total",
+    "zh": "{accounts}、{campaigns} · 终身总预算 {total}"
+  },
+  "lv2.planSummaryDaily": {
+    "en": "{daily} daily total",
+    "zh": "每日总预算 {daily}"
+  },
+  "lv2.launchButtonOne": {
+    "en": "Launch 1 campaign ({state})",
+    "zh": "投放 1 个广告活动（{state}）"
+  },
+  "lv2.campaignRef": {
+    "en": "Campaign reference",
+    "zh": "广告活动编号"
+  },
+  "lv2.meta.linkedToPage": {
+    "en": "linked to this Page",
+    "zh": "已关联此主页"
+  },
+  "lv2.meta.instagramMismatch": {
+    "en": "This Page is linked to a different Instagram account. Posts made from Studio go out through the Page, so choose the linked account.",
+    "zh": "此主页关联的是另一个 Instagram 账号。Studio 发布的帖子通过主页发出，请选择已关联的账号。"
+  }
 }

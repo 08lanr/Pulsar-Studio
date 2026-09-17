@@ -15,6 +15,7 @@ import type { AccountHealth } from "@/lib/tiktok/account-health";
 import type { AccountFingerprint } from "@/lib/tiktok/fingerprint";
 import type { AccountRequest } from "@/lib/types";
 import { call } from "@/components/tiktok/api";
+import MetaSetup from "@/components/launch/MetaSetup";
 import PresetsPanel from "./PresetsPanel";
 
 type Bc = { bcId: string; bcName: string; company?: string; verified?: boolean };
@@ -253,6 +254,11 @@ export default function TikTokSetup({ isAdmin, connect, connectDetail }: { isAdm
     </section>
 
     <PresetsPanel isAdmin={isAdmin} />
+
+    {/* Connections covers both providers (plan §5.3); /meta keeps working on its own. */}
+    <section className="card pd-panel" id="meta">
+      <MetaSetup embedded />
+    </section>
 
     <section className="card pd-panel">
       <h2 className="section-title">{tt("admin.tiktok.scheduler")}</h2>

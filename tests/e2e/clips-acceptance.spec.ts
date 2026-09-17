@@ -27,12 +27,11 @@ test("Clips previews real video and downloads selected/all files intact", async 
   await expect(page.getByText("Loading finished clips…")).toHaveCount(0);
   await expect(page.getByText(/Each ZIP holds up to 30 clips/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Download all ZIP", exact: true })).toBeDisabled();
-  await page.getByLabel("Filter by title").selectOption(titleId);
-  await expect(page.locator("section.rs-panel")).toHaveCount(titleClips.length);
+  await page.getByRole("combobox", { name: "Title", exact: true }).selectOption(titleId);
+  await expect(page.locator(".clips-row")).toHaveCount(titleClips.length);
   await expect(page.getByRole("button", { name: "Download all ZIP", exact: true })).toBeEnabled();
 
-  const cards = page.locator("section.rs-panel");
-  await cards.first().getByRole("button", { name: "Preview", exact: true }).click();
+  const cards = page.locator(".clips-row");
   await expect.poll(() => cards.first().locator("video").evaluate((video: HTMLVideoElement) => ({ ready: video.readyState >= 1, width: video.videoWidth > 0, duration: Number.isFinite(video.duration) && video.duration > 0 }))).toEqual({ ready: true, width: true, duration: true });
   const expectedFiles: Buffer[] = [];
   for (const clip of titleClips) {
@@ -68,7 +67,7 @@ test("Clips previews real video and downloads selected/all files intact", async 
   expect(rejected.status()).toBe(404);
   expect(rejected.headers()["content-type"]).toContain("application/json");
   await page.goto(`/producer/titles/${titleId}/clips`);
-  await expect(page.locator("section.rs-panel")).toHaveCount(titleClips.length);
-  await expect(page.getByLabel("Filter by title")).toHaveCount(0);
+  await expect(page.locator(".clips-row")).toHaveCount(titleClips.length);
+  await expect(page.getByRole("combobox", { name: "Title", exact: true })).toHaveCount(0);
   await page.screenshot({ path: `docs/demo/launch-v2/2026-09-16-${test.info().project.name}-clips-acceptance.png`, fullPage: true });
 });
