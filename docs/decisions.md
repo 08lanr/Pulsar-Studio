@@ -44,6 +44,34 @@ Decided by the founders (Ruobin): "I need to solidify the TikTok launch process,
 
 Checks: `npm test` (234, including `tests/tiktok-review-fixes.test.ts`), `npm run typecheck`, `npx next lint`, `npm run build`, `npm run test:e2e`. Migration `0012_launch_controls.sql` must be applied (with 0010 and 0011) before the first real run; there is no Supabase CLI on this machine, so it goes through the SQL editor.
 
+## 2026-09-15 · The one-page title report is the outbound artifact
+
+The reports page (0005) is inbound only — a producer imports their own
+platform CSVs. The other direction did not exist: the person our contact
+answers to never logs in, and "what did Pulsar find?" was five screenshots.
+The report closes that gap as a forwardable sheet, the same principle that
+made the bilingual diff the unit of output.
+
+- **One page per title** (`/producer/titles/[id]/report`, "导出报告" from
+  the title overview): the US launch priority with its component points,
+  the latest MEASURED round's per-ad results against both benchmarks with
+  the winner and its ad text (a newer draft round never erases them; a
+  campaign that has not reported prints "尚无广告结果", never "no
+  campaign"), the TikTok summary, the market comparables, the
+  readiness counts and the assessment's next steps. Read-only, assembled
+  from the same reads as the sections it summarizes (`loadTitleWorkspace`,
+  `readResults`), so the report can never disagree with the workspace.
+- **Export is the browser's print-to-PDF** ("保存为 PDF"): `report.css`
+  strips the app chrome and pins the color tokens to paper values in
+  `@media print`. Nothing is generated or stored server-side — the
+  exports rule (rendered on request, never stored) applies unchanged.
+- **Provenance travels**: demo labels (演示数据 / 演示结果（模拟）),
+  data-through dates, the score-note ("not a success probability") and an
+  evidence-label footer print with the numbers. Empty sections say so
+  (尚无广告活动, 未关联条目) instead of inventing zeros.
+- Chinese-first like the rest of the portal; the chrome locale cookie
+  still wins, so a staff preview can export the English rendering.
+
 ## 2026-09-15 · Transcription fills a script-less episode, by explicit button
 
 The v1.1 slot the ASR stub reserved (`lib/asr.ts`, job kind
