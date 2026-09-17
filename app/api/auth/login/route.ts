@@ -10,6 +10,7 @@ import {
   safeNextPath,
 } from "@/lib/auth";
 import { dataSource } from "@/lib/data-source";
+import { magicEmailFailure } from "@/lib/auth-magic-error";
 
 // Supabase sign-in, both shapes the login card offers:
 //   mode=password  signInWithPassword; the session cookies land through the
@@ -54,15 +55,30 @@ export async function POST(req: NextRequest) {
   if (body.mode === "magic") {
     const callback = new URL("/auth/callback", externalOrigin(req));
     if (next) callback.searchParams.set("next", next);
-    const { error } = await supabase.auth.signInWithOtp({
-      email: body.email,
-      options: { emailRedirectTo: callback.toString(), shouldCreateUser: false },
-    });
+    let error;
+    try {
+      ({ error } = await supabase.auth.signInWithOtp({
+        email: body.email,
+        options: { emailRedirectTo: callback.toString(), shouldCreateUser: false },
+      }));
+    } catch {
+      console.warn("[auth] magic link request unavailable");
+      return NextResponse.json({ code: "email_unavailable" }, { status: 503 });
+    }
     // shouldCreateUser=false: a stranger's email must not mint an auth user.
     // Supabase answers such requests with an error we deliberately flatten —
     // the form shows "check your inbox" either way, so the endpoint cannot
     // be used to probe which emails exist.
-    if (error) console.warn("[auth] magic link refused", error.message);
+    if (error) {
+      console.warn("[auth] magic link refused", error.message);
+      const failure = magicEmailFailure(error);
+      if (failure === "rate_limited") {
+        return NextResponse.json({ code: "email_rate_limited" }, { status: 429 });
+      }
+      if (failure === "unavailable") {
+        return NextResponse.json({ code: "email_unavailable" }, { status: 503 });
+      }
+    }
     return NextResponse.json({ sent: true });
   }
 

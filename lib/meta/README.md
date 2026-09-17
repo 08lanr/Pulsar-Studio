@@ -1,0 +1,17 @@
+# Studio Meta launch provider
+
+`metaDriver` implements `lib/launch/types.ts` against an endpoint transport. The shared launch service owns approval, company-scoped connection assignment, signed amounts, the worker lease and persistence. The provider rechecks the assigned account, currency and Instagram asset before preparing content.
+
+- `DATA_SOURCE=fixture` always selects `fakeMetaTransport`; even direct live-transport calls refuse fixture mode.
+- Live reads require `META_ACCESS_TOKEN` on the server. Live writes also require `META_LIVE_WRITES=enabled`; this is a deployment gate, not a replacement for launch approval. `META_API_VERSION` defaults to `v26.0`.
+- Existing Facebook Page posts and Instagram media use distinct references. Existing-post creative eligibility is validated for the selected account, identity, CTA and destination before campaign creation.
+- Video uploads require the server-resolved finished file, immutable creative ID and SHA-256. IDs are checkpointed immediately, and a processing video is retried without a second upload. The provider uses Meta's processed video thumbnail.
+- Campaigns, ad sets and ads are created paused. Every selected creative must exist before activation. Read-back verifies hierarchy, content/destination and the lifetime ceiling, then activates ads, ad set and finally campaign.
+- Lifetime budgets live on the one ad set. Optional daily pacing uses an ad-set daily budget and a separately verified campaign `spend_cap` equal to the signed campaign allocation. Meta's own account-specific minimums still apply.
+- Creation intents live under `campaign.state.meta`. An uncertain response is reconciled by account, parent/content and recorded intent; zero or multiple matches stop for resolution. Meta names alone are not treated as unique IDs.
+- Controls update only stored IDs and confirm the observed change. Ended campaigns require a new round. Changing lifetime budget shape to daily pacing and automatic duplication are intentionally exposed as new rounds, not implicit mutations.
+- Monitor reports spend, impressions, clicks and explicit configured/effective delivery state. Missing metrics and conversions remain `null`. Revenue, Pixel and Conversions API work is deferred by user instruction.
+
+The fake implements Graph-style endpoint responses and failure injection. `tests/meta-launch-provider.test.ts` tests both creative paths, hash checks, processing resumes, uncertain creates, interrupted assembly, stop-before-activation and finite budget guarantees. Fixture verification does not prove live account/post eligibility; the initial real paused smoke test remains separately authorized.
+
+API fields were checked against Meta's maintained [AdAccount schema](https://github.com/facebook/facebook-python-business-sdk/blob/main/facebook_business/adobjects/adaccount.py), [AdCreative schema](https://github.com/facebook/facebook-nodejs-business-sdk/blob/main/src/objects/ad-creative.js) and [AdSet schema](https://github.com/facebook/facebook-nodejs-business-sdk/blob/main/src/objects/ad-set.js). The detailed developer guide returned HTTP 429 during implementation; live writes remain deployment-gated and any unsupported creative combination is rejected by validation before the campaign exists.

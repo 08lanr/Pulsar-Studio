@@ -20,6 +20,7 @@ import type {
   Clip,
   Episode,
   Job,
+  LaunchPreset,
   Line,
   LineAlternative,
   Producer,
@@ -75,6 +76,9 @@ export type FixtureDb = {
   promo_launches: PromoLaunch[];
   /** "Make a new ad account through Pulsar" requests (migration 0008). */
   account_requests: AccountRequest[];
+  /** Pulsar-wide launch-settings presets (migration 0012). */
+  launch_presets: LaunchPreset[];
+  instant_page_templates: import("@/lib/types").InstantPageTemplate[];
 };
 
 export const fixtureDb: FixtureDb = {
@@ -106,6 +110,8 @@ export const fixtureDb: FixtureDb = {
   analytics_links: [],
   promo_launches: [],
   account_requests: [],
+  launch_presets: [],
+  instant_page_templates: [],
 };
 
 export type FixtureSeed = "demo" | "empty";

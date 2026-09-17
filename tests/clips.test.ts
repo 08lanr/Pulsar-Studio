@@ -1,4 +1,6 @@
 // Ad clips cut after upload (decision 2026-09-14): the pure pieces
+import { withHistoricalPromoSeed } from "@/lib/data/fixture";
+const test = (name: string, fn: () => void | Promise<void>) => nodeTest(name, () => withHistoricalPromoSeed(fn));
 // (footage scoring, the framing rule, the 20-30 s clamp,
 // the derived run state, the budget rule) and the fixture-mode flows (a
 // run without ffmpeg fails every row with a note and never spends; a
@@ -7,7 +9,7 @@
 // cannot freeze a pick over budget and can unselect an ad).
 process.env.PROMO_RENDER = "off";
 
-import { afterEach, test } from "node:test";
+import { afterEach, test as nodeTest } from "node:test";
 import assert from "node:assert/strict";
 
 import { budgetCheck } from "@/lib/angles";

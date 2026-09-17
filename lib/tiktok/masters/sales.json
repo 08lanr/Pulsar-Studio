@@ -1,0 +1,547 @@
+{
+  "captured_at": "2026-07-27T21:11:38.589Z",
+  "source_account_id": "7652052344963776530",
+  "business_type": 6,
+  "template_id": "7241915714863595778",
+  "thumbnail_uri": "tos-alisg-i-375lmtcpo0-sg/4d49f12c80db436bbc59f92b30b475cf",
+  "title_example": "Untitled page 7/27/26, 14:05",
+  "page_data": {
+    "map": {
+      "meta": [
+        "meta"
+      ],
+      "Picture": [],
+      "Button": [
+        "16c352a0b1d653f1"
+      ],
+      "Text": [],
+      "Header": [
+        "headerview1"
+      ],
+      "Swiper": [],
+      "HeaderPlaceholder": [
+        "headerplaceholder"
+      ],
+      "HeaderPlaceholderBody": [],
+      "Video": [],
+      "Subpage": [
+        "fe79bfc90f034bae"
+      ],
+      "PageContent": [
+        "pagecontentview1"
+      ],
+      "BottomFloatView": [
+        "317774eee506cbd4"
+      ],
+      "BottomPlaceholder": [
+        "bottomplaceholder"
+      ],
+      "PixelButton": [],
+      "ProductPackage": [],
+      "LinkButton": [],
+      "Coupon": [],
+      "ProtectedButton": []
+    },
+    "data": {
+      "meta": {
+        "brickIndex": "meta",
+        "children": [
+          "headerview1",
+          "fe79bfc90f034bae"
+        ],
+        "language": "en",
+        "name": "LpPage",
+        "bgColor": {
+          "type": "themeColor",
+          "color": "",
+          "themeColor": "bgPrimary",
+          "version": 1
+        },
+        "theme": {
+          "preset": "dark",
+          "colors": {},
+          "custom": false
+        },
+        "version": 5,
+        "topSafeArea": false,
+        "emitScrollEvent": true,
+        "parent": null,
+        "events": [],
+        "animations": {},
+        "converter": {
+          "convertId": ""
+        },
+        "appCampaignType": 0
+      },
+      "headerview1": {
+        "name": "LpHeader",
+        "brickIndex": "headerview1",
+        "parent": "meta",
+        "layout": {
+          "position": "normal",
+          "margin": {
+            "top": 0,
+            "left": 0,
+            "right": 0,
+            "bottom": 0
+          },
+          "height": 44,
+          "width": 375,
+          "version": 1
+        },
+        "titleColor": {
+          "type": "themeColor",
+          "color": "",
+          "themeColor": "textPrimary2",
+          "version": 1
+        },
+        "bgColor": {
+          "color": "rgba(0,0,0,1)",
+          "version": 1,
+          "type": "themeColor",
+          "themeColor": "bgPrimary"
+        },
+        "initBgAlpha": 0,
+        "initIconColor": {
+          "color": "rgb(255,255,255)",
+          "version": 1,
+          "type": "color",
+          "themeColor": "textPrimary2"
+        },
+        "exitCallbackEnable": false,
+        "dynamicEffect": {
+          "enable": true,
+          "fixIconColor": true,
+          "referenceWidth": 750,
+          "referenceHeight": 300
+        },
+        "version": 1,
+        "children": [],
+        "dynamicTitle": {
+          "path": [],
+          "version": 0
+        },
+        "feedbackHidden": false
+      },
+      "fe79bfc90f034bae": {
+        "bgColor": {
+          "type": "themeColor",
+          "color": "",
+          "themeColor": "bgPrimary",
+          "version": 1
+        },
+        "bgImage": {
+          "format": "jpg",
+          "height": 281,
+          "size": 0,
+          "src": "",
+          "width": 375,
+          "version": 0
+        },
+        "bgType": "color",
+        "brickIndex": "fe79bfc90f034bae",
+        "children": [
+          "317774eee506cbd4",
+          "headerplaceholder",
+          "pagecontentview1",
+          "bottomplaceholder"
+        ],
+        "name": "LpSubpage",
+        "parent": "meta",
+        "routable": true,
+        "title": "instantPage",
+        "version": 0
+      },
+      "317774eee506cbd4": {
+        "name": "LpFloatView",
+        "children": [
+          "8aeb675599b5ee1e"
+        ],
+        "bgType": "color",
+        "bgColor": {
+          "color": "",
+          "version": 1,
+          "type": "themeColor",
+          "themeColor": "bgPrimary"
+        },
+        "bgImage": {
+          "src": "",
+          "width": 0,
+          "height": 0,
+          "size": 0,
+          "format": "jpg",
+          "version": 0
+        },
+        "visibility": "visible",
+        "alignItems": "center",
+        "borderRadius": 0,
+        "float": "bottom",
+        "layout": {
+          "position": "normal",
+          "margin": {
+            "top": 0,
+            "left": 0,
+            "right": 0,
+            "bottom": 0
+          },
+          "width": 375,
+          "version": 1
+        },
+        "version": 5,
+        "brickIndex": "317774eee506cbd4",
+        "parent": "fe79bfc90f034bae",
+        "flexDirection": "column",
+        "justifyContent": "normal",
+        "boxShadow": [],
+        "animations": {},
+        "bgGradient": {
+          "value": ""
+        },
+        "flexWrap": "nowrap",
+        "events": []
+      },
+      "8aeb675599b5ee1e": {
+        "name": "LpButton",
+        "color": {
+          "color": "rgba(255, 255, 255, 1)",
+          "type": "color",
+          "themeColor": "",
+          "version": 1
+        },
+        "disabledColor": {
+          "color": "rgba(22, 24, 35, 0.34)",
+          "version": 1,
+          "type": "color",
+          "themeColor": ""
+        },
+        "fontSize": 15,
+        "fontStyle": [
+          "bold"
+        ],
+        "bgType": "color",
+        "bgColor": {
+          "type": "color",
+          "color": "rgba(254, 44, 85, 1)",
+          "themeColor": "",
+          "version": 1
+        },
+        "disabledBgColor": {
+          "color": "rgba(22, 24, 35, 0.06)",
+          "version": 1,
+          "type": "color",
+          "themeColor": ""
+        },
+        "bgImage": {
+          "src": "",
+          "width": 343,
+          "height": 44,
+          "size": 0,
+          "format": "jpg",
+          "version": 0
+        },
+        "borderColor": {
+          "type": "color",
+          "color": "rgba(0,0,0,0)",
+          "themeColor": "",
+          "version": 1
+        },
+        "borderWidth": 0,
+        "borderRadius": 2,
+        "link": {
+          "linkType": "url",
+          "scheme": "",
+          "subpage": "",
+          "url": "https://rwxwhy-s1.myshopify.com/ss?campid=RLGRAVY8",
+          "appDownload": {},
+          "deeplink": {
+            "enable": false,
+            "url": ""
+          },
+          "version": 3,
+          "redirectUrl": ""
+        },
+        "layout": {
+          "height": 44,
+          "width": 343,
+          "margin": {
+            "bottom": 12,
+            "left": 16,
+            "right": 16,
+            "top": 12
+          },
+          "position": "normal",
+          "version": 1
+        },
+        "buttonType": "native",
+        "gestureEnable": true,
+        "convertInfo": {
+          "logType": "normalClick",
+          "normalClickArg": {
+            "eventType": "instant_page",
+            "eventValue": {}
+          },
+          "version": 0
+        },
+        "content": {
+          "type": "text",
+          "text": "Get Started",
+          "i18nKey": "shop_now",
+          "slots": {},
+          "version": 2,
+          "date": {
+            "timestamp": -1,
+            "locale": "",
+            "format": ""
+          }
+        },
+        "version": 2,
+        "brickIndex": "8aeb675599b5ee1e",
+        "children": [],
+        "parent": "317774eee506cbd4",
+        "events": [],
+        "aliasName": "Call to action button"
+      },
+      "headerplaceholder": {
+        "name": "LpView",
+        "brickIndex": "headerplaceholder",
+        "parent": "fe79bfc90f034bae",
+        "children": [],
+        "bgColor": {
+          "type": "themeColor",
+          "color": "",
+          "themeColor": "bgPrimary",
+          "version": 1
+        },
+        "bgImage": {
+          "src": "",
+          "width": 0,
+          "height": 0,
+          "size": 0,
+          "format": "jpg",
+          "version": 0
+        },
+        "bgType": "color",
+        "visibility": "visible",
+        "alignItems": "center",
+        "borderRadius": 0,
+        "layout": {
+          "position": "normal",
+          "margin": {
+            "top": 0,
+            "left": 0,
+            "right": 0,
+            "bottom": 0
+          },
+          "version": 1
+        },
+        "boxShadow": [],
+        "version": 5,
+        "flexDirection": "column",
+        "justifyContent": "flex-start",
+        "borderColor": {
+          "type": "color",
+          "color": "rgba(255,255,255,0)",
+          "themeColor": "",
+          "version": 1
+        },
+        "borderStyle": "solid",
+        "borderWidth": 0,
+        "events": [],
+        "animations": {
+          "initCard": {
+            "duration": 0,
+            "endAt": {
+              "height": 0,
+              "opacity": 0
+            }
+          },
+          "cardToPage": {
+            "duration": 500,
+            "endAt": {
+              "height": 44,
+              "opacity": 1
+            }
+          }
+        },
+        "flexWrap": "nowrap",
+        "bgGradient": {
+          "value": ""
+        }
+      },
+      "pagecontentview1": {
+        "name": "LpView",
+        "brickIndex": "pagecontentview1",
+        "parent": "fe79bfc90f034bae",
+        "children": [
+          "16c352a0b1d653f1"
+        ],
+        "bgColor": {
+          "type": "themeColor",
+          "color": "",
+          "themeColor": "bgPrimary",
+          "version": 1
+        },
+        "bgImage": {
+          "src": "",
+          "width": 0,
+          "height": 0,
+          "size": 0,
+          "format": "jpg",
+          "version": 0
+        },
+        "bgType": "color",
+        "visibility": "visible",
+        "alignItems": "center",
+        "borderRadius": 0,
+        "layout": {
+          "position": "normal",
+          "margin": {
+            "top": -4,
+            "left": 0,
+            "right": 0,
+            "bottom": 0
+          },
+          "version": 1
+        },
+        "boxShadow": [],
+        "version": 5,
+        "flexDirection": "column",
+        "justifyContent": "flex-start",
+        "borderColor": {
+          "type": "color",
+          "color": "rgba(255,255,255,0)",
+          "themeColor": "",
+          "version": 1
+        },
+        "borderStyle": "solid",
+        "borderWidth": 0,
+        "events": [],
+        "animations": {
+          "cardToPage": {
+            "duration": 500,
+            "endAt": {
+              "top": -4
+            }
+          },
+          "initCard": {
+            "duration": 0,
+            "endAt": {
+              "top": 8
+            }
+          }
+        },
+        "flexWrap": "nowrap",
+        "bgGradient": {
+          "value": ""
+        }
+      },
+      "16c352a0b1d653f1": {
+        "name": "LpView",
+        "children": [],
+        "bgColor": {
+          "color": "",
+          "version": 1,
+          "type": "themeColor",
+          "themeColor": "bgPrimary"
+        },
+        "bgImage": {
+          "src": "",
+          "width": 0,
+          "height": 0,
+          "size": 0,
+          "format": "jpg",
+          "version": 0
+        },
+        "bgType": "color",
+        "visibility": "visible",
+        "alignItems": "stretch",
+        "borderRadius": 0,
+        "layout": {
+          "position": "normal",
+          "margin": {
+            "top": 0,
+            "left": 0,
+            "right": 0,
+            "bottom": 0
+          },
+          "version": 1
+        },
+        "version": 5,
+        "brickIndex": "16c352a0b1d653f1",
+        "parent": "pagecontentview1",
+        "flexDirection": "column",
+        "justifyContent": "normal",
+        "boxShadow": [],
+        "borderColor": {
+          "type": "color",
+          "color": "rgba(255,255,255,0)",
+          "themeColor": "",
+          "version": 1
+        },
+        "borderStyle": "solid",
+        "borderWidth": 0,
+        "flexWrap": "nowrap",
+        "events": [],
+        "animations": {},
+        "bgGradient": {
+          "value": ""
+        },
+        "aliasName": "Call to action button"
+      },
+      "bottomplaceholder": {
+        "name": "LpView",
+        "brickIndex": "bottomplaceholder",
+        "parent": "fe79bfc90f034bae",
+        "children": [],
+        "bgColor": {
+          "color": "",
+          "version": 1,
+          "type": "themeColor",
+          "themeColor": "bgPrimary"
+        },
+        "bgImage": {
+          "src": "",
+          "width": 0,
+          "height": 0,
+          "size": 0,
+          "format": "jpg",
+          "version": 0
+        },
+        "bgType": "color",
+        "visibility": "visible",
+        "alignItems": "stretch",
+        "borderRadius": 0,
+        "layout": {
+          "position": "normal",
+          "margin": {
+            "top": 0,
+            "left": 0,
+            "right": 0,
+            "bottom": 0
+          },
+          "width": 375,
+          "height": 68,
+          "version": 1
+        },
+        "version": 5,
+        "flexDirection": "column",
+        "justifyContent": "normal",
+        "boxShadow": [],
+        "borderColor": {
+          "type": "color",
+          "color": "rgba(255,255,255,0)",
+          "themeColor": "",
+          "version": 1
+        },
+        "borderStyle": "solid",
+        "borderWidth": 0,
+        "flexWrap": "nowrap",
+        "events": [],
+        "animations": {},
+        "bgGradient": {
+          "value": ""
+        }
+      }
+    }
+  }
+}

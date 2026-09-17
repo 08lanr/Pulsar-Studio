@@ -119,6 +119,10 @@ async function resolveSupabase(req: NextRequest): Promise<Resolved> {
 
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
+  // MCP accepts either the normal Studio cookie or a verified Supabase user
+  // bearer token. Its route performs both checks; the cookie-only login wall
+  // would reject bearer callers before they reached that verification.
+  if (pathname === "/api/mcp") return NextResponse.next();
   if (isPublic(pathname)) return NextResponse.next();
 
   const { kind, res } =

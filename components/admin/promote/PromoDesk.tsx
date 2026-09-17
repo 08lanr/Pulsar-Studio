@@ -4,6 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { postJson } from "@/lib/api-client";
 import { useT } from "@/components/locale";
+import { call } from "@/components/tiktok/api";
+import DeliveryPanel from "@/components/tiktok/DeliveryPanel";
+import { normalizeLaunchSettings, summarizeLaunchSettings } from "@/lib/tiktok/settings";
 import type { PromoCampaignDetail, PromoCreative } from "@/lib/types";
 
 // Pulsar's side of a promotion (decision 2026-09-09: staff monitor and
@@ -20,6 +23,8 @@ const STATUS_CLASS: Record<PromoCampaignDetail["campaign"]["status"], string> = 
 const CREATIVE_CLASS: Record<PromoCreative["status"], string> = {
   draft: "pill-neutral", ready: "pill-neutral", approved: "status-approved", rejected: "status-changes", not_selected: "pill-neutral", superseded: "pill-neutral",
 };
+
+const legacyCreationEnabled = () => false;
 
 function seconds(ms: number | null) { return ms === null ? "—" : `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, "0")}`; }
 const dash = (v: string | null | undefined) => (v && v.trim() ? v : "—");
@@ -44,9 +49,8 @@ export default function PromoDesk({ detail, media, renders = {} }: { detail: Pro
   const active = detail.creatives.filter((c) => c.status !== "superseded");
   const approved = active.filter((c) => c.status === "approved").length;
   const changes = active.filter((c) => c.status === "rejected").length;
-  const inReview = campaign.status === "review";
+  const inReview = false;
   const launched = ["launching", "submitted", "live", "paused", "ended", "failed"].includes(campaign.status);
-  const switchable = ["submitted", "live", "paused"].includes(campaign.status) && !!campaign.grow_campaign_id;
 
   async function post<T = unknown>(key: string, path: string, body: Record<string, unknown>): Promise<T | null> {
     setBusy(key); setError(null); setInfo(null);
@@ -68,11 +72,30 @@ export default function PromoDesk({ detail, media, renders = {} }: { detail: Pro
     const r = await post<{ summary: SyncSummary }>("sync", "/api/promote/sync", {});
     if (r) setInfo(tt("admin.promote.launch.synced", { polled: r.summary.polled, synced: r.summary.synced, errors: r.summary.errors.length }));
   };
-  const flip = async (on: boolean) => {
-    const r = await post<{ applied: boolean; note: string | null }>("switch", `/api/promote/${campaign.id}/switch`, { on });
-    if (r && !r.applied) setInfo(tt("admin.promote.launch.notApplied"));
-  };
   const retry = () => post("retry", `/api/promote/${campaign.id}/retry`, {});
+  // Relaunch on another account (decision 2026-09-16): the company's BC accounts, loaded on demand.
+  const [relaunching, setRelaunching] = useState(false);
+  const [relaunchAccount, setRelaunchAccount] = useState("");
+  const [accounts, setAccounts] = useState<Array<{ id: string; name?: string; health: string; statusLabel: string }> | null>(null);
+  const loadAccounts = async () => {
+    try {
+      const status = await call<{ assignments: Record<string, { producerId: string; kind: string }> }>("/api/admin/tiktok/status");
+      const bcId = Object.entries(status.assignments).find(([, a]) => a.producerId === campaign.producer_id && a.kind === "business_center")?.[0];
+      if (!bcId) { setAccounts([]); return; }
+      const withBc = await call<{ bc: { accounts: Array<{ id: string; name?: string; health: string; statusLabel: string }> } | null }>(`/api/admin/tiktok/status?bc=${bcId}`);
+      setAccounts(withBc.bc?.accounts ?? []);
+    } catch (e) { setError((e as Error).message); setAccounts([]); }
+  };
+  const relaunch = async () => {
+    setBusy("relaunch"); setError(null); setInfo(null);
+    try {
+      const r = await call<{ outcome: { status: string; error?: string } }>(`/api/promote/${campaign.id}/relaunch`, "POST", { advertiser_id: relaunchAccount, note: note.trim() || null });
+      setInfo(tt("tkd.relaunched", { id: relaunchAccount, status: r.outcome.error ?? r.outcome.status }));
+      setRelaunching(false);
+      router.refresh();
+    } catch (e) { setError((e as Error).message); }
+    finally { setBusy(null); }
+  };
 
   return <div className="pd">
     <div className="stat-grid">
@@ -138,19 +161,27 @@ export default function PromoDesk({ detail, media, renders = {} }: { detail: Pro
               <dt>{tt("admin.promote.launch.mode")}</dt><dd>{tt(`promote.launch.mode.${launch.mode}`)}</dd>
               <dt>{tt("admin.promote.launch.advertiser")}</dt><dd className="pd-mono">{launch.advertiser_id}</dd>
               <dt>{tt("admin.promote.launch.identity")}</dt><dd className="pd-mono">{launch.identity_id ? `${launch.identity_id} (${launch.identity_type})` : "—"}</dd>
-              <dt>{tt("admin.promote.launch.budget")}</dt><dd>${launch.budget_usd}</dd>
+              <dt>{tt("admin.promote.launch.budget")}</dt><dd>${launch.budget_usd}{launch.settings && <> · {summarizeLaunchSettings(normalizeLaunchSettings(launch.settings)).slice(3).join(" · ")}</>}</dd>
               <dt>{tt("admin.promote.launch.tiktokIds")}</dt><dd className="pd-mono">{dash(launch.tiktok_campaign_id)} / {dash(launch.tiktok_adgroup_id)}</dd>
               <dt>{tt("admin.promote.launch.ads")}</dt><dd>{Object.keys(launch.ad_ids).length}</dd>
               <dt>{tt("admin.promote.launch.attempts")}</dt><dd>{launch.attempts} · {launch.status}</dd>
               {launch.error && <><dt>{tt("admin.promote.launch.error")}</dt><dd>{launch.error}</dd></>}
             </dl>}
-            <div className="pd-actions pd-wrap">
-              <button type="button" className="btn btn-outline" disabled={!!busy} onClick={sync}>{busy === "sync" ? tt("common.loading") : tt("admin.promote.launch.sync")}</button>
-              {switchable && campaign.status !== "paused" && <button type="button" className="btn btn-outline" disabled={!!busy} onClick={() => flip(false)}>{tt("admin.promote.launch.pause")}</button>}
-              {switchable && campaign.status === "paused" && <button type="button" className="btn btn-primary" disabled={!!busy} onClick={() => flip(true)}>{tt("admin.promote.launch.resume")}</button>}
-              {campaign.status === "failed" && launch && <button type="button" className="btn btn-primary" disabled={!!busy} onClick={retry}>{busy === "retry" ? tt("common.loading") : tt("admin.promote.launch.retry")}</button>}
+            {launch?.tiktok_campaign_id && campaign.grow_campaign_id && <DeliveryPanel chrome="staff" campaignId={campaign.id} status={campaign.status} launch={launch} monitorUrl={`/api/promote/monitor?campaign=${campaign.id}`} controlsUrl={`/api/promote/${campaign.id}/controls`} canAct stopOnly extra={<button type="button" className="btn btn-outline btn-sm" disabled={!!busy} onClick={sync}>{busy === "sync" ? tt("common.loading") : tt("admin.promote.launch.sync")}</button>} />}
+            <div className="pd-actions pd-wrap" style={{ marginTop: 12 }}>
+              {!(launch?.tiktok_campaign_id && campaign.grow_campaign_id) && <button type="button" className="btn btn-outline" disabled={!!busy} onClick={sync}>{busy === "sync" ? tt("common.loading") : tt("admin.promote.launch.sync")}</button>}
+              {legacyCreationEnabled() && campaign.status === "failed" && launch && <button type="button" className="btn btn-primary" disabled={!!busy} onClick={retry}>{busy === "retry" ? tt("common.loading") : tt("tkd.retry")}</button>}
+              {legacyCreationEnabled() && ["ended", "failed"].includes(campaign.status) && launch && <button type="button" className="btn btn-outline" disabled={!!busy} onClick={() => { setRelaunching((v) => !v); if (!accounts) void loadAccounts(); }}>{tt("tkd.relaunch")}</button>}
             </div>
-            {campaign.status !== "live" && campaign.status !== "ended" && <details className="pd-override" style={{ marginTop: 12 }}>
+            {legacyCreationEnabled() && relaunching && <form className="pd-revise" style={{ marginTop: 12 }} onSubmit={(e) => { e.preventDefault(); void relaunch(); }}>
+              <p className="pd-muted">{tt("tkd.relaunchHint")}</p>
+              <div className="field"><label className="label">{tt("tkd.relaunchAccount")}</label>
+                {accounts ? <select className="input" value={relaunchAccount} onChange={(e) => setRelaunchAccount(e.target.value)} required><option value="">—</option>{accounts.map((a) => <option key={a.id} value={a.id} disabled={a.health !== "ready" || a.id === launch?.advertiser_id}>{a.name ?? a.id} · {a.id} · {a.statusLabel}{a.id === launch?.advertiser_id ? ` · ${tt("tk.retired")}` : ""}</option>)}</select> : <p className="pd-muted">{tt("common.loading")}</p>}
+              </div>
+              <div className="field"><label className="label">{tt("admin.promote.launch.note")}</label><input className="input" value={note} onChange={(e) => setNote(e.target.value)} /></div>
+              <div className="pd-actions"><button className="btn btn-primary" disabled={!!busy || !relaunchAccount}>{busy === "relaunch" ? tt("common.loading") : tt("tkd.relaunchGo")}</button><button type="button" className="btn btn-ghost" onClick={() => setRelaunching(false)}>{tt("admin.promote.revise.cancel")}</button></div>
+            </form>}
+            {legacyCreationEnabled() && campaign.status !== "live" && campaign.status !== "ended" && <details className="pd-override" style={{ marginTop: 12 }}>
               <summary className="pd-muted">{tt("admin.promote.launch.override")}</summary>
               <p className="pd-muted">{tt("admin.promote.launch.overrideNote")}</p>
               <div className="field"><label className="label">{tt("admin.promote.launch.growId")}</label><input className="input pd-mono" value={growId} onChange={(e) => setGrowId(e.target.value)} /></div>

@@ -1,11 +1,15 @@
 // The launch engine — Pulsar Grow's lib/launch-job.ts invariants over
-// Studio's data layer (decision 2026-09-09, "TikTok launch"):
+// Studio's data layer (decision 2026-09-09, "TikTok launch"; settings and
+// duplication 2026-09-16):
 //
 //   IDEMPOTENT — a step whose output id is already recorded on the launch
 //     row is skipped. Duplicate campaigns spending real money is the worst
 //     possible bug, so resuming or retrying can never re-create something.
 //     One launch row per approval manifest (unique idempotency key), so a
-//     second press of the button resumes, never re-launches.
+//     second press of the button resumes, never re-launches. A crash between
+//     a create and its save is closed by NAME ADOPTION (overlord): the
+//     campaign and ad group names are unique per launch, so "name already
+//     exists" means "ours, unsaved" and the existing object is adopted.
 //   RESUMABLE — the row is persisted after EVERY step; killed mid-run the
 //     scheduler adopts it (stale heartbeat) and it picks up at the first
 //     unfinished step.
@@ -14,9 +18,12 @@
 //
 // Steps: identity → upload the rendered ads → covers → campaign → ad group →
 // ads. Objective TRAFFIC to the campaign's destination URL (decision:
-// "ads send viewers to a link"); the ad group's lifetime budget is exactly
-// the approved experiment budget — nothing here may spend more than the
-// producer signed.
+// "ads send viewers to a link"). What the ad group looks like — targeting,
+// budget shape, schedule, bidding, pacing, CTA, live or paused — comes from
+// the launch's settings snapshot (lib/tiktok/settings.ts); the money is
+// always bounded by the approved experiment budget: as the lifetime share
+// of every ad group, or as a lifetime cap on the campaign when ad groups
+// run daily budgets. Nothing here may spend more than the producer signed.
 //
 // The engine runs as the system actor and against whichever transport
 // lib/tiktok/index.ts chose: in fixture mode the fake, so the demo walks the
@@ -29,15 +36,13 @@ import { adTextOf } from "@/lib/clips/creatives";
 import { getData, isDataError } from "@/lib/data";
 import { readStoredBytes } from "@/lib/data/storage";
 import type { PromoCreative, PromoLaunch } from "@/lib/types";
-import { accessTokenFor, launchMode, tiktokTransport } from "./index";
+import { accessTokenFor, launchMode, tiktokTransport, type TikTokTransport } from "./index";
 import { fetchIdentities } from "./preflight";
+import { adGroupBody, normalizeLaunchSettings, planAdGroup, scheduleDays, validateLaunchSettings, LaunchSettingsError, type LaunchSettings } from "./settings";
 
 /** TikTok rejects lifetime budgets below this (USD); the fake enforces it too. */
 export const MIN_BUDGET_USD = 20;
-/** United States. */
-const DEFAULT_LOCATION_IDS = ["6252001"];
-/** The ad group runs the budget over at most this many days. */
-const MAX_DURATION_DAYS = 30;
+export { scheduleDays };
 
 // One run at a time per launch, across every route/scheduler bundle —
 // globalThis for the same reason as the transport's pacer.
@@ -45,20 +50,33 @@ const lockStore = globalThis as unknown as { __studioLaunchRunning?: Set<string>
 const running: Set<string> = lockStore.__studioLaunchRunning ?? new Set();
 lockStore.__studioLaunchRunning = running;
 
-/** UTC "YYYY-MM-DD HH:MM:SS" — the timestamp format TikTok's API expects. */
-function tiktokTime(d: Date): string {
-  return d.toISOString().slice(0, 19).replace("T", " ");
-}
-
-/**
- * Days the ad group runs: the approved budget at no less than the daily
- * minimum, capped. $100 runs five days; $20 runs one.
- */
-export function scheduleDays(budgetUsd: number): number {
-  return Math.max(1, Math.min(MAX_DURATION_DAYS, Math.floor(budgetUsd / MIN_BUDGET_USD)));
-}
-
 export type LaunchOutcome = { status: PromoLaunch["status"]; error?: string };
+
+/** The names a launch gives its TikTok objects — unique per launch so a lost creation can be adopted by name. */
+export function launchNames(campaignExternalId: string, prefix: string | null, market: string | null) {
+  const base = prefix?.trim() ? `${prefix.trim()}-${campaignExternalId}` : `studio-${campaignExternalId}`;
+  return {
+    campaign: base.slice(0, 100),
+    adgroup: `${base}-${market || "US"}`.slice(0, 100),
+    copy: (n: number) => `${base}-${market || "US"}-copy${n}`.slice(0, 100),
+    ad: (creativeExternalId: string, n: number) => `${base}-${creativeExternalId}-${n}`.slice(0, 100),
+  };
+}
+
+/** Our own object with this exact name under this account/campaign, if TikTok already holds one (crash-gap adoption). */
+async function findCampaignByName(tt: TikTokTransport, token: string, advertiserId: string, name: string): Promise<string | null> {
+  const res = await tt.get("/campaign/get/", token, { advertiser_id: advertiserId, filtering: JSON.stringify({ campaign_name: name }), page: 1, page_size: 100 });
+  if (res.code !== 0) return null;
+  const hit = ((res.data?.list ?? []) as Record<string, unknown>[]).find((c) => String(c.campaign_name ?? "") === name);
+  return hit?.campaign_id ? String(hit.campaign_id) : null;
+}
+
+async function findAdGroupByName(tt: TikTokTransport, token: string, advertiserId: string, campaignId: string, name: string): Promise<string | null> {
+  const res = await tt.get("/adgroup/get/", token, { advertiser_id: advertiserId, filtering: JSON.stringify({ campaign_ids: [campaignId] }), page: 1, page_size: 100 });
+  if (res.code !== 0) return null;
+  const hit = ((res.data?.list ?? []) as Record<string, unknown>[]).find((g) => String(g.adgroup_name ?? "") === name);
+  return hit?.adgroup_id ? String(hit.adgroup_id) : null;
+}
 
 export async function runLaunch(launchId: string): Promise<LaunchOutcome> {
   if (running.has(launchId)) return { status: "running" };
@@ -109,6 +127,16 @@ async function runLocked(launchId: string): Promise<LaunchOutcome> {
   const creatives = detail.creatives.filter((c) => c.status === "approved" && (chosen.size === 0 || chosen.has(c.external_id) || chosen.has(c.id)));
   if (!creatives.length) return fail("The approved manifest names no creatives");
   if (launch.budget_usd < MIN_BUDGET_USD) return fail(`The approved budget ($${launch.budget_usd}) is below TikTok's minimum of $${MIN_BUDGET_USD}`);
+  // The settings the launch was recorded with; an old row without any runs the defaults.
+  let settings: LaunchSettings;
+  try {
+    settings = validateLaunchSettings(normalizeLaunchSettings(launch.settings), launch.budget_usd);
+  } catch (e) {
+    if (e instanceof LaunchSettingsError) return fail(`Launch settings: ${e.message}`);
+    throw e;
+  }
+  const plan = planAdGroup(settings, launch.budget_usd);
+  const names = launchNames(campaign.external_id, settings.campaign_name_prefix, campaign.target_market);
 
   const now = new Date().toISOString();
   launch = await data.updatePromoLaunch(session, launch.id, {
@@ -207,47 +235,39 @@ async function runLocked(launchId: string): Promise<LaunchOutcome> {
   if (!launch.tiktok_campaign_id) {
     const res = await tt.post("/campaign/create/", token, {
       advertiser_id: launch.advertiser_id,
-      campaign_name: `studio-${campaign.external_id}`.slice(0, 100),
+      campaign_name: names.campaign,
       objective_type: "TRAFFIC",
-      budget_mode: "BUDGET_MODE_INFINITE",
-      operation_status: "ENABLE",
+      // Daily ad groups need the signed number as a lifetime cap on the campaign; lifetime ad groups carry it themselves.
+      ...(plan.campaign_budget !== null ? { budget_mode: "BUDGET_MODE_TOTAL", budget: plan.campaign_budget } : { budget_mode: "BUDGET_MODE_INFINITE" }),
+      operation_status: settings.start_paused ? "DISABLE" : "ENABLE",
     });
-    const id = (res.data as { campaign_id?: string } | undefined)?.campaign_id;
-    if (res.code !== 0 || !id) return fail(`TikTok refused the campaign: ${res.message}`);
-    await beat({ tiktok_campaign_id: String(id) });
-    await data.setPromoCampaignDelivery(session, campaign.id, { status: "launching", grow_campaign_id: String(id) });
+    let id = (res.data as { campaign_id?: string } | undefined)?.campaign_id ? String((res.data as { campaign_id?: string }).campaign_id) : null;
+    if ((res.code !== 0 || !id) && /name already exists/i.test(res.message || "")) {
+      // The crash gap: created last time, not saved. Ours by name — adopt it, never create a second.
+      id = await findCampaignByName(tt, token, launch.advertiser_id, names.campaign);
+    }
+    if (res.code !== 0 && !id) return fail(`TikTok refused the campaign: ${res.message}`);
+    if (!id) return fail("TikTok returned no campaign id");
+    await beat({ tiktok_campaign_id: id });
+    await data.setPromoCampaignDelivery(session, campaign.id, { status: "launching", grow_campaign_id: id });
   }
 
   // --- ad group ---------------------------------------------------------------------
   if (!launch.tiktok_adgroup_id) {
-    const start = new Date(Date.now() + 10 * 60 * 1000);
-    const end = new Date(start.getTime() + scheduleDays(launch.budget_usd) * 24 * 60 * 60 * 1000);
     const res = await tt.post("/adgroup/create/", token, {
       advertiser_id: launch.advertiser_id,
       campaign_id: launch.tiktok_campaign_id,
-      adgroup_name: `studio-${campaign.external_id}-${campaign.target_market || "US"}`.slice(0, 100),
-      promotion_type: "WEBSITE",
-      placement_type: "PLACEMENT_TYPE_AUTOMATIC",
-      location_ids: DEFAULT_LOCATION_IDS,
-      // The producer's approved total, as a lifetime ceiling. Nothing else is sent.
-      budget_mode: "BUDGET_MODE_TOTAL",
-      budget: launch.budget_usd,
-      schedule_type: "SCHEDULE_START_END",
-      schedule_start_time: tiktokTime(start),
-      schedule_end_time: tiktokTime(end),
-      optimization_goal: "CLICK",
-      billing_event: "CPC",
-      bid_type: "BID_TYPE_NO_BID",
-      pacing: "PACING_MODE_SMOOTH",
-      // House policy (from overlord): nobody may download or reshare the creative from the ad.
-      video_download_disabled: true,
-      share_disabled: true,
-      operation_status: "ENABLE",
+      adgroup_name: names.adgroup,
+      ...adGroupBody(settings, plan),
     });
-    const id = (res.data as { adgroup_id?: string } | undefined)?.adgroup_id;
-    if (res.code !== 0 || !id) return fail(`TikTok refused the ad group: ${res.message}`);
-    await beat({ tiktok_adgroup_id: String(id) });
-    await data.setPromoCampaignDelivery(session, campaign.id, { status: "launching", tiktok_adgroup_id: String(id) });
+    let id = (res.data as { adgroup_id?: string } | undefined)?.adgroup_id ? String((res.data as { adgroup_id?: string }).adgroup_id) : null;
+    if ((res.code !== 0 || !id) && /name already exists/i.test(res.message || "")) {
+      id = await findAdGroupByName(tt, token, launch.advertiser_id, launch.tiktok_campaign_id!, names.adgroup);
+    }
+    if (res.code !== 0 && !id) return fail(`TikTok refused the ad group: ${res.message}`);
+    if (!id) return fail("TikTok returned no ad group id");
+    await beat({ tiktok_adgroup_id: id, paused: settings.start_paused, bid_usd: settings.bid_strategy === "COST_CAP" ? settings.bid_usd : null, schedule_end: plan.schedule_end_time });
+    await data.setPromoCampaignDelivery(session, campaign.id, { status: "launching", tiktok_adgroup_id: id });
   }
 
   // --- ads ---------------------------------------------------------------------------
@@ -262,7 +282,7 @@ async function runLocked(launchId: string): Promise<LaunchOutcome> {
       submitted.push({
         creative: c,
         payload: {
-          ad_name: `studio-${campaign.external_id}-${c.external_id}-${i + 1}`.slice(0, 100),
+          ad_name: names.ad(c.external_id, i + 1),
           identity_id: launch.identity_id,
           identity_type: launch.identity_type,
           ad_format: "SINGLE_VIDEO",
@@ -270,23 +290,35 @@ async function runLocked(launchId: string): Promise<LaunchOutcome> {
           image_ids: [cover],
           // The one string TikTok shows: the hook, exactly as the producer approved it (AD_TEXT_MAX).
           ad_text: adTextOf(c, campaign.name),
-          call_to_action: "WATCH_NOW",
+          call_to_action: settings.call_to_action,
           landing_page_url: launch.destination_url,
         },
       });
     });
     if (submitted.length) {
-      const res = await tt.post("/ad/create/", token, { advertiser_id: launch.advertiser_id, adgroup_id: launch.tiktok_adgroup_id, creatives: submitted.map((s) => s.payload) });
-      const ids = (res.data as { ad_ids?: string[] } | undefined)?.ad_ids;
-      if (res.code !== 0 || !ids?.length) return fail(`TikTok refused the ads: ${res.message}`);
-      // ASSUMPTION, UNVERIFIED AGAINST THE LIVE API (Pulsar's note): ad_ids come
-      // back in submission order. The ad names are unique per creative so a
-      // later read of /ad/get/ can re-map by name if this does not hold.
+      // Adoption first: ads created by a run that died before its save are found by their unique names.
+      const existing = await tt.get("/ad/get/", token, { advertiser_id: launch.advertiser_id, filtering: JSON.stringify({ adgroup_ids: [launch.tiktok_adgroup_id] }), page: 1, page_size: 100 });
+      const byName = new Map<string, string>();
+      if (existing.code === 0) for (const a of (existing.data?.list ?? []) as Record<string, unknown>[]) if (a.ad_name && a.ad_id) byName.set(String(a.ad_name), String(a.ad_id));
       const adIds: Record<string, string> = { ...launch.ad_ids };
-      submitted.forEach((s, i) => {
-        if (ids[i]) adIds[s.creative.id] = String(ids[i]);
+      const still = submitted.filter((s) => {
+        const found = byName.get(String(s.payload.ad_name));
+        if (found) adIds[s.creative.id] = found;
+        return !found;
       });
-      await beat({ ad_ids: adIds });
+      if (Object.keys(adIds).length !== Object.keys(launch.ad_ids).length) await beat({ ad_ids: adIds });
+      if (still.length) {
+        const res = await tt.post("/ad/create/", token, { advertiser_id: launch.advertiser_id, adgroup_id: launch.tiktok_adgroup_id, creatives: still.map((s) => s.payload) });
+        const ids = (res.data as { ad_ids?: string[] } | undefined)?.ad_ids;
+        if (res.code !== 0 || !ids?.length) return fail(`TikTok refused the ads: ${res.message}`);
+        // ASSUMPTION, UNVERIFIED AGAINST THE LIVE API (Pulsar's note): ad_ids come
+        // back in submission order. The ad names are unique per creative so the
+        // adoption read above re-maps by name on the next run if this does not hold.
+        still.forEach((s, i) => {
+          if (ids[i]) adIds[s.creative.id] = String(ids[i]);
+        });
+        await beat({ ad_ids: adIds });
+      }
     }
   }
 
@@ -302,8 +334,8 @@ async function runLocked(launchId: string): Promise<LaunchOutcome> {
   const finished = new Date().toISOString();
   await data.updatePromoLaunch(session, launch.id, { status: "done", error: null, finished_at: finished });
   await data.setPromoCampaignDelivery(session, campaign.id, {
-    status: "submitted",
-    status_note: null,
+    status: settings.start_paused ? "paused" : "submitted",
+    status_note: settings.start_paused ? "Created switched off; nothing delivers until the campaign is turned on." : null,
     grow_campaign_id: launch.tiktok_campaign_id,
     tiktok_adgroup_id: launch.tiktok_adgroup_id,
     advertiser_id: launch.advertiser_id,

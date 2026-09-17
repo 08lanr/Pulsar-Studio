@@ -27,31 +27,57 @@ function day(d: Date): string {
 
 export type ReportRow = { ad_id: string; date: string; spend: number; impressions: number; clicks: number; conversion: number; video_play_actions: number; video_watched_2s: number; video_watched_6s: number };
 
-/** TikTok's report rows → Studio result rows for the creatives that own the ads. */
+/**
+ * Every ad id the launch owns → its creative: the original ads, and the ads
+ * of every copy (auto-duplicates and cost-cap replacements). A copy carries
+ * the same creatives in the same order as the original submission
+ * (lib/tiktok/duplicate.ts adPayloads), so its ad ids map by position
+ * (review finding 6: copies used to fall out of creative results).
+ */
+export function creativeByAdId(row: LaunchedCampaign): Map<string, string> {
+  const { launch, creatives } = row;
+  const map = new Map(Object.entries(launch.ad_ids).map(([creativeId, adId]) => [adId, creativeId]));
+  const order = creatives.filter((c) => launch.ad_ids[c.id]).map((c) => c.id);
+  for (const adIds of Object.values(launch.duplicates ?? {})) {
+    adIds.forEach((adId, i) => {
+      if (order[i] && !map.has(adId)) map.set(adId, order[i]);
+    });
+  }
+  return map;
+}
+
+/** TikTok's report rows → Studio result rows, one per creative per day, every ad variant of the creative summed. */
 export function resultsFromReport(row: LaunchedCampaign, rows: ReportRow[], observedAt: string): NewCreativeResult[] {
-  const creativeByAd = new Map(Object.entries(row.launch.ad_ids).map(([creativeId, adId]) => [adId, creativeId]));
+  const creativeByAd = creativeByAdId(row);
   const source: NewCreativeResult["source"] = launchMode() === "fake" ? "demo" : "tiktok";
-  const out: NewCreativeResult[] = [];
+  type Acc = { creativeId: string; date: string; spend: number; impressions: number; clicks: number; plays: number; watched2s: number };
+  const byKey = new Map<string, Acc>();
   for (const r of rows) {
     const creativeId = creativeByAd.get(r.ad_id);
     if (!creativeId || !r.date) continue;
-    const plays = Math.max(0, Math.round(r.video_play_actions));
-    out.push({
-      campaign_id: row.campaign.id,
-      creative_id: creativeId,
-      source,
-      window_start: r.date,
-      window_end: r.date,
-      impressions: Math.max(0, Math.round(r.impressions)),
-      video_views: plays,
-      hook_hold_rate: plays > 0 ? Math.min(1, Math.max(0, r.video_watched_2s / plays)) : 0,
-      clicks: Math.max(0, Math.round(r.clicks)),
-      spend_usd: Math.max(0, Math.round(r.spend * 100) / 100),
-      landing_actions: null,
-      observed_at: observedAt,
-    });
+    const key = `${creativeId}|${r.date}`;
+    const acc = byKey.get(key) ?? { creativeId, date: r.date, spend: 0, impressions: 0, clicks: 0, plays: 0, watched2s: 0 };
+    acc.spend += Math.max(0, r.spend);
+    acc.impressions += Math.max(0, Math.round(r.impressions));
+    acc.clicks += Math.max(0, Math.round(r.clicks));
+    acc.plays += Math.max(0, Math.round(r.video_play_actions));
+    acc.watched2s += Math.max(0, Math.round(r.video_watched_2s));
+    byKey.set(key, acc);
   }
-  return out;
+  return [...byKey.values()].map((a) => ({
+    campaign_id: row.campaign.id,
+    creative_id: a.creativeId,
+    source,
+    window_start: a.date,
+    window_end: a.date,
+    impressions: a.impressions,
+    video_views: a.plays,
+    hook_hold_rate: a.plays > 0 ? Math.min(1, Math.max(0, a.watched2s / a.plays)) : 0,
+    clicks: a.clicks,
+    spend_usd: Math.round(a.spend * 100) / 100,
+    landing_actions: null,
+    observed_at: observedAt,
+  }));
 }
 
 /** Pull the last 30 days for one launched campaign and upsert them. Returns rows written, or the error. */

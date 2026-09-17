@@ -1,0 +1,23 @@
+{
+  "legacy.historyNote": { "en": "An earlier campaign record. Use Launch for any new campaign.", "zh": "这是早期广告活动记录。新建广告活动请前往投放。" },
+  "legacy.record": { "en": "Campaign record", "zh": "广告活动记录" },
+  "legacy.title": { "en": "Title", "zh": "剧集" },
+  "legacy.market": { "en": "Market", "zh": "市场" },
+  "legacy.destination": { "en": "Destination", "zh": "落地页" },
+  "legacy.approvedBudget": { "en": "Approved budget", "zh": "已批准预算" },
+  "legacy.statusNote": { "en": "Status note", "zh": "状态说明" },
+  "legacy.creatives": { "en": "Creative history", "zh": "广告素材记录" },
+  "legacy.readOnly": { "en": "Archived for reference", "zh": "仅供查看" },
+  "legacy.noCreatives": { "en": "No creatives in this record.", "zh": "此记录没有广告素材。" },
+  "legacy.results": { "en": "Stored results", "zh": "已保存的结果" },
+  "legacy.noResults": { "en": "No results were recorded.", "zh": "没有已记录的结果。" },
+  "legacy.source": { "en": "Source", "zh": "数据来源" },
+  "legacy.spend": { "en": "Spend", "zh": "花费" },
+  "legacy.clicks": { "en": "Clicks", "zh": "点击量" },
+  "legacy.impressions": { "en": "Impressions", "zh": "曝光量" },
+  "legacy.observed": { "en": "Read at", "zh": "读取时间" },
+  "legacy.openRecord": { "en": "Open record", "zh": "查看记录" },
+  "legacy.listNote": { "en": "Past campaign records and results. Start new delivery in Launch.", "zh": "查看过往广告活动和结果。新投放请前往投放。" },
+  "legacy.status": { "en": "Status", "zh": "状态" },
+  "legacy.resultCount": { "en": "{n} stored results", "zh": "{n} 条已保存结果" }
+}

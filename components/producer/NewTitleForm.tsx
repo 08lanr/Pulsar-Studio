@@ -67,7 +67,7 @@ export default function NewTitleForm({ returnTo }: { returnTo?: "promote" } = {}
         }
         setSlots((s) => s.map((x, j) => (j === i ? { ...x, status: "ok" } : x)));
       }
-      router.push(returnTo === "promote" ? `/producer/promote/new?title=${title.id}` : `/producer/titles/${title.id}`);
+      router.push(returnTo === "promote" ? `/producer/launch` : `/producer/titles/${title.id}`);
     } catch (err) {
       setError((err as Error).message);
       setBusy(false);

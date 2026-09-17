@@ -1,10 +1,12 @@
 // The TikTok launch inside Studio (decision 2026-09-09): the readiness gate,
+import { withHistoricalPromoSeed } from "@/lib/data/fixture";
+const test = (name: string, fn: () => void | Promise<void>) => nodeTest(name, () => withHistoricalPromoSeed(fn));
 // the idempotent launch engine against the fake TikTok, the review poll, the
 // metrics read-back with its provenance, the staff controls and the account
 // request flow. Everything runs on the empty fixture seed and the fake
 // transport: no request leaves the process.
 
-import { afterEach, beforeEach, test } from "node:test";
+import { afterEach, beforeEach, test as nodeTest } from "node:test";
 import assert from "node:assert/strict";
 
 import { FIXTURE_PRODUCER_ID, systemSession } from "@/lib/auth";
@@ -17,6 +19,7 @@ import { FAKE_BC_ACCOUNTS, FAKE_BC_ID, fakeTikTokSnapshot, resetFakeTikTok } fro
 import { runLaunch, scheduleDays } from "@/lib/tiktok/launch";
 import { resultsFromReport, syncCampaignResults } from "@/lib/tiktok/metrics";
 import { normalizeReview, pollCampaignReview } from "@/lib/tiktok/review";
+import { defaultLaunchSettings } from "@/lib/tiktok/settings";
 import { tick } from "@/lib/tiktok/scheduler";
 import { switchCampaign } from "@/lib/tiktok/controls";
 import type { CompanyAccount } from "@/lib/types";
@@ -219,7 +222,9 @@ test("a failed launch resumes at its first unfinished step and does not duplicat
   const snap = fakeTikTokSnapshot();
   assert.equal(snap.campaigns.length, 1, "the recorded campaign id was reused");
   assert.equal(snap.adgroups.length, 1);
-  assert.equal(snap.ads.length, 4, "ads were re-created (their ids had been lost); the campaign and ad group were not");
+  // The ad ids were lost, but the ads exist on TikTok under their unique names: adopted, never re-created (decision 2026-09-16).
+  assert.equal(snap.ads.length, 2, "the ads whose ids were lost were adopted by name, not duplicated");
+  assert.equal(Object.keys((await fixtureData.getPromoLaunch(sys, retried.id)).ad_ids).length, 2);
   await assert.rejects(fixtureData.updatePromoLaunch(sys, retried.id, { tiktok_campaign_id: "1" }), (e: Error & { code?: string }) => e.code === "frozen");
   await assert.rejects(fixtureData.updatePromoLaunch(staff(), retried.id, { error: "x" }), (e: Error & { code?: string }) => e.code === "forbidden");
 });
@@ -279,7 +284,8 @@ test("staff pause and resume on TikTok, read back; the scheduler tick runs clean
   await pollCampaignReview((await fixtureData.listLaunchedPromoCampaigns(sys))[0]);
   await pollCampaignReview((await fixtureData.listLaunchedPromoCampaigns(sys))[0]);
   assert.equal((await fixtureData.getPromoCampaign(producer(), id)).campaign.status, "live");
-  await assert.rejects(switchCampaign(producer(), id, false), (e: Error & { code?: string }) => e.code === "forbidden");
+  // The company approver may switch their own campaign (decision 2026-09-16); a reviewer may not.
+  await assert.rejects(switchCampaign({ ...producer(), producerRole: "reviewer" }, id, false), (e: Error & { code?: string }) => e.code === "forbidden");
   const paused = await switchCampaign(staff(), id, false);
   assert.equal(paused.applied, true);
   assert.equal((await fixtureData.getPromoCampaign(producer(), id)).campaign.status, "paused");
@@ -289,6 +295,37 @@ test("staff pause and resume on TikTok, read back; the scheduler tick runs clean
   assert.deepEqual(summary.errors, []);
   assert.ok(summary.polled >= 1);
   assert.equal((await fixtureData.getPromoCampaign(producer(), id)).campaign.status, "live");
+});
+
+nodeTest("default scheduler monitors older deliveries without adopting pending launches or making copies", async () => {
+  const previous = process.env.LEGACY_PROMO_RECOVERY;
+  delete process.env.LEGACY_PROMO_RECOVERY;
+  try {
+    const { pendingId, activeId } = await withHistoricalPromoSeed(async () => {
+      const pending = await prepared();
+      await assign();
+      const queued = await fixtureData.submitPromoCampaign(producer(), pending.campaign.id);
+      const active = await prepared({ budget: 200 });
+      await fixtureData.setLaunchSettings(producer(), active.campaign.id, { ...defaultLaunchSettings(), duplicate_copies: 1 });
+      const sent = await fixtureData.submitPromoCampaign(producer(), active.campaign.id);
+      assert.equal((await runLaunch(sent.launch!.id)).status, "done");
+      return { pendingId: queued.launch!.id, activeId: active.campaign.id };
+    });
+    const before = fakeTikTokSnapshot();
+    assert.equal(before.campaigns.length, 1);
+    assert.equal(before.adgroups.length, 1);
+    const summary = await tick({ metrics: true });
+    assert.equal(summary.launches, 0);
+    assert.ok(summary.polled >= 1);
+    assert.equal((await fixtureData.getPromoLaunch(systemSession(), pendingId)).status, "pending");
+    const after = fakeTikTokSnapshot();
+    assert.equal(after.campaigns.length, 1, "queued earlier launch created no campaign");
+    assert.equal(after.adgroups.length, 1, "automatic earlier copies stayed disabled");
+    assert.ok((await fixtureData.getPromoCampaign(producer(), activeId)).launch?.tiktok_campaign_id, "older delivery history remains readable");
+  } finally {
+    if (previous === undefined) delete process.env.LEGACY_PROMO_RECOVERY;
+    else process.env.LEGACY_PROMO_RECOVERY = previous;
+  }
 });
 
 test("account requests: one open per company, payment opt-in is brand/last4/holder only, staff resolve or fulfil", async () => {

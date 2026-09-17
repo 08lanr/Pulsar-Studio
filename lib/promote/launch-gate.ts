@@ -15,6 +15,7 @@
 //     2026-09-09 "assign a BC, not an ad account") or, as an explicit
 //     override, one ad account with its publishing identity
 
+import { LaunchSettingsError, normalizeLaunchSettings, validateLaunchSettings } from "@/lib/tiktok/settings";
 import type { CompanyAccount, PromoApproval, PromoCampaign, PromoCreative } from "@/lib/types";
 
 export const MIN_LAUNCH_BUDGET_USD = 20;
@@ -26,7 +27,8 @@ export type LaunchBlocker =
   | "no_destination"
   | "unrendered_creatives"
   | "no_launch_account"
-  | "no_identity";
+  | "no_identity"
+  | "settings_invalid";
 
 export type LaunchReadiness = { ready: boolean; blockers: LaunchBlocker[] };
 
@@ -60,6 +62,15 @@ export function launchReadiness(input: {
   const e = campaign.experiment;
   if (!e || !e.approved_at) blockers.push("budget_unsigned");
   else if (e.budget_usd < MIN_LAUNCH_BUDGET_USD) blockers.push("budget_below_minimum");
+  else {
+    // The launch's shape must fit the signed budget (decision 2026-09-16): an impossible split is caught here, not on TikTok.
+    try {
+      validateLaunchSettings(normalizeLaunchSettings(campaign.launch_settings), e.budget_usd);
+    } catch (err) {
+      if (err instanceof LaunchSettingsError) blockers.push("settings_invalid");
+      else throw err;
+    }
+  }
   if (!campaign.destination_url) blockers.push("no_destination");
   const chosen = creatives.filter((c) => c.status === "approved");
   if (mode !== "fake" && chosen.some((c) => !c.render_path || !c.render_sha256)) blockers.push("unrendered_creatives");
@@ -87,5 +98,7 @@ export function blockerMessage(b: LaunchBlocker): string {
       return "no TikTok Business Center or ad account is assigned to this company yet; ask Pulsar to set one up";
     case "no_identity":
       return "the assigned ad account has no TikTok handle (identity) linked; Pulsar staff must link one";
+    case "settings_invalid":
+      return "the launch settings do not fit the approved budget; fix them under Launch settings";
   }
 }

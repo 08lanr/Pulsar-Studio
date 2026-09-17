@@ -24,9 +24,18 @@
       "runtimeExecutable": "cmd",
       "runtimeArgs": [
         "/c",
-        "set DATA_SOURCE=fixture&& set TIKTOK_MODE=sandbox&& set FIXTURE_PERSIST=off&& set FFMPEG_PATH=%LOCALAPPDATA%\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-9.0.1-full_build\\bin\\ffmpeg.exe&& npx next dev -p 3201"
+        "set DATA_SOURCE=fixture&& set TIKTOK_MODE=sandbox&& set FIXTURE_PERSIST=off&& set NEXT_DIST_DIR=.next-e2e&& set FFMPEG_PATH=%LOCALAPPDATA%\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-9.0.1-full_build\\bin\\ffmpeg.exe&& npx next dev -p 3201"
       ],
       "port": 3201
+    },
+    {
+      "name": "studio-live",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set DATA_SOURCE=supabase&& set TIKTOK_MODE=production&& npm run dev"
+      ],
+      "port": 3200
     },
     {
       "name": "studio-prod",

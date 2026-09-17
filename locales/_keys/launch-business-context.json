@@ -1,0 +1,8 @@
+{
+  "launchBusiness.chooseProducer": { "en": "Choose a producer to see Business Centers", "zh": "先选择制作公司，再查看商务中心" },
+  "launchBusiness.chooseProducerMeta": { "en": "Choose a producer to see Business Portfolios", "zh": "先选择制作公司，再查看业务组合" },
+  "launchBusiness.loading": { "en": "Loading Business Centers…", "zh": "正在加载商务中心…" },
+  "launchBusiness.loadingMeta": { "en": "Loading Business Portfolios…", "zh": "正在加载业务组合…" },
+  "launchBusiness.none": { "en": "No Business Center assigned", "zh": "尚未分配商务中心" },
+  "launchBusiness.noneMeta": { "en": "No Business Portfolio assigned", "zh": "尚未分配业务组合" }
+}

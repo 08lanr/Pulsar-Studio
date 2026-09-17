@@ -39,7 +39,7 @@ export default async function TitleOverview({ params, searchParams }: { params: 
   if (w.ads.flow && !w.ads.flow.waiting) next = { href: w.ads.flow.href, label: t(locale, w.ads.flow.action), hint: t(locale, w.ads.flow.hint) };
   else if (w.ads.flow) next = { href: w.ads.flow.href, label: t(locale, "workflow.viewLaunch"), hint: t(locale, w.ads.flow.hint) };
   else if (withVideo === 0) next = { href: sectionHref(params.id, "materials"), label: t(locale, "tw.next.uploadVideo"), hint: t(locale, "workflow.needsVideo") };
-  else next = { href: `/producer/promote/new?title=${params.id}`, label: t(locale, "ws.actions.test"), hint: t(locale, "tw.next.firstCampaignHint") };
+  else next = { href: `/producer/launch`, label: t(locale, "ws.actions.test"), hint: t(locale, "tw.next.firstCampaignHint") };
 
   return (
     <TitleShell locale={locale} titleId={params.id} name_zh={w.detail.title.name_zh} name_en={w.detail.title.name_en} platform={w.platform} ads={w.ads.status} adStep={step} section="overview" tiktokQuery={`?range=${range}`}
@@ -78,7 +78,7 @@ export default async function TitleOverview({ params, searchParams }: { params: 
           ) : (
             <div className="tw-empty">
               <p>{t(locale, "tw.ads.noneYet")}</p>
-              {canEdit && <a className="btn btn-outline btn-sm" href={`/producer/promote/new?title=${params.id}`}>{t(locale, "ws.actions.test")}</a>}
+              {canEdit && <a className="btn btn-outline btn-sm" href={`/producer/launch`}>{t(locale, "ws.actions.test")}</a>}
             </div>
           )}
           {x.results.some((r) => r.source === "demo") && <p className="tw-demo">{t(locale, "rd.sourceDemo")}</p>}

@@ -65,11 +65,11 @@ export function normalizeReview(adId: string, v: Record<string, unknown>, second
 }
 
 /** Review verdicts for a launched campaign's ads. */
-export async function fetchCampaignReviews(row: LaunchedCampaign): Promise<{ reviews: AdReview[]; campaignOn: boolean | null; error?: string }> {
+export async function fetchCampaignReviews(row: LaunchedCampaign): Promise<{ reviews: AdReview[]; campaignOn: boolean | null; campaignSecondary: string | null; error?: string }> {
   const { campaign, launch } = row;
   const token = accessTokenFor(launch.advertiser_id);
   const adIds = Object.values(launch.ad_ids);
-  if (!token || !adIds.length || !campaign.grow_campaign_id) return { reviews: [], campaignOn: null };
+  if (!token || !adIds.length || !campaign.grow_campaign_id) return { reviews: [], campaignOn: null, campaignSecondary: null };
   const tt = tiktokTransport();
   let error: string | undefined;
   const secondary: Record<string, string> = {};
@@ -83,8 +83,12 @@ export async function fetchCampaignReviews(row: LaunchedCampaign): Promise<{ rev
   const check = await tt.get("/campaign/get/", token, { advertiser_id: launch.advertiser_id, filtering: JSON.stringify({ campaign_ids: [campaign.grow_campaign_id] }), page: 1, page_size: 1 });
   const live = ((check.data?.list ?? []) as Record<string, unknown>[])[0];
   const campaignOn = check.code === 0 && live ? live.operation_status !== "DISABLE" : null;
-  return { reviews, campaignOn, error };
+  const campaignSecondary = check.code === 0 && live && live.secondary_status ? String(live.secondary_status) : null;
+  return { reviews, campaignOn, campaignSecondary, error };
 }
+
+/** TikTok's delivery states that mean "this ad has finished its run": the schedule closed or a lifetime budget was spent. */
+const FINISHED_SECONDARY = new Set(["AD_STATUS_TIME_DONE", "AD_STATUS_BUDGET_EXCEED", "AD_STATUS_CAMPAIGN_EXCEED", "AD_STATUS_ADGROUP_EXCEED"]);
 
 /**
  * Settle one campaign's status from TikTok's answer:
@@ -97,13 +101,23 @@ export async function fetchCampaignReviews(row: LaunchedCampaign): Promise<{ rev
 export async function pollCampaignReview(row: LaunchedCampaign): Promise<{ reviews: AdReview[]; status: string; error?: string }> {
   const data = getData();
   const session = systemSession();
-  const { campaign } = row;
-  const { reviews, campaignOn, error } = await fetchCampaignReviews(row);
+  const { campaign, launch } = row;
+  const { reviews, campaignOn, campaignSecondary, error } = await fetchCampaignReviews(row);
   if (!reviews.length) return { reviews, status: campaign.status, error };
   const anyLive = reviews.some((r) => r.state === "approved" || r.state === "limited") && campaignOn !== false;
   const allRejected = reviews.every((r) => r.state === "rejected");
+  // A lifetime launch whose every ad TikTok reports as finished (schedule closed, budget spent) is over.
+  const allFinished = launch.settings?.budget_mode !== "BUDGET_MODE_DAY" && reviews.every((r) => !!r.secondary && FINISHED_SECONDARY.has(r.secondary));
+  const suspended = !!campaignSecondary && campaignSecondary.includes("PUNISH");
   let status = campaign.status;
-  if (campaignOn === false && ["submitted", "live"].includes(campaign.status)) {
+  if (suspended && ["submitted", "live", "paused"].includes(campaign.status) && !(campaign.status_note ?? "").includes("suspended")) {
+    // Not a status of ours: the account is TikTok's problem; the note says so and the switch stays where it is.
+    await data.setPromoCampaignDelivery(session, campaign.id, { status: campaign.status as "submitted" | "live" | "paused", status_note: "TikTok has suspended this ad account; nothing delivers until it is restored (or the campaign is relaunched on another account)." });
+  }
+  if (allFinished && ["submitted", "live", "paused"].includes(campaign.status)) {
+    status = "ended";
+    await data.setPromoCampaignDelivery(session, campaign.id, { status: "ended", status_note: "The schedule closed or the lifetime budget was spent." });
+  } else if (campaignOn === false && ["submitted", "live"].includes(campaign.status)) {
     status = "paused";
     await data.setPromoCampaignDelivery(session, campaign.id, { status: "paused", status_note: campaign.status_note ?? "Switched off on TikTok" });
   } else if (anyLive && ["submitted", "paused"].includes(campaign.status)) {

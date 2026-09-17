@@ -18,8 +18,11 @@
 
 import { systemSession } from "@/lib/auth";
 import { getData } from "@/lib/data";
+import { isHistoricalPromoSeed } from "@/lib/data/errors";
+import { autoDuplicatePass } from "./autodup";
 import { runLaunch } from "./launch";
 import { syncCampaignResults } from "./metrics";
+import { invalidateMonitor } from "./monitor";
 import { pollCampaignReview } from "./review";
 
 const TICK_MS = 5 * 60 * 1000;
@@ -35,7 +38,7 @@ function state(): SchedState {
   return store.__studioTikTokSched;
 }
 
-export type TickSummary = { at: string; launches: number; polled: number; synced: number; errors: string[] };
+export type TickSummary = { at: string; launches: number; polled: number; synced: number; duplicated: number; errors: string[] };
 
 export function schedulerStatus(): { started: boolean; lastTickAt: string | null; lastSummary: TickSummary | null } {
   const s = state();
@@ -44,7 +47,7 @@ export function schedulerStatus(): { started: boolean; lastTickAt: string | null
 
 export async function tick(opts: { metrics?: boolean } = {}): Promise<TickSummary> {
   const s = state();
-  const summary: TickSummary = { at: new Date().toISOString(), launches: 0, polled: 0, synced: 0, errors: [] };
+  const summary: TickSummary = { at: new Date().toISOString(), launches: 0, polled: 0, synced: 0, duplicated: 0, errors: [] };
   if (s.ticking) return summary;
   s.ticking = true;
   try {
@@ -52,7 +55,7 @@ export async function tick(opts: { metrics?: boolean } = {}): Promise<TickSummar
     const session = systemSession();
 
     // 1. launches
-    const open = await data.listOpenPromoLaunches(session);
+    const open = (process.env.LEGACY_PROMO_RECOVERY === "1" || isHistoricalPromoSeed()) ? await data.listOpenPromoLaunches(session) : [];
     for (const launch of open) {
       const stale = launch.status === "pending" || !launch.heartbeat_at || Date.now() - new Date(launch.heartbeat_at).getTime() > STALE_MS;
       if (!stale) continue;
@@ -64,7 +67,7 @@ export async function tick(opts: { metrics?: boolean } = {}): Promise<TickSummar
       }
     }
 
-    // 2. review + 3. metrics
+    // 2. review (+ the auto-duplicate pass once ads clear it) + 3. metrics
     const launched = await data.listLaunchedPromoCampaigns(session);
     const doMetrics = opts.metrics ?? Date.now() - s.lastMetricsAt >= METRICS_EVERY_MS;
     for (const row of launched) {
@@ -74,6 +77,16 @@ export async function tick(opts: { metrics?: boolean } = {}): Promise<TickSummar
         if (r.error) summary.errors.push(`review ${row.campaign.external_id}: ${r.error}`);
       } catch (e) {
         summary.errors.push(`review ${row.campaign.external_id}: ${(e as Error).message}`);
+      }
+      if ((process.env.LEGACY_PROMO_RECOVERY === "1" || isHistoricalPromoSeed()) && row.launch.settings?.duplicate_copies && !row.launch.duplicated_at) {
+        try {
+          const fresh = await data.getLaunchedCampaign(session, row.campaign.id);
+          const d = fresh ? await autoDuplicatePass(fresh) : { created: [], decided: false };
+          summary.duplicated += d.created.length;
+          if (d.error) summary.errors.push(`auto-duplicate ${row.campaign.external_id}: ${d.error}`);
+        } catch (e) {
+          summary.errors.push(`auto-duplicate ${row.campaign.external_id}: ${(e as Error).message}`);
+        }
       }
       if (!doMetrics) continue;
       try {
@@ -85,6 +98,9 @@ export async function tick(opts: { metrics?: boolean } = {}): Promise<TickSummar
       }
     }
     if (doMetrics) s.lastMetricsAt = Date.now();
+    invalidateMonitor();
+    try { await (await import("@/lib/launch/service")).tickLaunches(); }
+    catch (e) { summary.errors.push(`launch sweep: ${(e as Error).message}`); }
   } finally {
     s.ticking = false;
     s.lastTickAt = Date.now();

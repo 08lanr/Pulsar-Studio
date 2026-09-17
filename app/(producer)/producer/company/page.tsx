@@ -1,5 +1,6 @@
 import AccountsForm from "@/components/producer/research/AccountsForm";
 import LaunchAccountPanel from "@/components/producer/research/LaunchAccountPanel";
+import TikTokAccountPanel from "@/components/producer/research/TikTokAccountPanel";
 import CompanyNav from "@/components/producer/research/CompanyNav";
 import OnboardingForm from "@/components/producer/research/OnboardingForm";
 import ReportImport from "@/components/producer/research/ReportImport";
@@ -71,6 +72,7 @@ export default async function CompanyPage({ searchParams }: { searchParams: { ta
       {tab === "accounts" && (
         <>
           <LaunchAccountPanel account={launchAccount} businessCenter={launchBc} requests={requests} canAct={canAct} />
+          {launchBc && <TikTokAccountPanel businessCenter={launchBc} canAct={canAct} />}
           <section className="rs-panel">
             <div className="rs-panel-head"><div><h2>{t(locale, "ws.company.tab.accounts")}</h2><p>{t(locale, "ws.accounts.sub")}</p></div></div>
             <AccountsForm accounts={accounts} canAct={canAct} />

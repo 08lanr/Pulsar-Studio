@@ -27,7 +27,7 @@ export default async function AnalyticsAcquisition({ params, searchParams }: { p
         <section className="rs-panel rs-empty" role="status">
           <h2>{t(locale, "an.acq.none")}</h2>
           <p>{t(locale, "an.acq.noneBody")}</p>
-          <a className="btn btn-primary" href={`/producer/promote/new?title=${a.title.id}`}>{t(locale, "ws.actions.test")}</a>
+          <a className="btn btn-primary" href={`/producer/launch`}>{t(locale, "ws.actions.test")}</a>
         </section>
       ) : (
         <>
@@ -79,7 +79,7 @@ export default async function AnalyticsAcquisition({ params, searchParams }: { p
               );
             })}
           </div>
-          <p className="rs-meta"><a className="btn btn-outline btn-sm" href={`/producer/promote/new?title=${a.title.id}`}>{t(locale, "ws.exp.new")}</a></p>
+          <p className="rs-meta"><a className="btn btn-outline btn-sm" href={`/producer/launch`}>{t(locale, "ws.exp.new")}</a></p>
         </>
       )}
     </AnalyticsFrame>

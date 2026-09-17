@@ -13,7 +13,18 @@
 
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { cookies } from "next/headers";
+
+// A verified bearer user may call the MCP endpoint without a browser cookie.
+// Keep that user's RLS client inside this request's async context so existing
+// data-layer reads use the same identity. No service-role client enters here.
+const userClientContext = new AsyncLocalStorage<SupabaseClient>();
+
+export function withUserSupabase<T>(client: SupabaseClient, work: () => Promise<T>): Promise<T> {
+  return userClientContext.run(client, work);
+}
 
 function requireEnv(name: string): string {
   const v = process.env[name];
@@ -22,6 +33,8 @@ function requireEnv(name: string): string {
 }
 
 export function createServerSupabase() {
+  const requestClient = userClientContext.getStore();
+  if (requestClient) return requestClient;
   const cookieStore = cookies();
   return createServerClient(
     requireEnv("NEXT_PUBLIC_SUPABASE_URL"),

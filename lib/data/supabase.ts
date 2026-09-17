@@ -64,8 +64,9 @@ import { budgetCheck, overBudgetMessage } from "@/lib/angles";
 import { AD_TEXT_MAX, clipIdOf, creativesFromClips, NO_CLIPS_MESSAGE, pickClipsForRound } from "@/lib/clips/creatives";
 import { blockerMessage, isAssignedBusinessCenter, isReadyLaunchAccount, launchReadiness } from "@/lib/promote/launch-gate";
 import { launchMode } from "@/lib/tiktok";
-import type { AccountRequest, PromoLaunch } from "@/lib/types";
-import { DataError, conflict, invalid, notFound } from "./errors";
+import { launchSettingsSchema, LaunchSettingsError, normalizeLaunchSettings, validateLaunchSettings, type LaunchSettings } from "@/lib/tiktok/settings";
+import type { AccountRequest, InstantPageTemplate, LaunchPreset, PromoLaunch } from "@/lib/types";
+import { DataError, legacyCampaignRetired, conflict, invalid, notFound } from "./errors";
 import type { DataLayer, ExportSnapshot, LaunchedCampaign } from "./index";
 import { mediaUrl } from "./storage";
 import {
@@ -237,6 +238,46 @@ async function launchBcOf(c: Db, producerId: string): Promise<CompanyAccount | n
 
 function requireSystemOrStaff(session: Session): void {
   if (!isSystemSession(session) && session.kind !== "staff") throw new DataError("forbidden", "Pulsar staff only");
+}
+
+/**
+ * An append-only core.audit_events row for a write the SQL triggers do not
+ * cover (launch controls, presets, assignments; review of 2026-09-16: the
+ * fixture audited these and Supabase did not). Written by the service role
+ * so a producer session cannot forge or drop one; the system actor has no
+ * profile row, so it is recorded as the service with no actor id.
+ */
+async function auditEvent(session: Session, action: string, table_name: string, row_id: string | null, title_id: string | null, producer_id: string | null, before: unknown, after: unknown, note: string | null = null): Promise<void> {
+  const system = isSystemSession(session);
+  const { error } = await core(createServiceSupabase()).from("audit_events").insert({
+    actor_id: system ? null : session.userId,
+    actor_kind: system ? "service" : session.kind,
+    action, table_name, row_id, title_id, producer_id, before: before ?? null, after: after ?? null, note, channel: "in_app",
+  });
+  if (error) throw mapError(error);
+}
+
+/** The campaign's launch settings validated against its signed budget; `fallback` is a previous launch's snapshot (relaunch). */
+function launchSettingsFor(campaign: PromoCampaign, fallback?: PromoLaunch["settings"]): LaunchSettings {
+  try {
+    return validateLaunchSettings(normalizeLaunchSettings(campaign.launch_settings ?? fallback ?? null), campaign.experiment?.budget_usd ?? 0);
+  } catch (e) {
+    if (e instanceof LaunchSettingsError) throw conflict(`launch settings: ${e.message}`);
+    throw e;
+  }
+}
+
+/** A launched campaign with its newest launch (done, or any status when `any`), or null. */
+async function launchedRow(c: Db, campaign: PromoCampaign, any: boolean): Promise<LaunchedCampaign | null> {
+  if (!campaign.grow_campaign_id || !/^\d+$/.test(campaign.grow_campaign_id)) return null;
+  const q = promote(c).from("launches").select("*").eq("campaign_id", campaign.id).order("created_at", { ascending: false }).limit(1);
+  const [launches, creatives] = await Promise.all([
+    many<PromoLaunch>(any ? q : q.eq("status", "done")),
+    many<PromoCreative>(promote(c).from("creatives").select("*").eq("campaign_id", campaign.id).eq("status", "approved")),
+  ]);
+  const launch = launches[0];
+  if (!launch || (any && !launch.tiktok_campaign_id)) return null;
+  return { campaign, launch, creatives };
 }
 
 // ---- the implementation ------------------------------------------------------------------------------
@@ -1299,6 +1340,7 @@ export const supabaseData: DataLayer = {
   },
 
   async createPromoCampaign(session, input) {
+    legacyCampaignRetired();
     const c = db();
     if (blank(input.name) || blank(input.target_market)) throw invalid("campaign name and target market are required");
     if (input.destination_url) {
@@ -1312,6 +1354,7 @@ export const supabaseData: DataLayer = {
   },
 
   async generatePromoDrafts(_session, campaignId) {
+    legacyCampaignRetired();
     const c = db();
     const campaign = await one<PromoCampaign>(promote(c).from("campaigns").select("*").eq("id", campaignId).maybeSingle(), "promotion campaign", campaignId);
     if (!["draft", "review", "generating"].includes(campaign.status)) throw conflict("this campaign is already approved");
@@ -1332,6 +1375,7 @@ export const supabaseData: DataLayer = {
   },
 
   async appendPromoDraftsFromClips(_session, campaignId) {
+    legacyCampaignRetired();
     const c = db();
     const campaign = await campaignById(c, campaignId);
     if (campaign.status !== "review") throw conflict("new clips can only be added while the round is in review");
@@ -1348,6 +1392,7 @@ export const supabaseData: DataLayer = {
   },
 
   async setPromoCreativeText(_session, creativeId, hook) {
+    legacyCampaignRetired();
     const c = db();
     const creative = await one<PromoCreative>(promote(c).from("creatives").select("*").eq("id", creativeId).maybeSingle(), "promotion creative", creativeId);
     const campaign = await campaignById(c, creative.campaign_id);
@@ -1360,6 +1405,7 @@ export const supabaseData: DataLayer = {
   },
 
   async reviewPromoCreative(_session, creativeId, input) {
+    legacyCampaignRetired();
     if (input.status === "rejected" && blank(input.rejection_note)) throw invalid("tell us what to change when rejecting a creative");
     const c = db();
     if (input.status === "ready") {
@@ -1371,6 +1417,7 @@ export const supabaseData: DataLayer = {
   },
 
   async approveAllPromoCreatives(_session, campaignId) {
+    legacyCampaignRetired();
     const c = db();
     const campaign = await one<PromoCampaign>(promote(c).from("campaigns").select("*").eq("id", campaignId).maybeSingle(), "promotion campaign", campaignId);
     if (campaign.status !== "review") throw conflict("creative review is closed");
@@ -1379,6 +1426,7 @@ export const supabaseData: DataLayer = {
   },
 
   async approvePromoCampaign(_session, campaignId) {
+    legacyCampaignRetired();
     const c = db();
     // Each chosen ad reserves its angle's minimum; the pick must fit the experiment budget (lib/angles.ts), same as fixture.
     const [before, chosen] = await Promise.all([
@@ -1395,6 +1443,7 @@ export const supabaseData: DataLayer = {
   },
 
   async submitPromoCampaign(session, campaignId, resolved) {
+    legacyCampaignRetired();
     if (session.kind !== "producer" || session.producerRole !== "approver") throw new DataError("forbidden", "launch needs the approver role");
     const c = db();
     const detail = await loadPromoDetail(c, await campaignById(c, campaignId));
@@ -1410,6 +1459,8 @@ export const supabaseData: DataLayer = {
         ? { external_ref: resolved.advertiser_id, identity_id: resolved.identity_id, identity_type: resolved.identity_type }
         : null;
     if (!account) throw conflict("no ready ad account could be picked inside the assigned Business Center");
+    // The launch's shape travels with it (decision 2026-09-16): validated against the signed budget here, so a bad shape never reaches TikTok.
+    const settings = launchSettingsFor(campaign);
     const idempotency_key = `studio:${campaign.external_id}:${detail.approval!.manifest_sha256}`;
     // The launch row is written by the service role (only the engine writes launches; RLS has no producer insert on purpose).
     const s = createServiceSupabase();
@@ -1423,6 +1474,7 @@ export const supabaseData: DataLayer = {
           campaign_id: campaign.id, idempotency_key, manifest_sha256: detail.approval!.manifest_sha256, status: "pending", mode,
           advertiser_id: account.external_ref, identity_id: account.identity_id, identity_type: account.identity_type,
           budget_usd: campaign.experiment!.budget_usd, destination_url: campaign.destination_url, created_by: session.userId,
+          settings, paused: settings.start_paused,
         }).select("*").single(),
         "launch"
       );
@@ -1438,6 +1490,7 @@ export const supabaseData: DataLayer = {
   // ---- Pulsar's Promote desk (staff) ----
 
   async revisePromoCreative(session, creativeId, input) {
+    legacyCampaignRetired();
     if (session.kind !== "staff") throw new DataError("forbidden", "Pulsar staff only");
     const c = db();
     const parent = await one<PromoCreative>(promote(c).from("creatives").select("*").eq("id", creativeId).maybeSingle(), "promotion creative", creativeId);
@@ -1468,6 +1521,7 @@ export const supabaseData: DataLayer = {
   },
 
   async advancePromoCampaign(session, campaignId, input) {
+    legacyCampaignRetired();
     if (session.kind !== "staff") throw new DataError("forbidden", "Pulsar staff only");
     const c = db();
     const campaign = await one<PromoCampaign>(promote(c).from("campaigns").select("*").eq("id", campaignId).maybeSingle(), "promotion campaign", campaignId);
@@ -1501,26 +1555,171 @@ export const supabaseData: DataLayer = {
     return one<PromoLaunch>(promote(c).from("launches").update(patch).eq("id", launchId).select("*").maybeSingle(), "launch", launchId);
   },
 
-  async listLaunchedPromoCampaigns(session) {
-    requireSystemOrStaff(session);
+  async listLaunchedPromoCampaigns(session, opts) {
     const c = dbFor(session);
-    const campaigns = await many<PromoCampaign>(promote(c).from("campaigns").select("*").in("status", ["submitted", "live", "paused", "ended"]).not("grow_campaign_id", "is", null));
+    const statuses = opts?.all ? ["launching", "submitted", "live", "paused", "ended", "failed"] : ["submitted", "live", "paused", "ended"];
+    // RLS scopes a producer to their own company; the system and staff see every company.
+    const campaigns = await many<PromoCampaign>(promote(c).from("campaigns").select("*").in("status", statuses).not("grow_campaign_id", "is", null));
     const out: LaunchedCampaign[] = [];
     for (const campaign of campaigns) {
-      if (!campaign.grow_campaign_id || !/^\d+$/.test(campaign.grow_campaign_id)) continue;
-      const [launches, creatives] = await Promise.all([
-        many<PromoLaunch>(promote(c).from("launches").select("*").eq("campaign_id", campaign.id).eq("status", "done").order("created_at", { ascending: false }).limit(1)),
-        many<PromoCreative>(promote(c).from("creatives").select("*").eq("campaign_id", campaign.id).eq("status", "approved")),
-      ]);
-      if (launches[0]) out.push({ campaign, launch: launches[0], creatives });
+      const row = await launchedRow(c, campaign, !!opts?.all);
+      if (row) out.push(row);
     }
     return out;
   },
 
-  async setPromoCampaignDelivery(session, campaignId, input) {
-    requireSystemOrStaff(session);
+  async getLaunchedCampaign(session, campaignId) {
+    const c = dbFor(session);
+    return launchedRow(c, await campaignById(c, campaignId), true);
+  },
+
+  async recordLaunchChange(session, campaignId, input) {
     const c = dbFor(session);
     const campaign = await campaignById(c, campaignId);
+    if (!isSystemSession(session) && session.kind !== "staff" && (session.kind !== "producer" || session.producerRole !== "approver" || session.producerId !== campaign.producer_id)) {
+      throw new DataError("forbidden", "managing a launched campaign needs the approver role");
+    }
+    const launches = await many<PromoLaunch>(promote(c).from("launches").select("*").eq("campaign_id", campaign.id).order("created_at", { ascending: false }).limit(1));
+    const launch = launches[0];
+    if (!launch) throw conflict("this campaign has no launch record");
+    const at = now();
+    const launchPatch: Partial<PromoLaunch> = {};
+    const campaignPatch: Partial<PromoCampaign> = { updated_at: at };
+    if (input.budget_usd !== undefined) {
+      if (!campaign.experiment) throw invalid("the campaign has no experiment to re-sign");
+      const signer = session.kind === "producer" ? { approved_by: session.userId, approved_at: at } : { approved_by: campaign.experiment.approved_by, approved_at: campaign.experiment.approved_at };
+      campaignPatch.experiment = { ...campaign.experiment, budget_usd: input.budget_usd, version: campaign.experiment.version + 1, updated_at: at, ...signer };
+      launchPatch.budget_usd = input.budget_usd;
+      if (session.kind === "staff") campaignPatch.status_note = `Staff override: budget changed to $${input.budget_usd}${input.note ? ` — ${input.note}` : ""}`;
+    }
+    if (input.daily_budget_usd !== undefined) launchPatch.settings = { ...launch.settings, daily_budget_usd: input.daily_budget_usd };
+    if (input.bid_usd !== undefined) {
+      launchPatch.bid_usd = input.bid_usd;
+      launchPatch.settings = { ...(launchPatch.settings ?? launch.settings), bid_strategy: input.bid_usd ? "COST_CAP" : "LOWEST_COST", bid_usd: input.bid_usd };
+    }
+    if (input.schedule_end !== undefined) launchPatch.schedule_end = input.schedule_end;
+    if (input.duplicates !== undefined) launchPatch.duplicates = input.duplicates;
+    if (input.retired_adgroups !== undefined) launchPatch.retired_adgroups = input.retired_adgroups;
+    if (input.duplicated_at !== undefined) launchPatch.duplicated_at = input.duplicated_at;
+    if (input.activated_at !== undefined) launchPatch.activated_at = input.activated_at;
+    if (input.paused !== undefined) launchPatch.paused = input.paused;
+    // Launch rows are written by the service role only (0008: no producer write policy on purpose); the campaign row under the caller's RLS.
+    const s = createServiceSupabase();
+    const updated = Object.keys(launchPatch).length
+      ? await one<PromoLaunch>(promote(s).from("launches").update(launchPatch).eq("id", launch.id).select("*").maybeSingle(), "launch", launch.id)
+      : launch;
+    await one<PromoCampaign>(promote(c).from("campaigns").update(campaignPatch).eq("id", campaign.id).select("*").maybeSingle(), "promotion campaign", campaign.id);
+    await auditEvent(session, "launch_control", "promote.launches", launch.id, campaign.title_id, campaign.producer_id,
+      { budget_usd: launch.budget_usd, bid_usd: launch.bid_usd, schedule_end: launch.schedule_end, paused: launch.paused, duplicates: Object.keys(launch.duplicates ?? {}).length, retired: (launch.retired_adgroups ?? []).length, experiment_version: campaign.experiment?.version ?? null },
+      { budget_usd: updated.budget_usd, bid_usd: updated.bid_usd, schedule_end: updated.schedule_end, paused: updated.paused, duplicates: Object.keys(updated.duplicates ?? {}).length, retired: (updated.retired_adgroups ?? []).length, activated_at: updated.activated_at, duplicated_at: updated.duplicated_at },
+      input.note ?? null);
+    return updated;
+  },
+
+  async setLaunchSettings(session, campaignId, settings) {
+    legacyCampaignRetired();
+    if (session.kind === "producer") requireEditor(session);
+    const c = db();
+    const campaign = await campaignById(c, campaignId);
+    if (["launching", "submitted", "live", "paused", "ended"].includes(campaign.status)) throw new DataError("frozen", "the launch settings are frozen once the campaign launches; manage it from the delivery panel");
+    const parsed = launchSettingsSchema.safeParse(settings);
+    if (!parsed.success) throw invalid(parsed.error.issues[0]?.message ?? "invalid launch settings");
+    const updated = await one<PromoCampaign>(promote(c).from("campaigns").update({ launch_settings: parsed.data, updated_at: now() }).eq("id", campaign.id).select("*").maybeSingle(), "promotion campaign", campaign.id);
+    await auditEvent(session, "set_launch_settings", "promote.campaigns", campaign.id, campaign.title_id, campaign.producer_id, campaign.launch_settings, parsed.data);
+    return updated;
+  },
+
+  async listLaunchPresets(_session) {
+    return many<LaunchPreset>(promote(db()).from("launch_presets").select("*").order("name"));
+  },
+
+  async saveLaunchPreset(session, input) {
+    if (session.kind !== "staff" || session.staffRole !== "admin") throw new DataError("forbidden", "Admin only");
+    if (blank(input.name) || input.name.trim().length > 60) throw invalid("a preset needs a name of at most 60 characters");
+    const parsed = launchSettingsSchema.safeParse(input.settings);
+    if (!parsed.success) throw invalid(parsed.error.issues[0]?.message ?? "invalid launch settings");
+    const c = db();
+    const fields = { name: input.name.trim(), settings: parsed.data, note: input.note?.trim() || null, updated_at: now() };
+    const saved = input.id
+      ? await one<LaunchPreset>(promote(c).from("launch_presets").update(fields).eq("id", input.id).select("*").maybeSingle(), "launch preset", input.id)
+      : await one<LaunchPreset>(promote(c).from("launch_presets").insert({ ...fields, created_by: session.userId }).select("*").single(), "launch preset");
+    await auditEvent(session, "save_launch_preset", "promote.launch_presets", saved.id, null, null, null, { name: saved.name });
+    return saved;
+  },
+
+  async deleteLaunchPreset(session, presetId) {
+    if (session.kind !== "staff" || session.staffRole !== "admin") throw new DataError("forbidden", "Admin only");
+    const { error } = await promote(db()).from("launch_presets").delete().eq("id", presetId);
+    if (error) throw mapError(error);
+    await auditEvent(session, "delete_launch_preset", "promote.launch_presets", presetId, null, null, null, null);
+  },
+
+  async listInstantPageTemplates(_session) {
+    return many<InstantPageTemplate>(promote(db()).from("instant_page_templates").select("*").order("name"));
+  },
+
+  async saveInstantPageTemplate(session, input) {
+    if (session.kind !== "staff" || session.staffRole !== "admin") throw new DataError("forbidden", "Admin only");
+    if (!input.name.trim() || input.name.trim().length > 60 || !input.button_text.trim() || input.button_text.trim().length > 40) throw invalid("Template name or button text is invalid.");
+    const c = db();
+    const fields = { name: input.name.trim(), button_text: input.button_text.trim(), background: input.background, hand_cursor: input.hand_cursor, updated_at: now() };
+    const saved = input.id
+      ? await one<InstantPageTemplate>(promote(c).from("instant_page_templates").update(fields).eq("id", input.id).select("*").maybeSingle(), "Instant Page template", input.id)
+      : await one<InstantPageTemplate>(promote(c).from("instant_page_templates").insert({ ...fields, created_by: session.userId }).select("*").single(), "Instant Page template");
+    await auditEvent(session, "save_instant_page_template", "promote.instant_page_templates", saved.id, null, null, null, { name: saved.name });
+    return saved;
+  },
+
+  async deleteInstantPageTemplate(session, id) {
+    if (session.kind !== "staff" || session.staffRole !== "admin") throw new DataError("forbidden", "Admin only");
+    const { error } = await promote(db()).from("instant_page_templates").delete().eq("id", id);
+    if (error) throw mapError(error);
+    await auditEvent(session, "delete_instant_page_template", "promote.instant_page_templates", id, null, null, null, null);
+  },
+
+  async setPreferredLaunchAccount(session, advertiserId) {
+    requireEditor(session);
+    if (advertiserId !== null && !/^\d{5,}$/.test(advertiserId)) throw invalid("advertiser id must be TikTok's numeric ad account id");
+    const c = db();
+    const bc = await launchBcOf(c, session.producerId!);
+    if (!bc) throw conflict("no Business Center is assigned to this company yet");
+    const updated = await one<CompanyAccount>(core(c).from("company_accounts").update({ preferred_advertiser_id: advertiserId, updated_at: now() }).eq("id", bc.id).select("*").maybeSingle(), "company account", bc.id);
+    await auditEvent(session, "set_preferred_launch_account", "core.company_accounts", bc.id, null, session.producerId ?? null, { preferred: bc.preferred_advertiser_id }, { preferred: advertiserId });
+    return updated;
+  },
+
+  async relaunchOnAccount(session, campaignId, resolved, note) {
+    legacyCampaignRetired();
+    if (session.kind !== "staff") throw new DataError("forbidden", "Pulsar staff only");
+    const c = db();
+    const campaign = await campaignById(c, campaignId);
+    if (!["ended", "failed"].includes(campaign.status)) throw conflict("only an ended or failed campaign can be relaunched on another account; end it first");
+    const launches = await many<PromoLaunch>(promote(c).from("launches").select("*").eq("campaign_id", campaign.id).order("created_at", { ascending: false }));
+    const previous = launches[0];
+    if (!previous) throw conflict("this campaign was never launched");
+    const bc = await launchBcOf(c, campaign.producer_id);
+    if (!resolved.bc_id || !bc || resolved.bc_id !== bc.external_ref) throw conflict("the new account must be inside the company's assigned Business Center");
+    if (resolved.advertiser_id === previous.advertiser_id && previous.status === "failed") throw conflict("same account: retry the launch instead");
+    const settings = launchSettingsFor(campaign, previous.settings);
+    const s = createServiceSupabase();
+    const launch = await one<PromoLaunch>(
+      promote(s).from("launches").insert({
+        campaign_id: campaign.id, idempotency_key: `${previous.idempotency_key.replace(/:relaunch\d+$/, "")}:relaunch${launches.length}`, manifest_sha256: previous.manifest_sha256, status: "pending", mode: launchMode(),
+        advertiser_id: resolved.advertiser_id, identity_id: resolved.identity_id, identity_type: resolved.identity_type,
+        budget_usd: campaign.experiment?.budget_usd ?? previous.budget_usd, destination_url: previous.destination_url, created_by: session.userId, settings, paused: false,
+      }).select("*").single(),
+      "launch"
+    );
+    await one<PromoCampaign>(promote(c).from("campaigns").update({ status: "launching", status_note: `Relaunched by ${session.displayName} on ad account ${resolved.advertiser_id}${note?.trim() ? `: ${note.trim()}` : ""}`, advertiser_id: resolved.advertiser_id, grow_campaign_id: null, tiktok_adgroup_id: null, launched_at: null, updated_at: now() }).eq("id", campaign.id).select("*").maybeSingle(), "promotion campaign", campaign.id);
+    await auditEvent(session, "relaunch_on_account", "promote.launches", launch.id, campaign.title_id, campaign.producer_id, { status: campaign.status, advertiser_id: campaign.advertiser_id, grow_campaign_id: campaign.grow_campaign_id }, { advertiser_id: resolved.advertiser_id, previous_launch: previous.id }, note?.trim() || null);
+    return launch;
+  },
+
+  async setPromoCampaignDelivery(session, campaignId, input) {
+    const c = dbFor(session);
+    const campaign = await campaignById(c, campaignId);
+    // The engine, the scheduler, staff — and, since the controls are theirs (decision 2026-09-16), the company's approver (RLS scopes the row).
+    if (!isSystemSession(session) && session.kind !== "staff" && !(session.kind === "producer" && session.producerRole === "approver" && session.producerId === campaign.producer_id)) throw new DataError("forbidden", "Pulsar staff or the company's approver only");
     if (!["approved", "launching", "submitted", "live", "paused", "ended", "failed"].includes(campaign.status)) throw conflict(`a ${campaign.status} campaign has no TikTok delivery state`);
     if (campaign.status === "ended" && input.status !== "ended") throw conflict("an ended campaign stays ended; launch a new round");
     const patch: Partial<PromoCampaign> = { status: input.status, updated_at: now() };
@@ -1533,6 +1732,7 @@ export const supabaseData: DataLayer = {
   },
 
   async retryPromoLaunch(session, campaignId) {
+    legacyCampaignRetired();
     if (session.kind !== "staff") throw new DataError("forbidden", "Pulsar staff only");
     const c = db();
     const campaign = await campaignById(c, campaignId);
@@ -1599,6 +1799,7 @@ export const supabaseData: DataLayer = {
     if (input.request_id) {
       await one<AccountRequest>(core(c).from("account_requests").update({ status: "assigned", account_id: row.id, resolved_by: session.userId, resolved_at: at }).eq("id", input.request_id).eq("producer_id", producerId).select("*").maybeSingle(), "account request", input.request_id);
     }
+    await auditEvent(session, "assign_business_center", "core.company_accounts", row.id, null, producerId, existing[0] ? { external_ref: existing[0].external_ref } : null, { bc_id: row.external_ref }, input.note ?? null);
     return row;
   },
 
@@ -1616,6 +1817,7 @@ export const supabaseData: DataLayer = {
     if (input.request_id) {
       await one<AccountRequest>(core(c).from("account_requests").update({ status: "assigned", account_id: row.id, resolved_by: session.userId, resolved_at: at }).eq("id", input.request_id).eq("producer_id", producerId).select("*").maybeSingle(), "account request", input.request_id);
     }
+    await auditEvent(session, "assign_launch_account", "core.company_accounts", row.id, null, producerId, existing[0] ? { external_ref: existing[0].external_ref, identity_id: existing[0].identity_id } : null, { advertiser_id: row.external_ref, identity_id: row.identity_id }, input.note ?? null);
     return row;
   },
 
@@ -1675,6 +1877,7 @@ export const supabaseData: DataLayer = {
   // ---- experiments, results, company accounts (decision 2026-09-08) ---------------------
 
   async setExperiment(session, campaignId, input) {
+    legacyCampaignRetired();
     requireEditor(session);
     const c = db();
     const campaign = await one<PromoCampaign>(promote(c).from("campaigns").select("*").eq("id", campaignId).maybeSingle(), "promotion campaign", campaignId);
@@ -1685,6 +1888,7 @@ export const supabaseData: DataLayer = {
   },
 
   async approveExperiment(session, campaignId) {
+    legacyCampaignRetired();
     if (session.kind !== "producer" || session.producerRole !== "approver") throw new DataError("forbidden", "budget approval needs the approver role");
     const c = db();
     const campaign = await one<PromoCampaign>(promote(c).from("campaigns").select("*").eq("id", campaignId).maybeSingle(), "promotion campaign", campaignId);
@@ -1696,6 +1900,7 @@ export const supabaseData: DataLayer = {
   },
 
   async simulateDemoResults() {
+    legacyCampaignRetired();
     throw new DataError("conflict", "demo results exist only in fixture mode; measured results arrive from Grow");
   },
 

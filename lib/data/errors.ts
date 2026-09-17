@@ -3,6 +3,22 @@
 // SQL functions and RLS enforce in supabase mode), so a route handler maps a
 // DataError to a status once and never looks at the backend.
 
+import { AsyncLocalStorage } from "node:async_hooks";
+
+const historicalSeedScope = new AsyncLocalStorage<boolean>();
+
+/** Only node:test fixture builders may construct historical campaign rows. */
+export function withHistoricalPromoSeed<T>(run: () => T): T {
+  if (!process.env.NODE_TEST_CONTEXT || (process.env.DATA_SOURCE && process.env.DATA_SOURCE !== "fixture")) {
+    throw new Error("historical promo seeding is limited to fixture tests");
+  }
+  return historicalSeedScope.run(true, run);
+}
+
+export function isHistoricalPromoSeed(): boolean {
+  return !!process.env.NODE_TEST_CONTEXT && (!process.env.DATA_SOURCE || process.env.DATA_SOURCE === "fixture") && historicalSeedScope.getStore() === true;
+}
+
 export type DataErrorCode = "not_found" | "forbidden" | "invalid" | "frozen" | "conflict";
 
 export class DataError extends Error {
@@ -47,6 +63,10 @@ export function invalid(message: string): DataError {
 
 export function frozen(message: string): DataError {
   return new DataError("frozen", message);
+}
+
+export function legacyCampaignRetired(): void {
+  if (!isHistoricalPromoSeed()) throw conflict("This earlier campaign workflow is retired. Start a new launch from Clips → Launch.");
 }
 
 export function conflict(message: string): DataError {

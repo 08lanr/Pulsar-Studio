@@ -1,0 +1,62 @@
+{
+  "monitorTable.launchTotals": {
+    "en": "Totals for this launch",
+    "zh": "本次投放汇总"
+  },
+  "monitorTable.enabledCampaigns": {
+    "en": "enabled / total",
+    "zh": "已开启 / 总数"
+  },
+  "monitorTable.plannedBudget": {
+    "en": "Planned budget",
+    "zh": "计划预算"
+  },
+  "monitorTable.openLaunch": {
+    "en": "Open launch",
+    "zh": "查看投放"
+  },
+  "monitorTable.platformCampaignId": {
+    "en": "Platform campaign ID",
+    "zh": "平台活动 ID"
+  },
+  "monitorTable.id": {
+    "en": "ID",
+    "zh": "ID"
+  },
+  "monitorTable.creatives": {
+    "en": "{count} ads",
+    "zh": "{count} 个广告"
+  },
+  "monitorTable.copyAccountId": {
+    "en": "Copy ad account ID",
+    "zh": "复制广告账户 ID"
+  },
+  "monitorTable.copyAccountIdValue": {
+    "en": "Copy ad account ID {id}",
+    "zh": "复制广告账户 ID {id}"
+  },
+  "monitorTable.copied": {
+    "en": "Account ID copied",
+    "zh": "已复制账户 ID"
+  },
+  "monitorTable.copyFailed": {
+    "en": "Copy failed. Select the visible account ID to copy it manually.",
+    "zh": "复制失败，请选中显示的账户 ID 后手动复制。"
+  },
+  "monitorTable.authorizationCodes": {
+    "en": "Authorization codes",
+    "zh": "授权码"
+  },
+  "monitorTable.launchDetails": {
+    "en": "Launch details",
+    "zh": "投放详情"
+  },
+  "monitorTable.draftHint": {
+    "en": "This draft has not been launched. Open it to review and confirm.",
+    "zh": "此草稿尚未投放，请打开草稿预览并确认。"
+  },
+  "monitorTable.creatingHint": {
+    "en": "Campaign creation is in progress. Status will update here.",
+    "zh": "正在创建活动，状态将在此更新。"
+  }
+}

@@ -25,13 +25,14 @@ import { cutClip, withSourceFile } from "@/lib/clips/cut";
 import { ffmpegAvailable } from "@/lib/promote/render";
 import { blockerMessage, isAssignedBusinessCenter, isReadyLaunchAccount, launchReadiness } from "@/lib/promote/launch-gate";
 import { launchMode } from "@/lib/tiktok";
+import { launchSettingsSchema, LaunchSettingsError, normalizeLaunchSettings, validateLaunchSettings, type LaunchSettings } from "@/lib/tiktok/settings";
 import { LAST_CUE_MS, liftStamp, MAX_DERIVED_CUE_MS, SAMPLE_LATENCY_MS, type IngestResult } from "@/lib/ingest";
 import { applyGlobalOffset, assertValidCue } from "@/lib/subtitle-timing";
 import { splitSpeaker } from "@/lib/ingest/text";
 import { isLlmAvailable } from "@/lib/llm";
 import { marketView } from "@/lib/research/snapshot";
 import type { ReportBatch, WatchRow } from "@/lib/research/types";
-import type { AccountRequest, CompanyAccount, CreativeResult, PromoLaunch } from "@/lib/types";
+import type { AccountRequest, CompanyAccount, CreativeResult, InstantPageTemplate, LaunchPreset, PromoLaunch } from "@/lib/types";
 import { examplesFromApprovedVersions } from "@/lib/translation-memory";
 import { cloneFixtureDb, defaultFixtureSeed, type FixtureDb, type FixtureSeed } from "@/data/fixture";
 import { buildDemoAnalytics, DEMO_TODAY } from "@/data/fixture/demo-analytics";
@@ -69,7 +70,7 @@ import type {
   Version,
   VersionSnapshot,
 } from "@/lib/types";
-import { conflict, forbidden, frozen, invalid, notFound } from "./errors";
+import { withHistoricalPromoSeed, legacyCampaignRetired, conflict, forbidden, frozen, invalid, notFound } from "./errors";
 import type {
   ApproveOptions,
   DataLayer,
@@ -139,6 +140,21 @@ function store(): Store {
   s.db.company_accounts ??= [];
   s.db.promo_launches ??= [];
   s.db.account_requests ??= [];
+  s.db.launch_presets ??= [];
+  s.db.instant_page_templates ??= [];
+  // Rows saved before 2026-09-16 predate the launch-settings fields; fill them so every reader sees one shape.
+  for (const l of s.db.promo_launches) {
+    l.settings ??= {} as PromoLaunch["settings"];
+    l.paused ??= false;
+    l.duplicates ??= {};
+    l.retired_adgroups ??= [];
+    l.duplicated_at ??= null;
+    l.activated_at ??= null;
+    l.bid_usd ??= null;
+    l.schedule_end ??= null;
+  }
+  for (const c of s.db.promo_campaigns) c.launch_settings ??= null;
+  for (const a of s.db.company_accounts) a.preferred_advertiser_id ??= null;
   return s;
 }
 
@@ -532,6 +548,25 @@ function launchBcOf(db: FixtureDb, producerId: string): CompanyAccount | null {
   return (db.company_accounts ?? []).find((a) => a.producer_id === producerId && isAssignedBusinessCenter(a)) ?? null;
 }
 
+/** The campaign's launch settings validated against its signed budget; `fallback` is a previous launch's snapshot (relaunch). */
+function launchSettingsFor(campaign: PromoCampaign, fallback?: PromoLaunch["settings"]): LaunchSettings {
+  try {
+    return validateLaunchSettings(normalizeLaunchSettings(campaign.launch_settings ?? fallback ?? null), campaign.experiment?.budget_usd ?? 0);
+  } catch (e) {
+    if (e instanceof LaunchSettingsError) throw conflict(`launch settings: ${e.message}`);
+    throw e;
+  }
+}
+
+/** A launched campaign with its newest launch (done, or any status when `any`), or null. */
+function launchedRow(db: FixtureDb, campaign: PromoCampaign, any: boolean): { campaign: PromoCampaign; launch: PromoLaunch; creatives: PromoCreative[] } | null {
+  if (!campaign.grow_campaign_id || !/^\d+$/.test(campaign.grow_campaign_id)) return null;
+  const launch = latestLaunch(db, campaign.id);
+  if (!launch || (!any && launch.status !== "done")) return null;
+  if (any && !launch.tiktok_campaign_id) return null;
+  return { campaign: clone(campaign), launch: clone(launch), creatives: clone(db.promo_creatives.filter((c) => c.campaign_id === campaign.id && c.status === "approved")) };
+}
+
 /** The engine and the scheduler (system) or Pulsar staff. */
 function requireSystemOrStaff(session: Session): void {
   if (!isSystemSession(session) && session.kind !== "staff") throw forbidden("Pulsar staff only");
@@ -751,6 +786,8 @@ function syncTimingMirrors(
   const ep = db.episodes.find((e) => e.id === episodeId);
   if (ep) ep.duration_ms = Math.max(0, ...lines.map((l) => l.end_ms ?? 0)) || ep.duration_ms;
 }
+
+export { withHistoricalPromoSeed };
 
 export const fixtureData: DataLayer = {
   // ---- titles and producers ----
@@ -2301,6 +2338,7 @@ export const fixtureData: DataLayer = {
   },
 
   async createPromoCampaign(session, input) {
+    legacyCampaignRetired();
     const { db } = store();
     const title = requireTitleEditor(db, session, input.title_id);
     if (blank(input.name)) throw invalid("campaign name is required");
@@ -2328,6 +2366,7 @@ export const fixtureData: DataLayer = {
       tiktok_adgroup_id: null,
       status_note: null,
       launched_at: null,
+      launch_settings: null,
       created_by: session.userId,
       created_at: at,
       updated_at: at,
@@ -2338,6 +2377,7 @@ export const fixtureData: DataLayer = {
   },
 
   async generatePromoDrafts(session, campaignId) {
+    legacyCampaignRetired();
     const { db } = store();
     const campaign = readablePromoCampaign(db, session, campaignId);
     requireTitleEditor(db, session, campaign.title_id);
@@ -2365,6 +2405,7 @@ export const fixtureData: DataLayer = {
   },
 
   async appendPromoDraftsFromClips(session, campaignId) {
+    legacyCampaignRetired();
     const { db } = store();
     const campaign = readablePromoCampaign(db, session, campaignId);
     const title = requireTitleEditor(db, session, campaign.title_id);
@@ -2386,6 +2427,7 @@ export const fixtureData: DataLayer = {
   },
 
   async setPromoCreativeText(session, creativeId, hook) {
+    legacyCampaignRetired();
     const { db } = store();
     const creative = db.promo_creatives.find((c) => c.id === creativeId);
     if (!creative) throw notFound("promotion creative", creativeId);
@@ -2403,6 +2445,7 @@ export const fixtureData: DataLayer = {
   },
 
   async reviewPromoCreative(session, creativeId, input) {
+    legacyCampaignRetired();
     const { db } = store();
     const creative = db.promo_creatives.find((c) => c.id === creativeId);
     if (!creative) throw notFound("promotion creative", creativeId);
@@ -2419,6 +2462,7 @@ export const fixtureData: DataLayer = {
   },
 
   async approveAllPromoCreatives(session, campaignId) {
+    legacyCampaignRetired();
     const { db } = store();
     const campaign = readablePromoCampaign(db, session, campaignId);
     const title = requireTitleEditor(db, session, campaign.title_id);
@@ -2437,6 +2481,7 @@ export const fixtureData: DataLayer = {
   },
 
   async approvePromoCampaign(session, campaignId) {
+    legacyCampaignRetired();
     const { db } = store();
     const campaign = readablePromoCampaign(db, session, campaignId);
     const title = requireTitleEditor(db, session, campaign.title_id);
@@ -2467,6 +2512,7 @@ export const fixtureData: DataLayer = {
   },
 
   async submitPromoCampaign(session, campaignId, resolved) {
+    legacyCampaignRetired();
     const { db } = store();
     const campaign = readablePromoCampaign(db, session, campaignId);
     const title = requireTitleEditor(db, session, campaign.title_id);
@@ -2488,6 +2534,8 @@ export const fixtureData: DataLayer = {
         ? { external_ref: resolved.advertiser_id, identity_id: resolved.identity_id, identity_type: resolved.identity_type }
         : null;
     if (!account) throw conflict("no ready ad account could be picked inside the assigned Business Center");
+    // The launch's shape travels with it (decision 2026-09-16): validated against the signed budget here, so a bad shape never reaches TikTok.
+    const settings = launchSettingsFor(campaign);
     const idempotency_key = `studio:${campaign.external_id}:${approval!.manifest_sha256}`;
     const at = now();
     let launch = db.promo_launches.find((l) => l.idempotency_key === idempotency_key);
@@ -2499,7 +2547,9 @@ export const fixtureData: DataLayer = {
         id: randomUUID(), campaign_id: campaign.id, idempotency_key, manifest_sha256: approval!.manifest_sha256, status: "pending", mode,
         advertiser_id: account.external_ref, identity_id: account.identity_id, identity_type: account.identity_type,
         budget_usd: campaign.experiment!.budget_usd, destination_url: campaign.destination_url!,
-        uploaded_videos: {}, covers: {}, tiktok_campaign_id: null, tiktok_adgroup_id: null, ad_ids: {}, error: null, attempts: 0,
+        uploaded_videos: {}, covers: {}, tiktok_campaign_id: null, tiktok_adgroup_id: null, ad_ids: {},
+        settings, paused: settings.start_paused, duplicates: {}, retired_adgroups: [], duplicated_at: null, activated_at: null, bid_usd: null, schedule_end: null,
+        error: null, attempts: 0,
         created_by: session.userId, created_at: at, started_at: null, heartbeat_at: null, finished_at: null,
       };
       db.promo_launches.push(launch);
@@ -2519,6 +2569,7 @@ export const fixtureData: DataLayer = {
   // ---- Pulsar's Promote desk (staff) ----
 
   async revisePromoCreative(session, creativeId, input) {
+    legacyCampaignRetired();
     const { db } = store();
     if (session.kind !== "staff") throw forbidden("Pulsar staff only");
     const parent = db.promo_creatives.find((c) => c.id === creativeId);
@@ -2566,6 +2617,7 @@ export const fixtureData: DataLayer = {
   },
 
   async advancePromoCampaign(session, campaignId, input) {
+    legacyCampaignRetired();
     const { db } = store();
     if (session.kind !== "staff") throw forbidden("Pulsar staff only");
     const campaign = readablePromoCampaign(db, session, campaignId);
@@ -2613,25 +2665,190 @@ export const fixtureData: DataLayer = {
     return clone(launch);
   },
 
-  async listLaunchedPromoCampaigns(session) {
-    requireSystemOrStaff(session);
+  async listLaunchedPromoCampaigns(session, opts) {
+    requireMemberSession(session);
     const { db } = store();
+    const statuses = opts?.all ? ["launching", "submitted", "live", "paused", "ended", "failed"] : ["submitted", "live", "paused", "ended"];
     const out: { campaign: PromoCampaign; launch: PromoLaunch; creatives: PromoCreative[] }[] = [];
     for (const campaign of db.promo_campaigns) {
-      if (!["submitted", "live", "paused", "ended"].includes(campaign.status)) continue;
-      if (!campaign.grow_campaign_id || !/^\d+$/.test(campaign.grow_campaign_id)) continue;
-      const launch = latestLaunch(db, campaign.id);
-      if (!launch || launch.status !== "done") continue;
-      out.push({ campaign: clone(campaign), launch: clone(launch), creatives: clone(db.promo_creatives.filter((c) => c.campaign_id === campaign.id && c.status === "approved")) });
+      if (session.kind === "producer" && campaign.producer_id !== session.producerId) continue;
+      if (!statuses.includes(campaign.status)) continue;
+      const row = launchedRow(db, campaign, !!opts?.all);
+      if (row) out.push(row);
     }
     return out;
   },
 
+  async getLaunchedCampaign(session, campaignId) {
+    const { db } = store();
+    const campaign = readablePromoCampaign(db, session, campaignId);
+    return launchedRow(db, campaign, true);
+  },
+
+  async recordLaunchChange(session, campaignId, input) {
+    const { db } = store();
+    const campaign = readablePromoCampaign(db, session, campaignId);
+    if (!isSystemSession(session) && session.kind !== "staff") {
+      const title = findTitle(db, campaign.title_id);
+      if (!isProducerApprover(session, title)) throw forbidden("managing a launched campaign needs the approver role");
+    }
+    const launch = latestLaunch(db, campaign.id);
+    if (!launch) throw conflict("this campaign has no launch record");
+    const at = now();
+    const before = { budget_usd: launch.budget_usd, bid_usd: launch.bid_usd, schedule_end: launch.schedule_end, paused: launch.paused, experiment_version: campaign.experiment?.version ?? null };
+    if (input.budget_usd !== undefined) {
+      if (!campaign.experiment) throw invalid("the campaign has no experiment to re-sign");
+      // A new signed number: the approver signs it; staff record an audited override without pretending to be the approver.
+      const signer = session.kind === "producer" ? { approved_by: session.userId, approved_at: at } : { approved_by: campaign.experiment.approved_by, approved_at: campaign.experiment.approved_at };
+      campaign.experiment = { ...campaign.experiment, budget_usd: input.budget_usd, version: campaign.experiment.version + 1, updated_at: at, ...signer };
+      launch.budget_usd = input.budget_usd;
+      if (session.kind === "staff") campaign.status_note = `Staff override: budget changed to $${input.budget_usd}${input.note ? ` — ${input.note}` : ""}`;
+    }
+    if (input.daily_budget_usd !== undefined) launch.settings = { ...launch.settings, daily_budget_usd: input.daily_budget_usd };
+    if (input.bid_usd !== undefined) {
+      launch.bid_usd = input.bid_usd;
+      launch.settings = { ...launch.settings, bid_strategy: input.bid_usd ? "COST_CAP" : "LOWEST_COST", bid_usd: input.bid_usd };
+    }
+    if (input.schedule_end !== undefined) launch.schedule_end = input.schedule_end;
+    if (input.duplicates !== undefined) launch.duplicates = input.duplicates;
+    if (input.retired_adgroups !== undefined) launch.retired_adgroups = input.retired_adgroups;
+    if (input.duplicated_at !== undefined) launch.duplicated_at = input.duplicated_at;
+    if (input.activated_at !== undefined) launch.activated_at = input.activated_at;
+    if (input.paused !== undefined) launch.paused = input.paused;
+    campaign.updated_at = at;
+    audit(store(), session, "launch_control", "promote.launches", launch.id, campaign.title_id, before, { budget_usd: launch.budget_usd, bid_usd: launch.bid_usd, schedule_end: launch.schedule_end, paused: launch.paused, duplicates: Object.keys(launch.duplicates).length, retired: launch.retired_adgroups.length }, input.note ?? null);
+    return clone(launch);
+  },
+
+  async setLaunchSettings(session, campaignId, settings) {
+    legacyCampaignRetired();
+    const { db } = store();
+    const campaign = readablePromoCampaign(db, session, campaignId);
+    requireTitleEditor(db, session, campaign.title_id);
+    if (["launching", "submitted", "live", "paused", "ended"].includes(campaign.status)) throw frozen("the launch settings are frozen once the campaign launches; manage it from the delivery panel");
+    const parsed = launchSettingsSchema.safeParse(settings);
+    if (!parsed.success) throw invalid(parsed.error.issues[0]?.message ?? "invalid launch settings");
+    const before = campaign.launch_settings;
+    campaign.launch_settings = parsed.data;
+    campaign.updated_at = now();
+    audit(store(), session, "set_launch_settings", "promote.campaigns", campaign.id, campaign.title_id, before, parsed.data);
+    return clone(campaign);
+  },
+
+  async listLaunchPresets(session) {
+    requireMemberSession(session);
+    return clone([...store().db.launch_presets].sort((a, b) => a.name.localeCompare(b.name)));
+  },
+
+  async saveLaunchPreset(session, input) {
+    requireStaffAdmin(session);
+    const { db } = store();
+    if (blank(input.name) || input.name.trim().length > 60) throw invalid("a preset needs a name of at most 60 characters");
+    const parsed = launchSettingsSchema.safeParse(input.settings);
+    if (!parsed.success) throw invalid(parsed.error.issues[0]?.message ?? "invalid launch settings");
+    const at = now();
+    const existing = input.id ? db.launch_presets.find((p) => p.id === input.id) : null;
+    if (input.id && !existing) throw notFound("launch preset", input.id);
+    if (existing) {
+      Object.assign(existing, { name: input.name.trim(), settings: parsed.data, note: input.note?.trim() || null, updated_at: at });
+      audit(store(), session, "save_launch_preset", "promote.launch_presets", existing.id, null, null, { name: existing.name });
+      return clone(existing);
+    }
+    const row: LaunchPreset = { id: randomUUID(), name: input.name.trim(), settings: parsed.data, note: input.note?.trim() || null, created_by: session.userId, created_at: at, updated_at: at };
+    db.launch_presets.push(row);
+    audit(store(), session, "save_launch_preset", "promote.launch_presets", row.id, null, null, { name: row.name });
+    return clone(row);
+  },
+
+  async deleteLaunchPreset(session, presetId) {
+    requireStaffAdmin(session);
+    const { db } = store();
+    const i = db.launch_presets.findIndex((p) => p.id === presetId);
+    if (i < 0) throw notFound("launch preset", presetId);
+    const [row] = db.launch_presets.splice(i, 1);
+    audit(store(), session, "delete_launch_preset", "promote.launch_presets", row.id, null, { name: row.name }, null);
+  },
+
+  async listInstantPageTemplates(session) {
+    requireMemberSession(session);
+    return clone([...store().db.instant_page_templates].sort((a, b) => a.name.localeCompare(b.name)));
+  },
+
+  async saveInstantPageTemplate(session, input) {
+    requireStaffAdmin(session);
+    if (!input.name.trim() || input.name.trim().length > 60 || !input.button_text.trim() || input.button_text.trim().length > 40) throw invalid("Template name or button text is invalid.");
+    const rows = store().db.instant_page_templates;
+    const existing = input.id ? rows.find(row => row.id === input.id) : null;
+    if (input.id && !existing) throw notFound("Instant Page template", input.id);
+    const at = now();
+    if (existing) {
+      Object.assign(existing, { name: input.name.trim(), button_text: input.button_text.trim(), background: input.background, hand_cursor: input.hand_cursor, updated_at: at });
+      audit(store(), session, "save_instant_page_template", "promote.instant_page_templates", existing.id, null, null, { name: existing.name });
+      return clone(existing);
+    }
+    const row: InstantPageTemplate = { id: randomUUID(), name: input.name.trim(), button_text: input.button_text.trim(), background: input.background, hand_cursor: input.hand_cursor, created_by: session.userId, created_at: at, updated_at: at };
+    rows.push(row);
+    audit(store(), session, "save_instant_page_template", "promote.instant_page_templates", row.id, null, null, { name: row.name });
+    return clone(row);
+  },
+
+  async deleteInstantPageTemplate(session, id) {
+    requireStaffAdmin(session);
+    const rows = store().db.instant_page_templates;
+    const index = rows.findIndex(row => row.id === id);
+    if (index < 0) throw notFound("Instant Page template", id);
+    const [row] = rows.splice(index, 1);
+    audit(store(), session, "delete_instant_page_template", "promote.instant_page_templates", id, null, { name: row.name }, null);
+  },
+
+  async setPreferredLaunchAccount(session, advertiserId) {
+    requireProducerEditor(session);
+    const { db } = store();
+    const bc = launchBcOf(db, session.producerId!);
+    if (!bc) throw conflict("no Business Center is assigned to this company yet");
+    if (advertiserId !== null && !/^\d{5,}$/.test(advertiserId)) throw invalid("advertiser id must be TikTok's numeric ad account id");
+    const before = bc.preferred_advertiser_id;
+    bc.preferred_advertiser_id = advertiserId;
+    bc.updated_at = now();
+    audit(store(), session, "set_preferred_launch_account", "core.company_accounts", bc.id, null, { preferred: before }, { preferred: advertiserId });
+    return clone(bc);
+  },
+
+  async relaunchOnAccount(session, campaignId, resolved, note) {
+    legacyCampaignRetired();
+    requireStaff(session);
+    const { db } = store();
+    const campaign = readablePromoCampaign(db, session, campaignId);
+    if (!["ended", "failed"].includes(campaign.status)) throw conflict("only an ended or failed campaign can be relaunched on another account; end it first");
+    const previous = latestLaunch(db, campaign.id);
+    if (!previous) throw conflict("this campaign was never launched");
+    const bc = launchBcOf(db, campaign.producer_id);
+    if (!resolved.bc_id || !bc || resolved.bc_id !== bc.external_ref) throw conflict("the new account must be inside the company's assigned Business Center");
+    if (resolved.advertiser_id === previous.advertiser_id && previous.status === "failed") throw conflict("same account: retry the launch instead");
+    const n = db.promo_launches.filter((l) => l.campaign_id === campaign.id).length;
+    const at = now();
+    const launch: PromoLaunch = {
+      id: randomUUID(), campaign_id: campaign.id, idempotency_key: `${previous.idempotency_key.replace(/:relaunch\d+$/, "")}:relaunch${n}`, manifest_sha256: previous.manifest_sha256, status: "pending", mode: launchMode(),
+      advertiser_id: resolved.advertiser_id, identity_id: resolved.identity_id, identity_type: resolved.identity_type,
+      budget_usd: campaign.experiment?.budget_usd ?? previous.budget_usd, destination_url: previous.destination_url,
+      uploaded_videos: {}, covers: {}, tiktok_campaign_id: null, tiktok_adgroup_id: null, ad_ids: {},
+      settings: launchSettingsFor(campaign, previous.settings), paused: false, duplicates: {}, retired_adgroups: [], duplicated_at: null, activated_at: null, bid_usd: null, schedule_end: null,
+      error: null, attempts: 0, created_by: session.userId, created_at: at, started_at: null, heartbeat_at: null, finished_at: null,
+    };
+    db.promo_launches.push(launch);
+    // The campaign goes back to launching; ended is otherwise terminal, so this is the one explicit, audited door out of it.
+    const before = { status: campaign.status, advertiser_id: campaign.advertiser_id, grow_campaign_id: campaign.grow_campaign_id };
+    Object.assign(campaign, { status: "launching", status_note: `Relaunched by ${session.displayName} on ad account ${resolved.advertiser_id}${note?.trim() ? `: ${note.trim()}` : ""}`, advertiser_id: resolved.advertiser_id, grow_campaign_id: null, tiktok_adgroup_id: null, launched_at: null, updated_at: at });
+    audit(store(), session, "relaunch_on_account", "promote.launches", launch.id, campaign.title_id, before, { advertiser_id: resolved.advertiser_id, previous_launch: previous.id }, note?.trim() || null);
+    return clone(launch);
+  },
+
   async setPromoCampaignDelivery(session, campaignId, input) {
-    requireSystemOrStaff(session);
     const { db } = store();
     const campaign = db.promo_campaigns.find((c) => c.id === campaignId);
     if (!campaign) throw notFound("promotion campaign", campaignId);
+    // The engine, the scheduler, staff — and, since the controls are theirs (decision 2026-09-16), the company's approver.
+    if (!isSystemSession(session) && session.kind !== "staff" && !isProducerApprover(session, findTitle(db, campaign.title_id))) throw forbidden("Pulsar staff or the company's approver only");
     // Only a launched or launching campaign has a delivery state; an ended campaign is closed for good.
     if (!["approved", "launching", "submitted", "live", "paused", "ended", "failed"].includes(campaign.status)) throw conflict(`a ${campaign.status} campaign has no TikTok delivery state`);
     if (campaign.status === "ended" && input.status !== "ended") throw conflict("an ended campaign stays ended; launch a new round");
@@ -2648,6 +2865,7 @@ export const fixtureData: DataLayer = {
   },
 
   async retryPromoLaunch(session, campaignId) {
+    legacyCampaignRetired();
     requireStaff(session);
     const { db } = store();
     const campaign = db.promo_campaigns.find((c) => c.id === campaignId);
@@ -2726,7 +2944,7 @@ export const fixtureData: DataLayer = {
       Object.assign(existing, fields);
       row = existing;
     } else {
-      row = { id: randomUUID(), producer_id: producerId, provider: "tiktok", kind: "business_center", ...fields };
+      row = { id: randomUUID(), producer_id: producerId, provider: "tiktok", kind: "business_center", preferred_advertiser_id: null, ...fields };
       db.company_accounts.push(row);
     }
     if (input.request_id) {
@@ -2751,7 +2969,7 @@ export const fixtureData: DataLayer = {
       Object.assign(existing, fields);
       row = existing;
     } else {
-      row = { id: randomUUID(), producer_id: producerId, provider: "tiktok", kind: "ad_account", ...fields };
+      row = { id: randomUUID(), producer_id: producerId, provider: "tiktok", kind: "ad_account", preferred_advertiser_id: null, ...fields };
       db.company_accounts.push(row);
     }
     if (input.request_id) {
@@ -2837,6 +3055,7 @@ export const fixtureData: DataLayer = {
   // ---- experiments, results, company accounts (decision 2026-09-08) ---------------------
 
   async setExperiment(session, campaignId, input) {
+    legacyCampaignRetired();
     const { db } = store();
     const campaign = readablePromoCampaign(db, session, campaignId);
     requireTitleEditor(db, session, campaign.title_id);
@@ -2850,6 +3069,7 @@ export const fixtureData: DataLayer = {
   },
 
   async approveExperiment(session, campaignId) {
+    legacyCampaignRetired();
     const { db } = store();
     const campaign = readablePromoCampaign(db, session, campaignId);
     const title = requireTitleEditor(db, session, campaign.title_id);
@@ -2864,6 +3084,7 @@ export const fixtureData: DataLayer = {
   },
 
   async simulateDemoResults(session, campaignId) {
+    legacyCampaignRetired();
     // Fixture mode only: produce demo-labelled results for a submitted
     // campaign so the results-to-decision loop can be exercised. The
     // Supabase layer refuses; real results come from Grow.
@@ -2918,7 +3139,7 @@ export const fixtureData: DataLayer = {
       Object.assign(existing, { provider: input.provider, kind: input.kind, name: input.name.trim(), external_ref: input.external_ref?.trim() || null, state: input.state, access: input.access, note: input.note?.trim() || null, updated_at: at });
       return clone(existing);
     }
-    const row: CompanyAccount = { id: randomUUID(), producer_id: session.producerId!, provider: input.provider, kind: input.kind, name: input.name.trim(), external_ref: input.external_ref?.trim() || null, state: input.state, access: input.access, note: input.note?.trim() || null, identity_id: null, identity_type: null, assigned_by: null, assigned_at: null, updated_at: at };
+    const row: CompanyAccount = { id: randomUUID(), producer_id: session.producerId!, provider: input.provider, kind: input.kind, name: input.name.trim(), external_ref: input.external_ref?.trim() || null, state: input.state, access: input.access, note: input.note?.trim() || null, identity_id: null, identity_type: null, assigned_by: null, assigned_at: null, preferred_advertiser_id: null, updated_at: at };
     s.db.company_accounts.push(row);
     return clone(row);
   },

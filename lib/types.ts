@@ -15,6 +15,7 @@
 // ---- json ---------------------------------------------------------------------
 
 import type { ResearchProfile } from "@/lib/research/types";
+import type { LaunchSettings } from "@/lib/tiktok/settings";
 
 export type Json =
   | string
@@ -669,6 +670,8 @@ export type CompanyAccount = {
   /** Staff who assigned the launch account, when it came from Pulsar's Business Center. */
   assigned_by: string | null;
   assigned_at: string | null;
+  /** On a Business Center row: the ad account inside it the producer prefers launches to use (decision 2026-09-16); the pick still requires it ready with a handle. */
+  preferred_advertiser_id: string | null;
   updated_at: string;
 };
 
@@ -720,12 +723,41 @@ export type PromoCampaign = {
   /** Why the campaign is where it is: the launch error, TikTok's rejection reason, who paused it. */
   status_note: string | null;
   launched_at: string | null;
+  /** How the launch is shaped (targeting, budget shape, bidding, launch state); null = the defaults (decision 2026-09-16). */
+  launch_settings: LaunchSettings | null;
   created_by: string;
   created_at: string;
   updated_at: string;
 };
 
 export type PromoLaunchStatus = "pending" | "running" | "done" | "failed";
+
+/**
+ * A saved launch-settings preset, Pulsar-wide (overlord's ad group presets):
+ * staff keep the house shapes; a producer picks one or customizes for the
+ * launch. Values travel — a launch snapshots the settings it used.
+ */
+export type LaunchPreset = {
+  id: string;
+  name: string;
+  settings: LaunchSettings;
+  note: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Local Instant Page design; a TikTok page is created separately in Ads Manager. */
+export type InstantPageTemplate = {
+  id: string;
+  name: string;
+  button_text: string;
+  background: "white" | "black";
+  hand_cursor: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+};
 
 /**
  * The launch job record — Pulsar's launch engine invariants, kept in the
@@ -756,6 +788,22 @@ export type PromoLaunch = {
   tiktok_adgroup_id: string | null;
   /** creative id -> ad id, written once /ad/create/ answers. */
   ad_ids: Record<string, string>;
+  /** The settings snapshot this launch was created with (values travel; decision 2026-09-16). */
+  settings: LaunchSettings;
+  /** Created switched off: nothing delivers until someone turns the campaign on. */
+  paused: boolean;
+  /** Extra ad groups made after launch — auto-duplicates and cost-cap replacements — each with its ad ids. */
+  duplicates: Record<string, string[]>;
+  /** Ad groups switched off for good (replaced by a cost-cap copy); never counted as delivering. */
+  retired_adgroups: string[];
+  /** When the auto-duplicate pass settled (copies made, or decided none), so it runs once. */
+  duplicated_at: string | null;
+  /** A launch created paused: when it was first switched on (its ad groups came on with it). Null until then, or when it started live. */
+  activated_at: string | null;
+  /** The cost cap currently on the ad groups, when bidding is capped. */
+  bid_usd: number | null;
+  /** The schedule end currently on the ad groups (TikTok time), when scheduled. */
+  schedule_end: string | null;
   error: string | null;
   attempts: number;
   created_by: string;

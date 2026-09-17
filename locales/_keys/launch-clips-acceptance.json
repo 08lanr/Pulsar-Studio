@@ -1,0 +1,18 @@
+{
+  "clipsAcceptance.loading": {
+    "en": "Loading finished clips…",
+    "zh": "正在加载成片…"
+  },
+  "clipsAcceptance.filterTitle": {
+    "en": "Filter by title",
+    "zh": "筛选剧集"
+  },
+  "clipsAcceptance.allTitles": {
+    "en": "All titles",
+    "zh": "全部剧集"
+  },
+  "clipsAcceptance.downloadLimit": {
+    "en": "Each ZIP holds up to 30 clips. Choose a title or select up to 30 clips to download.",
+    "zh": "每个 ZIP 最多包含 30 个切片。选择一部剧集，或勾选最多 30 个切片后下载。"
+  }
+}

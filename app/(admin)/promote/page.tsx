@@ -1,4 +1,5 @@
 import Link from "next/link";
+import LaunchMonitor from "@/components/admin/promote/LaunchMonitor";
 import { adminLocale, staffSession } from "@/components/admin/server";
 import { formatDate } from "@/components/admin/format";
 import { getData } from "@/lib/data";
@@ -47,7 +48,7 @@ export default async function PromoteDesk() {
   return <>
     <div className="page-head"><div><h1>{t(locale, "admin.promote.title")}</h1><p className="page-sub">{t(locale, "admin.promote.sub")}</p></div><Link className="btn btn-outline" href="/tiktok">{t(locale, "admin.nav.tiktok")}</Link></div>
     {!campaigns.length && <div className="empty"><p>{t(locale, "admin.promote.empty")}</p></div>}
-    {queues.filter((q) => q.rows.length).map((q) => <section className="pd-queue" key={q.key}>
+    {queues.filter((q) => q.rows.length).map((q) => q.key === "launched" ? <LaunchMonitor key={q.key} producers={Object.fromEntries(q.rows.map((c) => [c.producer_id, c.producer_name_en || c.producer_name_zh]))} /> : <section className="pd-queue" key={q.key}>
       <h2 className="section-title">{t(locale, `admin.promote.queue.${q.key}`)} <span className="pd-count">{q.rows.length}</span></h2>
       <div className="gtable" style={{ "--cols": "minmax(220px,2fr) minmax(140px,1fr) 130px 90px minmax(180px,1.4fr) minmax(160px,1.4fr) 110px" } as React.CSSProperties}>
         <div className="gt-head"><span>{t(locale, "admin.promote.col.campaign")}</span><span>{t(locale, "admin.promote.col.producer")}</span><span>{t(locale, "admin.promote.col.status")}</span><span>{t(locale, "admin.promote.col.creatives")}</span><span>{t(locale, "admin.promote.col.next")}</span><span>{t(locale, "admin.promote.col.note")}</span><span>{t(locale, "admin.promote.col.updated")}</span></div>

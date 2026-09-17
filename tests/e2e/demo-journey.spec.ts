@@ -1,16 +1,15 @@
 import { test, expect, type Page } from "@playwright/test";
 
 // The demo journey, end to end, on the fixture dataset (decision 2026-09-09):
-// market signal → matching owned title → ads → approvals → launch (demo
-// handoff) → demo results → the next round. Filters, refresh persistence
-// and error feedback are exercised along the way. Every step resets to the
+// market signal → matching owned title → archived campaign history, then
+// the unified Launch entry. Filters, record navigation, and retired API
+// rejection are exercised along the way. Every step resets to the
 // same rows, so the rehearsal is repeatable; screenshots are saved as
 // evidence under docs/demo/e2e/<project>/.
 
 const T1 = "00000030-0000-4000-8000-000000000001"; // Reborn as the CEO's First Love
 const C1 = "00000037-0000-4000-8000-000000000001"; // round 1 on title 1, with demo results
 const C2 = "00000037-0000-4000-8000-000000000002"; // Bride of the Wolf King, ads in review
-const C3 = "00000037-0000-4000-8000-000000000003"; // Fake heiress, brief only
 
 test.describe.configure({ mode: "serial" });
 
@@ -113,14 +112,14 @@ test("status board → market signal → matching owned title → its campaign",
   await expect(page).toHaveURL(new RegExp(`/producer/titles/${T1}/campaigns`));
   await page.locator(".tw-table").getByRole("link", { name: "Review ad results" }).click();
   await expect(page).toHaveURL(new RegExp(`/producer/promote/${C1}`));
-  await expect(page.locator(".studio-crumbs")).toContainText("Ad campaigns");
-  await page.getByRole("link", { name: /Back to Ad campaigns/ }).click();
+  await expect(page.locator(`.studio-crumbs a[href="/producer/titles/${T1}/campaigns"]`)).toContainText("Ad campaigns");
+  await page.locator(`.page-head a[href="/producer/titles/${T1}/campaigns"]`).click();
   await expect(page).toHaveURL(new RegExp(`/producer/titles/${T1}/campaigns`));
   // Old deep links still resolve.
   await page.goto(`/producer/titles/${T1}/potential`);
   await expect(page).toHaveURL(new RegExp(`/producer/titles/${T1}/preparation`));
   await page.goto(`/producer/promote/${C1}`);
-  await expect(page.getByRole("heading", { name: "What the results say" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Stored results" })).toBeVisible();
 });
 
 test("catalog: search, band filter and the zero-result recovery", async ({ page }) => {
@@ -138,7 +137,7 @@ test("catalog: search, band filter and the zero-result recovery", async ({ page 
   await expect(reborn.getByRole("link", { name: /View campaigns/ })).toHaveAttribute("href", new RegExp(`/producer/titles/${T1}/campaigns$`));
   const unlinked = page.locator(".pf-table tbody tr", { hasText: "Campus Sweetheart" });
   await expect(unlinked.getByRole("link", { name: /Link TikTok title/ })).toBeVisible();
-  await expect(unlinked.getByRole("link", { name: /Start a campaign/ })).toBeVisible();
+  await expect(unlinked.getByRole("link", { name: /Start a campaign/ })).toHaveAttribute("href", "/producer/launch");
   // The recommendation bands filter the board.
   await page.getByRole("link", { name: /Higher priority/ }).first().click();
   await expect(page).toHaveURL(/band=test_first/);
@@ -154,138 +153,30 @@ test("catalog: search, band filter and the zero-result recovery", async ({ page 
   await expect(page.locator(".cc-performance tbody tr")).toHaveCount(14);
 });
 
-test("ads → approvals → budget → launch → demo results → next round", async ({ page }) => {
+test("earlier campaign history is read-only and launches start in the unified workspace", async ({ page }) => {
   await resetDemo(page);
   await page.goto(`/producer/promote/${C2}`);
   await expect(page.getByRole("heading", { name: /Alpha bride hooks/ })).toBeVisible();
-  await expect(page.locator(".ws-stages [aria-current=step]")).toContainText("Choose ads");
-  await expect(page.locator(".fc-ad")).toHaveCount(5);
-  await expect(page.locator(".fc-ad video").first()).toHaveAttribute("src", /\/api\/media\//);
-  await shot(page, "campaign-choose-ads");
+  await expect(page.locator(".fc-ads-section article.card")).toHaveCount(5);
+  await expect(page.locator('.fc-campaign .page-head a[href="/producer/launch"]')).toBeVisible();
+  await expect(page.getByRole("button", { name: "Approve ads", exact: true })).toHaveCount(0);
+  await shot(page, "earlier-campaign-history");
 
-  // Error feedback before anything is approved: a change request needs a note.
-  const firstAd = page.locator(".fc-ad").first();
-  await firstAd.locator(".fc-change-request summary").click();
-  const sendChange = firstAd.locator(".fc-change-request button");
-  await expect(sendChange).toBeDisabled();
-  await firstAd.getByLabel("What should change?").fill("Open on the wedding, not the forest.");
-  await expect(sendChange).toBeEnabled();
-  await sendChange.click();
-  await expect(firstAd).toContainText("Change requested — awaiting Pulsar review");
-  await expect(firstAd).toContainText("Open on the wedding, not the forest.");
-
-  // Angles are tabs above the ads; narration is a disabled "coming soon" tab (decision 2026-09-14).
-  await expect(page.getByRole("tab", { name: /Direct clips/ })).toHaveAttribute("aria-selected", "true");
-  await expect(page.getByRole("tab", { name: /Narration/ })).toBeDisabled();
-  await expect(page.getByRole("tab", { name: /Narration/ })).toContainText("Coming soon");
-  // The $100 budget is two slots at $50 each; the third Choose button greys out once both are used.
-  const slots = page.locator(".fc-budget-card");
-  await expect(slots).toContainText("0 of 2 slots used");
-  await expect(slots).toContainText("2 more can be chosen");
-  await expect(page.getByRole("button", { name: "Approve ads", exact: true })).toBeDisabled();
-  await page.locator(".fc-ad.ready").first().getByRole("button", { name: "Choose ad" }).click();
-  await expect(slots).toContainText("1 of 2 slots used");
-  await page.locator(".fc-ad.ready").first().getByRole("button", { name: "Choose ad" }).click();
-  await expect(slots).toContainText("2 of 2 slots used");
-  await expect(slots).toContainText("Slots full");
-  await expect(page.locator(".fc-ad.ready").first().getByRole("button", { name: "Choose ad" })).toBeDisabled();
-  await expect(page.getByRole("button", { name: /Choose all/ })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Unselect" })).toHaveCount(2);
-  await expect(page.getByRole("button", { name: "Approve ads", exact: true })).toBeEnabled();
-  await shot(page, "campaign-slots-full");
-  await page.getByRole("button", { name: "Approve ads", exact: true }).click();
-  await expect(page.locator(".ws-stages [aria-current=step]")).toContainText("Approve budget");
-  await expect(page.getByText("Budget not approved")).toBeVisible();
-  const budgetApproval = page.getByRole("button", { name: /Approve budget \$100/ });
-  await page.getByLabel("Proposed budget (USD)").fill("150");
-  await expect(budgetApproval).toBeDisabled();
-  await expect(page.getByText("You have unsaved changes. Save the brief before approving its budget.")).toBeVisible();
-  await page.getByLabel("Proposed budget (USD)").fill("100");
-  await expect(budgetApproval).toBeEnabled();
-  await budgetApproval.click();
-  await expect(page.locator("#brief-record summary")).toContainText("Budget approved");
-  await expect(page.locator(".ws-stages [aria-current=step]")).toContainText("Launch");
-  await shot(page, "campaign-budget-approved");
-
-  // Launch runs against the fake TikTok inside Studio: the campaign is created and sits in "TikTok's review".
-  await page.getByRole("button", { name: "Launch on TikTok", exact: true }).click();
-  await expect(page.locator(".ws-stages [aria-current=step]")).toContainText("Launch");
-  await expect(page.getByText("Created on TikTok. The ads are in TikTok's review; results appear once they run.")).toBeVisible();
-  await expect(page.locator("#launch-status")).toContainText(/17\d{15}/);
-  await page.getByRole("button", { name: "Simulate demo results" }).click();
-  await expect(page.getByRole("heading", { name: "What the results say" })).toBeVisible();
-  await expect(page.locator(".rd-table tbody tr")).toHaveCount(2);
-  await expect(page.locator(".rd-provenance")).toContainText("Demo results (simulated)");
-  await expect(page.locator(".rd-verdict").first()).toBeVisible();
-  await shot(page, "campaign-results");
-
-  // Refresh persistence: the results and the stage survive a reload.
-  await page.reload();
-  await expect(page.locator(".ws-stages [aria-current=step]")).toContainText("Review ad results");
-  await expect(page.locator(".rd-table tbody tr")).toHaveCount(2);
-  const winnerRow = page.locator(".rd-table tr.is-winner");
-  if (await winnerRow.count()) {
-    await expect(page.locator(".rd-findings li.is-met").first()).toContainText(/met both/);
-    await expect(page.getByRole("button", { name: /Draft a \$300 test/ })).toBeVisible();
-  } else {
-    await expect(page.getByText("No ad met both benchmarks")).toBeVisible();
-  }
-
-  await page.getByRole("button", { name: "Draft another test" }).click();
-  await expect(page.getByRole("status")).toContainText("Round 2 created");
-  await page.getByRole("link", { name: "Open round 2" }).click();
-  await expect(page.getByRole("heading", { name: /round 2/ })).toBeVisible();
-  await expect(page.locator(".ws-stages [aria-current=step]")).toContainText("Prepare");
-  await shot(page, "campaign-round-2");
-
-  // The campaigns queue shows the new round once and the finished round waits for no one.
-  await page.goto("/producer/promote");
-  await expect(page.locator(".cc-campaigns tbody tr", { hasText: "round 2" })).toHaveCount(1);
-});
-
-test("error feedback: the API refuses out-of-order actions and invalid input", async ({ page }) => {
-  await resetDemo(page);
-  const early = await page.request.post(`/api/producer/promote/${C3}/results`, { data: {} });
-  expect(early.status()).toBe(409);
-  expect((await early.json()).error).toMatch(/submitted/);
-  const bad = await page.request.post("/api/producer/promote", { data: { title_id: T1, name: "", target_market: "US", objective: "views", spoiler_level: "low" } });
-  expect(bad.status()).toBe(400);
-  expect((await bad.json()).error).toBe("Invalid request");
-  const foreign = await page.request.get(`/api/producer/promote/${C1.replace(/1$/, "9")}/results`);
-  expect(foreign.status()).toBe(404);
-  // The new-campaign form answers an incomplete brief with the missing fields by name, never a dead button.
   await page.goto(`/producer/promote/new?title=${T1}`);
-  const cta = page.locator(".promo-brief-side button.btn-primary");
-  const err = page.locator(".promo-brief-side .err");
-  await expect(cta).toBeEnabled();
-  // The destination is prefilled with tiktok.com; clear it so the validation path is exercised.
-  await page.getByLabel("Where viewers should go (required)").fill("");
-  await cta.click();
-  await expect(err).toContainText("the target audience");
-  await expect(err).toContainText("the destination link");
-  await expect(page.getByLabel("Target audience")).toBeFocused();
-  await page.getByLabel("What do you want to test?").fill("Short");
-  await page.getByLabel("Target audience").fill("US women 25-44");
-  await cta.click();
-  await expect(err).toContainText("the test idea");
-  await expect(err).not.toContainText("the target audience");
-  await page.getByLabel("What do you want to test?").fill("The rebirth opening beats the romance opening for US women 25-44.");
-  await cta.click();
-  await expect(err).toContainText("the destination link");
-  await page.getByLabel("Where viewers should go (required)").fill("https://www.reelshort.com/");
-  await expect(err).toHaveCount(0);
-  await expect(page.url()).toContain("/producer/promote/new");
-  await shot(page, "new-campaign-validation");
+  await expect(page).toHaveURL(/\/producer\/launch$/);
+  const oldCreate = await page.request.post("/api/producer/promote", { data: { title_id: T1 } });
+  expect(oldCreate.status()).toBe(409);
+  const oldSubmit = await page.request.post(`/api/producer/promote/${C2}/submit`, { data: {} });
+  expect(oldSubmit.status()).toBe(409);
 });
 
 test("no demo action reaches a model or a provider", async ({ page }) => {
   await resetDemo(page);
-  // Generating ads and simulating results run entirely on the fixture; the
-  // job ledger (Pulsar's spend) stays empty and no outbound call is made.
+  // Reading earlier campaign results stays inside the fixture.
   const outbound: string[] = [];
   page.on("request", (r) => { const u = new URL(r.url()); if (!["localhost", "127.0.0.1"].includes(u.hostname)) outbound.push(r.url()); });
   await page.goto(`/producer/promote/${C1}`);
-  await expect(page.getByRole("heading", { name: "What the results say" })).toBeVisible();
-  await expect(page.locator(".rd-demo-note").first()).toContainText("nothing was spent");
+  await expect(page.getByRole("heading", { name: "Stored results" })).toBeVisible();
+  await expect(page.locator("#results")).toContainText("demo");
   expect(outbound, "no request left localhost").toEqual([]);
 });

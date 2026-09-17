@@ -14,6 +14,7 @@ import { cutEpisodeClips } from "@/lib/clips/run";
 import { pickClipsForRound } from "@/lib/clips/creatives";
 import { jobIsRunning } from "@/lib/clips/state";
 import { getData } from "@/lib/data";
+import { legacyCampaignRetired } from "@/lib/data/errors";
 import type { PromoCreative } from "@/lib/types";
 import { ffmpegAvailable, renderAd } from "./render";
 
@@ -27,6 +28,7 @@ export type GenerateOutcome = {
 };
 
 export async function generateAds(session: Session, campaignId: string): Promise<GenerateOutcome> {
+  legacyCampaignRetired();
   const data = getData();
   const detail = await data.getPromoCampaign(session, campaignId);
   const active = detail.creatives.filter((c) => c.status !== "superseded");

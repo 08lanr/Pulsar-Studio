@@ -1,0 +1,15 @@
+.launch-flow .launch-account-options { padding: 0 14px 14px; }
+.launch-account-tools,.launch-account-quick,.launch-account-filters { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:8px; }
+.launch-account-tools .input { width:210px; margin-left:auto; }
+.launch-account-quick > .input { width:68px; padding:4px 8px; }
+.launch-account-tools .btn,.launch-account-quick .btn,.launch-account-filters .btn { min-height:30px; height:30px; padding:3px 9px; font-size:12px; line-height:1.2; white-space:nowrap; }
+.launch-account-tools .input,.launch-account-quick .input { min-height:30px; height:30px; font-size:12px; }
+.launch-account-filters .is-active,.launch-account-quick .is-active { border-color:var(--brand); background:var(--surface-2); }
+.launch-account-list { max-height:240px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; }
+.launch-account-row { display:flex; gap:8px; align-items:baseline; padding:5px 10px; border-bottom:1px solid var(--border); min-width:0; max-width:100%; font-size:12px; }
+.launch-account-row:last-child { border-bottom:0; }
+.launch-account-row input { flex:none; align-self:center; }
+.launch-account-row strong { min-width:0; max-width:28%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:none; font-size:13px; }
+.launch-account-id { color:var(--text-muted); flex:none; }
+.launch-account-meta { color:var(--text-muted); min-width:0; overflow-wrap:anywhere; }
+@media(max-width:700px) { .launch-account-row { flex-wrap:wrap; } .launch-account-tools .input { margin-left:0; width:100%; } }

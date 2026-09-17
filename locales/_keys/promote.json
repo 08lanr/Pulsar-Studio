@@ -52,8 +52,8 @@
     "zh": "广告审阅中"
   },
   "promote.status.approved": {
-    "en": "Ads approved",
-    "zh": "广告已批准"
+    "en": "Creative picks approved",
+    "zh": "广告素材已选定"
   },
   "promote.status.live": {
     "en": "Live",
@@ -296,8 +296,8 @@
     "zh": "选择广告"
   },
   "promote.step.approval": {
-    "en": "Ads approved",
-    "zh": "广告已批准"
+    "en": "Creative picks approved",
+    "zh": "广告素材已选定"
   },
   "promote.step.pulsar": {
     "en": "Pulsar review",

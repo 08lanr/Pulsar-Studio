@@ -40,5 +40,5 @@ drop policy if exists producer_delete_scenes on studio.scenes;
 create policy producer_delete_scenes on studio.scenes for delete to authenticated
   using (
     core.can_edit_title(title_id)
-    and not exists (select 1 from studio.lines l where l.scene_id = id)
+    and not exists (select 1 from studio.lines l where l.scene_id = scenes.id)
   );

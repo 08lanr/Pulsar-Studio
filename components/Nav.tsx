@@ -59,7 +59,10 @@ export default function Nav({ displayName, role }: NavProps) {
   }, []);
 
   const items: NavItem[] = [
-    { href: "/promote", label: tt("admin.nav.promote"), icon: <IconSparkle /> },
+    { href: "/promote/launches", label: tt("lv2.launch.title"), icon: <IconSparkle /> },
+    { href: "/promote/monitor", label: tt("lv2.monitor.title"), icon: <IconSparkle /> },
+    { href: "/promote", label: tt("lv2.legacyCampaigns"), icon: <IconSparkle /> },
+    { href: "/meta", label: tt("lv2.meta.title"), icon: <IconSparkle /> },
     { href: "/titles", label: tt("admin.nav.projects"), icon: <IconProjects /> },
     { href: "/producers", label: tt("admin.nav.producers"), icon: <IconProducers /> },
     { href: "/tiktok", label: tt("admin.nav.tiktok"), icon: <IconSparkle /> },
@@ -67,7 +70,7 @@ export default function Nav({ displayName, role }: NavProps) {
 
   // The header names the screen; derived from the path so no page threads a
   // prop through. Deeper routes are matched first.
-  const title = pathname.startsWith("/tiktok")
+  const title = pathname.startsWith("/meta") ? tt("lv2.meta.title") : pathname.startsWith("/promote/launches") ? tt("lv2.launch.title") : pathname.startsWith("/promote/monitor") ? tt("lv2.monitor.title") : pathname.startsWith("/tiktok")
     ? tt("admin.head.tiktok")
     : pathname.startsWith("/promote")
     ? tt("admin.head.promote")
@@ -95,8 +98,8 @@ export default function Nav({ displayName, role }: NavProps) {
       <nav aria-label={tt("admin.nav.menu")}>
         {items.map((item) => (
           <a key={item.href} href={item.href}
-            className={`side-link ${pathname.startsWith(item.href) ? "active" : ""}`}
-            aria-current={pathname.startsWith(item.href) ? "page" : undefined} onClick={close}>
+            className={`side-link ${pathname.startsWith(item.href) && !(item.href === "/promote" && pathname !== "/promote") ? "active" : ""}`}
+            aria-current={pathname.startsWith(item.href) && !(item.href === "/promote" && pathname !== "/promote") ? "page" : undefined} onClick={close}>
             {item.icon}{item.label}
           </a>
         ))}

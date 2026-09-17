@@ -1,5 +1,7 @@
-import { afterEach, test } from "node:test";
+import { afterEach, test as nodeTest } from "node:test";
 import assert from "node:assert/strict";
+import { withHistoricalPromoSeed } from "@/lib/data/fixture";
+const test = (name: string, fn: () => void | Promise<void>) => nodeTest(name, () => withHistoricalPromoSeed(fn));
 import { existsSync } from "node:fs";
 
 import { fixtureSession } from "@/lib/auth";

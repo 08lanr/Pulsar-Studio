@@ -1,5 +1,6 @@
 {
   "launch.title": { "en": "Find the US launch priority in your catalog", "zh": "发现剧库中的美国市场潜力" },
+  "launch.metaConnectHelp": { "en": "Connect a Meta system user token with access to the ad account, Facebook Page, and any Instagram account. Set META_ACCESS_TOKEN on the live server, then refresh this inventory and assign the discovered identities to a company. Only active USD ad accounts can launch.", "zh": "请连接有权访问广告账户、Facebook 公共主页和 Instagram 账户的 Meta 系统用户令牌。在正式服务器设置 META_ACCESS_TOKEN，然后刷新账户列表并将身份分配给公司。只有正常使用的美元广告账户可投放。" },
   "launch.sub": { "en": "Choose existing titles, prepare a focused audience test, and decide where to invest next.", "zh": "筛选已有作品，准备聚焦的受众测试，再决定下一笔投入。" },
   "launch.insights": { "en": "US market insights", "zh": "美国市场洞察" },
   "launch.catalog": { "en": "My catalog", "zh": "我的剧库" },

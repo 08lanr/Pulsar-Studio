@@ -26,8 +26,11 @@ const GROUPS: Group[] = [
   {
     key: "ws.nav.group.titles",
     items: [
-      { href: "/producer/titles", key: "ws.nav.catalog", Icon: IconLibrary, match: (p) => p === "/producer" || p.startsWith("/producer/titles") || p === "/producer/library" },
-      { href: "/producer/promote", key: "ws.nav.launch", Icon: IconPromote, match: (p) => p.startsWith("/producer/promote") },
+      { href: "/producer/titles", key: "ws.nav.catalog", Icon: IconLibrary, match: (p) => p === "/producer" || (p.startsWith("/producer/titles") && !p.endsWith("/clips")) || p === "/producer/library" },
+      { href: "/producer/clips", key: "lv2.clips.title", Icon: IconPromote, match: (p) => p.startsWith("/producer/clips") || /\/producer\/titles\/[^/]+\/clips/.test(p) },
+      { href: "/producer/launch", key: "lv2.launch.title", Icon: IconPromote, match: (p) => p.startsWith("/producer/launch") },
+      { href: "/producer/monitor", key: "lv2.monitor.title", Icon: IconMarket, match: (p) => p.startsWith("/producer/monitor") },
+      { href: "/producer/promote", key: "lv2.legacyCampaigns", Icon: IconPromote, match: (p) => p.startsWith("/producer/promote") },
       { href: "/producer/tiktok", key: "ws.nav.tiktok", Icon: IconMarket, match: (p) => p.startsWith("/producer/tiktok") },
     ],
   },

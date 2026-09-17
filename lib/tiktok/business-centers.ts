@@ -159,6 +159,8 @@ export async function pickLaunchAccount(session: Session, producerId: string): P
   const { accounts, error } = await listBcAccounts(bc.external_ref);
   const ready = accounts.filter((a) => accountHealth(a.status) === "ready");
   if (!ready.length) return { ok: false, blocker: "no_ready_account", reason: error ? `Could not read the Business Center's accounts: ${error}` : `Business Center ${bc.name} (${bc.external_ref}) has no ad account TikTok reports as ready (${accounts.length} account(s) listed).` };
+  // The producer's preferred account goes first (decision 2026-09-16); it still has to be ready with a handle, or the walk continues.
+  if (bc.preferred_advertiser_id) ready.sort((a, b) => (a.id === bc.preferred_advertiser_id ? -1 : 0) - (b.id === bc.preferred_advertiser_id ? -1 : 0));
   for (const a of ready) {
     if (!accessTokenFor(a.id)) continue;
     const identities = await fetchIdentities(a.id);
@@ -166,6 +168,31 @@ export async function pickLaunchAccount(session: Session, producerId: string): P
     if (identity) return { ok: true, pick: { advertiser_id: a.id, name: a.name ?? null, identity_id: identity.id, identity_type: identity.type, source: "business_center", bc_id: bc.external_ref } };
   }
   return { ok: false, blocker: "no_identity", reason: `Business Center ${bc.name} has ${ready.length} ready account(s) but none has a TikTok handle linked; link one in Business Center → ad account → Identities.` };
+}
+
+export type ProducerBcAccount = BcAccount & { health: ReturnType<typeof accountHealth>; identities: LinkedIdentity[]; preferred: boolean; would_launch: boolean };
+
+/**
+ * What a producer sees of their own Business Center (decision 2026-09-16):
+ * every ad account inside it with its health and linked handles, which one
+ * they prefer, and which one the next launch would actually use. Identities
+ * are read only for ready accounts (one call per account, cached upstream
+ * by the BC list's 30-minute TTL is enough for a settings page).
+ */
+export async function describeProducerBusinessCenter(session: Session, producerId: string, opts: { force?: boolean } = {}): Promise<{ bc: CompanyAccount | null; accounts: ProducerBcAccount[]; error?: string; pick: LaunchPickResult | null }> {
+  const data = getData();
+  const bc = await data.getLaunchBusinessCenter(session, producerId);
+  if (!bc?.external_ref) return { bc: null, accounts: [], pick: null };
+  const { accounts, error } = await listBcAccounts(bc.external_ref, opts);
+  const out: ProducerBcAccount[] = [];
+  for (const a of accounts) {
+    const health = accountHealth(a.status);
+    const identities = health === "ready" && accessTokenFor(a.id) ? await fetchIdentities(a.id) : [];
+    out.push({ ...a, health, identities, preferred: a.id === bc.preferred_advertiser_id, would_launch: false });
+  }
+  const pick = await pickLaunchAccount(session, producerId);
+  if (pick.ok) for (const a of out) a.would_launch = a.id === pick.pick.advertiser_id;
+  return { bc, accounts: out, error, pick };
 }
 
 export type { CompanyAccount };

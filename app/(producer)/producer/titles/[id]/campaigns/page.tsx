@@ -31,7 +31,7 @@ export default async function TitleCampaigns({ params }: { params: { id: string 
 
   return (
     <TitleShell locale={locale} titleId={params.id} name_zh={w.detail.title.name_zh} name_en={w.detail.title.name_en} platform={w.platform} ads={w.ads.status} adStep={adStep} section="campaigns"
-      actions={canEdit ? <a className="btn btn-primary" href={`/producer/promote/new?title=${params.id}`}>{t(locale, "ws.exp.new")}</a> : undefined}>
+      actions={canEdit ? <a className="btn btn-primary" href={`/producer/launch`}>{t(locale, "ws.exp.new")}</a> : undefined}>
       <div className="tw-strip">
         <div><span>{t(locale, "tw.ads.spendToDate")}</span><strong>{spend == null ? "–" : fmtUsd(spend, 2)}</strong></div>
         <div><span>{t(locale, "tw.ads.ctrToDate")}</span><strong>{ctr ? <>{fmtPct(ctr.ctr, 2)} <small>{ctr.ctr >= BENCHMARK.ctr ? "✓" : "✗"} ≥ {(BENCHMARK.ctr * 100).toFixed(1)}%</small></> : "–"}</strong></div>
@@ -42,7 +42,7 @@ export default async function TitleCampaigns({ params }: { params: { id: string 
       {rounds.length === 0 ? (
         <section className="rs-panel rs-empty">
           <p>{t(locale, "ws.assess.noExperiments")}</p>
-          {canEdit && <a className="btn btn-primary btn-sm" href={`/producer/promote/new?title=${params.id}`}>{t(locale, "ws.exp.new")}</a>}
+          {canEdit && <a className="btn btn-primary btn-sm" href={`/producer/launch`}>{t(locale, "ws.exp.new")}</a>}
         </section>
       ) : (
         <section className="rs-panel">

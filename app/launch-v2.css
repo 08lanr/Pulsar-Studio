@@ -1,0 +1,63 @@
+/* The shared launch surfaces reuse Studio tokens; spacing stays local. */
+.launch-flow > .rs-panel, .launch-edit-region > .rs-panel { padding: 22px 24px; margin-bottom: 18px; }
+.launch-flow > .rs-panel > h2, .launch-edit-region > .rs-panel > h2 { margin: 0 0 18px; font-size: 20px; }
+.launch-flow .page-head { gap: 16px; flex-wrap: wrap; }
+.launch-flow .page-head h2 { font-size: 20px; margin: 0 0 8px; }
+.launch-flow .page-head h2 a { color: inherit; text-decoration: none; }
+.launch-flow .page-head h2 a:hover { text-decoration: underline; }
+.launch-flow .rs-tool-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.launch-flow .rs-tool-row input[type="search"] { flex: 1 1 240px; width: auto; }
+.launch-flow .rs-tool-row label { display: flex; gap: 8px; align-items: center; }
+.launch-flow .tk-chips { margin: 12px 0; gap: 8px; }
+.launch-flow .tk-check { margin: 14px 0 0; }
+.launch-flow .tk-field { margin: 14px 0; }
+.launch-flow .gtable { overflow-x: auto; margin: 18px 0; }
+.launch-flow .gt-head, .launch-flow .gt-row { min-width: 880px; }
+.launch-flow .gt-head > *, .launch-flow .gt-row > * { min-width: 0; overflow-wrap: anywhere; }
+.launch-flow .gt-muted { display: block; margin-top: 4px; opacity: .76; }
+.launch-flow .gtable .rs-panel { padding: 16px; min-width: 840px; }
+.launch-flow .btn-approve { margin-top: 16px; }
+.launch-flow .note { margin: 16px 0; }
+.launch-flow .launch-bc-picker { display: grid; gap: 6px; max-width: 440px; margin: 4px 0 18px; font-weight: 600; }
+.launch-flow .launch-spark-count { display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px 12px; padding: 12px 16px; margin: 16px 0; border: 1px solid var(--border); border-radius: 10px; }
+.launch-flow .launch-spark-count strong { font-size: 22px; }
+.launch-flow .launch-spark-count small { flex-basis: 100%; opacity: .76; }
+.launch-flow .launch-spark-count.ready { border-color: #4a9b6b; background: rgba(74,155,107,.1); color: #287446; }
+.launch-flow .launch-preset-row { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px; margin: 12px 0; }
+.launch-flow .launch-preset-row label { display: grid; gap: 6px; min-width: min(320px,100%); }
+.launch-page-picker { display: grid; gap: 8px; min-width: 0; }
+.launch-page-picker-controls { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 8px 12px; min-width: 0; }
+.launch-page-picker-select { display: grid; gap: 6px; flex: 0 1 320px; min-width: min(240px,100%); }
+.launch-page-picker-select .select { width: 100%; min-width: 0; }
+.launch-page-picker-controls .btn { flex: 0 0 auto; }
+.launch-flow .launch-account-picker { border: 1px solid var(--border); border-radius: 10px; margin: 14px 0; }
+.launch-flow .launch-account-picker > summary { cursor: pointer; padding: 12px 16px; font-weight: 600; }
+.launch-flow .launch-account-options { padding: 4px 16px 16px; border-top: 1px solid var(--border); }
+.launch-flow .launch-account-options > .tk-chips:last-child { display: grid; grid-template-columns: repeat(auto-fill,minmax(240px,1fr)); max-height: 260px; overflow-y: auto; }
+.launch-flow .launch-account-options > .tk-chips:last-child > label { display: flex; align-items: flex-start; gap: 8px; min-width: 0; white-space: normal; text-align: left; }
+.launch-flow .launch-account-options > .tk-chips:last-child > label > input { flex: none; margin-top: 4px; }
+.launch-flow .launch-account-copy { display: block; min-width: 0; overflow-wrap: anywhere; }
+.launch-flow .launch-account-copy strong, .launch-flow .launch-account-copy small { display: block; }
+.launch-flow .launch-account-copy small { margin-top: 3px; line-height: 1.4; }
+.launch-flow .launch-quantity-grid { display: flex; flex-wrap: wrap; gap: 12px 24px; margin-bottom: 18px; }
+.launch-flow .launch-quantity-grid label { display: grid; gap: 6px; }
+.launch-dialog-backdrop { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.55); display: flex; justify-content: flex-end; }
+.launch-dialog { width: min(680px,100vw); height: 100%; overflow-y: auto; padding: 24px; background: var(--surface); box-shadow: -12px 0 32px rgba(0,0,0,.2); }
+.launch-dialog > header { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.launch-dialog > header h2 { margin: 0 0 16px; }
+.launch-template-page { max-width: 1000px; }
+@media (max-width: 700px) {
+  .launch-flow > .rs-panel, .launch-edit-region > .rs-panel { padding: 16px; }
+  .launch-flow .page-head { align-items: flex-start; }
+}
+
+.launch-edit-region { border:0; padding:0; margin:0; min-width:0; }
+.launch-edit-region:disabled { opacity:.7; }
+.launch-confirm-backdrop { align-items:center; justify-content:center; padding:16px; }
+.launch-confirm-dialog { height:auto; max-height:90vh; border-radius:14px; border:1px solid var(--border); }
+.launch-confirm-dialog .rs-tool-row { display:flex; justify-content:flex-end; gap:12px; margin-top:24px; }
+
+.launch-confirm-rows { display:grid; gap:10px; margin:16px 0; }
+.launch-confirm-row { display:flex; flex-wrap:wrap; gap:8px 18px; border:1px solid var(--border); padding:12px; border-radius:8px; }
+.launch-confirm-row p { flex-basis:100%; margin:0; overflow-wrap:anywhere; }
+.launch-confirm-note { display:grid; gap:8px; }

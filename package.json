@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3200",
+    "dev:live": "node scripts/dev-live.mjs",
     "build": "next build",
     "start": "next start -p 3200",
     "typecheck": "tsc --noEmit",

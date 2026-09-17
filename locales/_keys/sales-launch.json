@@ -1,0 +1,14 @@
+{
+  "salesLaunch.defaultPreset": { "en": "(default) · 1 Geo Sales · $0.20 cost cap", "zh": "（默认）· 单地区销售 · $0.20 成本上限" },
+  "salesLaunch.objective": { "en": "Campaign objective", "zh": "广告活动目标" },
+  "salesLaunch.sales": { "en": "Sales · Instant Page", "zh": "销售 · 即时页面" },
+  "salesLaunch.traffic": { "en": "Traffic · website", "zh": "流量 · 网站" },
+  "salesLaunch.pageTemplate": { "en": "Instant Page template", "zh": "即时页面模板" },
+  "salesLaunch.chooseTemplate": { "en": "Choose a template", "zh": "选择模板" },
+  "salesLaunch.defaultTemplate": { "en": "(default) · Watch now · white", "zh": "（默认）· 立即观看 · 白色" },
+  "salesLaunch.savedSnapshot": { "en": "(saved with this draft)", "zh": "（已随草稿保存）" },
+  "salesLaunch.manageTemplates": { "en": "Manage templates", "zh": "管理模板" },
+  "salesLaunch.pageTemplateHelp": { "en": "Each approved Sales campaign gets its own Instant Page with its campaign tracking URL. The selected design is frozen with the launch preview.", "zh": "每个获批的销售广告活动都会创建含对应追踪链接的独立即时页面。所选样式会随投放预览一起锁定。" },
+  "salesLaunch.campid": { "en": "Campaign ID", "zh": "广告活动标识" },
+  "salesLaunch.tracking": { "en": "Tracking URL", "zh": "追踪链接" }
+}

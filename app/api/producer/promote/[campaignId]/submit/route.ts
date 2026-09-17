@@ -16,6 +16,7 @@ import { handle } from "@/app/api/titles/_lib/handler";
 export const maxDuration = 300;
 
 export async function POST(req: NextRequest, { params }: { params: { campaignId: string } }) {
+  return NextResponse.json({"error": "This earlier campaign workflow is retired. Start a new launch from Clips → Launch.", "code": "conflict"}, { status: 409 });
   return handle(req, async () => {
     const g = await requireProducer({ minRole: "approver" });
     if (g.response) return g.response;

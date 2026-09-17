@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { postJson } from "@/lib/api-client";
 import { useT } from "@/components/locale";
 import LangToggle from "@/components/LangToggle";
 import type { DataSource } from "@/lib/data-source";
@@ -94,12 +93,15 @@ function SupabaseForm({ next, initialError }: Omit<Props, "mode">) {
     setError("");
     setSent(false);
     try {
-      const body = await postJson<LoginReply>("/api/auth/login", {
-        mode: "magic",
-        email,
-        next,
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "magic", email, next }),
       });
-      if (body.sent) setSent(true);
+      const body = (await res.json().catch(() => ({}))) as LoginReply & { code?: string };
+      if (res.ok && body.sent) setSent(true);
+      else if (res.status === 429 && body.code === "email_rate_limited") setError(tt("auth.err.emailRateLimit"));
+      else if (res.status === 503 && body.code === "email_unavailable") setError(tt("auth.err.emailUnavailable"));
       else setError(tt("auth.err.generic"));
     } catch {
       setError(tt("auth.err.generic"));

@@ -126,7 +126,7 @@ export default async function MyCatalog({ searchParams }: { searchParams: Search
                     </td>
                     <td className="pf-cell">
                       <AdChip status={ads.status} locale={locale} step={step} />
-                      <a className="pf-cell-link" href={ads.status === "none" ? `/producer/promote/new?title=${id}` : `${open}/campaigns`}>{t(locale, ads.status === "none" ? "pf.cell.start" : "pf.cell.campaigns")}&nbsp;→</a>
+                      <a className="pf-cell-link" href={ads.status === "none" ? `/producer/launch` : `${open}/campaigns`}>{t(locale, ads.status === "none" ? "pf.cell.start" : "pf.cell.campaigns")}&nbsp;→</a>
                     </td>
                     <td className="pf-cell pf-score">
                       <ScoreDial score={a.score} band={a.band} locale={locale} size="sm" />

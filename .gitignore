@@ -43,3 +43,8 @@ data/research/raw/*.log
 test-results/
 .next-build/
 .next-e2e/
+
+# TikTok region catalogue cache (lib/tiktok/regions.ts); re-fetched when missing.
+.regions-cache.json
+
+.next-*/

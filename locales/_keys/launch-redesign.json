@@ -1,0 +1,27 @@
+{
+  "launchRedesign.businessCenter": { "en": "Business Center", "zh": "商务中心" },
+  "launchRedesign.chooseBusinessCenter": { "en": "Choose a Business Center", "zh": "选择商务中心" },
+  "launchRedesign.selectBusinessFirst": { "en": "Choose the assigned Business Center to see its ad accounts.", "zh": "先选择已分配的商务中心，再查看其中的广告账户。" },
+  "launchRedesign.uniqueExplainer": { "en": "Unique: each campaign receives its own codes, handed out in pasted order.", "zh": "独立使用：每个广告活动按粘贴顺序分配不同的授权码。" },
+  "launchRedesign.sharedExplainer": { "en": "Shared: the same set of codes is reused by every campaign and account.", "zh": "共用：每个广告活动和账户重复使用同一组授权码。" },
+  "launchRedesign.sparkCount": { "en": "Spark codes supplied / needed", "zh": "Spark 授权码已提供／所需" },
+  "launchRedesign.creativeCount": { "en": "Creatives supplied / needed", "zh": "素材已提供／所需" },
+  "launchRedesign.countFormula": { "en": "{perCampaign} per campaign · {campaigns} campaigns across {accounts} accounts · {mode}", "zh": "每个广告活动 {perCampaign} 个 · {accounts} 个账户共 {campaigns} 个广告活动 · {mode}" },
+  "launchRedesign.manageTemplates": { "en": "Manage presets", "zh": "管理预设" }
+  ,"launchRedesign.chooseAccounts": { "en": "Choose ad accounts · {selected} selected of {available}", "zh": "选择广告账户 · 已选 {selected}／{available} 个" }
+  ,"launchRedesign.sparksPerCampaign": { "en": "Spark codes per campaign", "zh": "每个广告活动的 Spark 授权码" }
+  ,"launchRedesign.uniqueMath": { "en": "{campaignsPerAccount} campaigns × {perCampaign} Sparks = {perAccount} unique codes per account; {total} total across {accounts} accounts.", "zh": "每个账户 {campaignsPerAccount} 个广告活动 × 每活动 {perCampaign} 个 Spark 授权码 = 每账户 {perAccount} 个独立授权码；{accounts} 个账户共需 {total} 个。" }
+  ,"launchRedesign.sharedMath": { "en": "{perCampaign} codes reused in each of {campaigns} campaigns across all accounts.", "zh": "{perCampaign} 个授权码在所有账户的 {campaigns} 个广告活动中重复使用。" }
+  ,"launchRedesign.closeSettings": { "en": "Done", "zh": "完成" }
+  ,"launchRedesign.templatesTitle": { "en": "Launch presets", "zh": "投放预设" }
+  ,"launchRedesign.templatesSub": { "en": "Reusable targeting and delivery settings for TikTok launches.", "zh": "为 TikTok 投放复用定向和投放设置。" }
+  ,"launchRedesign.accountsBack": { "en": "TikTok accounts", "zh": "TikTok 账户" }
+  ,"launchRedesign.directAccounts": { "en": "Direct accounts", "zh": "直接分配的账户" }
+  ,"launchRedesign.businessPortfolio": { "en": "Business portfolio", "zh": "业务资产组合" }
+  ,"launchRedesign.chooseBusinessPortfolio": { "en": "Choose a business portfolio", "zh": "选择业务资产组合" }
+  ,"launchRedesign.selectPortfolioFirst": { "en": "Choose the assigned business portfolio to see its ad accounts.", "zh": "先选择已分配的业务资产组合，再查看其中的广告账户。" }
+  ,"launchRedesign.metaUniqueExplainer": { "en": "Unique: each campaign receives its own selected posts or finished clips.", "zh": "独立使用：每个广告活动分配不同的帖子或成品切片。" }
+  ,"launchRedesign.metaSharedExplainer": { "en": "Shared: the same selected posts or finished clips are reused by every campaign and account.", "zh": "共用：每个广告活动和账户重复使用同一组帖子或成品切片。" }
+  ,"launchRedesign.metaUniqueMath": { "en": "{campaignsPerAccount} campaigns × {perCampaign} creatives = {perAccount} unique creatives per account; {total} total across {accounts} accounts.", "zh": "每个账户 {campaignsPerAccount} 个广告活动 × 每活动 {perCampaign} 个素材 = 每账户 {perAccount} 个独立素材；{accounts} 个账户共需 {total} 个。" }
+  ,"launchRedesign.metaSharedMath": { "en": "{perCampaign} creatives reused in each of {campaigns} campaigns across all accounts.", "zh": "{perCampaign} 个素材在所有账户的 {campaigns} 个广告活动中重复使用。" }
+}

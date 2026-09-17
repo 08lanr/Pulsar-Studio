@@ -1,8 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
-// End-to-end smoke tests against the fixture-mode dev server (port 3200).
-// `npm run test:e2e` reuses a running `npm run dev`; without one it starts
-// it. Two viewports: a desktop and the size a projector usually gets.
+// End-to-end tests own an isolated fixture server on port 3202. They reset
+// demo data, so never reuse the interactive demo on port 3200. Persistence
+// is disabled; screenshots cover desktop and presentation viewports.
 // Screenshots land in docs/demo/e2e/<project>/ as evidence of the rehearsal.
 
 export default defineConfig({
@@ -15,7 +15,7 @@ export default defineConfig({
   reporter: [["list"], ["html", { open: "never", outputFolder: "tmp/playwright-report" }]],
   outputDir: "tmp/playwright-results",
   use: {
-    baseURL: process.env.STUDIO_URL ?? "http://localhost:3200",
+    baseURL: process.env.STUDIO_URL ?? "http://localhost:3202",
     locale: "en-US",
     colorScheme: "light",
     trace: "retain-on-failure",
@@ -25,10 +25,16 @@ export default defineConfig({
     { name: "desktop", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } },
     { name: "presentation", use: { ...devices["Desktop Chrome"], viewport: { width: 1920, height: 1080 } } },
   ],
-  webServer: {
-    command: "npm run dev",
-    url: process.env.STUDIO_URL ? `${process.env.STUDIO_URL}/login` : "http://localhost:3200/login",
-    reuseExistingServer: true,
+  // STUDIO_URL is an explicit opt-in to a separately managed test server.
+  webServer: process.env.STUDIO_URL ? undefined : {
+    command: "npx next dev -p 3202",
+    url: "http://localhost:3202/login",
+    reuseExistingServer: false,
     timeout: 120_000,
+    env: {
+      DATA_SOURCE: "fixture", TIKTOK_MODE: "sandbox", TIKTOK_LIVE: "",
+      META_LIVE_WRITES: "", FIXTURE_PERSIST: "off", FIXTURE_SEED: "demo",
+      NEXT_DIST_DIR: ".next-redesign-e2e", SCHEDULER_DISABLED: "1", PROMO_RENDER: "on",
+    },
   },
 });

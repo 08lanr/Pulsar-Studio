@@ -1,0 +1,78 @@
+/* TikTok launch settings, delivery controls, the staff setup and the launch
+   monitor (decision 2026-09-16). Tokens only; loads before polish.css. */
+
+/* ---- settings editor ------------------------------------------------------- */
+.tk-editor { display: grid; gap: 16px; }
+.tk-editor.is-disabled { opacity: 0.7; }
+.tk-fieldset { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px 14px; margin: 0; min-width: 0; display: grid; gap: 12px; }
+.tk-fieldset legend { padding: 0 6px; font-weight: var(--w-strong); font-size: var(--t-small); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.tk-field { display: grid; gap: 6px; }
+.tk-field.tk-row { grid-template-columns: max-content auto; align-items: center; gap: 8px 12px; }
+.tk-field.tk-row .hint, .tk-field.tk-row .gt-muted { grid-column: 1 / -1; margin: 0; }
+.tk-field.tk-row .tk-label + .input + .tk-label { margin-left: 8px; }
+.tk-label { font-size: var(--t-small); font-weight: var(--w-strong); color: var(--text); }
+.tk-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tk-inline-note { font-size: var(--t-small); }
+.tk-seg { margin: 0; }
+.tk-mini { max-width: 110px; }
+.tk-num { max-width: 140px; }
+.tk-date { max-width: 170px; }
+.tk-search { position: relative; max-width: 420px; }
+.tk-hits { position: absolute; z-index: 5; left: 0; right: 0; top: calc(100% + 4px); margin: 0; padding: 4px; list-style: none; background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow-md, 0 8px 24px rgba(0,0,0,0.12)); max-height: 260px; overflow: auto; }
+.tk-hits li button { width: 100%; text-align: left; background: none; border: 0; padding: 6px 8px; border-radius: var(--radius-sm); font: inherit; color: var(--text); cursor: pointer; display: flex; justify-content: space-between; gap: 8px; }
+.tk-hits li button:hover { background: var(--surface-3); }
+.tk-check { display: flex; gap: 8px; align-items: center; font-size: var(--t-small); }
+.tk-money { margin: 0; font-size: var(--t-small); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.tk-money.is-bad { color: var(--error); }
+.tk-nocap { margin: 0; }
+
+/* ---- settings panel on the campaign page ------------------------------------ */
+.tk-settings > summary > span + span { color: var(--text-muted); font-weight: var(--w-normal); font-size: var(--t-small); }
+.tk-panel-body { display: grid; gap: 12px; }
+.tk-preset-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.tk-preset-row .select { max-width: 360px; }
+.tk-summary { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
+.tk-summary li { padding: 3px 10px; border-radius: 999px; background: var(--surface-3); color: var(--text-muted); font-size: var(--t-small); }
+
+/* ---- delivery panel ---------------------------------------------------------- */
+.tk-delivery .rs-panel-body { display: grid; gap: 12px; }
+.tk-state-row { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; }
+.tk-swept { margin-left: auto; display: inline-flex; gap: 8px; align-items: center; font-size: var(--t-small); }
+.tk-switch-btn { border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-muted); font: inherit; font-size: var(--t-small); font-weight: var(--w-strong); padding: 5px 12px; border-radius: 999px; cursor: pointer; min-width: 84px; }
+.tk-switch.is-on .tk-switch-btn { color: var(--success); border-color: var(--success); background: var(--success-bg); }
+.tk-switch.is-off .tk-switch-btn { color: var(--text-muted); }
+.tk-switch-btn:disabled { cursor: default; opacity: 0.7; }
+.tk-stats.stat-grid { margin: 0; }
+.tk-groups .gt-row.is-retired { opacity: 0.55; }
+.tk-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.tk-controls .btn { white-space: nowrap; }
+.tk-end { color: var(--error); }
+.tk-form { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); max-width: 560px; }
+.tk-form .hint { margin: 0; }
+.tk-sweep-error { font-size: var(--t-small); margin: 0; }
+
+/* ---- producer TikTok accounts ------------------------------------------------ */
+.tk-accounts .gt-row.is-pick { background: var(--brand-tint); }
+.tk-radio { display: inline-flex; gap: 6px; align-items: center; font-size: var(--t-small); cursor: pointer; }
+.tk-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: center; }
+
+/* ---- staff setup and presets ------------------------------------------------- */
+.tk-head-row { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.tk-verdict { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.tk-presets li { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--border); }
+.tk-presets li:first-child { border-top: 0; }
+.tk-preset-form { margin-top: 12px; }
+.tk-bc-table .gt-row { align-items: center; }
+.tk-fp { font-size: var(--t-micro); color: var(--text-muted); }
+.tk-scan-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; }
+
+/* ---- staff launch monitor ---------------------------------------------------- */
+.tk-monitor .gt-head span, .tk-monitor .gt-row > span { min-width: 0; }
+.tk-monitor .gt-row .tk-switch-btn { min-width: 70px; padding: 3px 10px; }
+.tk-monitor-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.tk-monitor .gt-num { text-align: right; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 720px) {
+  .tk-field.tk-row { grid-template-columns: 1fr; }
+  .tk-swept { margin-left: 0; }
+}

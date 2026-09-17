@@ -14,6 +14,7 @@ export async function POST(req: NextRequest, { params }: { params: { campaignId:
     if (g.response) return g.response;
     const parsed = await parseJson(req, schema);
     if (parsed.response) return parsed.response;
-    return NextResponse.json(await switchCampaign(g.session, params.campaignId, parsed.data.on));
+    if (parsed.data.on) return NextResponse.json({ error: "Earlier campaigns allow stop controls only", code: "conflict" }, { status: 409 });
+    return NextResponse.json(await switchCampaign(g.session, params.campaignId, false));
   });
 }

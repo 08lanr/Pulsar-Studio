@@ -1,0 +1,70 @@
+{
+  "launchFeedback.noteRequired": {
+    "en": "Add an authorization note before launching on the producer’s behalf.",
+    "zh": "代制片方投放前，请填写授权说明。"
+  },
+  "launchFeedback.noteHelp": {
+    "en": "Required for staff launches. Record who authorized this launch; a producer approver can approve directly from their own account.",
+    "zh": "工作人员代投时必填。请记录谁授权了本次投放；制片方审批人可使用自己的账户直接批准。"
+  },
+  "launchFeedback.previewFirst": {
+    "en": "Preview the current campaign plan before launching.",
+    "zh": "请先预览当前广告活动方案，再提交投放。"
+  },
+  "launchFeedback.chooseProducer": {
+    "en": "Choose a producer company above to save and preview its launch.",
+    "zh": "先在上方选择制片公司，再保存并预览投放。"
+  },
+  "launchFeedback.cannotEdit": {
+    "en": "Your current account can view this company, but cannot create launches. Sign in with its producer editor or approver account.",
+    "zh": "当前账户可以查看这家公司，但不能创建投放。请使用该公司的编辑或审批人账户登录。"
+  },
+  "launchFeedback.confirm": {
+    "en": "Confirm launch",
+    "zh": "确认投放"
+  },
+  "launchFeedback.submitting": {
+    "en": "Submitting launch…",
+    "zh": "正在提交投放…"
+  },
+  "launchFeedback.pausedConfirmation": {
+    "en": "The campaigns will be created paused. They will not spend until an authorized user resumes them.",
+    "zh": "广告活动将以暂停状态创建，授权用户开启后才会产生花费。"
+  },
+  "launchFeedback.liveConfirmation": {
+    "en": "The campaigns will be enabled and may begin spending after platform review. Confirm the accounts, content and budget in your preview before continuing.",
+    "zh": "广告活动将启用，通过平台审核后可能开始花费。继续前，请确认预览中的账户、素材和预算。"
+  },
+  "launchFeedback.createLaunch": {
+    "en": "Create a launch",
+    "zh": "创建投放"
+  },
+  "launchFeedback.previewHelp": {
+    "en": "Click Preview campaigns to check your plan. The approval and launch button appears after a successful preview; previewing does not create ads.",
+    "zh": "点击“预览广告活动”检查方案。预览通过后会显示批准并投放按钮；预览不会创建广告。"
+  },
+  "launchFeedback.reviewLaunch": {
+    "en": "Review and launch",
+    "zh": "审核并投放"
+  },
+  "launchFeedback.launchOn": {
+    "en": "Launch on {provider}",
+    "zh": "投放到 {provider}"
+  },
+  "launchFeedback.launchHelp": {
+    "en": "Launch on {provider} opens your campaign plan for approval. Confirm the accounts, content and budget to create the ads.",
+    "zh": "点击“投放到 {provider}”打开方案审批窗口，确认账户、素材和预算后创建广告。"
+  },
+  "launchFeedback.preparing": {
+    "en": "Preparing your launch…",
+    "zh": "正在准备投放…"
+  },
+  "launchFeedback.realCreation": {
+    "en": "Confirming creates real {provider} ads in the selected accounts.",
+    "zh": "确认后，将在所选账户中创建真实的 {provider} 广告。"
+  },
+  "launchFeedback.testCreation": {
+    "en": "Test launch: this will not create real {provider} ads.",
+    "zh": "测试投放：不会创建真实的 {provider} 广告。"
+  }
+}

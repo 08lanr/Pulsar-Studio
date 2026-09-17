@@ -36,6 +36,7 @@ import type {
   Version,
 } from "@/lib/types";
 import type { ReportBatch, ReportRow, ResearchProfile, WatchRow } from "@/lib/research/types";
+import { defaultLaunchSettings } from "@/lib/tiktok/settings";
 import { PRODUCER_ID, PRODUCER_USER_ID, STAFF_USER_ID, ext, uuid } from "./ids";
 import { buildVersionSnapshot, snapshotSha256 } from "./snapshot";
 
@@ -44,6 +45,8 @@ const B = { title: 0x30, episode: 0x31, scene: 0x32, line: 0x33, adapted: 0x34, 
 /** The demo studio's TikTok ad account (assigned by staff from Pulsar's Business Center; a fake advertiser id, never a real one). */
 export const DEMO_BC_ID = "7000000000000000000";
 export const DEMO_ADVERTISER_ID = "7000000000000000001";
+/** The launch-settings bookkeeping every demo launch row carries (decision 2026-09-16): the defaults, nothing changed since. */
+const launchDefaults = (): Pick<PromoLaunch, "settings" | "paused" | "duplicates" | "retired_adgroups" | "duplicated_at" | "activated_at" | "bid_usd" | "schedule_end"> => ({ settings: defaultLaunchSettings(), paused: false, duplicates: {}, retired_adgroups: [], duplicated_at: null, activated_at: null, bid_usd: null, schedule_end: null });
 export const DEMO_IDENTITY_ID = "7000000000000000101";
 
 const AT0 = "2026-07-15T02:00:00.000Z";
@@ -378,6 +381,7 @@ export function buildDemoSeed(): DemoSeed {
       tiktok_adgroup_id: null,
       status_note: null,
       launched_at: null,
+      launch_settings: null,
       created_by: PRODUCER_USER_ID,
       created_at: at,
       updated_at: at,
@@ -442,6 +446,7 @@ export function buildDemoSeed(): DemoSeed {
     covers: { v1700000000000000001: "c1700000000000000001", v1700000000000000002: "c1700000000000000002" },
     tiktok_campaign_id: c1.grow_campaign_id, tiktok_adgroup_id: c1.tiktok_adgroup_id,
     ad_ids: { [creativeId(1, 1)]: "1720000000000000001", [creativeId(1, 2)]: "1720000000000000002" },
+    ...launchDefaults(),
     error: null, attempts: 1, created_by: PRODUCER_USER_ID, created_at: AT2, started_at: AT2, heartbeat_at: AT2, finished_at: AT2,
   }];
   results.push(
@@ -472,6 +477,7 @@ export function buildDemoSeed(): DemoSeed {
     covers: { v1700000000000000041: "c1700000000000000041", v1700000000000000042: "c1700000000000000042" },
     tiktok_campaign_id: c4.grow_campaign_id, tiktok_adgroup_id: c4.tiktok_adgroup_id,
     ad_ids: { [creativeId(4, 1)]: "1720000000000000041", [creativeId(4, 2)]: "1720000000000000042" },
+    ...launchDefaults(),
     error: null, attempts: 1, created_by: PRODUCER_USER_ID, created_at: AT3, started_at: AT3, heartbeat_at: AT3, finished_at: AT3,
   });
   results.push(
@@ -479,12 +485,12 @@ export function buildDemoSeed(): DemoSeed {
     { id: uuid(B.result, 4), campaign_id: c4.id, creative_id: creativeId(4, 2), source: "demo", window_start: "2026-09-06", window_end: "2026-09-09", impressions: 37_900, video_views: 15_900, hook_hold_rate: 0.23, clicks: 341, spend_usd: 48.2, landing_actions: 39, observed_at: AT4 }
   );
 
-  const noIdentity = { identity_id: null, identity_type: null, assigned_by: null, assigned_at: null } as const;
+  const noIdentity = { identity_id: null, identity_type: null, assigned_by: null, assigned_at: null, preferred_advertiser_id: null } as const;
   const accounts: CompanyAccount[] = [
     // The launch assignment (decision 2026-09-09, "assign a BC, not an ad account"): Pulsar staff assigned
     // the demo Business Center; a launch picks a ready account with a linked handle inside it (the fake
     // TikTok holds two). Demo ids: nothing here reaches TikTok.
-    { id: uuid(B.account, 1), producer_id: PRODUCER_ID, provider: "tiktok", kind: "business_center", name: "Pulsar Business Center (demo)", external_ref: DEMO_BC_ID, state: "connected", access: "partner", note: "Assigned by Pulsar. The studio's ads run from an ad account inside this Business Center.", identity_id: null, identity_type: null, assigned_by: STAFF_USER_ID, assigned_at: AT2, updated_at: AT2 },
+    { id: uuid(B.account, 1), producer_id: PRODUCER_ID, provider: "tiktok", kind: "business_center", name: "Pulsar Business Center (demo)", external_ref: DEMO_BC_ID, state: "connected", access: "partner", note: "Assigned by Pulsar. The studio's ads run from an ad account inside this Business Center.", identity_id: null, identity_type: null, assigned_by: STAFF_USER_ID, assigned_at: AT2, preferred_advertiser_id: null, updated_at: AT2 },
     // The account campaign 1 launched into, recorded (not staff-assigned: the BC pick chose it).
     { id: uuid(B.account, 2), producer_id: PRODUCER_ID, provider: "tiktok", kind: "ad_account", name: "Xinghai US Ads (Pulsar BC)", external_ref: DEMO_ADVERTISER_ID, state: "connected", access: "partner", note: "Inside Pulsar's Business Center; used by round 1.", ...noIdentity, updated_at: AT2 },
     { id: uuid(B.account, 3), producer_id: PRODUCER_ID, provider: "youtube", kind: "channel", name: "Xinghai Drama (YouTube)", external_ref: "@xinghaidrama", state: "connected", access: "owner_operated", note: "Demo state: the customer uploads and reads analytics themselves.", ...noIdentity, updated_at: AT2 },

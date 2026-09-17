@@ -1,0 +1,18 @@
+{
+  "tipTemplates.tabs": { "en": "Launch templates", "zh": "投放模板" },
+  "tipTemplates.title": { "en": "Instant Page templates", "zh": "即时页面模板" },
+  "tipTemplates.new": { "en": "New template", "zh": "新建模板" },
+  "tipTemplates.explainer": { "en": "Save a reusable page design here. Launch creates a separate TikTok Instant Page for each approved campaign and fills its tracking link.", "zh": "在这里保存可复用的页面样式。审批投放后，每个广告活动会单独创建 TikTok 即时页面，并填入对应的追踪链接。" },
+  "tipTemplates.empty": { "en": "No Instant Page templates yet.", "zh": "还没有即时页面模板。" },
+  "tipTemplates.name": { "en": "Template name", "zh": "模板名称" },
+  "tipTemplates.button": { "en": "Button text", "zh": "按钮文字" },
+  "tipTemplates.background": { "en": "Background", "zh": "背景" },
+  "tipTemplates.background.white": { "en": "White", "zh": "白色" },
+  "tipTemplates.background.black": { "en": "Black", "zh": "黑色" },
+  "tipTemplates.handCursor": { "en": "Show animated tap hint", "zh": "显示点击提示动画" },
+  "tipTemplates.preview": { "en": "Page design preview", "zh": "页面样式预览" },
+  "tipTemplates.previewTitle": { "en": "Your page", "zh": "你的页面" },
+  "tipTemplates.previewBody": { "en": "Campaign content appears here", "zh": "广告活动内容显示在这里" },
+  "tipTemplates.previewNote": { "en": "Design preview only. The approved launch creates a separate page with its own tracking link for each campaign.", "zh": "这里只预览样式。审批投放后，每个广告活动会创建含对应追踪链接的独立页面。" },
+  "tipTemplates.deleteConfirm": { "en": "Delete this Instant Page template?", "zh": "删除这个即时页面模板？" }
+}

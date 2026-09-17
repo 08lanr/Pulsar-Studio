@@ -24,11 +24,14 @@ import type { IngestResult } from "@/lib/ingest";
 import type { CatalogRow } from "@/lib/research/engine";
 import type { MarketView } from "@/lib/research/snapshot";
 import type { ReportBatch, ReportRow, ResearchProfile, WatchRow } from "@/lib/research/types";
+import type { LaunchSettings } from "@/lib/tiktok/settings";
 import type {
   AccountRequest,
   AdAngle,
   CompanyAccount,
   CreativeResult,
+  LaunchPreset,
+  InstantPageTemplate,
   PromoLaunch,
   AdaptTag,
   AdaptedLine,
@@ -311,7 +314,7 @@ export type AdvancePromoCampaignInput = {
 
 /** What the launch engine records after a step. Only the system session may write these. */
 export type PromoLaunchPatch = Partial<
-  Pick<PromoLaunch, "status" | "identity_id" | "identity_type" | "uploaded_videos" | "covers" | "tiktok_campaign_id" | "tiktok_adgroup_id" | "ad_ids" | "error" | "attempts" | "started_at" | "heartbeat_at" | "finished_at">
+  Pick<PromoLaunch, "status" | "identity_id" | "identity_type" | "uploaded_videos" | "covers" | "tiktok_campaign_id" | "tiktok_adgroup_id" | "ad_ids" | "paused" | "bid_usd" | "schedule_end" | "duplicates" | "retired_adgroups" | "duplicated_at" | "activated_at" | "error" | "attempts" | "started_at" | "heartbeat_at" | "finished_at">
 >;
 
 /** The scheduler's and the engine's view of a launched campaign. */
@@ -321,6 +324,34 @@ export type LaunchedCampaign = {
   /** The creatives that became ads (approved in the manifest). */
   creatives: PromoCreative[];
 };
+
+/**
+ * What a control records after TikTok accepted it (decision 2026-09-16):
+ * the new signed budget, the cap, the schedule end, the copies made and the
+ * groups retired. Staff or the company's approver; the system for the
+ * auto-duplicate pass. Never the write-once creation ids.
+ */
+export type LaunchChangeInput = {
+  budget_usd?: number;
+  daily_budget_usd?: number;
+  bid_usd?: number | null;
+  schedule_end?: string | null;
+  duplicates?: Record<string, string[]>;
+  retired_adgroups?: string[];
+  duplicated_at?: string | null;
+  activated_at?: string | null;
+  paused?: boolean;
+  note?: string | null;
+};
+
+export type LaunchPresetInput = {
+  id?: string;
+  name: string;
+  settings: LaunchSettings;
+  note?: string | null;
+};
+
+export type InstantPageTemplateInput = { id?: string; name: string; button_text: string; background: "white" | "black"; hand_cursor: boolean };
 
 /** The engine and the scheduler move a campaign along TikTok's lifecycle; staff may pause/resume. */
 export type DeliveryInput = {
@@ -589,8 +620,39 @@ export interface DataLayer {
   listOpenPromoLaunches(session: Session): Promise<PromoLaunch[]>;
   /** System only: persist a step's output. */
   updatePromoLaunch(session: Session, launchId: string, patch: PromoLaunchPatch): Promise<PromoLaunch>;
-  /** System/staff: every campaign with TikTok objects whose status can still move (submitted, live, paused, ended). */
-  listLaunchedPromoCampaigns(session: Session): Promise<LaunchedCampaign[]>;
+  /**
+   * System/staff: every campaign with TikTok objects whose status can still
+   * move (submitted, live, paused, ended); `all` adds launching and failed
+   * rows that already hold a TikTok campaign (the monitor shows those too).
+   * A producer gets their own company's rows.
+   */
+  listLaunchedPromoCampaigns(session: Session, opts?: { all?: boolean }): Promise<LaunchedCampaign[]>;
+  /** One launched campaign the session may read, with its done launch, or null when it has no TikTok objects yet. */
+  getLaunchedCampaign(session: Session, campaignId: string): Promise<LaunchedCampaign | null>;
+  /** Staff, the company's approver, or the system: what a control changed (lib/tiktok/controls.ts). A budget is a new experiment version. */
+  recordLaunchChange(session: Session, campaignId: string, input: LaunchChangeInput): Promise<PromoLaunch>;
+  /** Title editors (producer reviewer+, staff): the launch's shape, before launch; frozen from `launching` on. */
+  setLaunchSettings(session: Session, campaignId: string, settings: LaunchSettings): Promise<PromoCampaign>;
+  /** Any member: Pulsar-wide presets, by name. */
+  listLaunchPresets(session: Session): Promise<LaunchPreset[]>;
+  /** Staff admin: create or update a preset (same id updates). */
+  saveLaunchPreset(session: Session, input: LaunchPresetInput): Promise<LaunchPreset>;
+  /** Staff admin. */
+  deleteLaunchPreset(session: Session, presetId: string): Promise<void>;
+  /** Reusable local Instant Page designs; they do not publish to TikTok. */
+  listInstantPageTemplates(session: Session): Promise<InstantPageTemplate[]>;
+  /** Staff admin only. */
+  saveInstantPageTemplate(session: Session, input: InstantPageTemplateInput): Promise<InstantPageTemplate>;
+  /** Staff admin only. */
+  deleteInstantPageTemplate(session: Session, id: string): Promise<void>;
+  /** Producer editor: the ad account inside their assigned Business Center that launches should use (null clears). */
+  setPreferredLaunchAccount(session: Session, advertiserId: string | null): Promise<CompanyAccount>;
+  /**
+   * Staff: a NEW launch of the same manifest on another ad account after the
+   * first one ended or failed (a suspended account). Never while the first is
+   * alive — that would be a second campaign spending the same budget.
+   */
+  relaunchOnAccount(session: Session, campaignId: string, resolved: ResolvedLaunchAccount, note?: string | null): Promise<PromoLaunch>;
   /** System/staff: the campaign's TikTok lifecycle state. */
   setPromoCampaignDelivery(session: Session, campaignId: string, input: DeliveryInput): Promise<PromoCampaign>;
   /** Staff: a failed launch runs again from its first unfinished step (never a second TikTok campaign). */
@@ -671,9 +733,12 @@ export interface DataLayer {
 
 // ---- the switch ------------------------------------------------------------------------------
 
+import { createLaunchData } from "./launch";
+import type { LaunchDataLayer } from "@/lib/launch/types";
 import { fixtureData } from "./fixture";
 import { supabaseData } from "./supabase";
 
-export function getData(): DataLayer {
-  return dataSource() === "supabase" ? supabaseData : fixtureData;
+export function getData(): DataLayer & LaunchDataLayer {
+  const core = dataSource() === "supabase" ? supabaseData : fixtureData;
+  return { ...core, ...createLaunchData(core) };
 }
