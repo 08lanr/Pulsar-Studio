@@ -1149,7 +1149,7 @@ lease is live; releasing a free run is allowed — a crash recovery).
 job and a Claude Code session cannot see each other's process:
 `<film>/cut/.studio-run.json` `{run_id, stage, started_at, pid, owner: "pulsar-studio"}`
 says Studio is driving the folder, and `<mini-drama-system>/.heavy-lock.json`
-`{owner, what, pid, started_at}` is the machine's one heavy slot (a whisper
+`{owner, what, pid, started_at, run_id?}` is the machine's one heavy slot (a whisper
 index, a full render, a QA run). A lock is stale when its pid is not alive or
 its `started_at` is older than six hours; a stale lock is replaced and the
 replacement is reported, never deleted quietly; a release removes the file

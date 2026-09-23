@@ -30,8 +30,8 @@ import type { FilmRun, FilmRunMode } from "@/lib/types";
 
 // ---- shared pieces ------------------------------------------------------------------------------------
 
-/** The film folder name under its bucket (`lib/data/film-runs.ts` FILM_SLUG, repeated so this module stays dependency-free). */
-export const RUN_SLUG = /^[a-z0-9]+(?:[-_][a-z0-9]+)*$/;
+/** The film folder name under its bucket (`lib/data/film-runs.ts` FILM_SLUG, repeated so this module stays dependency-free); one leading `_` marks a scratch folder. */
+export const RUN_SLUG = /^_?[a-z0-9]+(?:[-_][a-z0-9]+)*$/;
 
 /** Buckets a run may be created in today: the cut-only route lives under `low-quality/`. */
 export const RUN_BUCKETS = ["low-quality"] as const;
@@ -60,6 +60,10 @@ export const NewRunSettingsSchema = z
     watermark_region: z.string().regex(/^\s*\d*\.?\d+\s*(,\s*\d*\.?\d+\s*){3}$/).nullish(),
     vision: z.enum(["api", "handoff"]).optional(),
     film_notes: z.string().max(2000).nullish(),
+    /** The explicit claim of a film folder no Studio run made (B0); the intake refuses such a folder without it. */
+    claim_existing: z.boolean().optional(),
+    /** Cut the rest of a delivered film (a first proof) under its pinned episodes; a delivered film is refused at intake without it. */
+    extend: z.boolean().optional(),
   })
   .strict();
 

@@ -45,8 +45,41 @@ const FAKE_CANDIDATES = [
   { t: 9.2, line_before: "You knew.", line_after: "I did not.", line_before_end: 8.1, line_after_start: 9.5 },
   { t: 12.0, line_before: "I did not.", line_after: "Run.", line_before_end: 10.4, line_after_start: 13.2 },
 ];
-/** The DP's picks: episodes of 4, 5 and 6 s. */
+/** The DP's preferred picks: episodes of 4, 5 and 6 s over the whole film. */
 const FAKE_DP = [4.0, 9.0];
+
+/**
+ * The fake's DP: a chain of legal cuts from `from` (the last pinned end) to
+ * `duration` with every episode in band, FAKE_DP's picks preferred, so a
+ * first proof (`--duration 9` → [4]) and its extension (`--pin-from` the
+ * delivered 0–9 → [9]) come out as the real pick_cuts would; null when no
+ * partition exists (the real script's refusal).
+ */
+export function fakeBoundaries(from: number, duration: number, band: [number, number]): number[] | null {
+  const times = FAKE_CANDIDATES.map((c) => c.t).filter((t) => t > from + 1e-9 && t < duration - 1e-9);
+  const ordered = [...times.filter((t) => FAKE_DP.includes(t)), ...times.filter((t) => !FAKE_DP.includes(t))];
+  const inBand = (len: number) => len >= band[0] - 1e-9 && len <= band[1] + 1e-9;
+  const walk = (prev: number): number[] | null => {
+    if (inBand(duration - prev)) return [];
+    for (const t of ordered) {
+      if (t <= prev || !inBand(t - prev)) continue;
+      const rest = walk(t);
+      if (rest) return [t, ...rest];
+    }
+    return null;
+  };
+  return walk(from);
+}
+
+/** The delivered plan `--pin-from` names: its pinned ends (every end but the last, unless `final_end_is_boundary`) and the last pin. */
+function pinsFrom(cut: string, pinFrom: string | null): { ends: number[]; last: number } {
+  if (!pinFrom) return { ends: [], last: 0 };
+  const plan = readJson<{ episodes?: { end: number }[]; final_end_is_boundary?: boolean }>(path.join(cut, pinFrom));
+  const eps = plan?.episodes ?? [];
+  const pinned = plan?.final_end_is_boundary ? eps : eps.slice(0, -1);
+  const ends = pinned.map((e) => e.end);
+  return { ends, last: ends.length ? Math.max(...ends) : 0 };
+}
 
 // ---- a PNG big enough for --verify's "not empty" rule ---------------------------------------------------------------
 
@@ -121,7 +154,7 @@ function readJson<T>(file: string): T | null {
 const round3 = (x: number) => Math.round(x * 1000) / 1000;
 
 /** cuts.json from boundary times: episodes between 0, the boundaries and the duration, with the pipeline's fields. */
-function planFrom(boundaries: number[], opts: { duration: number; band: [number, number]; target: number; pinFrom: string | null; moves: { from: number; to: number }[]; skips?: [number, number][] }) {
+function planFrom(boundaries: number[], opts: { duration: number; band: [number, number]; target: number; pinFrom: string | null; pinned?: number; moves: { from: number; to: number }[]; skips?: [number, number][] }) {
   const points = [0, ...boundaries.slice().sort((a, b) => a - b), opts.duration];
   const whisper = { segments: [] as { start: number; text: string }[] };
   const episodes = points.slice(1).map((end, i) => {
@@ -135,7 +168,7 @@ function planFrom(boundaries: number[], opts: { duration: number; band: [number,
     target: opts.target,
     fps: FAKE_FPS,
     band: opts.band,
-    pinned: 0,
+    pinned: opts.pinned ?? 0,
     pin_from: opts.pinFrom,
     moves: opts.moves,
     final_end_is_boundary: false,
@@ -304,24 +337,31 @@ export class FakePipelineRunner implements PipelineRunner {
           return 1;
         }
         mkdirSync(index(""), { recursive: true });
+        // `--to` cuts the audio: the transcript covers that much (a first proof); the source facts are the whole film's.
+        const to = Math.min(Number(arg(a, "--to") ?? FAKE_DURATION) || FAKE_DURATION, FAKE_DURATION);
+        if (existsSync(index("whisper.json"))) say("stdout", "== previous index kept in index/prev-fake");
         writeJson(index("source.json"), { source: "../source/original.mp4", fps: FAKE_FPS, width: 720, height: 1280, duration: FAKE_DURATION });
         say("stdout", "== source facts");
+        say("stdout", `== source ../source/original.mp4  from 0s${to < FAKE_DURATION ? ` to ${to}s` : ""}`);
         say("stdout", "== audio 00:00:00");
-        writeFileSync(index("scdet.txt"), ["2.0", "3.5", "4.0", "6.5", "8.5", "9.0", "9.2", "12.0"].join("\n") + "\n", "utf8");
+        writeFileSync(index("scdet.txt"), ["2.0", "3.5", "4.0", "6.5", "8.5", "9.0", "9.2", "12.0"].filter((t) => Number(t) < to).join("\n") + "\n", "utf8");
         say("stdout", "== scdet 00:00:01");
         say("stdout", "   8 shot cuts");
         say("stdout", "== whisper 00:00:01");
-        copyFileSync(path.join(this.fixture, "cut", "index", "whisper.json"), index("whisper.json"));
-        writeFileSync(index("whisper.log"), ["faster-whisper medium, 2 threads", "  25%  3.8s", "  50%  7.5s", " 100% 15.0s", "5 segments -> index/whisper.json"].join("\n") + "\n", "utf8");
+        const whisper = readJson<{ duration?: number; segments?: { start: number }[] }>(path.join(this.fixture, "cut", "index", "whisper.json")) ?? {};
+        writeJson(index("whisper.json"), { ...whisper, duration: to, segments: (whisper.segments ?? []).filter((s) => s.start < to) });
+        writeFileSync(index("whisper.log"), ["faster-whisper medium, 2 threads", "  25%  3.8s", "  50%  7.5s", ` 100% ${to.toFixed(1)}s`, "5 segments -> index/whisper.json"].join("\n") + "\n", "utf8");
         say("stdout", "5 segments -> index/whisper.json");
         say("stdout", "INDEX DONE 00:00:02");
         return 0;
       }
 
-      case "motion.py":
-        copyFileSync(path.join(this.fixture, "cut", "index", "motion.json"), index("motion.json"));
+      case "motion.py": {
+        const motion = readJson<Record<string, unknown>>(path.join(this.fixture, "cut", "index", "motion.json")) ?? {};
+        writeJson(index("motion.json"), { ...motion, from: 0, to: Number(arg(a, "--to") ?? 0) || 0 });
         say("stdout", "3 beats -> index/motion.json");
         return 0;
+      }
 
       case "candidates.py": {
         const fixture = readJson<Record<string, unknown>>(path.join(this.fixture, "cut", "index", "candidates.json")) ?? {};
@@ -369,9 +409,16 @@ export class FakePipelineRunner implements PipelineRunner {
           say("stderr", `REFUSED: this film has delivered cuts (review/${delivered[delivered.length - 1]}). Add\n  --pin-from review/${delivered[delivered.length - 1]}\nto every pick_cuts.py call.`);
           return 1;
         }
+        const pins = pinsFrom(cut, pinFrom);
+        const open = fakeBoundaries(pins.last, duration, band);
         const emit = arg(a, "--emit-options");
         if (emit) {
-          const boundaries = FAKE_DP.map((t) => ({
+          if (!open) {
+            say("stderr", `no partition of ${duration}s into episodes of ${band[0]}-${band[1]}s exists over ${FAKE_CANDIDATES.length} legal boundaries. Widen --min/--max or lower --min-clear.`);
+            return 1;
+          }
+          if (pinFrom) say("stdout", `pinned ${pins.ends.length} delivered boundaries from ${pinFrom}; its final end is re-planned`);
+          const boundaries = open.map((t) => ({
             boundary_s: t,
             dp_pick: t,
             before: [{ t: t - 2, text: FAKE_CANDIDATES.find((c) => c.t === t)?.line_before ?? "" }],
@@ -411,8 +458,13 @@ export class FakePipelineRunner implements PipelineRunner {
           say("stderr", `REFUSED: ${choicesFile} is missing`);
           return 1;
         }
-        const stray = Object.keys(choices).filter((k) => !FAKE_DP.some((t) => Math.abs(Number(k) - t) <= 0.001));
-        const unreviewed = FAKE_DP.filter((t) => !Object.keys(choices).some((k) => Math.abs(Number(k) - t) <= 0.001));
+        if (!open) {
+          say("stderr", `no partition of ${duration}s into episodes of ${band[0]}-${band[1]}s exists over ${FAKE_CANDIDATES.length} legal boundaries.`);
+          return 1;
+        }
+        // Every key must name an OPEN boundary of this partition (a pinned one is settled), and every open boundary needs a choice.
+        const stray = Object.keys(choices).filter((k) => !open.some((t) => Math.abs(Number(k) - t) <= 0.001));
+        const unreviewed = open.filter((t) => !Object.keys(choices).some((k) => Math.abs(Number(k) - t) <= 0.001));
         if (stray.length || unreviewed.length) {
           say("stderr", `REFUSED: ${choicesFile} does not match this partition.\n  keys naming no open boundary (stale file?): ${JSON.stringify(stray)}\n  open boundaries with no reviewed choice:    ${JSON.stringify(unreviewed)}`);
           return 1;
@@ -421,8 +473,8 @@ export class FakePipelineRunner implements PipelineRunner {
           say("stderr", `choice ${v}s for boundary ${k}s is not a legal candidate`);
           return 1;
         }
-        const ends = Object.values(choices).map(round3);
-        const plan = planFrom(ends, { duration, band, target, pinFrom, moves: [] });
+        const ends = [...pins.ends, ...Object.values(choices)].map(round3);
+        const plan = planFrom(ends, { duration, band, target, pinFrom, pinned: pins.ends.length, moves: [] });
         const off = plan.episodes.filter((e) => e.dur < band[0] - 1e-9 || e.dur > band[1] + 1e-9).map((e) => `ep${e.n}: ${e.dur}s`);
         say("stdout", `applied ${ends.length} visual choices`);
         if (off.length) {
@@ -570,10 +622,13 @@ export class FakePipelineRunner implements PipelineRunner {
         const fixtureEps = readdirSync(path.join(this.fixture, "cut", "eps")).filter((n) => /^ep\d+\.mp4$/.test(n)).sort();
         say("stdout", `${plan.episodes.length} episodes, delogo${a.includes("--no-delogo") ? " off" : ""}`);
         const moves = new Set(plan.moves.map((m) => m.to));
+        // An episode the pinned delivery already built with the same window is kept (the real cut_episodes.py's rule under --pin-from).
+        const delivered = plan.pin_from ? readJson<{ episodes?: { n: number; start: number; end: number }[] }>(path.join(cut, plan.pin_from)) : null;
+        const unchanged = (e: { n: number; start: number; end: number }) => (delivered?.episodes ?? []).some((d) => d.n === e.n && Math.abs(d.start - e.start) <= 0.0015 && Math.abs(d.end - e.end) <= 0.0015);
         for (const e of plan.episodes) {
           const out = path.join(eps, `ep${String(e.n).padStart(2, "0")}.mp4`);
           const touched = moves.size && plan.episodes.some((x) => moves.has(x.end) && (x.n === e.n || x.n + 1 === e.n));
-          if (existsSync(out) && !touched && plan.moves.length) {
+          if (existsSync(out) && !touched && (plan.moves.length || unchanged(e))) {
             say("stdout", `  ep${String(e.n).padStart(2, "0")} ${e.dur.toFixed(2).padStart(6)}s  kept (delivered, unchanged)`);
             continue;
           }
@@ -608,10 +663,9 @@ export class FakePipelineRunner implements PipelineRunner {
         const only = (arg(a, "--only") ?? "").split(",").map((s) => Number(s)).filter((n) => Number.isInteger(n) && n > 0);
         const qaDir = review("qa");
         mkdirSync(qaDir, { recursive: true });
-        const have = readJson<{ episodes: Record<string, unknown>[] }>(path.join(qaDir, "qa.json"));
-        const episodes = plan.episodes.map((e) => {
-          const keep = only.length && !only.includes(e.n) ? have?.episodes.find((x) => x.n === e.n) : null;
-          if (keep) return keep;
+        // As the real script: `--only k` measures episode k and k+1 and writes a report of ONLY those (lib/segment/qa.ts merges the rest back).
+        const measured = only.length ? plan.episodes.filter((e) => only.includes(e.n) || only.includes(e.n - 1)) : plan.episodes;
+        const episodes = measured.map((e) => {
           writeFileSync(path.join(qaDir, `ep${String(e.n).padStart(2, "0")}.png`), fakePng(300, 200, 40 + e.n));
           const rec: Record<string, unknown> = { n: e.n, start: e.start, end: e.end, faults: [], notes: [], last_frame_offset: -1, last_psnr: 41.7, sheet: `review/qa/ep${String(e.n).padStart(2, "0")}.png` };
           if (e.n > 1) Object.assign(rec, { first_frame_offset: 0, first_psnr: 42.1 });

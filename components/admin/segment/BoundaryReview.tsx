@@ -4,11 +4,12 @@
 // boundary of the served review state as a card — lowest confidence and
 // skeptic overrides first, then the band-conflict groups, then the rest
 // collapsed as "accepted by reviewer and skeptic". Each decision is posted
-// as it is made and lands in the run's decisions; Apply is enabled once the
-// route says the review is complete (every card that needs a person is
-// settled, no re-judge outstanding) and no episode is outside the band, and
-// hands the worker the override file to run apply_vision.py with. After the
-// render the same screen becomes the join review.
+// as it is made, from its own card, and lands in the run's decisions (there
+// is no bulk accept: the review is mandatory, not a stamp); Apply is enabled
+// once the route says the review is complete (every card that needs a
+// person is settled, no re-judge outstanding) and no episode is outside the
+// band, and hands the worker the override file to run apply_vision.py with.
+// After the render the same screen becomes the join review.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiRequestError, getJson, postJson } from "@/lib/api-client";
@@ -82,25 +83,9 @@ export default function BoundaryReview({ runId }: { runId: string }) {
   const order = useMemo(() => (geometry ? orderCards(cards, geometry) : null), [cards, geometry]);
   const ready = useMemo(() => (geometry ? applyReady(cards, geometry) : null), [cards, geometry]);
 
-  async function acceptAll() {
-    const pending = cards.filter((c) => c.required && !c.settled && !c.rejudging && !!c.view.record && (c.view.record.pick.confidence ?? 0) > 0);
-    setBusy(true);
-    setActionError(null);
-    try {
-      for (const c of pending) {
-        const r = await postJson<Reply>(`/api/admin/films/runs/${encodeURIComponent(runId)}/decide`, { kind: "boundary", boundary_s: c.boundary_s, action: "accept" });
-        if (r.error) {
-          setActionError(r.error);
-          break;
-        }
-      }
-      await load();
-    } catch (e) {
-      setActionError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
+  // There is no bulk accept: every card that needs a person (below the confidence gate, a skeptic override, a fault) is
+  // decided on its own card, with its strips and clip in view (decision 5: the review is mandatory, not a stamp — and
+  // accepting an override silently applies the skeptic's time, which the card says and a bar button would not).
 
   if (loadError) {
     return (
@@ -160,8 +145,6 @@ export default function BoundaryReview({ runId }: { runId: string }) {
   const groupOf = (list: ReviewCard[]) => list.map((c) => (
     <BoundaryCard key={c.key} card={c} cards={cards} review={geometry} busy={!canDecide} onDecide={(d) => void decide(d)} />
   ));
-  const acceptableNow = cards.filter((c) => c.required && !c.settled && !c.rejudging && !!c.view.record && (c.view.record.pick.confidence ?? 0) > 0).length;
-
   return (
     <div style={{ display: "grid", gap: 16 }}>
       {head}
@@ -203,7 +186,6 @@ export default function BoundaryReview({ runId }: { runId: string }) {
           {review.complete && ready.ok ? tt("seg.review.ready") : tt("seg.review.notReady", { undecided: review.missing.length, conflicts: ready.conflicts })}
         </span>
         <span className="spacer" />
-        {acceptableNow > 0 && <button type="button" className="btn btn-outline btn-sm" disabled={!canDecide} onClick={() => void acceptAll()}>{tt("seg.review.acceptAll", { n: acceptableNow })}</button>}
         <button type="button" className="btn btn-primary" disabled={!canDecide || !review.complete || !ready.ok} data-testid="apply-review" onClick={() => void decide({ kind: "apply_review" })}>{tt("seg.review.apply")}</button>
       </div>
     </div>

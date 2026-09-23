@@ -28,6 +28,10 @@ const Settings = z
     watermark_region: z.string().regex(/^\s*\d*\.?\d+\s*(,\s*\d*\.?\d+\s*){3}$/).nullish(),
     vision: z.enum(["api", "handoff"]).optional(),
     film_notes: z.string().max(2000).nullish(),
+    /** The explicit claim of a film folder no Studio run made (B0); refused at intake without it. */
+    claim_existing: z.boolean().optional(),
+    /** Cut the rest of a delivered film under its pinned episodes; a delivered film is refused at intake without it. */
+    extend: z.boolean().optional(),
   })
   .strict();
 
@@ -35,7 +39,7 @@ const Body = z.object({
   producer_id: z.string().uuid(),
   source_path: z.string().trim().min(1).max(1024),
   bucket: z.enum(["low-quality"]),
-  slug: z.string().trim().regex(FILM_SLUG, "a slug is lowercase words joined by hyphens"),
+  slug: z.string().trim().regex(FILM_SLUG, "a slug is lowercase words joined by hyphens (a leading _ for a scratch folder)"),
   mode: z.enum(["by_eye_2min", "source_episodes"]),
   lang: z.string().trim().min(2).max(12).default("en"),
   settings: Settings.optional(),

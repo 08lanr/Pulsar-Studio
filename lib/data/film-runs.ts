@@ -20,8 +20,8 @@ export const FILM_RUN_MODES: readonly FilmRunMode[] = ["by_eye_2min", "source_ep
 /** The modes a run may be created with today; `narrated` is the next phase's. */
 export const FILM_RUN_MODES_OPEN: readonly FilmRunMode[] = ["by_eye_2min", "source_episodes"];
 
-/** A film folder name as the pipeline makes them: lowercase words joined by `-` or `_`. */
-export const FILM_SLUG = /^[a-z0-9]+(?:[-_][a-z0-9]+)*$/;
+/** A film folder name as the pipeline makes them: lowercase words joined by `-` or `_`; one leading `_` marks a scratch folder (`_studio-smoke`). */
+export const FILM_SLUG = /^_?[a-z0-9]+(?:[-_][a-z0-9]+)*$/;
 const GIT_SHA = /^[0-9a-f]{40}$/;
 
 const isPlainObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -34,7 +34,7 @@ export function filmRunRow(input: NewFilmRun): Omit<FilmRun, "id" | "created_at"
   const bucket = typeof input.bucket === "string" ? input.bucket.trim() : "";
   if (!FILM_SLUG.test(bucket)) throw invalid("bucket must be a plain folder name (low-quality)");
   const slug = typeof input.slug === "string" ? input.slug.trim() : "";
-  if (!FILM_SLUG.test(slug)) throw invalid("slug must be lowercase words joined by hyphens (she-returned-with-her-son)");
+  if (!FILM_SLUG.test(slug)) throw invalid("slug must be lowercase words joined by hyphens (she-returned-with-her-son; a leading _ for a scratch folder)");
   if (!FILM_RUN_MODES.includes(input.mode)) throw invalid(`unknown mode: ${String(input.mode)}`);
   if (!FILM_RUN_MODES_OPEN.includes(input.mode)) throw invalid(`mode ${input.mode} is reserved for the narrated route (next phase)`);
   const lang = (input.lang ?? "en").trim().toLowerCase();
@@ -83,7 +83,7 @@ export function validateFilmRunSettings(settings: FilmRunSettings | null | undef
     const b = out.band;
     if (!Array.isArray(b) || b.length !== 2 || !b.every((x) => typeof x === "number" && Number.isFinite(x) && x > 0) || b[0] >= b[1]) throw invalid("settings.band must be [low, high] seconds with low < high");
   }
-  for (const k of ["no_delogo", "allow_dirty"] as const) {
+  for (const k of ["no_delogo", "allow_dirty", "claim_existing", "extend"] as const) {
     if (out[k] !== undefined && typeof out[k] !== "boolean") throw invalid(`settings.${k} must be a boolean`);
   }
   if (out.vision !== undefined && out.vision !== "api" && out.vision !== "handoff") throw invalid("settings.vision must be api or handoff");
@@ -157,6 +157,16 @@ export function stageFields(run: FilmRun, input: FilmRunStageInput, nowMs = Date
   }
   if (input.title_id !== undefined) out.title_id = input.title_id;
   return out;
+}
+
+/**
+ * Whether a stage write is an audit event: the stage, the refusal text or
+ * the title moved. A progress write (`stage_detail` alone, up to one a
+ * second while whisper, the judge or the render report) is not; both
+ * backends apply this one rule, so neither writes hundreds of rows per film.
+ */
+export function filmRunStageAudited(before: Pick<FilmRun, "stage" | "error_text" | "title_id">, after: Pick<FilmRun, "stage" | "error_text" | "title_id">): boolean {
+  return before.stage !== after.stage || (before.error_text ?? null) !== (after.error_text ?? null) || (before.title_id ?? null) !== (after.title_id ?? null);
 }
 
 /** One decision as the row stores it. */

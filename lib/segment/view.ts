@@ -135,7 +135,7 @@ export async function stageView(run: FilmRun, env: Env = process.env): Promise<S
 
   if (existsSync(path.join(cut, "review", "options.json"))) {
     try {
-      const { doc, state, problems } = await reviewStateOf({ run, dirs });
+      const { doc, state, problems, fixedStart } = await reviewStateOf({ run, dirs });
       view.options = { band: doc.band, duration: doc.duration, applied: !!doc.applied, boundaries: doc.boundaries.map((b) => ({ boundary_s: b.boundary_s, dp_pick: b.dp_pick ?? null, options: b.options.map((o) => ({ key: o.key, t: o.t, is_dp_pick: o.is_dp_pick === true })) })) };
       const candidates = await loadCandidates(cut);
       const byKey = new Map(doc.boundaries.map((b) => [Math.round(b.boundary_s * 1000), b]));
@@ -146,7 +146,8 @@ export async function stageView(run: FilmRun, env: Env = process.env): Promise<S
           options: entry.options.map((o) => ({ key: o.key, t: o.t, is_dp_pick: o.is_dp_pick === true, line_before: o.line_before ?? null, line_after: o.line_after ?? null, strip_url: o.strip ? cutRelUrl(run.id, o.strip) : null, tiles: o.strip_tiles ?? [], cols: doc.strip?.cols ?? 6, step: doc.strip?.step ?? 0.5 })),
           legal_cuts: legalCutsNear(candidates, b.boundary_s).map((c) => ({ t: c.t, line_before: c.line_before, line_after: c.line_after })),
           proxy_url: proxyUrl(run.id, b.current_t),
-          lengths: lengthsAround(state, b.boundary_s, b.current_t),
+          // Measured from the pinned start (an extended film's first open episode begins at the last delivered end, not 0).
+          lengths: lengthsAround(state, b.boundary_s, b.current_t, fixedStart),
           dialogue: { before: entry.before.map((l) => ({ t: l.t, text: l.text })), after: entry.after.map((l) => ({ t: l.t, text: l.text })) },
         };
       });
@@ -282,7 +283,7 @@ export async function decideRun(session: Session, runId: string, input: Decision
     }
     case "boundary": {
       requireStage(run, "review");
-      const { state } = await reviewStateOf({ run, dirs });
+      const { state, fixedStart } = await reviewStateOf({ run, dirs });
       const b = state.boundaries.find((x) => Math.abs(x.boundary_s - input.boundary_s) <= 0.0015);
       if (!b) throw notFound("boundary", String(input.boundary_s));
       if (input.action === "remove") {
@@ -296,7 +297,7 @@ export async function decideRun(session: Session, runId: string, input: Decision
       if (input.action === "move") {
         if (typeof input.to_t !== "number") throw invalid("a move names to_t");
         const legal = legalCutsNear(await loadCandidates(dirs.cut), b.boundary_s).map((c) => c.t);
-        const refusal = moveRefusal(state, b.boundary_s, input.to_t, legal);
+        const refusal = moveRefusal(state, b.boundary_s, input.to_t, legal, fixedStart);
         if (refusal) throw conflict(refusal);
         return data.appendFilmRunDecision(session, runId, decisionOf(DECISION.move, { by, boundary_s: b.boundary_s, to_s: input.to_t, why: input.reason ?? null }));
       }

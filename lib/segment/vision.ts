@@ -58,27 +58,16 @@ import {
 
 // ---- the job kind -------------------------------------------------------------------------------
 
-/**
- * The studio.jobs kind of every call here. NOT yet in lib/types.ts JobKind
- * nor in the studio.job_kind enum: task 2a registers it (`alter type
- * studio.job_kind add value if not exists 'verify_boundaries'` before
- * `begin`, as 0015 does for import_film, plus the union member). Until
- * then the cast below is the only seam.
- */
-export const VERIFY_BOUNDARIES_JOB_KIND = "verify_boundaries" as const;
+/** The studio.jobs kind of every call here (lib/types.ts JobKind; migration 0016 adds it to studio.job_kind before `begin`). */
+export const VERIFY_BOUNDARIES_JOB_KIND = "verify_boundaries" as const satisfies JobKind;
 export type VerifyBoundariesJobKind = typeof VERIFY_BOUNDARIES_JOB_KIND;
-const JOB_KIND = VERIFY_BOUNDARIES_JOB_KIND as unknown as JobKind;
+const JOB_KIND: JobKind = VERIFY_BOUNDARIES_JOB_KIND;
 
-/** The target_type of the job rows: the film run (studio.film_runs, task 2a) whose id is `target_id`. */
+/** The target_type of the job rows: the film run (studio.film_runs) whose id is `target_id`. */
 export const FILM_RUN_TARGET = "film_run";
 
-/**
- * A film run has no title yet (the title is born at import, after the
- * render). studio.jobs.title_id and NewJob allow null; RunJobSpec in
- * lib/jobs.ts still types it `string` - task 2a widens it to `string | null`
- * and this cast goes.
- */
-const NO_TITLE = null as unknown as string;
+/** A film run has no title yet (the title is born at import, after the render): every row here carries title_id null. */
+const NO_TITLE = null;
 
 // ---- the Workflow output shape ---------------------------------------------------------------------
 //
@@ -242,6 +231,14 @@ export type JudgeOptions = {
   candidates?: CandidatesIndex | null;
   /** The `--verify` allowances the calibration run needs (an applied options file of a delivered film). */
   allow_applied?: boolean;
+  /**
+   * Evaluation only (scripts/segment-eval.ts): skip `--verify`'s "strip is
+   * older than index/candidates.json" check. A delivered film's candidates
+   * file may have been rewritten (a `--allow` re-index) after its recorded
+   * pass looked at these same strips; measuring agreement with that pass
+   * wants the strips it saw. A real run never sets this.
+   */
+  allow_stale?: boolean;
   onBoundary?: (record: WorkflowRecord, done: number, total: number) => void;
   env?: Record<string, string | undefined>;
 };
@@ -316,7 +313,7 @@ export async function judgeBoundaries(run: SegmentRun, doc: OptionsDoc, opts: Ju
   const label = opts.label;
   if (!/^[\w.-]+$/.test(label)) throw new SegmentError("options", `label ${JSON.stringify(label)} must be a plain file-name token`);
 
-  const verified = await verifyOptions(run.cut_dir, doc, { allowApplied: !!opts.allow_applied, allowDelivered: !!opts.allow_applied });
+  const verified = await verifyOptions(run.cut_dir, doc, { allowApplied: !!opts.allow_applied, allowDelivered: !!opts.allow_applied, allowStale: !!opts.allow_stale });
   if (!verified.ok) throw new SegmentError("strips", `NOT READY - ${verified.faults.length} fault(s) across ${verified.n_options} options:\n  ${verified.faults.slice(0, 20).join("\n  ")}`, verified.faults);
 
   const wanted = opts.boundaries ? opts.boundaries.map((b) => findBoundary(doc, b) ?? (() => { throw new SegmentError("options", `boundary ${b} is not in review/options.json`); })()) : doc.boundaries;

@@ -5,7 +5,10 @@
 // slug, where spoilers begin (default half the runtime), the film windows
 // an ad may never use, and the live poster's stem. The worker's default
 // (`stage_view.film_meta.default`) seeds it; saving it is what ends the
-// film-meta wait, after the QA sheets above it were looked at.
+// film-meta wait, after the QA sheets above it were looked at. Film times
+// carry decimals (half the runtime is 300.017 s), so every number input
+// takes `step="any"`: a browser refuses to submit a fractional value on a
+// whole-number step, and the default would never save.
 
 import { useState } from "react";
 import { useT } from "@/components/locale";
@@ -62,7 +65,7 @@ export default function FilmMetaForm({ slug, initial, busy, onSubmit }: Props) {
       </label>
       <label className="field">
         <span className="label">{tt("seg.meta.spoiler")}</span>
-        <input className="input" type="number" min={0} step={1} value={spoiler} onChange={(e) => setSpoiler(e.target.value)} />
+        <input className="input" type="number" min={0} step="any" value={spoiler} onChange={(e) => setSpoiler(e.target.value)} />
         <span className="hint">{tt("seg.meta.spoilerHint")}</span>
       </label>
       <div className="field">
@@ -71,8 +74,8 @@ export default function FilmMetaForm({ slug, initial, busy, onSubmit }: Props) {
         <div style={{ display: "grid", gap: 8 }}>
           {rows.map((r, i) => (
             <div className="sgm-exclusion" key={i}>
-              <input className="input" type="number" min={0} value={r.from_s} onChange={(e) => setRows((x) => x.map((y, j) => (j === i ? { ...y, from_s: e.target.value } : y)))} aria-label={tt("seg.meta.from")} />
-              <input className="input" type="number" min={0} value={r.to_s} onChange={(e) => setRows((x) => x.map((y, j) => (j === i ? { ...y, to_s: e.target.value } : y)))} aria-label={tt("seg.meta.to")} />
+              <input className="input" type="number" min={0} step="any" value={r.from_s} onChange={(e) => setRows((x) => x.map((y, j) => (j === i ? { ...y, from_s: e.target.value } : y)))} aria-label={tt("seg.meta.from")} />
+              <input className="input" type="number" min={0} step="any" value={r.to_s} onChange={(e) => setRows((x) => x.map((y, j) => (j === i ? { ...y, to_s: e.target.value } : y)))} aria-label={tt("seg.meta.to")} />
               <input className="input" value={r.why} onChange={(e) => setRows((x) => x.map((y, j) => (j === i ? { ...y, why: e.target.value } : y)))} placeholder={tt("seg.meta.why")} aria-label={tt("seg.meta.why")} />
               <input className="input" value={r.kind} onChange={(e) => setRows((x) => x.map((y, j) => (j === i ? { ...y, kind: e.target.value } : y)))} placeholder={tt("seg.meta.kind")} aria-label={tt("seg.meta.kind")} />
               <button type="button" className="btn btn-ghost btn-sm" onClick={() => setRows((x) => x.filter((_, j) => j !== i))}>{tt("seg.meta.remove")}</button>

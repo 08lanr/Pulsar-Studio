@@ -70,7 +70,7 @@ import { launchSettingsSchema, LaunchSettingsError, normalizeLaunchSettings, val
 import type { AccountRequest, InstantPageTemplate, LaunchPreset, PromoLaunch } from "@/lib/types";
 import { DataError, legacyCampaignRetired, conflict, invalid, notFound } from "./errors";
 import { episodeImportPatch, filmAssetRow, normalizeSourceRef, validateAdRules } from "./film-import";
-import { claimFields, decisionRow, filmRunRow, normalizeFilmRun, releaseFields, renewFields, stageFields } from "./film-runs";
+import { claimFields, decisionRow, filmRunRow, filmRunStageAudited, normalizeFilmRun, releaseFields, renewFields, stageFields } from "./film-runs";
 import type { DataLayer, ExportSnapshot, LaunchedCampaign } from "./index";
 import { mediaUrl } from "./storage";
 import {
@@ -1417,7 +1417,9 @@ export const supabaseData: DataLayer = {
       .select("*")
       .single();
     if (error) throw mapError(error);
-    return normalizeFilmRun(data as FilmRun);
+    const run = normalizeFilmRun(data as FilmRun);
+    await auditEvent(session, "create_film_run", "studio.film_runs", run.id, null, run.producer_id, null, { producer_id: run.producer_id, bucket: run.bucket, slug: run.slug, mode: run.mode, stage: run.stage });
+    return run;
   },
 
   async getFilmRun(session, runId) {
@@ -1462,7 +1464,10 @@ export const supabaseData: DataLayer = {
     if (error) throw mapError(error);
     if (!data) throw conflict(`run ${runId} changed under this write (revision ${run.revision} moved); re-read it`);
     const row = normalizeFilmRun(data as FilmRun);
-    await auditEvent(session, "set_film_run_stage", "studio.film_runs", row.id, row.title_id, row.producer_id, { stage: run.stage, revision: run.revision, error_text: run.error_text }, { stage: row.stage, revision: row.revision, error_text: row.error_text });
+    // Audited only when the stage, the refusal or the title moved: progress writes (up to one a second while whisper, the judge or the render report) are not events.
+    if (filmRunStageAudited(run, row)) {
+      await auditEvent(session, "set_film_run_stage", "studio.film_runs", row.id, row.title_id, row.producer_id, { stage: run.stage, revision: run.revision, error_text: run.error_text, title_id: run.title_id }, { stage: row.stage, revision: row.revision, error_text: row.error_text, title_id: row.title_id });
+    }
     return row;
   },
 

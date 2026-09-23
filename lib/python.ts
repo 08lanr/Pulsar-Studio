@@ -8,7 +8,9 @@
 //     for the result, because cut_episodes.py prints "REFUSED" on stdout and
 //     a refusal is shown verbatim;
 //   - PYTHONIOENCODING=utf-8 in the environment, so a Chinese line never
-//     trips a Windows console codepage;
+//     trips a Windows console codepage, and PYTHONUNBUFFERED=1, because
+//     Python block-buffers stdout into a pipe and a render's per-episode
+//     lines would otherwise all arrive when the script exits;
 //   - a wall-clock timeout that kills the whole process tree (Windows:
 //     `taskkill /T /F`, which is the only thing that reaches a script's
 //     ffmpeg children; elsewhere SIGKILL on the process group) and a `cancel`
@@ -38,7 +40,7 @@ export type Env = Record<string, string | undefined>;
 
 export type RunOptions = {
   cwd?: string;
-  /** Merged over process.env; PYTHONIOENCODING=utf-8 is always set. */
+  /** Merged over process.env; PYTHONIOENCODING=utf-8 and PYTHONUNBUFFERED=1 are always set. */
   env?: NodeJS.ProcessEnv;
   /** Written to the child's stdin, then stdin is closed. Without it stdin is closed at once. */
   stdin?: string;
@@ -215,7 +217,7 @@ export function runProcess(command: string, args: string[], opts: RunOptions = {
   const tailMax = opts.tailChars ?? DEFAULT_TAIL_CHARS;
   const child = spawn(command, args, {
     cwd: opts.cwd,
-    env: { ...process.env, ...opts.env, PYTHONIOENCODING: "utf-8" },
+    env: { ...process.env, ...opts.env, PYTHONIOENCODING: "utf-8", PYTHONUNBUFFERED: "1" },
     stdio: ["pipe", "pipe", "pipe"],
     windowsHide: true,
     // A process group of its own on POSIX, so a cancel reaches ffmpeg children; Windows uses taskkill /T instead.

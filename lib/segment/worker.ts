@@ -148,7 +148,7 @@ export type WorkerOptions = {
   log?: (line: string) => void;
   /** Seconds between ticks (default 5; the in-process fixture worker 2). */
   pollMs?: number;
-  /** How often progress may be written (default 1 s; 0 in tests). */
+  /** How often progress may be written (default 1 s; 0 in tests); a forced write (a stage's summary) ignores it. */
   progressEveryMs?: number;
   /** Tests: a tick awaits the runs it started instead of letting them run on. */
   awaitRuns?: boolean;
@@ -156,7 +156,9 @@ export type WorkerOptions = {
 
 export type RunOutcome = { run_id: string; from: FilmRunStage; to: FilmRunStage; waiting: Waiting | null; error: string | null; cancelled: boolean; skipped?: string };
 
-function stageLog(base: ((line: string) => void) | undefined, run: FilmRun, env: Env): (line: string) => void {
+/** The run's log line writer; `current` is read at every line, so the stamp carries the stage the run is at now, not the one it was claimed at. */
+function stageLog(base: ((line: string) => void) | undefined, current: () => FilmRun, env: Env): (line: string) => void {
+  const run = current();
   let file: string | null = null;
   try {
     file = path.join(runDirs(run, env).work, "logs", "run.log");
@@ -164,7 +166,7 @@ function stageLog(base: ((line: string) => void) | undefined, run: FilmRun, env:
     file = null;
   }
   return (line: string) => {
-    const stamped = `${new Date().toISOString()} [${run.id.slice(0, 8)}/${run.stage}] ${line}`;
+    const stamped = `${new Date().toISOString()} [${run.id.slice(0, 8)}/${current().stage}] ${line}`;
     (base ?? ((l: string) => console.log(`[segment-worker] ${l}`)))(stamped);
     if (file) {
       try {
@@ -197,7 +199,7 @@ export async function executeRun(runId: string, opts: WorkerOptions = {}): Promi
   const claimed = await data.claimFilmRun(session, runId, { owner, revision: run.revision });
   if (!claimed) return skip("claim lost");
   run = claimed;
-  const log = stageLog(opts.log, run, env);
+  const log = stageLog(opts.log, () => run, env);
   const controller = new AbortController();
   let jobId: string | null = null;
   let held: Held<StudioRunLock> | null = null;
@@ -241,9 +243,10 @@ export async function executeRun(runId: string, opts: WorkerOptions = {}): Promi
     if (jobId) await data.heartbeatJob(session, jobId).catch(() => undefined);
   };
 
-  const progress = async (detail: StageDetail) => {
+  /** Throttled to one write a second (whisper-log tailing, judging and rendering report often); `force` is for a stage's final summary, which must land. */
+  const progress = async (detail: StageDetail, o: { force?: boolean } = {}) => {
     const now = Date.now();
-    if (now - lastProgressAt < progressEvery) return;
+    if (!o.force && now - lastProgressAt < progressEvery) return;
     lastProgressAt = now;
     await write({ stage: run.stage, stage_detail: clean({ ...carry(run.stage_detail), ...detail }) });
   };

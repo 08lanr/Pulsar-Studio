@@ -151,7 +151,7 @@ test("the staff rail reads Clips · Launch · Monitor · Connections, and Connec
   await signInAsStaff(page);
   await page.goto("/clips");
   const rail = page.locator("aside.sidebar nav");
-  await expect(rail.locator("a")).toHaveText(["Clips", "Launch", "Monitor", "Connections", "Earlier campaigns", "Titles", "Import films", "Producers"]);
+  await expect(rail.locator("a")).toHaveText(["Clips", "Launch", "Monitor", "Connections", "Earlier campaigns", "Titles", "Import films", "Segment a film", "Producers"]);
   await expect(rail.getByRole("link", { name: "Connections", exact: true })).toHaveAttribute("href", "/tiktok");
   await expect(page.locator(".apphead-title")).toHaveText("Clips");
 

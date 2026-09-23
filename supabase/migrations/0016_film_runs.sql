@@ -41,9 +41,9 @@ create table if not exists studio.film_runs (
   title_id          uuid references core.titles (id) on delete set null,
   -- The source video as picked at intake (absolute path, forward slashes).
   source_path       text not null check (length(source_path) > 0),
-  -- The film folder under WORKSPACE_ROOT is <bucket>/<slug>.
+  -- The film folder under WORKSPACE_ROOT is <bucket>/<slug>; one leading _ marks a scratch folder (_studio-smoke).
   bucket            text not null check (bucket ~ '^[a-z0-9]+([-_][a-z0-9]+)*$'),
-  slug              text not null check (slug ~ '^[a-z0-9]+([-_][a-z0-9]+)*$'),
+  slug              text not null check (slug ~ '^_?[a-z0-9]+([-_][a-z0-9]+)*$'),
   mode              text not null check (mode in ('by_eye_2min', 'source_episodes', 'narrated')),
   lang              text not null default 'en',
   settings          jsonb not null default '{}'::jsonb check (jsonb_typeof(settings) = 'object'),

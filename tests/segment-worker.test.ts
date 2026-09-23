@@ -6,7 +6,9 @@
 // stage, the review snapshot, the override file and the title with its
 // episodes at the end; a cancel stops a waiting run; a landscape source is
 // refused at intake with the reason; a band-breaking move is refused at the
-// route; a run set back a stage resumes from its artifacts.
+// route; a run set back a stage resumes from its artifacts; a first proof
+// is extended under its pins by a run that says so, and a delivered film or
+// a session's folder is refused otherwise.
 
 process.env.PROMO_RENDER = "off";
 process.env.STUDIO_FAKE_PIPELINE = "1";
@@ -183,6 +185,12 @@ test("the whole run through the fake pipeline: every stage, every wait, the lock
   assert.deepEqual(render.repin, { from: 9, to: 9.2, only: [2, 3] });
   assert.equal(render.kept, 1, "ep01 was kept, the two episodes at the join re-encoded");
   assert.ok(readdirSync(path.join(dirs.cut, "review", "superseded")).length >= 1, "the earlier delivery record moved aside");
+  // qa_episodes.py --only 2,3 wrote a report of episodes 2 and 3 alone; the earlier record of episode 1 was merged back.
+  const qaAfter = JSON.parse(readFileSync(path.join(dirs.cut, "review", "qa", "qa.json"), "utf8")) as { episodes: { n: number }[] };
+  assert.deepEqual(qaAfter.episodes.map((e) => e.n), [1, 2, 3], "the QA report still lists every episode");
+  assert.deepEqual((run.stage_detail as { qa: { merged_from_before: number[] } }).qa.merged_from_before, [1]);
+  assert.ok(readdirSync(path.join(dirs.work, "qa")).some((n) => n.startsWith("qa-before-")), "the report before the --only run was kept");
+  assert.equal((await stageView(run)).qa?.episodes.length, 3);
 
   // film_meta → handoff (READY at once: the fake scanner has no quiet period) → import_now → done.
   await decideRun(staff(), run.id, { kind: "film_meta", display_title_en: "A Fixture Film", crazydramas_slug: "a-fixture-film", spoiler_from_s: 7.5, exclusions: [{ from_s: 13, to_s: 14, why: "card", kind: "card" }], live_poster: null });
@@ -204,6 +212,102 @@ test("the whole run through the fake pipeline: every stage, every wait, the lock
   assert.equal(run.lease_owner, null);
   assert.deepEqual(run.decisions.map((d) => d.action), ["watermark_region", "watermark_accept", "move", "apply_review", "join", "film_meta", "import_now"]);
   assert.ok(run.decisions.every((d) => d.by === "Ruobin"), "decisions carry who made them");
+});
+
+test("a first proof is extended by a run that says so: the index is redone to the new length, fresh options come out under the delivered pins, the review measures from the pin, the unchanged episode is kept and the title is updated", async () => {
+  // The first proof: the first 9 s of the film (--to 9), one open boundary at 4 s, two episodes, imported as a title.
+  const proof = await newRun({ settings: { to_s: 9 } });
+  let run = await settle(proof.id);
+  assert.equal(run.stage, "watermark", run.error_text ?? "");
+  await decideRun(staff(), run.id, { kind: "watermark", accept: true });
+  run = await settle(run.id);
+  assert.equal(run.stage, "review", run.error_text ?? "");
+  const dirs = runDirs(run);
+  const whisperDuration = () => (JSON.parse(readFileSync(path.join(dirs.cut, "index", "whisper.json"), "utf8")) as { duration: number }).duration;
+  assert.equal(whisperDuration(), 9, "the proof's transcript stops at --to");
+  assert.deepEqual((await reviewStateOf({ run, dirs })).state.boundaries.map((b) => b.boundary_s), [4]);
+  await decideRun(staff(), run.id, { kind: "apply_review" });
+  run = await settle(run.id);
+  assert.equal(run.stage, "film_meta", run.error_text ?? "");
+  assert.ok(readdirSync(path.join(dirs.cut, "review")).some((n) => n === "cuts-0-9-DELIVERED.json"), "the proof's delivery record");
+  assert.deepEqual(readdirSync(path.join(dirs.cut, "eps")).sort(), ["ep01.mp4", "ep02.mp4"]);
+  await decideRun(staff(), run.id, { kind: "film_meta", display_title_en: "A Proof", crazydramas_slug: null, spoiler_from_s: null, exclusions: [], live_poster: null });
+  run = await settle(run.id);
+  assert.equal(waitingOf(run)?.for, "import", run.error_text ?? "");
+  await decideRun(staff(), run.id, { kind: "import_now" });
+  run = await settle(run.id);
+  assert.equal(run.stage, "done", run.error_text ?? "");
+  const titleId = run.title_id!;
+  assert.equal((await fixtureData.getTitle(staff(), titleId)).episodes.length, 2);
+
+  // A plain run on the delivered film is refused at intake, in words: nothing of the film is touched.
+  const plain = await newRun();
+  const refused = await settle(plain.id);
+  assert.equal(refused.stage, "failed");
+  assert.match(refused.error_text ?? "", /is imported as a title: a delivered film is not cut again/);
+  assert.match(refused.error_text ?? "", /"extend a delivered film"/);
+  assert.equal(whisperDuration(), 9, "the refusal came before any script ran");
+
+  // The extension: the whole film, the delivered pins kept (settings.extend is the explicit word).
+  const ext = await newRun({ settings: { extend: true } });
+  run = await settle(ext.id);
+  assert.equal(run.stage, "watermark", run.error_text ?? "");
+  const folder = (run.stage_detail as { folder: { existed: boolean; claimed: boolean; extending: string; imported: boolean } }).folder;
+  assert.deepEqual([folder.existed, folder.claimed, folder.extending, folder.imported], [true, false, "cuts-0-9-DELIVERED.json", true]);
+  await decideRun(staff(), run.id, { kind: "watermark", accept: true });
+  run = await settle(run.id);
+  assert.equal(run.stage, "review", run.error_text ?? "");
+  assert.equal(whisperDuration(), 15, "index_cut.sh ran again: the proof's transcript did not cover the whole film");
+  assert.equal((run.stage_detail as { index: { reindexed: boolean } }).index.reindexed, true);
+  const { state, fixedStart } = await reviewStateOf({ run, dirs });
+  assert.equal(fixedStart, 4, "the last delivered pin; the proof's final episode is re-planned");
+  assert.deepEqual(state.boundaries.map((b) => [b.boundary_s, b.status]), [[9, "pre_accepted"]], "fresh options for the stretch past the pin only");
+  assert.deepEqual(state.lengths.map((l) => l.length), [5, 6]);
+  const view = await stageView(run);
+  assert.deepEqual(view.review?.boundaries[0].lengths, { before: 5, after: 6 }, "measured from the pin at 4 s, not from 0");
+  assert.ok(readdirSync(path.join(dirs.cut, "review", "vision")).some((n) => n === `${visionLabel(run)}.json`), "the extension's own pass file");
+  // Measured from the pin, 9 → 9.2 makes episodes of 5.2 and 5.8 s (in band); measured from 0 it would read 9.2 s and be refused.
+  await decideRun(staff(), run.id, { kind: "boundary", boundary_s: 9, action: "move", to_t: 9.2, reason: "the reaction belongs to the episode" });
+  await decideRun(staff(), run.id, { kind: "apply_review" });
+  run = await settle(run.id);
+  assert.equal(run.stage, "film_meta", run.error_text ?? "");
+  const plan = JSON.parse(readFileSync(path.join(dirs.cut, "cuts.json"), "utf8")) as { episodes: { n: number; start: number; end: number }[]; pin_from: string | null; pinned: number };
+  assert.deepEqual(plan.episodes.map((e) => [e.start, e.end]), [[0, 4], [4, 9.2], [9.2, 15]]);
+  assert.equal(plan.pin_from, "review/cuts-0-9-DELIVERED.json");
+  assert.equal(plan.pinned, 1);
+  const render = (run.stage_detail as { render: { rendered: number; kept: number; delivered: string } }).render;
+  assert.equal(render.kept, 1, "ep01, unchanged from the proof, was kept");
+  assert.equal(render.rendered, 2);
+  assert.equal(render.delivered, "cuts-0-15-DELIVERED.json");
+  assert.deepEqual(readdirSync(path.join(dirs.cut, "eps")).sort(), ["ep01.mp4", "ep02.mp4", "ep03.mp4"]);
+  await decideRun(staff(), run.id, { kind: "film_meta", display_title_en: "A Proof, Extended", crazydramas_slug: null, spoiler_from_s: null, exclusions: [], live_poster: null });
+  run = await settle(run.id);
+  assert.equal(waitingOf(run)?.for, "import", run.error_text ?? "");
+  await decideRun(staff(), run.id, { kind: "import_now" });
+  run = await settle(run.id);
+  assert.equal(run.stage, "done", run.error_text ?? "");
+  assert.equal(run.title_id, titleId, "the same title, updated");
+  const title = await fixtureData.getTitle(staff(), titleId);
+  assert.equal(title.episodes.length, 3);
+  assert.equal(title.title.name_en, "A Proof, Extended");
+});
+
+test("a film folder no Studio run made is refused at intake unless the run claims it in so many words", async () => {
+  const foreign = path.join(runDirs({ id: "x", bucket: "low-quality", slug: "a-fixture-film" }).cut);
+  mkdirSync(path.join(foreign, "index"), { recursive: true });
+  writeFileSync(path.join(foreign, "index", "watermark.json"), JSON.stringify({ box: { x: 1, y: 2, w: 3, h: 4 } }));
+  const plain = await newRun();
+  const refused = await settle(plain.id);
+  assert.equal(refused.stage, "failed");
+  assert.match(refused.error_text ?? "", /cut already exists and no Studio run made it \(no cut\/\.studio-scripts\.json\): a session's work/);
+  assert.equal(existsSync(path.join(foreign, "scripts")), false, "nothing was synced into the session's folder");
+
+  const claimed = await newRun({ settings: { claim_existing: true } });
+  const run = await settle(claimed.id);
+  assert.equal(run.stage, "watermark", run.error_text ?? "");
+  assert.equal((run.stage_detail as { folder: { claimed: boolean } }).folder.claimed, true);
+  assert.ok(existsSync(path.join(foreign, ".studio-scripts.json")), "the claim leaves Studio's record: a later run adopts the folder as its own");
+  await cancelRun(staff(), run.id);
 });
 
 test("a run set back to plan resumes from its artifacts: options and the pass file are reused, not remade", async () => {

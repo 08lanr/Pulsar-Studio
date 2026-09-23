@@ -2,13 +2,16 @@
 // (audio, shot cuts, the word-level whisper transcript; 43–88 minutes,
 // mostly whisper), then `motion.py`, then `candidates.py` — under the
 // machine's heavy lock, with `index/whisper.log` tailed for progress. Each
-// step is skipped when its artifact is already there, so a restarted worker
-// resumes after the step that finished. `--from` is never passed (the
-// script refuses it: segment-relative times would misalign every pin).
+// step is skipped when its artifact is already there AND covers the length
+// this run plans (a first proof's `--to 900` transcript stops at 900 s; an
+// extension of that film indexes again, and index_cut.sh keeps the previous
+// index in `index/prev-<stamp>/`), so a restarted worker resumes after the
+// step that finished. `--from` is never passed (the script refuses it:
+// segment-relative times would misalign every pin).
 
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
-import { DECISION, SRC_ARG, decisionData, fail, fileExists, next, pendingDecision, refusalOf, runStep, sourceFacts, tailLines, wait, withHeavyLock, type StageContext, type StageOutcome } from "./stages";
+import { DECISION, SRC_ARG, decisionData, fail, fileExists, next, pendingDecision, planDuration, readJson, refusalOf, runStep, sourceFacts, tailLines, wait, withHeavyLock, type StageContext, type StageOutcome } from "./stages";
 
 /** The pipeline's machine rule: two whisper threads. */
 export const DEFAULT_THREADS = 2;
@@ -18,6 +21,27 @@ export function indexTimeoutMs(durationS: number | null): number {
   const perMinute = 18 / 30;
   const minutes = durationS ? (durationS / 60) * perMinute * 3 : 0;
   return Math.max(2 * 60 * 60 * 1000, Math.round(minutes * 60 * 1000));
+}
+
+/** How far `index/whisper.json` covers the film, in seconds (its own `duration`, the audio it transcribed); null when it is missing or says nothing. */
+export function whisperCoverage(cutDir: string): number | null {
+  const w = readJson<{ duration?: unknown }>(path.join(cutDir, "index", "whisper.json"));
+  return w && typeof w.duration === "number" && Number.isFinite(w.duration) ? w.duration : null;
+}
+
+/** How far `index/motion.json` covers the film: its `--to` when one was given, else its 10 fps track's length, else (an explicit whole-film run) unbounded; null when missing. */
+export function motionCoverage(cutDir: string): number | null {
+  const m = readJson<{ to?: unknown; fps?: unknown; track?: unknown }>(path.join(cutDir, "index", "motion.json"));
+  if (!m) return null;
+  if (typeof m.to === "number" && m.to > 0) return m.to;
+  if (Array.isArray(m.track) && typeof m.fps === "number" && m.fps > 0) return m.track.length / m.fps;
+  return m.to === 0 ? Number.POSITIVE_INFINITY : null;
+}
+
+/** True when an index file reaching `covered` seconds serves a run that plans `wanted` seconds (a second of slack for a transcript's last word); an unknown length on either side is taken as covering. */
+export function covers(covered: number | null, wanted: number | null): boolean {
+  if (covered === null || wanted === null) return true;
+  return covered + 2 >= wanted;
 }
 
 /** The last non-empty line of a log file, or null. */
@@ -39,10 +63,16 @@ export async function runIndexStage(ctx: StageContext): Promise<StageOutcome> {
   const threads = typeof run.settings.threads === "number" ? run.settings.threads : DEFAULT_THREADS;
   const detail = ctx.run.stage_detail as Record<string, unknown>;
   const durationS = typeof (detail.source as { duration_s?: number } | undefined)?.duration_s === "number" ? (detail.source as { duration_s: number }).duration_s : null;
+  // What the run plans: its `to_s`, else the whole film as the probe or the index measured it.
+  const wanted = planDuration(run, dirs.cut) ?? durationS;
 
   return withHeavyLock(ctx, "index", async () => {
-    // index_cut.sh: audio, scdet, whisper. Skipped when the transcript is there.
-    if (!fileExists(index("whisper.json"))) {
+    // index_cut.sh: audio, scdet, whisper. Skipped when the transcript is there and reaches what this run plans.
+    let reindexed = false;
+    const whisperHave = whisperCoverage(dirs.cut);
+    if (!fileExists(index("whisper.json")) || !covers(whisperHave, wanted)) {
+      if (fileExists(index("whisper.json"))) ctx.log(`index/whisper.json covers ${whisperHave ?? "?"} s and the run plans ${wanted ?? "the whole film"} s: index_cut.sh runs again (the previous index is kept in index/prev-*)`);
+      reindexed = true;
       const log = index("whisper.log");
       let lastSeen: string | null = null;
       const timer = setInterval(() => {
@@ -69,10 +99,15 @@ export async function runIndexStage(ctx: StageContext): Promise<StageOutcome> {
       const size = safeSize(index("whisper.json"));
       ctx.log(`whisper.json: ${size} bytes`);
     } else {
-      ctx.log("index/whisper.json exists: index_cut.sh skipped");
+      ctx.log(`index/whisper.json exists and covers ${whisperHave ?? "the film"} s: index_cut.sh skipped`);
     }
 
-    if (!fileExists(index("motion.json"))) {
+    // motion.py reads the source over the same range; stale once the transcript was redone or it stops short.
+    let remotioned = false;
+    const motionHave = motionCoverage(dirs.cut);
+    if (reindexed || !fileExists(index("motion.json")) || !covers(motionHave, wanted)) {
+      if (!reindexed && fileExists(index("motion.json"))) ctx.log(`index/motion.json covers ${motionHave ?? "?"} s and the run plans ${wanted ?? "the whole film"} s: motion.py runs again`);
+      remotioned = true;
       await ctx.progress({ progress: { step: "motion" } });
       const r = await runStep(ctx, { script: "motion.py", args: ["--src", SRC_ARG, ...toArgs], what: "motion.py", timeoutMs: 60 * 60 * 1000 });
       if (r.code !== 0) return fail(refusalOf({ script: "motion.py", args: [], what: "" }, r));
@@ -80,7 +115,8 @@ export async function runIndexStage(ctx: StageContext): Promise<StageOutcome> {
       ctx.log("index/motion.json exists: motion.py skipped");
     }
 
-    if (!fileExists(index("candidates.json"))) {
+    // candidates.py derives from the transcript, the shot cuts and the motion track: redone whenever any of them was.
+    if (reindexed || remotioned || !fileExists(index("candidates.json"))) {
       await ctx.progress({ progress: { step: "candidates" } });
       const r = await runStep(ctx, { script: "candidates.py", args: [], what: "candidates.py", timeoutMs: 10 * 60 * 1000 });
       if (r.code !== 0) return fail(refusalOf({ script: "candidates.py", args: [], what: "" }, r));
@@ -89,7 +125,7 @@ export async function runIndexStage(ctx: StageContext): Promise<StageOutcome> {
     }
 
     const summary = indexSummary(dirs.cut);
-    return next(run.mode === "source_episodes" ? "cards" : "plan", { index: summary, progress: null });
+    return next(run.mode === "source_episodes" ? "cards" : "plan", { index: { ...summary, reindexed, planned_s: wanted }, progress: null });
   });
 }
 

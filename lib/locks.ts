@@ -10,20 +10,26 @@
 //   <mini-drama-system>/.heavy-lock.json   one heavy stage on the machine
 //                                    (whisper index, a full render, a QA run),
 //                                    Studio and sessions alike:
-//                                    { owner, what, pid, started_at }.
+//                                    { owner, what, pid, started_at, run_id? }.
+//                                    Studio adds run_id: one worker process
+//                                    drives several runs at once, so the pid
+//                                    alone cannot tell two runs apart, and
+//                                    only the SAME RUN adopts its own lock.
 //
 // A lock is STALE when its pid is not alive (tasklist on Windows,
 // `kill -0` elsewhere) or its started_at is older than six hours; a stale
 // lock is replaced and the replacement says so in its result, never
 // deleted quietly. A live lock held by someone else is a LockHeldError
-// (`heavyLock`) or a wait (`waitForHeavyLock`). Writes are atomic (a temp
-// file renamed over the lock) and a release removes the file only while it
-// still holds our own pid and run, so a lock another process took after ours
-// went stale is never removed by us. The liveness check and the clock are
-// injectable for the tests.
+// (`heavyLock`) or a wait (`waitForHeavyLock`). A free file is created
+// exclusively (`wx`: two processes racing for the slot cannot both win), a
+// stale or own lock is replaced atomically (a temp file renamed over it), and
+// a release removes the file only while it still holds our own pid and run,
+// so a lock another process or run took after ours went stale is never
+// removed by us. The liveness check and the clock are injectable for the
+// tests.
 
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { workspaceRoot } from "@/lib/data/storage";
@@ -35,7 +41,8 @@ export const STUDIO_LOCK_OWNER = "pulsar-studio";
 export const LOCK_STALE_MS = 6 * 60 * 60 * 1000;
 
 export type StudioRunLock = { run_id: string; stage: string; started_at: string; pid: number; owner: string };
-export type HeavyLock = { owner: string; what: string; pid: number; started_at: string };
+/** `run_id` is Studio's: the run holding the slot (absent on a session's lock). */
+export type HeavyLock = { owner: string; what: string; pid: number; started_at: string; run_id?: string };
 
 export type LockOptions = {
   /** Is this pid alive? Default: tasklist (Windows) / kill -0. */
@@ -104,14 +111,29 @@ export function staleReason(lock: { pid: number; started_at: string }, opts: Loc
   return null;
 }
 
+const serialize = (value: unknown) => JSON.stringify(value, null, 1) + "\n";
+
+/** Replace whatever is at `file` (a stale lock, our own, a broken file): a temp file renamed over it. */
 function writeAtomic(file: string, value: unknown): void {
   mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.${Date.now().toString(36)}.tmp`;
-  writeFileSync(tmp, JSON.stringify(value, null, 1) + "\n", "utf8");
+  writeFileSync(tmp, serialize(value), "utf8");
   renameSync(tmp, file);
 }
 
-/** Remove the file only while it still holds what `ours` says (pid and, for a run lock, run_id); true when removed. */
+/** Create `file` only if nothing is there (`wx`); false when another process got there first. */
+function createExclusive(file: string, value: unknown): boolean {
+  mkdirSync(path.dirname(file), { recursive: true });
+  try {
+    writeFileSync(file, serialize(value), { encoding: "utf8", flag: "wx" });
+    return true;
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "EEXIST") return false;
+    throw e;
+  }
+}
+
+/** Remove the file only while it still holds what `ours` says (pid and, when ours names one, run_id); true when removed. */
 function removeIfOurs(file: string, ours: { pid: number; run_id?: string }): boolean {
   const current = readLock<HeavyLock | StudioRunLock>(file);
   if (!current) {
@@ -123,7 +145,7 @@ function removeIfOurs(file: string, ours: { pid: number; run_id?: string }): boo
     return false;
   }
   if (current.pid !== ours.pid) return false;
-  if (ours.run_id !== undefined && (current as StudioRunLock).run_id !== ours.run_id) return false;
+  if (ours.run_id !== undefined && current.run_id !== ours.run_id) return false;
   rmSync(file, { force: true });
   return true;
 }
@@ -141,14 +163,24 @@ export type Held<T> = {
 };
 
 function take<T extends HeavyLock | StudioRunLock>(file: string, lock: T, opts: LockOptions, sameHolder: (current: T) => boolean, describe: (current: T) => string): Held<T> {
-  const current = readLock<T>(file);
   let replaced: Held<T>["replaced"] = null;
-  if (current && !sameHolder(current)) {
-    const reason = staleReason(current, opts);
-    if (!reason) throw new LockHeldError(file, current, describe(current));
-    replaced = { lock: current, reason };
+  // A free file is created exclusively; when another process creates it between our read and our
+  // write, the create fails and we look again (its lock is then live, stale, or ours).
+  for (let attempt = 0; ; attempt++) {
+    const current = readLock<T>(file);
+    if (current && !sameHolder(current)) {
+      const reason = staleReason(current, opts);
+      if (!reason) throw new LockHeldError(file, current, describe(current));
+      replaced = { lock: current, reason };
+    }
+    if (current || existsSync(file)) {
+      // Ours, stale, or not a lock at all: replaced in place.
+      writeAtomic(file, lock);
+      break;
+    }
+    if (createExclusive(file, lock)) break;
+    if (attempt >= 4) throw new LockHeldError(file, (readLock<T>(file) ?? lock) as T, `${path.basename(file)} keeps being created by another process`);
   }
-  writeAtomic(file, lock);
   let released = false;
   let latest = lock;
   return {
@@ -164,7 +196,7 @@ function take<T extends HeavyLock | StudioRunLock>(file: string, lock: T, opts: 
     release() {
       if (released) return false;
       released = true;
-      return removeIfOurs(file, { pid: lock.pid, run_id: (lock as StudioRunLock).run_id });
+      return removeIfOurs(file, { pid: lock.pid, run_id: lock.run_id });
     },
   };
 }
@@ -204,21 +236,25 @@ export function heavyLockPath(root = heavyLockRoot()): string {
   return path.join(root, HEAVY_LOCK_FILE);
 }
 
+export type HeavyLockRequest = { owner?: string; what: string; pid?: number; /** Studio: the run taking the slot; two runs in one worker process are two holders. */ run_id?: string };
+
 /**
  * Take the machine's one heavy slot for `what` (index, render, qa): refused
- * (LockHeldError) while another process holds a live lock — a session's or
- * another Studio run's; adopted when our own pid holds it; a stale lock is
- * replaced and reported.
+ * (LockHeldError) while another process — or another run of this process —
+ * holds a live lock; adopted only by the same holder (the same pid and owner,
+ * and for Studio the same run_id: a restarted stage of one run); a stale lock
+ * is replaced and reported.
  */
-export function heavyLock(root: string, req: { owner?: string; what: string; pid?: number }, opts: LockOptions = {}): Held<HeavyLock> {
+export function heavyLock(root: string, req: HeavyLockRequest, opts: LockOptions = {}): Held<HeavyLock> {
   const now = opts.now ?? Date.now;
   const lock: HeavyLock = { owner: req.owner ?? STUDIO_LOCK_OWNER, what: req.what, pid: req.pid ?? ownPid(), started_at: new Date(now()).toISOString() };
+  if (req.run_id) lock.run_id = req.run_id;
   return take(
     heavyLockPath(root),
     lock,
     opts,
-    (current) => current.pid === lock.pid && current.owner === lock.owner,
-    (current) => `the machine's heavy slot is held by ${current.owner} (${current.what}, pid ${current.pid}, since ${current.started_at})`
+    (current) => current.pid === lock.pid && current.owner === lock.owner && (current.run_id ?? null) === (lock.run_id ?? null),
+    (current) => `the machine's heavy slot is held by ${current.owner}${current.run_id ? ` run ${current.run_id.slice(0, 8)}` : ""} (${current.what}, pid ${current.pid}, since ${current.started_at})`
   );
 }
 
@@ -239,7 +275,7 @@ export type WaitOptions = LockOptions & {
  * with the last LockHeldError on timeout, or with an AbortError when the
  * signal fires. A stale lock never blocks: it is replaced at once.
  */
-export async function waitForHeavyLock(root: string, req: { owner?: string; what: string; pid?: number }, opts: WaitOptions = {}): Promise<Held<HeavyLock>> {
+export async function waitForHeavyLock(root: string, req: HeavyLockRequest, opts: WaitOptions = {}): Promise<Held<HeavyLock>> {
   const now = opts.now ?? Date.now;
   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const pollMs = opts.pollMs ?? 30_000;

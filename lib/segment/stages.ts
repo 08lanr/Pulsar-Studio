@@ -288,8 +288,8 @@ export type StageContext = {
   dirs: RunDirs;
   /** One line to the worker's log and the run's log file. */
   log: (line: string) => void;
-  /** Write progress into stage_detail (merged over the stage's detail so far; the worker throttles). */
-  progress: (detail: StageDetail) => Promise<void>;
+  /** Write progress into stage_detail (merged over the stage's detail so far; the worker throttles to one write a second unless `force`: a stage's final summary is never dropped). */
+  progress: (detail: StageDetail, opts?: { force?: boolean }) => Promise<void>;
   /** Renew the lease, heartbeat the job row, and throw RunCancelled when the run was cancelled. */
   beat: () => Promise<void>;
   signal: AbortSignal;
@@ -340,6 +340,27 @@ export async function runStep(ctx: StageContext, step: ScriptStep): Promise<RunR
   return r;
 }
 
+/**
+ * Run `fn` (an API pass: the judge, a re-judge, the band fix) with the run's
+ * lease renewed every `everyMs`, as a script gets from runStep's heartbeat.
+ * A vision pass on a long film outlasts the ten-minute lease; without this a
+ * second worker would claim the run and judge — and pay for — the same
+ * boundaries. A cancel seen by a beat aborts the signal; once `fn` returns
+ * the abort is honoured.
+ */
+export async function withHeartbeat<T>(ctx: StageContext, fn: () => Promise<T>, everyMs = 30_000): Promise<T> {
+  const timer = setInterval(() => {
+    void ctx.beat().catch(() => undefined);
+  }, Math.max(1000, everyMs));
+  timer.unref?.();
+  try {
+    return await fn();
+  } finally {
+    clearInterval(timer);
+    if (ctx.signal.aborted) throw new RunCancelled(ctx.run.id);
+  }
+}
+
 // ---- the heavy lock around a stage -------------------------------------------------------------------------
 
 /** Where the machine's heavy lock lives for this run: the work dir under the fake pipeline (never the fixture tree), else HEAVY_LOCK_ROOT / above WORKSPACE_ROOT. */
@@ -354,6 +375,8 @@ export function heavyLockRootFor(env: Env = process.env): string {
  * Take the machine's heavy slot for `what`, waiting while a session or
  * another run holds it live (the lease is renewed and a cancel honoured
  * while waiting, and the run's detail says who holds it), run `fn`, release.
+ * The lock names this run: two runs driven by one worker process are two
+ * holders, so the second waits for the first and neither releases the other's.
  */
 export async function withHeavyLock<T>(ctx: StageContext, what: string, fn: () => Promise<T>, opts: { pollMs?: number } = {}): Promise<T> {
   const root = heavyLockRootFor(ctx.env);
@@ -364,12 +387,12 @@ export async function withHeavyLock<T>(ctx: StageContext, what: string, fn: () =
   while (!held) {
     await ctx.beat();
     try {
-      held = heavyLock(root, { what });
+      held = heavyLock(root, { what, run_id: ctx.run.id });
     } catch (e) {
       if (!(e instanceof LockHeldError)) throw e;
       const holder = e.holder as HeavyLock;
       if (waited === 0) ctx.log(`waiting for the heavy slot: ${e.message}`);
-      await ctx.progress({ waiting_for_heavy_lock: { owner: holder.owner, what: holder.what, pid: holder.pid, since: holder.started_at, file: e.file } });
+      await ctx.progress({ waiting_for_heavy_lock: { owner: holder.owner, what: holder.what, pid: holder.pid, run_id: holder.run_id ?? null, since: holder.started_at, file: e.file } });
       await new Promise<void>((resolve) => setTimeout(resolve, pollMs));
       waited += pollMs;
     }

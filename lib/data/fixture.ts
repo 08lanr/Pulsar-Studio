@@ -74,7 +74,7 @@ import type {
 } from "@/lib/types";
 import { withHistoricalPromoSeed, legacyCampaignRetired, conflict, forbidden, frozen, invalid, notFound } from "./errors";
 import { episodeImportPatch, filmAssetRow, normalizeSourceRef, validateAdRules } from "./film-import";
-import { claimFields, decisionRow, filmRunRow, normalizeFilmRun, releaseFields, renewFields, stageFields } from "./film-runs";
+import { claimFields, decisionRow, filmRunRow, filmRunStageAudited, normalizeFilmRun, releaseFields, renewFields, stageFields } from "./film-runs";
 import type {
   ApproveOptions,
   DataLayer,
@@ -2468,9 +2468,10 @@ export const fixtureData: DataLayer = {
     const s = store();
     requireSystemOrStaff(session);
     const run = readableFilmRun(s.db, session, runId);
-    const before: Json = { stage: run.stage, revision: run.revision, error_text: run.error_text };
+    const was = { stage: run.stage, revision: run.revision, error_text: run.error_text, title_id: run.title_id };
     Object.assign(run, stageFields(run, input));
-    audit(s, session, "set_film_run_stage", "studio.film_runs", run.id, run.title_id, before, { stage: run.stage, revision: run.revision, error_text: run.error_text });
+    // Audited only when the stage, the refusal or the title moved (as the Supabase layer does): progress writes are not events.
+    if (filmRunStageAudited(was, run)) audit(s, session, "set_film_run_stage", "studio.film_runs", run.id, run.title_id, was as Json, { stage: run.stage, revision: run.revision, error_text: run.error_text, title_id: run.title_id });
     return clone(run);
   },
 

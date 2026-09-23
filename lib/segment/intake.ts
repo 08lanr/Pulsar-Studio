@@ -15,14 +15,27 @@
 // hardlink (or copy across volumes) into `<film>/source/original.mp4`, sync
 // the cut-only scripts into `cut/scripts/`, run `checks.py --project .
 // --strict`, and record the drama-remix commit on the run row.
+//
+// A film folder that is already there is Studio's to drive only when a
+// Studio run made it (`cut/.studio-scripts.json`) or the run claims it in so
+// many words (`settings.claim_existing`, a checkbox on the intake): B0 says
+// "only a folder it created or explicitly claimed", and a session's folder
+// taken over quietly would have its scripts overwritten and its review
+// re-applied. A folder the scanner reads as delivered, ready or imported is
+// never cut again by a plain run; `settings.extend` is the explicit way to
+// cut the rest of a first proof under its pinned episodes.
 
 import { copyFileSync, existsSync, linkSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { invalid } from "@/lib/data/errors";
-import type { VideoFacts } from "@/lib/film-import/import";
-import { ScriptsSyncError } from "@/lib/segment/scripts-sync";
-import { fail, fakePipeline, filmRoot, next, refusalOf, runStep, type Env, type StageContext, type StageOutcome } from "./stages";
+import { importQuietMs, type VideoFacts } from "@/lib/film-import/import";
+import { scanFilm } from "@/lib/film-import/scan";
+import type { FilmScan } from "@/lib/film-import/types";
+import { STUDIO_RUN_LOCK_FILE } from "@/lib/locks";
+import { readSyncRecord, ScriptsSyncError } from "@/lib/segment/scripts-sync";
+import type { FilmRun } from "@/lib/types";
+import { fail, fakePipeline, filmRoot, newestDelivered, next, refusalOf, runStep, sourceRefOf, type Env, type StageContext, type StageOutcome } from "./stages";
 
 // ---- the file name --------------------------------------------------------------------------------------------
 
@@ -190,6 +203,68 @@ export async function listSources(dir: string, opts: { env?: Env; probe?: ((file
   return { dir: abs, roots, folders, entries };
 }
 
+// ---- an existing film folder -------------------------------------------------------------------------------------
+
+export type FolderFacts = {
+  /** `<film>/cut` is there. */
+  cut_exists: boolean;
+  /** `cut/.studio-scripts.json` is there: a Studio run made (or claimed) this folder before. */
+  studio_made: boolean;
+  /** The phase-1 scanner's reading of the folder, when `cut` exists. */
+  scan: Pick<FilmScan, "state" | "pipeline_stage"> | null;
+  /** A title of the run's company was already imported from the folder. */
+  imported: boolean;
+};
+
+/** True when the folder holds a finished cut: the scanner reads it delivered or ready, or a title was imported from it. */
+export function folderDelivered(facts: Pick<FolderFacts, "scan" | "imported">): boolean {
+  if (facts.imported) return true;
+  const s = facts.scan;
+  return !!s && (s.pipeline_stage === "DELIVERED" || s.state === "READY" || s.state === "IMPORTED" || s.state === "K_CHANGED");
+}
+
+/**
+ * Why the run may not drive an existing film folder, or null when it may.
+ * Pure (decision 2026-09-23, B0): a folder no Studio run made needs
+ * `settings.claim_existing`; a delivered, ready or imported film needs
+ * `settings.extend`, which cuts the stretch past its pinned episodes.
+ */
+export function existingFolderRefusal(run: Pick<FilmRun, "bucket" | "slug" | "settings">, facts: FolderFacts): string | null {
+  if (!facts.cut_exists) return null;
+  const ref = sourceRefOf(run);
+  if (!facts.studio_made && run.settings.claim_existing !== true) {
+    return `${ref}/cut already exists and no Studio run made it (no cut/.studio-scripts.json): a session's work. Start the run with "take over an existing folder" to claim it in so many words, or choose another slug.`;
+  }
+  if (folderDelivered(facts) && run.settings.extend !== true) {
+    const what = facts.imported ? "imported as a title" : `${facts.scan?.pipeline_stage ?? "delivered"} (${facts.scan?.state ?? "?"})`;
+    return `${ref} is ${what}: a delivered film is not cut again. Start the run with "extend a delivered film" to cut the rest under its pinned episodes, or choose another slug.`;
+  }
+  return null;
+}
+
+/** True when `cut/` holds anything besides this run's own lock file (the worker takes `cut/.studio-run.json` before the intake runs, which creates the folder). */
+export function cutFolderInUse(cutDir: string): boolean {
+  try {
+    return readdirSync(cutDir).some((n) => n !== STUDIO_RUN_LOCK_FILE && !n.startsWith(`${STUDIO_RUN_LOCK_FILE}.`));
+  } catch {
+    return false;
+  }
+}
+
+/** The facts `existingFolderRefusal` judges, read from disk and the data layer. */
+export async function folderFactsOf(ctx: Pick<StageContext, "run" | "dirs" | "data" | "session" | "runner" | "env">): Promise<FolderFacts> {
+  const { run, dirs } = ctx;
+  const cutExists = cutFolderInUse(dirs.cut);
+  if (!cutExists) return { cut_exists: false, studio_made: false, scan: null, imported: false };
+  const ref = sourceRefOf(run);
+  const quiet = ctx.runner.fake || fakePipeline(ctx.env) ? 0 : importQuietMs();
+  const scan = await scanFilm(ref, { root: dirs.root, ...(quiet !== undefined ? { quietMs: quiet } : {}) })
+    .then((s) => ({ state: s.state, pipeline_stage: s.pipeline_stage }))
+    .catch(() => null);
+  const imported = !!(await ctx.data.findTitleBySourceRef(ctx.session, run.producer_id, ref).catch(() => null));
+  return { cut_exists: true, studio_made: readSyncRecord(dirs.cut) !== null, scan, imported };
+}
+
 // ---- the stage ---------------------------------------------------------------------------------------------------
 
 /** Link `src` to `dst` on the same volume; copy through a `.part` name across volumes (EXDEV only); anything else throws. */
@@ -236,7 +311,15 @@ export async function runIntakeStage(ctx: StageContext): Promise<StageOutcome> {
   }
   if (facts.height < 720) warnings.push(`the source is ${facts.width}×${facts.height}, under 720p; the episodes will be too`);
 
-  // 2. The film folder: created, or adopted when the same source is already in place.
+  // 2. The film folder: created, or an existing one driven only when Studio made it or the run claims it, and never a
+  //    delivered film unless the run extends it (B0: only a folder Studio created or explicitly claimed).
+  const folder = await folderFactsOf(ctx);
+  const refusal = existingFolderRefusal(run, folder);
+  if (refusal) return fail(refusal, { folder: { claimed: false, studio_made: folder.studio_made, scan: folder.scan, imported: folder.imported } });
+  const claimed = folder.cut_exists && !folder.studio_made;
+  const extending = folder.cut_exists && folderDelivered(folder);
+  if (claimed) ctx.log(`claiming ${sourceRefOf(run)}: cut/ exists with no Studio record (settings.claim_existing)`);
+  if (extending) ctx.log(`extending ${sourceRefOf(run)}: ${folder.scan?.pipeline_stage ?? "delivered"} (${folder.scan?.state ?? "?"}), pinned to ${newestDelivered(dirs.cut)?.file ?? "no DELIVERED file"} (settings.extend)`);
   mkdirSync(path.dirname(dirs.source), { recursive: true });
   mkdirSync(dirs.cut, { recursive: true });
   mkdirSync(dirs.work, { recursive: true });
@@ -277,6 +360,7 @@ export async function runIntakeStage(ctx: StageContext): Promise<StageOutcome> {
       source: { path: run.source_path, placed, bytes: st.size, width: facts.width, height: facts.height, fps: facts.fps, duration_s: facts.duration_s, frames: facts.frames, parsed: parsed as unknown as Record<string, number | string> | null },
       warnings,
       scripts: { sha: sync.sha, dirty: sync.dirty, files: sync.files.length, source: sync.source },
+      folder: { existed: folder.cut_exists, claimed, extending: extending ? newestDelivered(dirs.cut)?.file ?? true : false, scan: folder.scan, imported: folder.imported },
     },
     { drama_remix_sha: sync.sha, drama_remix_dirty: sync.dirty }
   );

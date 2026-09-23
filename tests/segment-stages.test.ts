@@ -1,10 +1,13 @@
 // The pure pieces of the segment worker (lib/segment/*): the downloader's
-// file name, the picker's roots and the typed-path refusal, which decisions
-// wake a waiting run, a script's refusal kept verbatim, the evidence
-// route's path rules and proxy names, the review state (who needs a
-// decision, what a move may do), the override file apply_vision.py reads,
-// the hand-off command, the watermark region, the fake's PNG, and the
-// film-meta file.
+// file name, the picker's roots and the typed-path refusal, when an existing
+// film folder may be driven (Studio's own, a claimed one, an extended
+// delivery), which decisions wake a waiting run, a script's refusal kept
+// verbatim, the evidence route's path rules and proxy names, the review
+// state (who needs a decision, what a move may do, measured from the pinned
+// start), when an applied options file is stale, whether an index file
+// covers what a run plans, the override file apply_vision.py reads, the QA
+// report merged after an --only run, the hand-off command, the watermark
+// region, the fake's PNG, and the film-meta file.
 
 process.env.PROMO_RENDER = "off";
 
@@ -19,10 +22,13 @@ import type { FilmRun, FilmRunDecision } from "@/lib/types";
 import { cutRelUrl, evidencePathOf, evidenceUrl, proxyName, proxyTimeOf, proxyUrl } from "@/lib/segment/evidence";
 import { fakePng } from "@/lib/segment/fake-runner";
 import { defaultFilmMeta, readFilmMeta, writeFilmMeta } from "@/lib/segment/handoff";
-import { isPlaceholder, linkOrCopy, parseMediaName, resolveSourceDir, resolveSourcePath, sourceRoots, suggestSlug } from "@/lib/segment/intake";
-import { lengthsAround, listRunVisionFiles, moveRefusal, overrideRecord, reviewState, writeOverrideFile } from "@/lib/segment/plan";
+import { covers, motionCoverage, whisperCoverage } from "@/lib/segment/index";
+import { existingFolderRefusal, folderDelivered, isPlaceholder, linkOrCopy, parseMediaName, resolveSourceDir, resolveSourcePath, sourceRoots, suggestSlug, type FolderFacts } from "@/lib/segment/intake";
+import { lengthsAround, listRunVisionFiles, moveRefusal, overrideRecord, reviewState, staleOptionsReason, writeOverrideFile } from "@/lib/segment/plan";
+import { mergeQaReports } from "@/lib/segment/qa";
 import { CONFIDENCE_GATE, DECISION, consumed, filmRoot, handoffCommand, isActionable, pendingDecision, pendingDecisions, refusalOf, runDirs, visionLabel, waitingOf } from "@/lib/segment/stages";
 import { regionArg, validRegion } from "@/lib/segment/watermark";
+import { FILM_SLUG, filmRunStageAudited } from "@/lib/data/film-runs";
 
 function withDir<T>(fn: (dir: string) => T | Promise<T>): Promise<T> {
   const dir = mkdtempSync(path.join(tmpdir(), "studio-segment-"));
@@ -64,6 +70,36 @@ test("the picker's roots: Downloads, OneDrive/Mini Drama, the workspace, STUDIO_
     assert.equal(isPlaceholder({ size: 100, blocks: 0 }), false, "a tiny file lives in the MFT record");
     assert.equal(isPlaceholder({ size: 10_000, blocks: 8 }), false);
   }));
+
+test("an existing film folder is driven only when Studio made it or the run claims it, and a delivered, ready or imported film only when the run extends it", () => {
+  const run = (settings: FilmRun["settings"]) => ({ bucket: "low-quality", slug: "he-hated-all-women", settings });
+  const facts = (over: Partial<FolderFacts>): FolderFacts => ({ cut_exists: true, studio_made: true, scan: { state: "NOT_DELIVERED", pipeline_stage: "INDEXED" }, imported: false, ...over });
+  assert.equal(existingFolderRefusal(run({}), facts({ cut_exists: false, studio_made: false, scan: null })), null, "a new folder");
+  assert.equal(existingFolderRefusal(run({}), facts({})), null, "Studio's own folder, not delivered: a retried or restarted run");
+  assert.match(existingFolderRefusal(run({}), facts({ studio_made: false }))!, /no Studio run made it \(no cut\/\.studio-scripts\.json\): a session's work/);
+  assert.equal(existingFolderRefusal(run({ claim_existing: true }), facts({ studio_made: false })), null, "the explicit claim");
+  const delivered = facts({ scan: { state: "READY", pipeline_stage: "DELIVERED" } });
+  assert.match(existingFolderRefusal(run({}), delivered)!, /is DELIVERED \(READY\): a delivered film is not cut again/);
+  assert.match(existingFolderRefusal(run({ claim_existing: true }), { ...delivered, studio_made: false })!, /a delivered film is not cut again/, "a claim does not make a delivered film cuttable");
+  assert.equal(existingFolderRefusal(run({ extend: true }), delivered), null, "extend is the explicit way");
+  assert.match(existingFolderRefusal(run({ extend: true }), { ...delivered, studio_made: false })!, /no Studio run made it/, "extending a session's film still needs the claim");
+  assert.equal(existingFolderRefusal(run({ extend: true, claim_existing: true }), { ...delivered, studio_made: false }), null);
+  assert.match(existingFolderRefusal(run({}), facts({ imported: true }))!, /is imported as a title/);
+  assert.equal(folderDelivered({ scan: { state: "NOT_DELIVERED", pipeline_stage: "PLANNED" }, imported: false }), false);
+  for (const state of ["READY", "IMPORTED", "K_CHANGED"] as const) assert.equal(folderDelivered({ scan: { state, pipeline_stage: "PLANNED" }, imported: false }), true, state);
+  assert.equal(folderDelivered({ scan: { state: "NOT_DELIVERED", pipeline_stage: "DELIVERED" }, imported: false }), true);
+  assert.equal(folderDelivered({ scan: null, imported: true }), true);
+});
+
+test("a film slug may start with one underscore (a scratch folder); the audit rule fires only when the stage, the refusal or the title moves", () => {
+  for (const ok of ["she-returned-with-her-son", "_studio-smoke", "mafia_king", "ep01"]) assert.ok(FILM_SLUG.test(ok), ok);
+  for (const bad of ["__smoke", "-smoke", "Smoke", "smoke-", "a b", "_", "smoke/x"]) assert.equal(FILM_SLUG.test(bad), false, bad);
+  const at = { stage: "index" as const, error_text: null, title_id: null };
+  assert.equal(filmRunStageAudited(at, { ...at }), false, "a progress write");
+  assert.equal(filmRunStageAudited(at, { ...at, stage: "plan" }), true);
+  assert.equal(filmRunStageAudited(at, { ...at, error_text: "REFUSED" }), true);
+  assert.equal(filmRunStageAudited(at, { ...at, title_id: "t1" }), true);
+});
 
 test("linkOrCopy links on one volume and never copies otherwise than across volumes", () =>
   withDir((dir) => {
@@ -203,6 +239,59 @@ test("a move must be a legal cut within 30 s that keeps both episodes in band; l
   assert.match(moveRefusal(s, 999, 1000, [1000])!, /not in review\/options\.json/);
 });
 
+test("after a first proof the open stretch starts at the pinned end: the first open boundary's length is measured from it, not from 0", () => {
+  // The delivered proof ended at 100 s (its last pin); this run's options list only the boundaries past it.
+  const stretch: OptionsDoc = { ...doc(), boundaries: doc().boundaries.filter((b) => b.boundary_s >= 240) };
+  const passes = [[rec(240, 240, 0.9), rec(360, 360, 0.9), rec(480, 480, 0.9)]];
+  const pinned = reviewState(stretch, passes, [], {}, { fixedStart: 100 });
+  assert.deepEqual(pinned.lengths.map((l) => [l.from, l.to, l.length]), [[100, 240, 140], [240, 360, 120], [360, 480, 120], [480, 600, 120]]);
+  assert.deepEqual(lengthsAround(pinned, 240, 230, 100), { before: 130, after: 130 });
+  assert.equal(moveRefusal(pinned, 240, 230, [230], 100), null, "in band from the pin");
+  assert.match(moveRefusal(pinned, 240, 230, [230])!, /episode before it 230s/, "measured from 0 the same move is refused: the bug the fixed start closes");
+  assert.match(moveRefusal(pinned, 240, 268, [268], 100)!, /episode before it 168s/);
+});
+
+test("an applied options file is stale for a run that plans past the delivered stretch, and only then", () => {
+  // The newest DELIVERED file names the stretch's end (cuts-0-<end>); the applied options' boundaries all lie inside it.
+  const applied = { boundaries: [{ boundary_s: 120 }, { boundary_s: 240 }], duration: 300 };
+  const pin = { file: "cuts-0-300-DELIVERED.json", end: 300 };
+  assert.match(staleOptionsReason(applied, pin, 600)!, /2 boundaries, all at or under 300 s of cuts-0-300-DELIVERED\.json/);
+  assert.equal(staleOptionsReason(applied, pin, 300), null, "the same stretch again is not an extension");
+  assert.equal(staleOptionsReason(applied, null, 600), null, "nothing delivered: the options were judged outside Studio");
+  assert.equal(staleOptionsReason({ ...applied, boundaries: [{ boundary_s: 120 }, { boundary_s: 400 }] }, pin, 600), null, "a boundary past the delivered end belongs to a stretch judged outside Studio");
+  assert.match(staleOptionsReason({ ...applied, duration: 600 }, pin, null)!, /all at or under 300 s/, "without to_s the options' own duration says how far the run plans");
+});
+
+test("an index file covers a run when it reaches what the run plans: a first proof's transcript stops short of the whole film", () =>
+  withDir((dir) => {
+    const cut = path.join(dir, "cut");
+    mkdirSync(path.join(cut, "index"), { recursive: true });
+    assert.equal(whisperCoverage(cut), null);
+    writeFileSync(path.join(cut, "index", "whisper.json"), JSON.stringify({ language: "en", duration: 900.0, segments: [] }));
+    assert.equal(whisperCoverage(cut), 900);
+    assert.equal(covers(900, 900), true);
+    assert.equal(covers(899.5, 900), true, "a second of slack for the last word");
+    assert.equal(covers(900, 7259.5), false, "the whole film after a --to 900 proof");
+    assert.equal(covers(7259.53, 7259.533), true);
+    assert.equal(covers(null, 900), true, "an unreadable file is not judged here");
+    assert.equal(covers(900, null), true, "no planned length: nothing to compare");
+    writeFileSync(path.join(cut, "index", "motion.json"), JSON.stringify({ fps: 10, from: 0, to: 900, beats: [] }));
+    assert.equal(motionCoverage(cut), 900);
+    writeFileSync(path.join(cut, "index", "motion.json"), JSON.stringify({ fps: 10, from: 0, to: 0, beats: [], track: new Array(72594).fill(0) }));
+    assert.equal(motionCoverage(cut), 7259.4, "the 10 fps track's length");
+    writeFileSync(path.join(cut, "index", "motion.json"), JSON.stringify({ fps: 10, from: 0, to: 0, beats: [] }));
+    assert.equal(motionCoverage(cut), Number.POSITIVE_INFINITY, "an explicit whole-film run with no track");
+  }));
+
+test("after an --only QA run the untouched episodes' records come back verbatim, in episode order; the re-measured ones win", () => {
+  const before = { fps: 30, regions: [["logo", 1, 2, 3, 4]], episodes: [{ n: 1, faults: ["missing"], sheet: "review/qa/ep01.png" }, { n: 2, faults: [], sheet: "review/qa/ep02.png" }, { n: 3, faults: ["last frame black"], sheet: "review/qa/ep03.png" }, { n: 4, faults: [], sheet: "review/qa/ep04.png" }, { n: 5, faults: ["logo"], sheet: "review/qa/ep05.png" }] };
+  const after = { fps: 30, regions: [["logo", 1, 2, 3, 4]], episodes: [{ n: 2, faults: ["join"], sheet: "review/qa/ep02.png" }, { n: 3, faults: [], sheet: "review/qa/ep03.png" }] };
+  const merged = mergeQaReports(before, after);
+  assert.deepEqual(merged.episodes!.map((e) => [e.n, (e as { faults: string[] }).faults]), [[1, ["missing"]], [2, ["join"]], [3, []], [4, []], [5, ["logo"]]]);
+  assert.equal(merged.fps, 30);
+  assert.deepEqual(mergeQaReports(null, after).episodes!.map((e) => e.n), [2, 3], "nothing before: the report as written");
+});
+
 test("the override file: one Workflow-shaped record per decided boundary, reviewer ruobin, applied over the pass so apply_vision's rules make the person's time win", () =>
   withDir((dir) => {
     const cut = path.join(dir, "cut");
@@ -232,7 +321,29 @@ test("the override file: one Workflow-shaped record per decided boundary, review
     assert.equal(path.basename(second), `${label}_review2.json`);
     const o = overrideRecord(state.boundaries[1], decisions[0]);
     assert.equal(o.pick.chosen_key, "opt2");
+    assert.equal(o.pick.ends_on, "x", "an accept of the reviewer's own time keeps its frame description");
+    const back = overrideRecord(state.boundaries[2], decisions[1]);
+    assert.equal(back.pick.chosen_key, "review");
+    assert.equal(back.pick.ends_on, "x", "a move back to the reviewer's own time keeps its frame description");
+    const away = overrideRecord(state.boundaries[2], { ...decisions[1], to_s: 372 });
+    assert.equal(away.pick.ends_on, "", "a move to another time describes another frame: the reviewer's ends_on / opens_on are not copied");
+    assert.equal(away.pick.opens_on, "");
   }));
+
+test("accepting a skeptic override records the skeptic's key, time and reason, not the reviewer's frame at another time", () => {
+  const pass = [rec(360, 360, 0.8, { agree: false, fault: "rule 4", better_key: "opt2", better_t: 372, reason: "the aftermath belongs to the episode" })];
+  const state = reviewState(doc(), [pass], [{ at: "2026-09-23T12:00:01.000Z", by: "ruobin", action: "accept", boundary_s: 360, why: "agreed" }]);
+  const b = state.boundaries.find((x) => x.boundary_s === 360)!;
+  assert.equal(b.applied_source, "SKEPTIC OVERRIDE");
+  const o = overrideRecord(b, b.decision!);
+  assert.equal(o.pick.chosen_t, 372);
+  assert.equal(o.pick.chosen_key, "opt2", "the skeptic's better_key, not the reviewer's chosen_key");
+  assert.equal(o.pick.ends_on, "");
+  assert.equal(o.pick.opens_on, "");
+  assert.match(o.pick.why, /accepted by ruobin at 372s, the skeptic's time \(the aftermath belongs to the episode\): agreed/);
+  const noKey = overrideRecord({ ...b, record: { ...b.record!, verdict: { ...b.record!.verdict!, better_key: "" } } }, b.decision!);
+  assert.equal(noKey.pick.chosen_key, "review", "a skeptic with no listed key: the review's own");
+});
 
 // ---- small things ---------------------------------------------------------------------------------------------------------------------------
 

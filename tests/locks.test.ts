@@ -2,8 +2,9 @@
 // the run lock's shape, adoption by the same run, refusal of another live
 // run, replacement of a stale one (dead pid, or older than six hours) with
 // the replacement reported, update and release, a release that never removes
-// a lock someone else took; the heavy lock the same way, plus the wait that
-// polls until the holder lets go; and the real pid check on this process.
+// a lock someone else took; the heavy lock the same way (two runs of one
+// worker process are two holders), plus the wait that polls until the holder
+// lets go; and the real pid check on this process.
 
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -113,6 +114,30 @@ test("the heavy lock: one per machine, adopted by the same pid and owner, refuse
     assert.equal(took.replaced?.reason, "dead_pid");
     assert.equal((took.replaced?.lock as HeavyLock).owner, "claude-code:the-cold-ceo");
     assert.equal(took.release(), true);
+  }));
+
+test("two Studio runs in one worker process share a pid but not the slot: the second is refused while the first holds it, and a release never removes the other run's lock", () =>
+  withDir((dir) => {
+    const opts = { isAlive: aliveSet(1), now: () => T0 };
+    const a = heavyLock(dir, { what: "index", pid: 1, run_id: "run-a" }, opts);
+    assert.equal(a.lock.run_id, "run-a");
+    assert.throws(() => heavyLock(dir, { what: "render", pid: 1, run_id: "run-b" }, opts), (e: unknown) => e instanceof LockHeldError && /held by pulsar-studio run run-a \(index, pid 1/.test(e.message) && (e.holder as HeavyLock).run_id === "run-a");
+    const again = heavyLock(dir, { what: "index", pid: 1, run_id: "run-a" }, opts);
+    assert.equal(again.replaced, null, "the same run adopts its own lock (a restarted stage)");
+    assert.equal(a.release(), true);
+    assert.equal(existsSync(a.file), false);
+
+    // B takes the free slot; A's handle (already released) and a stale handle of A's cannot remove B's lock.
+    const b = heavyLock(dir, { what: "render", pid: 1, run_id: "run-b" }, opts);
+    assert.equal(a.release(), false);
+    assert.equal(again.release(), false, "the file now belongs to run-b, not run-a");
+    assert.equal((readLock<HeavyLock>(b.file) as HeavyLock).run_id, "run-b");
+    assert.equal(b.release(), true);
+
+    // A session's lock (no run_id) is a different holder from a Studio run on the same pid, and vice versa.
+    const session = heavyLock(dir, { owner: "claude-code:x", what: "qa", pid: 1 }, opts);
+    assert.throws(() => heavyLock(dir, { what: "index", pid: 1, run_id: "run-a" }, opts), LockHeldError);
+    assert.equal(session.release(), true);
   }));
 
 test("waitForHeavyLock polls until the holder lets go, reports whom it waits for, and gives up on a timeout", () =>

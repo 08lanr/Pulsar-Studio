@@ -1,4 +1,5 @@
 import "@/app/segment.css";
+import Link from "next/link";
 import RunList from "@/components/admin/segment/RunList";
 import { adminLocale, staffSession } from "@/components/admin/server";
 import { t } from "@/lib/i18n";
@@ -21,7 +22,7 @@ export default async function FilmRunsPage() {
           <p className="page-sub">{t(locale, "seg.sub")}</p>
         </div>
         <div className="title-actions">
-          <a className="btn btn-primary" href="/films/runs/new">{t(locale, "seg.newRun")}</a>
+          <Link className="btn btn-primary" href="/films/runs/new">{t(locale, "seg.newRun")}</Link>
         </div>
       </div>
       <RunList />

@@ -258,6 +258,8 @@ export type VerifyOptionsOpts = {
   allowApplied?: boolean;
   /** With `allowApplied`: the delivered-pins check is skipped too (every boundary of a delivered film lies inside its cuts). */
   allowDelivered?: boolean;
+  /** Evaluation only: a strip older than `index/candidates.json` is not a fault (the recorded pass looked at these strips; the candidates were rewritten since). */
+  allowStale?: boolean;
 };
 
 const DeliveredEndsSchema = z.object({ episodes: z.array(z.object({ end: z.number() }).passthrough()).min(1), final_end_is_boundary: z.boolean().nullish() }).passthrough();
@@ -329,7 +331,7 @@ export async function verifyOptions(cutDir: string, doc: OptionsDoc, opts: Verif
       if (st.size < MIN_STRIP_BYTES) faults.push(`${o.t}s: strip is empty`);
       const tiles = o.strip_tiles ?? [];
       if (!tiles.length || Math.abs(tiles[Math.floor(tiles.length / 2)] - o.t) > 0.01) faults.push(`${o.t}s: centre tile is not the option time`);
-      if (candidatesMtime !== null && st.mtimeMs < candidatesMtime) faults.push(`${o.t}s: strip is older than index/candidates.json`);
+      if (candidatesMtime !== null && st.mtimeMs < candidatesMtime && !opts.allowStale) faults.push(`${o.t}s: strip is older than index/candidates.json`);
     }
   }
   const n = doc.boundaries.reduce((s, b) => s + b.options.length, 0);

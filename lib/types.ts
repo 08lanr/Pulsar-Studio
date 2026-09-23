@@ -436,6 +436,10 @@ export type FilmRunSettings = {
   allow_dirty?: boolean;
   /** How the vision pass runs: through the API (lib/llm) or as a Claude Code Workflow hand-off. */
   vision?: "api" | "handoff";
+  /** The explicit claim B0 asks for: drive a film folder no Studio run made (a session's work). Without it the intake refuses such a folder. */
+  claim_existing?: boolean;
+  /** Cut the rest of a delivered film (a first proof) under its pinned episodes; without it a delivered, ready or imported film is refused at intake. */
+  extend?: boolean;
   [key: string]: Json | undefined;
 };
 

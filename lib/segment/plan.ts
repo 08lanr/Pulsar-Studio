@@ -3,7 +3,11 @@
 // Plan: `pick_cuts.py --emit-options review/options.json` (with `--pin-from`
 // the newest DELIVERED file when the film has one), the option strips
 // (`boundary_frames.py --options … --window 5 --step 0.5 --cols 6`), then
-// `--verify`, whose NOT READY is a refusal shown verbatim.
+// `--verify`, whose NOT READY is a refusal shown verbatim. An options file
+// already applied is resumed only with THIS run's record files beside it;
+// one whose boundaries were all delivered (a first proof) is re-emitted for
+// the stretch past the pins when the run plans further; anything else was
+// judged outside Studio and is refused.
 //
 // Vision: the API pass (lib/segment/vision.ts, decision 4) or the Claude
 // Code hand-off — the exact Workflow call is shown and the run waits for
@@ -50,6 +54,7 @@ import {
   tailLines,
   visionLabel,
   wait,
+  withHeartbeat,
   type StageContext,
   type StageDetail,
   type StageOutcome,
@@ -244,19 +249,32 @@ export function pinsOf(cutDir: string): { file: string | null; pins: number[]; f
 
 export const REVIEWER = "ruobin";
 
-/** The Workflow-shaped record a human decision becomes (apply_vision.py reads `pick.chosen_t` and `verdict.agree`). */
+/**
+ * The Workflow-shaped record a human decision becomes (apply_vision.py reads
+ * `pick.chosen_t` and `verdict.agree`). The record describes the time it
+ * applies: an accept of a skeptic override carries the skeptic's key and
+ * reason, not the reviewer's; the reviewer's ends_on / opens_on are copied
+ * only when the time is still the reviewer's own pick.
+ */
 export function overrideRecord(b: BoundaryReview, decision: FilmRunDecision): WorkflowRecord {
-  const t = decision.action === DECISION.move && typeof decision.to_s === "number" ? decision.to_s : b.applied_t ?? b.record?.pick.chosen_t ?? b.boundary_s;
-  const why = decision.action === DECISION.move ? `moved by ${REVIEWER} to ${t}s${decision.why ? `: ${decision.why}` : ""}` : `accepted by ${REVIEWER} at ${t}s${decision.why ? `: ${decision.why}` : ""}`;
+  const pick = b.record?.pick ?? null;
+  const verdict = b.record?.verdict ?? null;
+  const moved = decision.action === DECISION.move && typeof decision.to_s === "number";
+  const t = moved ? (decision.to_s as number) : b.applied_t ?? pick?.chosen_t ?? b.boundary_s;
+  const skeptics = !moved && b.applied_source === "SKEPTIC OVERRIDE" && !!verdict;
+  // The reviewer's frame description holds only for the reviewer's own time (an accept of it, or a move back to it).
+  const reviewers = !skeptics && pick !== null && Math.abs(pick.chosen_t - t) <= 0.0015;
+  const note = decision.why ? `: ${decision.why}` : "";
+  const why = moved ? `moved by ${REVIEWER} to ${t}s${note}` : skeptics ? `accepted by ${REVIEWER} at ${t}s, the skeptic's time (${verdict.reason})${note}` : `accepted by ${REVIEWER} at ${t}s${note}`;
   return {
     boundary_s: b.boundary_s,
     pick: {
-      chosen_key: decision.action === DECISION.move ? "review" : b.record?.pick.chosen_key ?? "review",
+      chosen_key: moved ? "review" : skeptics ? verdict.better_key || "review" : pick?.chosen_key ?? "review",
       chosen_t: t,
-      ends_on: b.record?.pick.ends_on ?? "",
-      opens_on: b.record?.pick.opens_on ?? "",
+      ends_on: reviewers ? pick.ends_on : "",
+      opens_on: reviewers ? pick.opens_on : "",
       why,
-      payoff_in_episode: b.record?.pick.payoff_in_episode ?? true,
+      payoff_in_episode: pick?.payoff_in_episode ?? true,
       confidence: 1,
     },
     verdict: { agree: true, fault: "", better_key: "", reason: `human decision (${decision.action}) on ${decision.at}` },
@@ -288,6 +306,21 @@ export function writeOverrideFile(cutDir: string, label: string, runId: string, 
 
 const STRIP_ARGS = ["--window", "5", "--step", "0.5", "--cols", "6", "--width", "200", "--out-dir", "review/frames"];
 
+/**
+ * Why an APPLIED options file is not this run's stretch, or null when it is
+ * still in the way: every boundary it lists lies at or under the newest
+ * delivered file's pinned end (its stretch was rendered) and the run plans
+ * past that end (an extension of a first proof). Pure.
+ */
+export function staleOptionsReason(doc: { boundaries: { boundary_s: number }[]; duration: number }, pin: { file: string; end: number } | null, planTo: number | null): string | null {
+  if (!pin) return null;
+  const end = planTo ?? doc.duration;
+  if (!(end > pin.end + 0.05)) return null;
+  const beyond = doc.boundaries.filter((b) => b.boundary_s > pin.end + 0.05);
+  if (beyond.length) return null;
+  return `${doc.boundaries.length} boundaries, all at or under ${pin.end} s of ${pin.file}`;
+}
+
 async function optionsState(cutDir: string): Promise<{ doc: OptionsDoc | null; applied: boolean; problem: string | null }> {
   if (!fileExists(path.join(cutDir, "review", "options.json"))) return { doc: null, applied: false, problem: null };
   try {
@@ -306,12 +339,19 @@ export async function runPlanStage(ctx: StageContext): Promise<StageOutcome> {
 
   const before = await optionsState(dirs.cut);
   if (before.problem) return fail(`review/options.json: ${before.problem}`);
-  if (before.applied) {
-    // An applied options file with the run's own records: the plan was made in an earlier life of this run; go on to the review.
-    if (fileExists(path.join(dirs.cut, "review", "choices.json")) || listRunVisionFiles(dirs.cut, visionLabel(run)).length) return next("review", { note: "review/options.json is already applied: resuming at the review" });
-    return fail("review/options.json is stamped applied by an earlier pass and this run has no records for it: the film was judged outside Studio; emit fresh options for a new stretch (a session's work), or start a new run on a new slug");
+  let fresh = false;
+  if (before.applied && before.doc) {
+    // An applied options file WITH this run's own records: the plan was made in an earlier life of this run; go on to the review.
+    // A foreign choices.json alone is not this run's: its review would move, re-judge and apply inside a film Studio never judged.
+    if (listRunVisionFiles(dirs.cut, visionLabel(run)).length) return next("review", { note: "review/options.json is already applied by this run: resuming at the review" });
+    // The applied options belong to a stretch a render delivered (every boundary at or under its pins) and this run plans
+    // further: an extension. pick_cuts emits fresh options for the new stretch under --pin-from (the file is rewritten).
+    const stale = staleOptionsReason(before.doc, pin, duration);
+    if (!stale) return fail("review/options.json is stamped applied by an earlier pass and this run has no records for it: the film was judged outside Studio; emit fresh options for a new stretch (a session's work), or start a new run on a new slug");
+    ctx.log(`review/options.json is applied for the delivered stretch (${stale}): fresh options for ${pin?.end ?? 0}–${duration ?? "end"} s`);
+    fresh = true;
   }
-  if (!before.doc) {
+  if (!before.doc || fresh) {
     const args = [...common, "--emit-options", "review/options.json"];
     const r = await runStep(ctx, { script: "pick_cuts.py", args, what: "pick_cuts --emit-options", timeoutMs: 30 * 60 * 1000 });
     if (r.code !== 0) return fail(refusalOf({ script: "pick_cuts.py", args, what: "" }, r));
@@ -402,20 +442,23 @@ export async function runVisionStage(ctx: StageContext): Promise<StageOutcome> {
       return wait("vision", handoffDetail(ctx, doc, null));
     } else {
       await ctx.progress({ progress: { step: "judge", judged: 0, of: doc.boundaries.length } });
-      const result = await ctx.runner.judge({
-        run: { id: run.id, cut_dir: dirs.cut, film_notes: filmNotes(run) },
-        doc,
-        work_dir: dirs.work,
-        opts: {
-          label,
-          session: ctx.session,
-          out_file: passFile,
-          env: ctx.env as Record<string, string | undefined>,
-          onBoundary: (record, done, total) => {
-            void ctx.progress({ progress: { step: "judge", judged: done, of: total, last: record.boundary_s } }).catch(() => undefined);
+      // The lease is renewed while the pass runs: a long film's pass outlasts the ten-minute lease.
+      const result = await withHeartbeat(ctx, () =>
+        ctx.runner.judge({
+          run: { id: run.id, cut_dir: dirs.cut, film_notes: filmNotes(run) },
+          doc,
+          work_dir: dirs.work,
+          opts: {
+            label,
+            session: ctx.session,
+            out_file: passFile,
+            env: ctx.env as Record<string, string | undefined>,
+            onBoundary: (record, done, total) => {
+              void ctx.progress({ progress: { step: "judge", judged: done, of: total, last: record.boundary_s } }).catch(() => undefined);
+            },
           },
-        },
-      });
+        })
+      );
       if (isUnavailable(result)) {
         ctx.log(`vision unavailable: ${result.unavailable}`);
         return wait("vision", handoffDetail(ctx, doc, result.unavailable));
@@ -425,7 +468,8 @@ export async function runVisionStage(ctx: StageContext): Promise<StageOutcome> {
         // The done rows are reused: a retry pays only for what failed.
         return wait("vision", { ...handoffDetail(ctx, doc, null), errors: result.errors.map((e) => `${e.boundary_s}s: ${e.error}`), judged: result.records.length, cost_cents: result.cost_cents, note: "some boundaries failed; a retry decision re-runs only those, or hand the pass off" });
       }
-      await ctx.progress({ progress: null, vision: { provider: result.provider, model: result.model, judged: result.records.length, cost_cents: result.cost_cents } });
+      // The pass's summary is forced past the throttle: it came within a second of the last onBoundary write once and was lost.
+      await ctx.progress({ progress: null, vision: { provider: result.provider, model: result.model, judged: result.records.length, cost_cents: result.cost_cents } }, { force: true });
     }
   } else {
     ctx.log(`review/vision/${label}.json exists: the pass is not repeated`);
@@ -439,15 +483,16 @@ export async function runVisionStage(ctx: StageContext): Promise<StageOutcome> {
 
 // ---- the review stage -------------------------------------------------------------------------------------------------
 
-/** What the stage and the view compute from disk plus the run: the review state with the run's own files. */
-export async function reviewStateOf(ctx: Pick<StageContext, "run" | "dirs">): Promise<{ doc: OptionsDoc; state: ReviewState; files: VisionFile[]; problems: string[] }> {
+/** What the stage and the view compute from disk plus the run: the review state with the run's own files, and the pinned start the lengths are measured from. */
+export async function reviewStateOf(ctx: Pick<StageContext, "run" | "dirs">): Promise<{ doc: OptionsDoc; state: ReviewState; files: VisionFile[]; problems: string[]; fixedStart: number }> {
   const label = visionLabel(ctx.run);
   const doc = await loadOptionsDoc(ctx.dirs.cut);
   const files = listRunVisionFiles(ctx.dirs.cut, label);
   const { passes, problems } = loadRunRecords(files);
   const done = ((ctx.run.stage_detail as Record<string, unknown>).rejudges_done ?? {}) as Record<string, number>;
-  const state = reviewState(doc, passes, ctx.run.decisions, done, { fixedStart: pinsOf(ctx.dirs.cut).fixedStart });
-  return { doc, state, files, problems };
+  const fixedStart = pinsOf(ctx.dirs.cut).fixedStart;
+  const state = reviewState(doc, passes, ctx.run.decisions, done, { fixedStart });
+  return { doc, state, files, problems, fixedStart };
 }
 
 /** A `move` is refused when its time is not a legal cut within 30 s or breaks the band on either side (pure over the state). */
@@ -479,11 +524,13 @@ export async function runReviewStage(ctx: StageContext): Promise<StageOutcome> {
     const attempt = round + 1;
     const why = rejudge.map((d) => `${d.boundary_s}s: ${d.why ?? "rejected"}`);
     await ctx.progress({ progress: { step: "rejudge", boundaries: outstanding } });
-    const result = await ctx.runner.judge({
-      run: { id: run.id, cut_dir: dirs.cut, film_notes: [filmNotes(run), why.length ? `A person rejected the earlier answer: ${why.join("; ")}` : null].filter(Boolean).join("\n") || null },
-      doc,
-      opts: { label, session: ctx.session, boundaries: outstanding, attempt, out_file: path.join(dirs.cut, "review", "vision", `${label}_r${round}.json`), allow_applied: true, env: ctx.env as Record<string, string | undefined> },
-    });
+    const result = await withHeartbeat(ctx, () =>
+      ctx.runner.judge({
+        run: { id: run.id, cut_dir: dirs.cut, film_notes: [filmNotes(run), why.length ? `A person rejected the earlier answer: ${why.join("; ")}` : null].filter(Boolean).join("\n") || null },
+        doc,
+        opts: { label, session: ctx.session, boundaries: outstanding, attempt, out_file: path.join(dirs.cut, "review", "vision", `${label}_r${round}.json`), allow_applied: true, env: ctx.env as Record<string, string | undefined> },
+      })
+    );
     if (isUnavailable(result)) return wait("review", { ...detailBase, ...handoffDetail(ctx, doc, result.unavailable), note: "re-judge needs a vision provider; move or accept the boundary instead, or hand the pass off" });
     const done = { ...(((run.stage_detail as Record<string, unknown>).rejudges_done ?? {}) as Record<string, number>) };
     for (const b of outstanding) if (!result.errors.some((e) => keyOf(e.boundary_s) === keyOf(b))) done[String(b)] = (done[String(b)] ?? 0) + 1;
@@ -514,7 +561,7 @@ export async function runReviewStage(ctx: StageContext): Promise<StageOutcome> {
   const groups = findBandConflicts({ doc, choices, pins: pins.pins, records: mergeVisionPasses(passes) as unknown as FirstPassRecord[] });
   const already = files.some((f) => f.role === "band_fix" && f.mtime > (files.find((x) => x.role === "review")?.mtime ?? 0));
   if (groups.length && !already) {
-    const fix = await ctx.runner.bandFix({ run: { id: run.id, cut_dir: dirs.cut, film_notes: filmNotes(run) }, doc, groups, label, session: ctx.session });
+    const fix = await withHeartbeat(ctx, () => ctx.runner.bandFix({ run: { id: run.id, cut_dir: dirs.cut, film_notes: filmNotes(run) }, doc, groups, label, session: ctx.session }));
     if (!isUnavailable(fix)) {
       ctx.log(`band fix: ${fix.groups.length} groups, ${fix.faults.length} faults, ${fix.cost_cents} cents`);
       const reapplied = await applyVisionRecords(ctx, label, "-band");

@@ -14,6 +14,10 @@
 // --dense STUDIO_PIPELINE_PYTHON / DRAMA_REMIX_ROOT (defaults: python, the
 // sibling drama-remix checkout). Fixture data source, empty seed, no
 // persistence: the job rows live only for this process; the spend is printed.
+// The film folder is read only: `allow_applied` (its options are applied)
+// and `allow_stale` (its candidates.json may be newer than the strips the
+// recorded pass looked at) are the two --verify allowances an evaluation
+// takes and a real run never does.
 
 process.env.DATA_SOURCE = process.env.DATA_SOURCE ?? "fixture";
 process.env.FIXTURE_SEED = "empty";
@@ -96,6 +100,8 @@ async function main() {
       concurrency: Number(arg("concurrency") ?? 3),
       out_file: outFile,
       allow_applied: true,
+      // The recorded pass looked at these strips; a candidates.json rewritten since (a --allow re-index) must not refuse the measurement.
+      allow_stale: true,
       dense,
       onBoundary: (r, done, total) => {
         const v = r.verdict;

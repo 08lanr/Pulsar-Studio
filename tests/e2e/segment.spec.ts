@@ -75,6 +75,9 @@ test("the desk lists runs and the intake starts one from a fixture source picked
   await expect(page.getByRole("heading", { name: "New segmenting run", level: 1 })).toBeVisible();
 
   // The fixture film's episode files stand in for a downloaded source; the folder is inside the workspace root the picker allows.
+  // The Workspace tab exists only once the client has fetched the picker's roots, so its presence proves the page is hydrated
+  // (a click on a server-rendered tab before that takes focus and runs no handler).
+  await expect(page.getByRole("tab", { name: "Workspace (films already on disk)" })).toBeVisible({ timeout: 30_000 });
   await page.getByRole("tab", { name: "Typed path" }).click();
   await page.getByRole("textbox", { name: "Typed path" }).fill(FIXTURE_EPS);
   await page.getByRole("button", { name: "List", exact: true }).click();

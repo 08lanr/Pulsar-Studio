@@ -3668,8 +3668,8 @@
   "seg.intake.companyPick": "Choose a company…",
   "seg.intake.bucket": "Bucket",
   "seg.intake.slug": "Film folder",
-  "seg.intake.slugHint": "Becomes projects/{bucket}/<slug>/source/original.mp4; lower-case letters, digits and dashes.",
-  "seg.intake.slugBad": "Lower-case letters, digits and dashes only.",
+  "seg.intake.slugHint": "Becomes projects/{bucket}/<slug>/source/original.mp4; lower-case letters, digits and dashes (a scratch folder may start with one underscore).",
+  "seg.intake.slugBad": "Lower-case letters, digits and dashes only (a scratch folder may start with one underscore).",
   "seg.intake.mode": "Mode",
   "seg.intake.lang": "Dialogue language",
   "seg.intake.langHint": "Whisper's --lang.",
@@ -3797,7 +3797,6 @@
   "seg.review.confirmReject": "Send back",
   "seg.review.ready": "Every boundary that needed you is decided; ready to apply.",
   "seg.review.notReady": "{undecided} boundaries still undecided, {conflicts} band conflicts.",
-  "seg.review.acceptAll": "Accept the remaining {n}",
   "seg.review.apply": "Apply and render",
   "seg.joins.pageTitle": "Join review · {slug}",
   "seg.joins.sub": "The episodes are built: each join plays the last 2 s of one and the first 2 s of the next.",
@@ -3871,5 +3870,9 @@
   "seg.vision.outputApply": "Apply this output",
   "seg.vision.retryApi": "Try the API again",
   "seg.handoff.waitingReady": "Waiting for the scanner to read READY (five quiet minutes after the render)",
-  "seg.handoff.importing": "Importing: {detail}"
+  "seg.handoff.importing": "Importing: {detail}",
+  "seg.intake.claimExisting": "Take over an existing folder Studio did not make",
+  "seg.intake.claimExistingHint": "Refused by default: cut/ is there with no Studio record (a session's work). Ticking this is the explicit claim; its scripts are re-synced.",
+  "seg.intake.extend": "Extend a delivered film",
+  "seg.intake.extendHint": "A delivered, ready or imported film is refused by default. Ticked, its delivered episodes stay pinned and only the rest is cut; the first proof is switched off."
 }

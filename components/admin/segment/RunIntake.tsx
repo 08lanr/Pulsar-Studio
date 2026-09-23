@@ -8,9 +8,11 @@
 // not on this machine); under 720p is a warning. Then the company, bucket,
 // slug (proposed from the file name, editable), mode (narrated shown
 // disabled: the next phase), language and the few settings the worker
-// honours. Start creates the run row and opens it.
+// honours — among them the two explicit claims B0 asks for: take over a
+// folder no Studio run made, and extend a delivered film under its pins.
+// Start creates the run row and opens it.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiRequestError, getJson, postJson } from "@/lib/api-client";
 import { useT } from "@/components/locale";
 import { RUN_BUCKETS, RUN_MODES_OPEN, RUN_SLUG, type NewRunBody, type RunReply, type SourceEntry, type SourcesReply } from "@/lib/segment/api-types";
@@ -59,25 +61,42 @@ export default function RunIntake({ producers }: Props) {
   const [noDelogo, setNoDelogo] = useState(false);
   const [allowDirty, setAllowDirty] = useState(false);
   const [vision, setVision] = useState<"api" | "handoff">("api");
+  const [claimExisting, setClaimExisting] = useState(false);
+  const [extend, setExtend] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // Listings are slow with real ffprobe; only the newest request may fill the panel (a Downloads listing that lands
+  // after the person switched to Typed path is dropped, not shown under the wrong tab).
+  const listSeq = useRef(0);
 
   const list = useCallback(async (kind: DirKind, typed: string) => {
     const dir = kind === "path" ? typed.trim() : kind;
     if (!dir) return;
+    const seq = ++listSeq.current;
     setBusy(true);
     setListError(null);
     try {
       const r = await getJson<SourcesReply>(`/api/admin/films/sources?dir=${encodeURIComponent(dir)}&probe=1`);
+      if (seq !== listSeq.current) return;
       setListing(r);
       if (r.roots?.length) setRoots(r.roots.map((x) => ({ key: x.key, label: x.label, exists: x.exists })));
     } catch (e) {
+      if (seq !== listSeq.current) return;
       setListing(null);
       setListError(e instanceof ApiRequestError ? e.message : (e as Error).message);
     } finally {
-      setBusy(false);
+      if (seq === listSeq.current) setBusy(false);
     }
   }, []);
+
+  /** Switch the picker's tab: whatever an earlier listing answers from now on is stale. */
+  function switchTo(kind: DirKind) {
+    listSeq.current += 1;
+    setBusy(false);
+    setListError(null);
+    setListing(null);
+    setDirKind(kind);
+  }
 
   useEffect(() => {
     if (dirKind !== "path") void list(dirKind, "");
@@ -111,7 +130,7 @@ export default function RunIntake({ producers }: Props) {
       slug,
       mode,
       lang,
-      settings: { allow_dirty: allowDirty || undefined, no_delogo: noDelogo || undefined, to_s: firstProof ? 900 : null, vision },
+      settings: { allow_dirty: allowDirty || undefined, no_delogo: noDelogo || undefined, to_s: firstProof && !extend ? 900 : null, vision, claim_existing: claimExisting || undefined, extend: extend || undefined },
     };
     try {
       const r = await postJson<Partial<RunReply> & { error?: string }>("/api/admin/films/runs", body);
@@ -133,11 +152,11 @@ export default function RunIntake({ producers }: Props) {
         <h2 className="section-title">{tt("seg.intake.source")}</h2>
         <div className="seg" role="tablist" aria-label={tt("seg.intake.where")}>
           {roots.map((r) => (
-            <button key={r.key} type="button" role="tab" aria-selected={dirKind === r.key} className={`seg-btn ${dirKind === r.key ? "on" : ""}`} disabled={!r.exists} title={r.exists ? undefined : tt("seg.intake.rootMissing")} onClick={() => { setDirKind(r.key); setListing(null); }}>
+            <button key={r.key} type="button" role="tab" aria-selected={dirKind === r.key} className={`seg-btn ${dirKind === r.key ? "on" : ""}`} disabled={!r.exists} title={r.exists ? undefined : tt("seg.intake.rootMissing")} onClick={() => switchTo(r.key)}>
               {r.key === "downloads" ? tt("seg.intake.dir.downloads") : r.key === "onedrive" ? tt("seg.intake.dir.onedrive") : r.label}
             </button>
           ))}
-          <button type="button" role="tab" aria-selected={dirKind === "path"} className={`seg-btn ${dirKind === "path" ? "on" : ""}`} onClick={() => { setDirKind("path"); setListing(null); }}>
+          <button type="button" role="tab" aria-selected={dirKind === "path"} className={`seg-btn ${dirKind === "path" ? "on" : ""}`} onClick={() => switchTo("path")}>
             {tt("seg.intake.dir.path")}
           </button>
         </div>
@@ -241,10 +260,12 @@ export default function RunIntake({ producers }: Props) {
         </label>
         <div className="field">
           <span className="label">{tt("seg.intake.settings")}</span>
-          <label className="sgm-radio"><input type="checkbox" checked={firstProof} onChange={(e) => setFirstProof(e.target.checked)} /><span>{tt("seg.intake.firstProof")}<small>{tt("seg.intake.firstProofHint")}</small></span></label>
+          <label className="sgm-radio"><input type="checkbox" checked={firstProof && !extend} disabled={extend} onChange={(e) => setFirstProof(e.target.checked)} /><span>{tt("seg.intake.firstProof")}<small>{tt("seg.intake.firstProofHint")}</small></span></label>
           <label className="sgm-radio"><input type="checkbox" checked={noDelogo} onChange={(e) => setNoDelogo(e.target.checked)} /><span>{tt("seg.intake.noDelogo")}<small>{tt("seg.intake.noDelogoHint")}</small></span></label>
           <label className="sgm-radio"><input type="checkbox" checked={allowDirty} onChange={(e) => setAllowDirty(e.target.checked)} /><span>{tt("seg.intake.allowDirty")}<small>{tt("seg.intake.allowDirtyHint")}</small></span></label>
           <label className="sgm-radio"><input type="checkbox" checked={vision === "handoff"} onChange={(e) => setVision(e.target.checked ? "handoff" : "api")} /><span>{tt("seg.intake.visionHandoff")}<small>{tt("seg.intake.visionHandoffHint")}</small></span></label>
+          <label className="sgm-radio"><input type="checkbox" checked={claimExisting} onChange={(e) => setClaimExisting(e.target.checked)} /><span>{tt("seg.intake.claimExisting")}<small>{tt("seg.intake.claimExistingHint")}</small></span></label>
+          <label className="sgm-radio"><input type="checkbox" checked={extend} onChange={(e) => setExtend(e.target.checked)} /><span>{tt("seg.intake.extend")}<small>{tt("seg.intake.extendHint")}</small></span></label>
         </div>
         {submitError && <p className="err" role="alert">{tt("seg.intake.startFailedDetail", { detail: submitError })}</p>}
         <div className="form-actions" style={{ marginTop: 16 }}>
