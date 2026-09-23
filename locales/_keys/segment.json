@@ -269,6 +269,7 @@
   "seg.intake.rootMissing": {"zh": "这台机器上没有这个目录。", "en": "This folder does not exist on this machine."},
   "seg.review.reason.no_record": {"zh": "尚无判断记录", "en": "No record yet"},
   "seg.review.reason.rejudging": {"zh": "重判中", "en": "Re-judging"},
+  "seg.review.reason.rejudged": {"zh": "已重判，等你决定", "en": "Re-judged: your call"},
   "seg.review.rejudgingHint": {"zh": "已请求 {asked} 次重判，完成 {done} 次；等质疑者再看一遍。", "en": "{asked} re-judge(s) asked, {done} done; waiting for the skeptic to look again."},
   "seg.review.counts.rejudging": {"zh": "重判中：{n}", "en": "Re-judging: {n}"},
   "seg.review.proxyFailed": {"zh": "预览片段无法播放（正在从源片生成，稍后刷新）。", "en": "The proxy clip did not play (it is made from the source on first request; refresh in a moment)."},

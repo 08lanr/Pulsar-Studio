@@ -23,7 +23,10 @@
 // taken over quietly would have its scripts overwritten and its review
 // re-applied. A folder the scanner reads as delivered, ready or imported is
 // never cut again by a plain run; `settings.extend` is the explicit way to
-// cut the rest of a first proof under its pinned episodes.
+// cut the rest of a first proof under its pinned episodes. The same check
+// runs twice: at create time (`createRun`, so a refused run never has a
+// row) and here, before the run lock is taken, so a refused folder is never
+// written into, not even the lock file.
 
 import { copyFileSync, existsSync, linkSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
@@ -32,7 +35,7 @@ import { invalid } from "@/lib/data/errors";
 import { importQuietMs, type VideoFacts } from "@/lib/film-import/import";
 import { scanFilm } from "@/lib/film-import/scan";
 import type { FilmScan } from "@/lib/film-import/types";
-import { STUDIO_RUN_LOCK_FILE } from "@/lib/locks";
+import { LockHeldError, STUDIO_RUN_LOCK_FILE } from "@/lib/locks";
 import { readSyncRecord, ScriptsSyncError } from "@/lib/segment/scripts-sync";
 import type { FilmRun } from "@/lib/types";
 import { fail, fakePipeline, filmRoot, newestDelivered, next, refusalOf, runStep, sourceRefOf, type Env, type StageContext, type StageOutcome } from "./stages";
@@ -242,7 +245,7 @@ export function existingFolderRefusal(run: Pick<FilmRun, "bucket" | "slug" | "se
   return null;
 }
 
-/** True when `cut/` holds anything besides this run's own lock file (the worker takes `cut/.studio-run.json` before the intake runs, which creates the folder). */
+/** True when `cut/` holds anything besides a run's lock file (a restarted run of Studio's own re-takes its lock; a bare lock left by a dead worker is not a session's work). */
 export function cutFolderInUse(cutDir: string): boolean {
   try {
     return readdirSync(cutDir).some((n) => n !== STUDIO_RUN_LOCK_FILE && !n.startsWith(`${STUDIO_RUN_LOCK_FILE}.`));
@@ -251,13 +254,13 @@ export function cutFolderInUse(cutDir: string): boolean {
   }
 }
 
-/** The facts `existingFolderRefusal` judges, read from disk and the data layer. */
-export async function folderFactsOf(ctx: Pick<StageContext, "run" | "dirs" | "data" | "session" | "runner" | "env">): Promise<FolderFacts> {
+/** The facts `existingFolderRefusal` judges, read from disk and the data layer; `createRun` calls it before the row exists, with no runner. */
+export async function folderFactsOf(ctx: Pick<StageContext, "dirs" | "data" | "session" | "env"> & { run: Pick<FilmRun, "producer_id" | "bucket" | "slug">; runner?: Pick<StageContext["runner"], "fake"> }): Promise<FolderFacts> {
   const { run, dirs } = ctx;
   const cutExists = cutFolderInUse(dirs.cut);
   if (!cutExists) return { cut_exists: false, studio_made: false, scan: null, imported: false };
   const ref = sourceRefOf(run);
-  const quiet = ctx.runner.fake || fakePipeline(ctx.env) ? 0 : importQuietMs();
+  const quiet = ctx.runner?.fake || fakePipeline(ctx.env) ? 0 : importQuietMs();
   const scan = await scanFilm(ref, { root: dirs.root, ...(quiet !== undefined ? { quietMs: quiet } : {}) })
     .then((s) => ({ state: s.state, pipeline_stage: s.pipeline_stage }))
     .catch(() => null);
@@ -320,6 +323,13 @@ export async function runIntakeStage(ctx: StageContext): Promise<StageOutcome> {
   const extending = folder.cut_exists && folderDelivered(folder);
   if (claimed) ctx.log(`claiming ${sourceRefOf(run)}: cut/ exists with no Studio record (settings.claim_existing)`);
   if (extending) ctx.log(`extending ${sourceRefOf(run)}: ${folder.scan?.pipeline_stage ?? "delivered"} (${folder.scan?.state ?? "?"}), pinned to ${newestDelivered(dirs.cut)?.file ?? "no DELIVERED file"} (settings.extend)`);
+  // The folder is the run's: only now is cut/.studio-run.json written (it creates cut/ when the film is new).
+  try {
+    ctx.lock();
+  } catch (e) {
+    if (e instanceof LockHeldError) return fail(e.message);
+    throw e;
+  }
   mkdirSync(path.dirname(dirs.source), { recursive: true });
   mkdirSync(dirs.cut, { recursive: true });
   mkdirSync(dirs.work, { recursive: true });

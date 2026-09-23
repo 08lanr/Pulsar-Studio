@@ -241,7 +241,17 @@ export type JudgeOptions = {
   allow_stale?: boolean;
   onBoundary?: (record: WorkflowRecord, done: number, total: number) => void;
   env?: Record<string, string | undefined>;
+  /**
+   * The run's cancel signal (the worker's). Checked before every reviewer and
+   * skeptic call: once it is aborted no further call is made or paid for, and
+   * every boundary not yet judged is reported as `cancelled` in `errors`. The
+   * calls already made keep their job rows, so a retry pays for nothing twice.
+   */
+  signal?: AbortSignal;
 };
+
+/** The `errors[].error` text of a boundary the pass did not reach because the run was cancelled. */
+export const CANCELLED = "cancelled";
 
 export type JudgedJob = { boundary_s: number; role: "look" | "verify"; job_id: string; cost_cents: number; skipped: boolean };
 
@@ -327,9 +337,16 @@ export async function judgeBoundaries(run: SegmentRun, doc: OptionsDoc, opts: Ju
   const errors: JudgeResult["errors"] = [];
   let done = 0;
   const keyFor = (b: number, role: "look" | "verify") => `verify_boundaries:${run.id}:${b}:${role}:${sha.slice(0, 12)}:${BOUNDARY_RULE_VERSION}:${attempt}`;
+  const cancelled = () => opts.signal?.aborted === true;
 
   const judgeOne = async (boundary: OptionsBoundary): Promise<WorkflowRecord | null> => {
     const b = boundary.boundary_s;
+    // A cancelled run makes no further call: the boundary is reported, not judged.
+    if (cancelled()) {
+      errors.push({ boundary_s: b, error: CANCELLED });
+      done += 1;
+      return null;
+    }
     try {
       const strips = await boundaryStrips(run.cut_dir, boundary, layout);
       const look = buildBoundaryReview({ boundary, strips, layout, band: doc.band, film_notes: filmNotes, provider, model });
@@ -355,6 +372,8 @@ export async function judgeBoundaries(run: SegmentRun, doc: OptionsDoc, opts: Ju
         // The reviewer refused (no strip, unreadable strip). apply_vision.py faults it on the confidence alone; no skeptic is paid for.
         verdict = { agree: false, fault: "", better_key: "", reason: "reviewer refused (confidence 0); not verified" };
       } else {
+        // The reviewer's row is done and reused by a retry; the skeptic is not called for a cancelled run.
+        if (cancelled()) throw new Error(CANCELLED);
         const dense = opts.dense ? await opts.dense(boundary, pick.chosen_t) : null;
         const verify = buildBoundarySkeptic({ boundary, strips, pick, dense, legal_cuts: legalCutsNear(candidates, b), layout, band: doc.band, film_notes: filmNotes, provider, model });
         const verified2 = await runJob<BoundaryVerdict>(session, {
@@ -379,7 +398,7 @@ export async function judgeBoundaries(run: SegmentRun, doc: OptionsDoc, opts: Ju
       opts.onBoundary?.(record, done, wanted.length);
       return record;
     } catch (e) {
-      const message = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+      const message = e instanceof Error ? (e.message === CANCELLED ? CANCELLED : `${e.name}: ${e.message}`) : String(e);
       errors.push({ boundary_s: b, error: message });
       done += 1;
       return null;
@@ -414,9 +433,11 @@ export async function judgeBoundaries(run: SegmentRun, doc: OptionsDoc, opts: Ju
 
 // ---- the band-fix path ----------------------------------------------------------------------------
 
-export type BandFixOptions = Pick<JudgeOptions, "label" | "llm" | "session" | "attempt" | "env" | "out_file" | "candidates"> & {
+export type BandFixOptions = Pick<JudgeOptions, "label" | "llm" | "session" | "attempt" | "env" | "out_file" | "candidates" | "signal"> & {
   /** The first pass's records (the audit file), for the judge's context and the note. */
   first_pass?: FirstPassRecord[];
+  /** The run's scratch folder (STUDIO_WORK_DIR/<run>), where anything the fix renders for itself must land; it renders nothing today, and the film folder takes only the record and the note. */
+  work_dir?: string;
 };
 
 export type BandFixGroupResult = { group: BandFixGroup; judged: BandFixJudged; resolution: BandFixResolution };
@@ -460,8 +481,13 @@ export async function judgeBandFix(run: SegmentRun, doc: OptionsDoc, groups: Ban
   const jobs: JudgedJob[] = [];
   const results: BandFixGroupResult[] = [];
   const keyFor = (g: string, role: string) => `verify_boundaries:${run.id}:band:${g}:${role}:${sha.slice(0, 12)}:${BAND_FIX_RULE_VERSION}:${attempt}`;
+  // A cancelled run stops the fix between calls; the rows already made are reused by a retry.
+  const checkCancelled = () => {
+    if (opts.signal?.aborted) throw new Error(`the band fix was ${CANCELLED} before its next call`);
+  };
 
   for (const group of groups) {
+    checkCancelled();
     const boundaries = group.boundaries.map((b) => findBoundary(doc, b.key) ?? (() => { throw new SegmentError("options", `band fix ${group.label}: boundary ${b.key} is not in review/options.json`); })());
     const strips: StripImage[][] = [];
     for (const b of boundaries) strips.push(await boundaryStrips(run.cut_dir, b, layout));
@@ -488,6 +514,7 @@ export async function judgeBandFix(run: SegmentRun, doc: OptionsDoc, groups: Ban
     const verdicts: BandFixVerdict[] = [];
     if (pick.confidence > 0) {
       for (const lens of [0, 1] as const) {
+        checkCancelled();
         const verify = buildBandFixSkeptic(input, pick, lens);
         const r = await runJob<BandFixVerdict>(session, {
           kind: JOB_KIND,

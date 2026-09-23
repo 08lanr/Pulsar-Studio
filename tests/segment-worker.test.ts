@@ -8,7 +8,13 @@
 // refused at intake with the reason; a band-breaking move is refused at the
 // route; a run set back a stage resumes from its artifacts; a first proof
 // is extended under its pins by a run that says so, and a delivered film or
-// a session's folder is refused otherwise.
+// a session's folder is refused otherwise (at create time, and again by the
+// worker before it writes anything into the folder); a run cancelled at its
+// review leaves a folder a new run on the same slug takes over with fresh
+// options; a film delivered to its end has nothing to extend; a re-judged
+// boundary waits for the person; an Import now pressed before READY still
+// applies; a cancel leaves the run lock to a worker whose lease is live; the
+// join clips are cut from the built episodes.
 
 process.env.PROMO_RENDER = "off";
 process.env.STUDIO_FAKE_PIPELINE = "1";
@@ -24,6 +30,7 @@ import { isDataError } from "@/lib/data";
 import { fixtureData, resetFixtureStore } from "@/lib/data/fixture";
 import { resetImportRegistry } from "@/lib/film-import/import";
 import { studioRunLockPath } from "@/lib/locks";
+import { ensureJoinProxy } from "@/lib/segment/evidence";
 import { FakePipelineRunner } from "@/lib/segment/fake-runner";
 import { reviewStateOf } from "@/lib/segment/plan";
 import { runDirs, visionLabel, waitingOf } from "@/lib/segment/stages";
@@ -80,14 +87,43 @@ async function newRun(overrides: Partial<Parameters<typeof createRun>[1]> = {}):
   return createRun(staff(), { producer_id: FIXTURE_PRODUCER_ID, source_path: sourceFile, bucket: "low-quality", slug: "a-fixture-film", mode: "by_eye_2min", lang: "en", settings: {}, ...overrides });
 }
 
-async function expectCode(code: string, fn: () => Promise<unknown>, what: string): Promise<void> {
+async function expectCode(code: string, fn: () => Promise<unknown>, what: string, message?: RegExp): Promise<void> {
   try {
     await fn();
   } catch (e) {
-    if (isDataError(e) && e.code === code) return;
+    if (isDataError(e) && e.code === code) {
+      if (message) assert.match(e.message, message, what);
+      return;
+    }
     throw e;
   }
   assert.fail(`${what}: expected ${code}`);
+}
+
+/** Tick (with a short pause, for a readiness poll's retry_after) until `until` holds or the run ends. */
+async function settleUntil(id: string, until: (run: FilmRun) => boolean): Promise<FilmRun> {
+  for (let i = 0; i < 60; i++) {
+    await tick();
+    const run = await get(id);
+    if (until(run) || run.stage === "done" || run.stage === "failed" || run.stage === "cancelled") return run;
+    await new Promise<void>((r) => setTimeout(r, 60));
+  }
+  throw new Error("the run did not settle");
+}
+
+/** Drive a fresh run to the film-meta wait: the box accepted, the one open boundary accepted, the review applied. */
+async function toFilmMeta(overrides: Partial<Parameters<typeof createRun>[1]> = {}): Promise<FilmRun> {
+  const created = await newRun(overrides);
+  let run = await settle(created.id);
+  assert.equal(run.stage, "watermark", run.error_text ?? "");
+  await decideRun(staff(), run.id, { kind: "watermark", accept: true });
+  run = await settle(run.id);
+  assert.equal(run.stage, "review", run.error_text ?? "");
+  await decideRun(staff(), run.id, { kind: "boundary", boundary_s: 9, action: "accept" });
+  await decideRun(staff(), run.id, { kind: "apply_review" });
+  run = await settle(run.id);
+  assert.equal(run.stage, "film_meta", run.error_text ?? "");
+  return run;
 }
 
 test("the whole run through the fake pipeline: every stage, every wait, the lock, the job rows, the snapshot, the override file, the title", async () => {
@@ -171,6 +207,14 @@ test("the whole run through the fake pipeline: every stage, every wait, the lock
   assert.equal(view.joins.length, 2);
   assert.equal(view.film_meta?.default.spoiler_from_s, 7.5);
   assert.equal((run.stage_detail as { render: { episodes: number } }).render.episodes, 3);
+  // The join clips are cut from the BUILT episodes through Studio's own links in the work dir, never from the source or the pipeline's path.
+  assert.equal(view.joins[0].proxy_url, `/api/film-runs/${run.id}/evidence/work/joins/j01_t4_000.mp4`);
+  const joinClip = await ensureJoinProxy(run, 1, 4, runner());
+  assert.ok(joinClip && existsSync(joinClip), "the join clip is made on request");
+  assert.equal(path.relative(dirs.work, joinClip!).replace(/\\/g, "/"), "joins/j01_t4_000.mp4");
+  assert.deepEqual(readdirSync(path.join(dirs.work, "eps")).map((n) => n.replace(/-\d+-\d+\.mp4$/, "")).sort(), ["ep01", "ep02"], "one link per built episode the clip needed");
+  assert.equal(await ensureJoinProxy(run, 1, 4.5, runner()), null, "not the plan's end of episode 1");
+  assert.equal(await ensureJoinProxy(run, 3, 15, runner()), null, "no join after the last episode");
 
   // A join moved after the QA: pick_cuts --repin declares the one move, the render re-encodes the two episodes, the QA re-measures them.
   await expectCode("conflict", () => decideRun(staff(), run.id, { kind: "join", join_index: 1, to_t: 3.5 }), "a join that makes ep1 3.5 s");
@@ -240,13 +284,10 @@ test("a first proof is extended by a run that says so: the index is redone to th
   const titleId = run.title_id!;
   assert.equal((await fixtureData.getTitle(staff(), titleId)).episodes.length, 2);
 
-  // A plain run on the delivered film is refused at intake, in words: nothing of the film is touched.
-  const plain = await newRun();
-  const refused = await settle(plain.id);
-  assert.equal(refused.stage, "failed");
-  assert.match(refused.error_text ?? "", /is imported as a title: a delivered film is not cut again/);
-  assert.match(refused.error_text ?? "", /"extend a delivered film"/);
+  // A plain run on the delivered film is refused at create time, in words: no row, no lock, nothing of the film touched.
+  await expectCode("conflict", () => newRun(), "a plain run on a delivered film", /is imported as a title: a delivered film is not cut again.*"extend a delivered film"/);
   assert.equal(whisperDuration(), 9, "the refusal came before any script ran");
+  assert.equal((await fixtureData.listFilmRuns(staff())).length, 1, "the refused run has no row");
 
   // The extension: the whole film, the delivered pins kept (settings.extend is the explicit word).
   const ext = await newRun({ settings: { extend: true } });
@@ -290,17 +331,62 @@ test("a first proof is extended by a run that says so: the index is redone to th
   const title = await fixtureData.getTitle(staff(), titleId);
   assert.equal(title.episodes.length, 3);
   assert.equal(title.title.name_en, "A Proof, Extended");
+
+  // The film is delivered to its end: another extension has nothing to plan, and says so instead of "judged outside Studio".
+  const again = await newRun({ settings: { extend: true } });
+  let nothing = await settle(again.id);
+  assert.equal(nothing.stage, "watermark", nothing.error_text ?? "");
+  await decideRun(staff(), nothing.id, { kind: "watermark", accept: true });
+  nothing = await settle(nothing.id);
+  assert.equal(nothing.stage, "failed");
+  assert.match(nothing.error_text ?? "", /is delivered to its end \(cuts-0-15-DELIVERED\.json ends at 15 s; this run plans to 15 s\): there is nothing to extend/);
+  assert.equal((nothing.stage_detail as { failed_stage: string }).failed_stage, "plan");
 });
 
-test("a film folder no Studio run made is refused at intake unless the run claims it in so many words", async () => {
+test("a run cancelled at its review leaves a folder Studio judged: a new run on the same slug takes it over with fresh options under its own label", async () => {
+  const first = await newRun();
+  let a = await settle(first.id);
+  await decideRun(staff(), a.id, { kind: "watermark", accept: true });
+  a = await settle(a.id);
+  assert.equal(a.stage, "review", a.error_text ?? "");
+  const dirs = runDirs(a);
+  const options = path.join(dirs.cut, "review", "options.json");
+  assert.match(JSON.parse(readFileSync(options, "utf8")).applied.label, new RegExp(`^${visionLabel(a)}$`), "the fake apply_vision stamped the options with run A's label");
+  await cancelRun(staff(), a.id);
+
+  // Run B: the intake adopts Studio's own folder, the index is reused, and the plan re-emits the options A's cancelled review had applied.
+  const second = await newRun();
+  let b = await settle(second.id);
+  assert.equal(b.stage, "watermark", b.error_text ?? "");
+  await decideRun(staff(), b.id, { kind: "watermark", accept: true });
+  b = await settle(b.id);
+  assert.equal(b.stage, "review", b.error_text ?? "");
+  const vision = readdirSync(path.join(dirs.cut, "review", "vision"));
+  assert.ok(vision.includes(`${visionLabel(a)}.json`), "A's pass file stays under A's label");
+  assert.ok(vision.includes(`${visionLabel(b)}.json`), "B judged the fresh options under its own label");
+  assert.equal(JSON.parse(readFileSync(options, "utf8")).applied.label, visionLabel(b));
+  const { state } = await reviewStateOf({ run: b, dirs });
+  assert.deepEqual(state.boundaries.map((x) => x.boundary_s), [4, 9]);
+  await decideRun(staff(), b.id, { kind: "boundary", boundary_s: 9, action: "accept" });
+  await decideRun(staff(), b.id, { kind: "apply_review" });
+  b = await settle(b.id);
+  assert.equal(b.stage, "film_meta", b.error_text ?? "");
+});
+
+test("a film folder no Studio run made is refused at intake unless the run claims it in so many words, without a lock file ever touching it; the create route refuses it first", async () => {
   const foreign = path.join(runDirs({ id: "x", bucket: "low-quality", slug: "a-fixture-film" }).cut);
+  // The folder appears after the row was made (a session started the film between create and the worker's tick).
+  const plain = await newRun();
   mkdirSync(path.join(foreign, "index"), { recursive: true });
   writeFileSync(path.join(foreign, "index", "watermark.json"), JSON.stringify({ box: { x: 1, y: 2, w: 3, h: 4 } }));
-  const plain = await newRun();
   const refused = await settle(plain.id);
   assert.equal(refused.stage, "failed");
   assert.match(refused.error_text ?? "", /cut already exists and no Studio run made it \(no cut\/\.studio-scripts\.json\): a session's work/);
-  assert.equal(existsSync(path.join(foreign, "scripts")), false, "nothing was synced into the session's folder");
+  assert.deepEqual(readdirSync(foreign), ["index"], "nothing was written into the session's folder: no lock file, no scripts");
+
+  // With the folder there, the create route refuses the plain run before a row exists.
+  await expectCode("conflict", () => newRun(), "a plain run on a session's folder", /no Studio run made it/);
+  assert.equal((await fixtureData.listFilmRuns(staff())).length, 1);
 
   const claimed = await newRun({ settings: { claim_existing: true } });
   const run = await settle(claimed.id);
@@ -341,6 +427,38 @@ test("cancel stops a waiting run and removes the run lock; the cancelled run is 
   assert.deepEqual(r.started, []);
   await expectCode("conflict", () => cancelRun(staff(), run.id), "a second cancel");
   await expectCode("conflict", () => decideRun(staff(), run.id, { kind: "watermark", accept: true }), "a decision on a cancelled run");
+});
+
+test("cancel leaves the run lock to a worker whose lease is live: its scripts may still be writing, and its own finally removes the file", async () => {
+  const created = await newRun();
+  let run = await settle(created.id);
+  assert.equal(run.stage, "watermark");
+  const dirs = runDirs(run);
+  assert.ok(existsSync(studioRunLockPath(dirs.cut)));
+  // A worker mid-script holds a live lease; the route's cancel must not pull the lock from under its children.
+  const leased = await fixtureData.claimFilmRun(systemSession(), run.id, { owner: "other-host:9", revision: run.revision });
+  assert.ok(leased);
+  run = await cancelRun(staff(), run.id);
+  assert.equal(run.stage, "cancelled");
+  assert.ok(existsSync(studioRunLockPath(dirs.cut)), "the lock stays while the lease is live");
+});
+
+test("Import now recorded while the film is not yet READY applies once the scanner reads READY, without a second press", async () => {
+  let run = await toFilmMeta();
+  const dirs = runDirs(run);
+  // A render still writing: the scanner reads RENDERING, so the hand-off waits for READY and polls.
+  writeFileSync(path.join(dirs.cut, "eps", "ep01.part.mp4"), "still encoding");
+  await decideRun(staff(), run.id, { kind: "film_meta", display_title_en: "Early Press", crazydramas_slug: null, spoiler_from_s: null, exclusions: [], live_poster: null });
+  run = await settle(run.id);
+  assert.equal(run.stage, "handoff", run.error_text ?? "");
+  assert.equal(waitingOf(run)?.for, "ready");
+  await decideRun(staff(), run.id, { kind: "import_now" });
+  // The next poll sees the wait again (the decision is marked seen), then the film turns READY: the early press is honoured.
+  rmSync(path.join(dirs.cut, "eps", "ep01.part.mp4"));
+  run = await settleUntil(run.id, (r) => r.stage !== "handoff" || waitingOf(r)?.for === "import");
+  assert.equal(run.stage, "done", run.error_text ?? JSON.stringify(waitingOf(run)));
+  assert.ok(run.title_id);
+  assert.deepEqual(run.decisions.filter((d) => d.action === "import_now").length, 1, "one press was enough");
 });
 
 test("a landscape source is refused at intake with the reason; a second live run on the same film folder is refused at creation; retry sends a failed run back", async () => {
@@ -386,7 +504,7 @@ test("the source picker lists the file with its parsed name and refuses a folder
   await expectCode("invalid", () => listSources(path.join(root, "nowhere")), "outside the roots");
 });
 
-test("a reject sends one boundary back to the judge; the re-judged answer (a second pass file) is what the review then shows", async () => {
+test("a reject sends one boundary back to the judge; the re-judged answer (a second pass file) is what the review then shows, and the person still closes it", async () => {
   const created = await newRun();
   let run = await settle(created.id);
   await decideRun(staff(), run.id, { kind: "watermark", no_delogo: true });
@@ -401,9 +519,13 @@ test("a reject sends one boundary back to the judge; the re-judged answer (a sec
   assert.ok(existsSync(path.join(dirs.cut, "review", "vision", `${visionLabel(run)}_r1.json`)), "the re-judge is its own record file");
   assert.deepEqual((run.stage_detail as { rejudges_done: Record<string, number> }).rejudges_done, { "9": 1 });
   const { state } = await reviewStateOf({ run, dirs });
-  assert.equal(state.boundaries[1].status, "pre_accepted", "the fake's second look is sure");
-  assert.equal(state.boundaries[1].confidence, 0.9);
-  assert.equal(state.complete, true);
+  assert.equal(state.boundaries[1].confidence, 0.9, "the fake's second look is sure");
+  assert.equal(state.boundaries[1].status, "needs_decision", "sure or not, the answer the person asked for is theirs to accept");
+  assert.deepEqual(state.boundaries[1].reasons, ["rejudged"]);
+  assert.equal(state.complete, false);
+  await expectCode("conflict", () => decideRun(staff(), run.id, { kind: "apply_review" }), "apply before the re-judged boundary is accepted");
+  await decideRun(staff(), run.id, { kind: "boundary", boundary_s: 9, action: "accept", reason: "the second look is right" });
+  assert.equal((await reviewStateOf({ run: await get(run.id), dirs })).state.complete, true);
   await decideRun(staff(), run.id, { kind: "apply_review" });
   run = await settle(run.id);
   assert.equal(run.stage, "film_meta", run.error_text ?? "");

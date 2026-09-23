@@ -1,12 +1,14 @@
 "use client";
 
 // Join review (plan B3, after the render): the built episodes' joins, one
-// per pair — the last 2 s of k and the first 2 s of k+1 back to back, from
-// the proxy the evidence route makes around the join — with "Move this
-// join", which picks a nearby legal candidate and asks the worker for
+// per pair — the last 2 s of k and the first 2 s of k+1 back to back, cut by
+// the evidence route from Studio's own hardlinks of the built `eps/epNN.mp4`
+// files (`work/joins/`), so the clip shows the join as cut_episodes.py
+// encoded it, delogo included, never the source — with "Move this join",
+// which picks a nearby legal candidate and asks the worker for
 // `cut_episodes.py --repin OLD=NEW` (only the two episodes it touches
-// re-render). The run's DELIVERED is then refreshed and a re-import
-// updates the title's hashes.
+// re-render; the join's clip is remade once the files are newer). The run's
+// DELIVERED is then refreshed and a re-import updates the title's hashes.
 
 import { useState } from "react";
 import { useT } from "@/components/locale";

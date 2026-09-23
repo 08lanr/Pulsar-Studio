@@ -13,6 +13,7 @@ import path from "node:path";
 import type { Session } from "@/lib/auth";
 import { getData, type NewFilmRun } from "@/lib/data";
 import { conflict, invalid, notFound } from "@/lib/data/errors";
+import { leaseLive } from "@/lib/data/film-runs";
 import { importProgress, importQuietMs, scannerProbe } from "@/lib/film-import/import";
 import { parseDeliveredPlan } from "@/lib/film-import/manifest";
 import { scanFilm } from "@/lib/film-import/scan";
@@ -21,9 +22,9 @@ import { lastLogLine } from "@/lib/segment/index";
 import { loadCandidates, legalCutsNear } from "@/lib/segment/strips";
 import { readLock, studioRunLock, studioRunLockPath, LockHeldError, type StudioRunLock } from "@/lib/locks";
 import type { FilmRun, FilmRunSettings, Json } from "@/lib/types";
-import { cutRelUrl, evidenceUrl, proxyUrl } from "./evidence";
+import { cutRelUrl, evidenceUrl, joinProxyUrl, proxyUrl } from "./evidence";
 import { defaultFilmMeta, readFilmMeta, type FilmMetaForm } from "./handoff";
-import { resolveSourcePath } from "./intake";
+import { existingFolderRefusal, folderFactsOf, resolveSourcePath } from "./intake";
 import { lengthsAround, moveRefusal, reviewStateOf, type BoundaryReview, type ReviewState } from "./plan";
 import { readQa, type QaEpisode } from "./qa";
 import { readPlan } from "./render";
@@ -176,7 +177,8 @@ export async function stageView(run: FilmRun, env: Env = process.env): Promise<S
       delivered: plan.pin_from ?? null,
       moves: plan.moves,
     };
-    view.joins = plan.episodes.slice(0, -1).map((e) => ({ index: e.n, end: e.end, proxy_url: proxyUrl(run.id, e.end) }));
+    // The join's clip is cut from the BUILT episodes (the last 2 s of k, the first 2 s of k+1), not from the source around the time.
+    view.joins = plan.episodes.slice(0, -1).map((e) => ({ index: e.n, end: e.end, proxy_url: joinProxyUrl(run.id, e.n, e.end) }));
   }
 
   const newest = newestDelivered(cut);
@@ -218,7 +220,13 @@ export type CreateRunInput = {
   settings?: FilmRunSettings | null;
 };
 
-/** The run a staff administrator starts: the source must be a file under a picker root; one live run per film folder. */
+/**
+ * The run a staff administrator starts: the source must be a file under a
+ * picker root; one live run per film folder; and a film folder already on
+ * disk is refused here, before the row exists, by the intake's own rule
+ * (B0: a session's film without the claim, a delivered film without
+ * `extend`), so a refused run never gets a row, a lock file or a worker.
+ */
 export async function createRun(session: Session, input: CreateRunInput, env: Env = process.env): Promise<FilmRun> {
   const abs = resolveSourcePath(input.source_path, env);
   if (!existsSync(abs) || !statSync(abs).isFile()) throw invalid(`${abs} is not a file`);
@@ -226,6 +234,10 @@ export async function createRun(session: Session, input: CreateRunInput, env: En
   const live = (await data.listFilmRuns(session)).find((r) => r.bucket === input.bucket && r.slug === input.slug && !isTerminal(r.stage));
   if (live) throw conflict(`run ${live.id} is already driving ${input.bucket}/${input.slug} (stage ${live.stage}); cancel it first or choose another slug`);
   const row: NewFilmRun = { producer_id: input.producer_id, source_path: abs, bucket: input.bucket, slug: input.slug, mode: input.mode, lang: input.lang ?? "en", settings: input.settings ?? {} };
+  const dirs = runDirs({ id: "new", bucket: row.bucket, slug: row.slug }, env);
+  const folder = await folderFactsOf({ run: { producer_id: row.producer_id, bucket: row.bucket, slug: row.slug }, dirs, data, session, env });
+  const refusal = existingFolderRefusal({ bucket: row.bucket, slug: row.slug, settings: row.settings ?? {} }, folder);
+  if (refusal) throw conflict(refusal);
   return data.createFilmRun(session, row);
 }
 
@@ -364,13 +376,22 @@ export async function decideRun(session: Session, runId: string, input: Decision
 
 // ---- cancel -------------------------------------------------------------------------------------------------------------------------
 
-/** Cancel: the row goes to `cancelled` now (the CAS ignores the lease); a worker mid-script sees it at its next heartbeat and kills the child. */
+/**
+ * Cancel: the row goes to `cancelled` now (the CAS ignores the lease); a
+ * worker mid-script sees it at its next heartbeat, kills the child and
+ * releases the run lock itself. The lock is removed here only when no live
+ * lease holds the run (a waiting run, or a dead worker's): while the worker's
+ * scripts may still be writing, `cut/.studio-run.json` stays, so a session
+ * reading the README's rule does not start pick_cuts or cut_episodes over
+ * Studio's own children.
+ */
 export async function cancelRun(session: Session, runId: string, env: Env = process.env): Promise<FilmRun> {
   const data = getData();
   const run = await data.getFilmRun(session, runId);
   if (isTerminal(run.stage)) throw conflict(`the run is already ${run.stage}`);
   const detail = { ...(run.stage_detail as Record<string, Json>), cancelled_from: run.stage, waiting: null };
   const out = await data.setFilmRunStage(session, runId, { stage: "cancelled", stage_detail: detail as Json, revision: run.revision });
+  if (leaseLive(run)) return out;
   try {
     const dirs = runDirs(run, env);
     if (existsSync(dirs.cut)) studioRunLock(dirs.cut, { run_id: run.id, stage: "cancelled" }).release();

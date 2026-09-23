@@ -7,6 +7,10 @@
 // minutes, the delivered files exactly 1..N), then for "Import now", which
 // runs the phase-1 import for the run's company (an update when the film
 // was imported before), follows its progress and puts the title on the run.
+// "Import now" recorded while the film is not yet READY is kept, not
+// consumed by the readiness wait: the stage reads the newest `import_now`
+// since the film-meta (or join) decision it follows, so an API caller's
+// early press applies once the scanner reads READY, as the wait's note says.
 
 import { writeFileSync } from "node:fs";
 import path from "node:path";
@@ -16,7 +20,7 @@ import { importIsRunning, importProgress, importQuietMs, scannerProbe, startImpo
 import { parseFilmMeta } from "@/lib/film-import/manifest";
 import { scanFilm } from "@/lib/film-import/scan";
 import type { FilmMeta, FilmScan } from "@/lib/film-import/types";
-import type { FilmRun, Json } from "@/lib/types";
+import type { FilmRun, FilmRunDecision, Json } from "@/lib/types";
 import { readPlan } from "./render";
 import { DECISION, decisionData, fail, fakePipeline, next, pendingDecision, readJson, sourceRefOf, wait, type StageContext, type StageOutcome } from "./stages";
 
@@ -43,6 +47,11 @@ export function readFilmMeta(cutDir: string): FilmMeta | null {
   }
 }
 
+/** The crazydramas slug a run's slug suggests: underscores become hyphens and a scratch slug's leading `_` goes (`_studio-smoke` → `studio-smoke`, which the decide route's slug rule accepts). */
+export function suggestedCrazydramasSlug(slug: string): string {
+  return slug.replace(/_/g, "-").replace(/^-+|-+$/g, "");
+}
+
 /** What the form starts from: the file when there is one, else the folder's title, the run's slug and the spoiler line at half the runtime. */
 export function defaultFilmMeta(run: Pick<FilmRun, "slug" | "lang">, cutDir: string): FilmMetaForm {
   const have = readFilmMeta(cutDir);
@@ -55,7 +64,7 @@ export function defaultFilmMeta(run: Pick<FilmRun, "slug" | "lang">, cutDir: str
     .join(" ");
   return {
     display_title_en: have?.display_title_en ?? title,
-    crazydramas_slug: have?.crazydramas_slug ?? run.slug.replace(/_/g, "-"),
+    crazydramas_slug: have?.crazydramas_slug ?? suggestedCrazydramasSlug(run.slug),
     spoiler_from_s: have?.spoiler_from_s ?? (runtime ? Math.round((runtime / 2) * 1000) / 1000 : null),
     exclusions: have?.exclusions.map((e) => ({ from_s: e.from_s, to_s: e.to_s, why: e.why, kind: e.kind })) ?? [],
     live_poster: have?.live_poster ?? null,
@@ -117,12 +126,28 @@ function progressJson(p: ImportProgress | null): Json {
   return { step: p.step, episode: p.episode, total: p.total, what: p.what, counts: p.counts as unknown as Json, error: p.error, title_id: p.title_id, result: (p.result as unknown as Json) ?? null };
 }
 
+/**
+ * The newest `import_now` recorded after the film-meta or join decision this
+ * hand-off follows, pending or already seen: a readiness wait marks every
+ * decision seen, and an "Import now" posted while the film was not yet READY
+ * must still apply once it is. A join or a new film-meta starts afresh (the
+ * episodes or the file changed under the earlier press). Pure.
+ */
+export function importNowSince(run: Pick<FilmRun, "decisions">): FilmRunDecision | null {
+  let latest: FilmRunDecision | null = null;
+  for (const d of run.decisions) {
+    if (d.action === DECISION.film_meta || d.action === DECISION.join) latest = null;
+    else if (d.action === DECISION.import_now) latest = d;
+  }
+  return latest;
+}
+
 export async function runHandoffStage(ctx: StageContext): Promise<StageOutcome> {
   const { run, dirs } = ctx;
   if (pendingDecision(run, DECISION.join)) return next("render", { note: "a join moves: re-rendering the two episodes it touches" });
   const scan = await scanRun(ctx);
   const ready = scan.state === "READY" || scan.state === "IMPORTED" || scan.state === "K_CHANGED";
-  const importNow = pendingDecision(run, DECISION.import_now);
+  const importNow = importNowSince(run);
   if (!importNow) {
     if (!ready) return wait("ready", { scan: scanJson(scan), ready: false }, ctx.runner.fake ? 200 : READY_POLL_MS);
     return wait("import", { scan: scanJson(scan), ready: true });

@@ -107,6 +107,13 @@ export function leaseHeldBy(run: Pick<FilmRun, "lease_owner" | "leased_until">, 
   return Number.isFinite(until) && until > nowMs;
 }
 
+/** True while any worker holds a live lease on the run (a waiting run holds none; an expired lease is a dead worker's). */
+export function leaseLive(run: Pick<FilmRun, "lease_owner" | "leased_until">, nowMs = Date.now()): boolean {
+  if (!run.lease_owner) return false;
+  const until = Date.parse(run.leased_until ?? "");
+  return Number.isFinite(until) && until > nowMs;
+}
+
 const leaseMsOf = (ms: number | undefined): number => {
   if (ms === undefined) return FILM_RUN_LEASE_MS;
   if (!Number.isInteger(ms) || ms <= 0) throw invalid("leaseMs must be a positive integer");

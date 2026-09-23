@@ -152,7 +152,7 @@ export function titleFromSlug(slug: string): string {
 
 // ---- the boundary review model ---------------------------------------------------------------------------
 
-export type CardReason = "low_confidence" | "skeptic" | "fault" | "no_record" | "rejudging" | "band";
+export type CardReason = "low_confidence" | "skeptic" | "fault" | "no_record" | "rejudged" | "rejudging" | "band";
 
 export type ReviewCard = {
   key: string;

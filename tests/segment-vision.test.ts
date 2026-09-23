@@ -467,6 +467,36 @@ test("judgeBoundaries keeps a failed boundary out of the result and skips the sk
   assert.equal(again.records.length, 2);
 });
 
+test("a cancelled run stops the pass and the band fix between calls: nothing further is called or paid for, and the boundaries not reached read cancelled", async () => {
+  const cut = tempCut();
+  const doc = await loadOptionsDoc(cut);
+  const controller = new AbortController();
+  controller.abort();
+  const fake = fakeLlm();
+  const r = await judgeBoundaries({ id: RUN_ID, cut_dir: cut }, doc, { label: "cancelled", llm: fake.llm, signal: controller.signal });
+  assert.ok(!isUnavailable(r));
+  assert.equal(fake.calls.length, 0, "no model call after the cancel");
+  assert.deepEqual(r.records, []);
+  assert.deepEqual(r.errors.map((e) => e.error), ["cancelled", "cancelled"]);
+  assert.equal(r.cost_cents, 0);
+  // Aborted after the reviewer's call: the skeptic is not paid for; the reviewer's row is done and reused by a retry.
+  const later = new AbortController();
+  const seen = fakeLlm();
+  const llm = async <T>(call: StructuredCall<T>): Promise<StructuredResult<T>> => {
+    const out = await seen.llm(call);
+    later.abort();
+    return out;
+  };
+  const partial = await judgeBoundaries({ id: RUN_ID, cut_dir: cut }, doc, { label: "cancelled-late", llm, signal: later.signal, concurrency: 1 });
+  assert.ok(!isUnavailable(partial));
+  assert.equal(seen.calls.length, 1, "one reviewer call, no skeptic, nothing for the second boundary");
+  assert.deepEqual(partial.errors.map((e) => e.error), ["cancelled", "cancelled"]);
+  const { doc: bdoc, group } = await bandInput();
+  const band = fakeLlm();
+  await assert.rejects(judgeBandFix({ id: RUN_ID, cut_dir: cut }, bdoc, [group], { label: "0-end", llm: band.llm, signal: controller.signal, candidates: null }), /the band fix was cancelled before its next call/);
+  assert.equal(band.calls.length, 0);
+});
+
 test("the real apply_vision.py accepts the file (skipped when the drama-remix checkout or its Python is not on this machine)", async (t) => {
   const script = path.join(dramaRemixRoot(), "scripts", "cut-only", "apply_vision.py");
   const probe = existsSync(script) ? spawnSync(pipelinePython(), ["-c", "import sys; print(sys.version_info[0])"], { encoding: "utf8" }) : null;

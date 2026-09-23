@@ -3874,5 +3874,6 @@
   "seg.intake.claimExisting": "接管一个不是 Studio 建的影片目录",
   "seg.intake.claimExistingHint": "默认拒绝：目录里已有 cut/ 却没有 Studio 的记录（会话的工作）。勾选即明确认领：脚本会被重新同步。",
   "seg.intake.extend": "续切一部已交付的影片",
-  "seg.intake.extendHint": "已交付、就绪或已导入的影片默认拒绝再切。勾选后保留已交付的分集（钉住），只切剩下的部分；关闭“先只做前 15 分钟”。"
+  "seg.intake.extendHint": "已交付、就绪或已导入的影片默认拒绝再切。勾选后保留已交付的分集（钉住），只切剩下的部分；关闭“先只做前 15 分钟”。",
+  "seg.review.reason.rejudged": "已重判，等你决定"
 }

@@ -13,9 +13,10 @@
 // it waits, ends or fails. While a script runs the lease is renewed every
 // thirty seconds and the row re-read: a `cancelled` row aborts the child
 // (`taskkill /T /F`) and releases the locks. Every stage is a `segment_film`
-// job row (cost 0) on the run. `cut/.studio-run.json` is taken when a run
-// is first driven and removed when it ends, so a Claude Code session sees
-// Studio is at work in that folder.
+// job row (cost 0) on the run. `cut/.studio-run.json` is taken once the
+// intake's folder check has passed (a refused folder never gets it), before
+// every later stage, and removed when the run ends, so a Claude Code session
+// sees Studio is at work in that folder.
 
 import { appendFileSync, mkdirSync, renameSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -86,7 +87,7 @@ export function realRunner(env: Env = process.env): PipelineRunner {
       const dense = req.opts.dense === undefined ? (_boundary: unknown, chosenT: number) => renderDenseStrip({ src: path.join(req.run.cut_dir, "..", "source", "original.mp4"), at: chosenT, outDir }, { env }).catch(() => null) : req.opts.dense;
       return judgeBoundaries(req.run, req.doc, { ...req.opts, dense });
     },
-    bandFix: (req: BandFixRequest): Promise<BandFixResult | JudgeUnavailable> => judgeBandFix(req.run, req.doc, req.groups, { label: req.label, session: req.session, env }),
+    bandFix: (req: BandFixRequest): Promise<BandFixResult | JudgeUnavailable> => judgeBandFix(req.run, req.doc, req.groups, { label: req.label, session: req.session, env, work_dir: req.work_dir, signal: req.signal }),
     async proxy(src: string, at: number, out: string): Promise<void> {
       const start = Math.max(0, at - 5);
       const part = `${out}.part.mp4`;
@@ -96,6 +97,19 @@ export function realRunner(env: Env = process.env): PipelineRunner {
         { timeoutMs: 5 * 60 * 1000, priority: "normal" }
       ).done;
       if (r.code !== 0) throw new Error(`ffmpeg could not make the proxy at ${at}s: ${r.stderrTail.trim().split(/\r?\n/).slice(-3).join(" | ")}`);
+      renameSync(part, out);
+    },
+    async joinProxy(before: string, after: string, out: string): Promise<void> {
+      // `-sseof -2` reads the last 2 s of the first episode as it was encoded (delogo and all), `-t 2` the first 2 s of the
+      // next; both are scaled to 480 px, given one frame rate and one sample rate, and joined by the concat filter.
+      const part = `${out}.part.mp4`;
+      const graph = "[0:v]scale=480:-2,setsar=1,fps=30[v0];[1:v]scale=480:-2,setsar=1,fps=30[v1];[0:a]aresample=48000[a0];[1:a]aresample=48000[a1];[v0][a0][v1][a1]concat=n=2:v=1:a=1[v][a]";
+      const r = await runProcess(
+        ffmpegBin(),
+        ["-y", "-v", "error", "-sseof", "-2", "-i", before, "-t", "2", "-i", after, "-filter_complex", graph, "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart", part],
+        { timeoutMs: 5 * 60 * 1000, priority: "normal" }
+      ).done;
+      if (r.code !== 0) throw new Error(`ffmpeg could not make the join proxy of ${path.basename(before)} → ${path.basename(after)}: ${r.stderrTail.trim().split(/\r?\n/).slice(-3).join(" | ")}`);
       renameSync(part, out);
     },
   };
@@ -202,7 +216,8 @@ export async function executeRun(runId: string, opts: WorkerOptions = {}): Promi
   const log = stageLog(opts.log, () => run, env);
   const controller = new AbortController();
   let jobId: string | null = null;
-  let held: Held<StudioRunLock> | null = null;
+  // A holder object, not a bare `let`: the lock is taken inside `lock()` below, and TypeScript keeps a closure-assigned variable narrowed to its initial null.
+  const runLock: { held: Held<StudioRunLock> | null } = { held: null };
   let lastProgressAt = 0;
 
   /** Write the row with a CAS; on a conflict re-read once (a decision or a cancel moved the revision) and either stop or retry. */
@@ -256,9 +271,15 @@ export async function executeRun(runId: string, opts: WorkerOptions = {}): Promi
   let cancelled = false;
   try {
     const dirs = runDirs(run, env);
-    held = studioRunLock(dirs.cut, { run_id: run.id, stage: run.stage });
-    if (held.replaced) log(`replaced a stale run lock (${held.replaced.reason}): ${JSON.stringify(held.replaced.lock)}`);
-    const ctx: StageContext = { run, session, data, runner, owner, env, dirs, log, progress, beat, signal: controller.signal };
+    // The run lock is taken lazily: before every stage but the intake, which takes it once its folder check has passed, so
+    // a folder the run may not drive (a session's film, a delivered one) never gets the file, not even briefly (B0).
+    const lock = () => {
+      if (runLock.held) return;
+      const held = studioRunLock(dirs.cut, { run_id: run.id, stage: run.stage });
+      runLock.held = held;
+      if (held.replaced) log(`replaced a stale run lock (${held.replaced.reason}): ${JSON.stringify(held.replaced.lock)}`);
+    };
+    const ctx: StageContext = { run, session, data, runner, owner, env, dirs, log, progress, beat, signal: controller.signal, lock };
     const retries = run.decisions.filter((d) => d.action === DECISION.retry).length;
 
     for (;;) {
@@ -275,7 +296,8 @@ export async function executeRun(runId: string, opts: WorkerOptions = {}): Promi
         break;
       }
       const stage = run.stage;
-      held.update({ stage });
+      if (stage !== "intake") lock();
+      runLock.held?.update({ stage });
       log(`stage ${stage} starts`);
       const job = await data.recordJob(session, { kind: "segment_film", title_id: null, target_type: "film_run", target_id: run.id, idempotency_key: `segment_film:${run.id}:${stage}:${retries}`, input: { stage, worker: owner } });
       jobId = job.id;
@@ -332,7 +354,7 @@ export async function executeRun(runId: string, opts: WorkerOptions = {}): Promi
   } finally {
     try {
       const fresh = await data.getFilmRun(session, run.id).catch(() => run);
-      if (isTerminal(fresh.stage) && held) held.release();
+      if (isTerminal(fresh.stage) && runLock.held) runLock.held.release();
       await data.releaseFilmRun(session, run.id, { owner }).catch(() => undefined);
     } catch {
       // best effort

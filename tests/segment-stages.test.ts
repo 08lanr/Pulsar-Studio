@@ -19,16 +19,16 @@ import { test } from "node:test";
 import { WorkflowOutputSchema, applyVision, type WorkflowRecord } from "@/lib/segment/vision";
 import type { OptionsDoc } from "@/lib/segment/strips";
 import type { FilmRun, FilmRunDecision } from "@/lib/types";
-import { cutRelUrl, evidencePathOf, evidenceUrl, proxyName, proxyTimeOf, proxyUrl } from "@/lib/segment/evidence";
+import { cutRelUrl, evidencePathOf, evidenceUrl, joinProxyName, joinProxyOf, joinProxyUrl, proxyName, proxyTimeOf, proxyUrl } from "@/lib/segment/evidence";
 import { fakePng } from "@/lib/segment/fake-runner";
-import { defaultFilmMeta, readFilmMeta, writeFilmMeta } from "@/lib/segment/handoff";
+import { defaultFilmMeta, importNowSince, readFilmMeta, suggestedCrazydramasSlug, writeFilmMeta } from "@/lib/segment/handoff";
 import { covers, motionCoverage, whisperCoverage } from "@/lib/segment/index";
 import { existingFolderRefusal, folderDelivered, isPlaceholder, linkOrCopy, parseMediaName, resolveSourceDir, resolveSourcePath, sourceRoots, suggestSlug, type FolderFacts } from "@/lib/segment/intake";
-import { lengthsAround, listRunVisionFiles, moveRefusal, overrideRecord, reviewState, staleOptionsReason, writeOverrideFile } from "@/lib/segment/plan";
+import { appliedRunLabel, deliveredToEnd, lengthsAround, listRunVisionFiles, moveRefusal, overrideRecord, reviewState, staleOptionsReason, writeOverrideFile } from "@/lib/segment/plan";
 import { mergeQaReports } from "@/lib/segment/qa";
 import { CONFIDENCE_GATE, DECISION, consumed, filmRoot, handoffCommand, isActionable, pendingDecision, pendingDecisions, refusalOf, runDirs, visionLabel, waitingOf } from "@/lib/segment/stages";
 import { regionArg, validRegion } from "@/lib/segment/watermark";
-import { FILM_SLUG, filmRunStageAudited } from "@/lib/data/film-runs";
+import { FILM_SLUG, filmRunStageAudited, leaseLive } from "@/lib/data/film-runs";
 
 function withDir<T>(fn: (dir: string) => T | Promise<T>): Promise<T> {
   const dir = mkdtempSync(path.join(tmpdir(), "studio-segment-"));
@@ -134,6 +134,22 @@ test("a run is actionable when not waiting; a waiting run only once a decision t
   assert.deepEqual(consumed({ decisions: [decision("note"), decision("join")] }), { decisions_seen: 2 });
 });
 
+test("an Import now counts from the film-meta or join it follows, seen or not: a press before READY is kept, a join or a new film-meta starts over", () => {
+  const d = (action: string, at: string): FilmRunDecision => ({ at, by: "ruobin", action, boundary_s: null });
+  assert.equal(importNowSince({ decisions: [] }), null);
+  assert.equal(importNowSince({ decisions: [d("film_meta", "1")] }), null);
+  assert.equal(importNowSince({ decisions: [d("film_meta", "1"), d("import_now", "2")] })?.at, "2", "pressed while waiting for READY: still there after the readiness wait marked it seen");
+  assert.equal(importNowSince({ decisions: [d("film_meta", "1"), d("import_now", "2"), d("note", "3")] })?.at, "2");
+  assert.equal(importNowSince({ decisions: [d("film_meta", "1"), d("import_now", "2"), d("join", "3")] }), null, "a join re-renders: the earlier press is not for these files");
+  assert.equal(importNowSince({ decisions: [d("import_now", "2"), d("film_meta", "3")] }), null, "a new film-meta starts over");
+  assert.equal(importNowSince({ decisions: [d("film_meta", "1"), d("import_now", "2"), d("import_now", "4")] })?.at, "4", "the newest press");
+  const soon = new Date(Date.now() + 60_000).toISOString();
+  const past = new Date(Date.now() - 60_000).toISOString();
+  assert.equal(leaseLive({ lease_owner: "host:1", leased_until: soon }), true);
+  assert.equal(leaseLive({ lease_owner: "host:1", leased_until: past }), false, "an expired lease is a dead worker's");
+  assert.equal(leaseLive({ lease_owner: null, leased_until: null }), false, "a waiting run holds none");
+});
+
 test("refusalOf keeps a script's refusal verbatim: the REFUSED block on stdout, else the sys.exit text on stderr, else the last line", () => {
   const base = { code: 1, signal: null, stdout: "", durationMs: 1, timedOut: false, cancelled: false };
   const step = { script: "cut_episodes.py", args: [], what: "" };
@@ -167,6 +183,13 @@ test("the evidence route serves png/json/mp4 under review/, index/ and the run's
   assert.equal(proxyTimeOf("t4313_400.mp4"), 4313.4);
   assert.equal(proxyTimeOf("ep01.mp4"), null);
   assert.equal(proxyUrl("r1", 115.367), "/api/film-runs/r1/evidence/work/proxies/t115_367.mp4");
+  // A join clip is named by the episode it follows and that episode's planned end, so a moved join is a new file.
+  assert.equal(joinProxyName(2, 9.2), "j02_t9_200.mp4");
+  assert.deepEqual(joinProxyOf("j02_t9_200.mp4"), { k: 2, end: 9.2 });
+  assert.deepEqual(joinProxyOf("j14_t1701_233.mp4"), { k: 14, end: 1701.233 });
+  assert.equal(joinProxyOf("t9_200.mp4"), null);
+  assert.equal(joinProxyUrl("r1", 2, 9.2), "/api/film-runs/r1/evidence/work/joins/j02_t9_200.mp4");
+  assert.equal(evidencePathOf(dirs, ["work", "joins", "j02_t9_200.mp4"])!.abs, path.join(dirs.work, "joins", "j02_t9_200.mp4"));
 });
 
 // ---- the review ----------------------------------------------------------------------------------------------------------------------------
@@ -220,12 +243,31 @@ test("reviewState: sure and agreed is pre-accepted; below the gate, a skeptic ov
   const s2 = reviewState(doc(), [...passes, [rec(480, 480, 0.85)]], [...decided, { at: at(4), by: "ruobin", action: "accept", boundary_s: 480 }], { "480": 1 });
   assert.deepEqual(s2.boundaries.map((b) => b.status), ["pre_accepted", "decided", "decided", "decided"]);
   assert.equal(s2.complete, true);
-  // A decision made BEFORE a reject no longer counts for that boundary; a confident re-judge is pre-accepted, an unsure one needs a person again.
+  // A decision made BEFORE a reject no longer counts for that boundary; a re-judge, sure or unsure, waits for the person who asked for it.
   const s3 = reviewState(doc(), [...passes, [rec(480, 480, 0.5)]], [{ at: at(0), by: "ruobin", action: "accept", boundary_s: 480 }, { at: at(3), by: "ruobin", action: "rejudge", boundary_s: 480, why: "x" }], { "480": 1 });
   assert.equal(s3.boundaries[3].status, "needs_decision");
   assert.equal(s3.boundaries[3].decision, null);
+  assert.deepEqual(s3.boundaries[3].reasons, ["low_confidence", "rejudged"]);
   const s4 = reviewState(doc(), [...passes, [rec(480, 480, 0.9)]], [{ at: at(0), by: "ruobin", action: "accept", boundary_s: 480 }, { at: at(3), by: "ruobin", action: "rejudge", boundary_s: 480, why: "x" }], { "480": 1 });
-  assert.equal(s4.boundaries[3].status, "pre_accepted");
+  assert.equal(s4.boundaries[3].status, "needs_decision", "a confident second answer is shown to the person, never applied unread (decision 5)");
+  assert.deepEqual(s4.boundaries[3].reasons, ["rejudged"]);
+  assert.equal(s4.complete, false);
+  const s5 = reviewState(doc(), [...passes, [rec(480, 480, 0.9)]], [{ at: at(3), by: "ruobin", action: "rejudge", boundary_s: 480, why: "x" }, { at: at(5), by: "ruobin", action: "accept", boundary_s: 480 }], { "480": 1 });
+  assert.equal(s5.boundaries[3].status, "decided", "an accept after the re-judge closes it");
+});
+
+test("an applied options file names the Studio run that stamped it; a film delivered to its end has nothing to extend", () => {
+  assert.equal(appliedRunLabel({ applied: { label: "studio-afe412a9" } }), "studio-afe412a9", "the pass's apply");
+  assert.equal(appliedRunLabel({ applied: { label: "studio-afe412a9-review" } }), "studio-afe412a9", "the review's apply");
+  assert.equal(appliedRunLabel({ applied: { label: "studio-afe412a9-band" } }), "studio-afe412a9", "the band fix's apply");
+  assert.equal(appliedRunLabel({ applied: { label: "0-end" } }), null, "a session's label");
+  assert.equal(appliedRunLabel({ applied: { label: "studio-afe412a9-extra" } }), null);
+  assert.equal(appliedRunLabel({ applied: null }), null);
+  assert.equal(deliveredToEnd({ end: 600.033 }, 600.033), true);
+  assert.equal(deliveredToEnd({ end: 600.033 }, 600.05), true, "within the plan's own tolerance");
+  assert.equal(deliveredToEnd({ end: 900 }, 7259.5), false, "a first proof: the extension plans past it");
+  assert.equal(deliveredToEnd(null, 600), false, "nothing delivered");
+  assert.equal(deliveredToEnd({ end: 600 }, null), false, "no known length: not judged here");
 });
 
 test("a move must be a legal cut within 30 s that keeps both episodes in band; lengthsAround computes them from the others' current times", () => {
@@ -376,6 +418,10 @@ test("film-meta: the default form starts from the folder name, the slug and half
     assert.equal(d.display_title_en, "She Returned With Her Son");
     assert.equal(d.crazydramas_slug, "she-returned-with-her-son");
     assert.equal(d.spoiler_from_s, 50);
+    // A scratch slug's leading underscore never reaches the crazydramas slug (the decide route's rule refuses "-studio-smoke").
+    assert.equal(defaultFilmMeta({ slug: "_studio-smoke", lang: "en" }, cut).crazydramas_slug, "studio-smoke");
+    assert.equal(defaultFilmMeta({ slug: "_studio-smoke", lang: "en" }, cut).display_title_en, "Studio Smoke");
+    assert.equal(suggestedCrazydramasSlug("mafia_king"), "mafia-king");
     writeFileSync(path.join(cut, "film-meta.json"), JSON.stringify({ display_title_en: "Old", source_title_en: "The Source Title", language: "zh", exclusions: [], notes: "hand-written" }));
     const meta = writeFilmMeta(cut, { display_title_en: "New Title", crazydramas_slug: "new-title", spoiler_from_s: 40, exclusions: [{ from_s: 1, to_s: 2, why: "card", kind: "card" }], live_poster: "new-title-a" }, "en");
     assert.equal(meta.source_title_en, "The Source Title");

@@ -256,7 +256,8 @@ export type RunnerContext = {
 /** What the vision stage asks of the runner: the pass over these boundaries, in the API or a fake. `work_dir` takes the skeptic's dense strips. */
 export type JudgeRequest = { run: SegmentRun; doc: OptionsDoc; opts: JudgeOptions; work_dir?: string };
 
-export type BandFixRequest = { run: SegmentRun; doc: OptionsDoc; groups: BandFixGroup[]; label: string; session?: Session };
+/** The band fix: `work_dir` is the run's scratch (nothing of the film's), `signal` stops it between model calls when the run is cancelled. */
+export type BandFixRequest = { run: SegmentRun; doc: OptionsDoc; groups: BandFixGroup[]; label: string; session?: Session; work_dir?: string; signal?: AbortSignal };
 
 /**
  * The seam between the stages and the machine: the real runner spawns the
@@ -274,6 +275,8 @@ export interface PipelineRunner {
   bandFix(req: BandFixRequest): Promise<BandFixResult | JudgeUnavailable>;
   /** A ±5 s, 480 px clip of the source around `at`, written to `out` (a `.part` beside it while it renders). */
   proxy(src: string, at: number, out: string): Promise<void>;
+  /** The last 2 s of the built episode `before` and the first 2 s of `after`, back to back at 480 px, written to `out` (a `.part` beside it while it renders). The two paths are Studio's own links, never the pipeline's files. */
+  joinProxy(before: string, after: string, out: string): Promise<void>;
 }
 
 // ---- the stage context ------------------------------------------------------------------------------------
@@ -293,6 +296,14 @@ export type StageContext = {
   /** Renew the lease, heartbeat the job row, and throw RunCancelled when the run was cancelled. */
   beat: () => Promise<void>;
   signal: AbortSignal;
+  /**
+   * Take `cut/.studio-run.json` for the run (adopting the run's own; a live
+   * foreign one is a LockHeldError). The worker calls it before every stage
+   * but the intake, which calls it once its folder check has passed: a folder
+   * the run may not drive never gets the file, not even for the 60 ms before
+   * the refusal (B0). Idempotent.
+   */
+  lock: () => void;
 };
 
 /** The last `n` lines of a tail, for a stage detail. */
@@ -345,8 +356,10 @@ export async function runStep(ctx: StageContext, step: ScriptStep): Promise<RunR
  * lease renewed every `everyMs`, as a script gets from runStep's heartbeat.
  * A vision pass on a long film outlasts the ten-minute lease; without this a
  * second worker would claim the run and judge — and pay for — the same
- * boundaries. A cancel seen by a beat aborts the signal; once `fn` returns
- * the abort is honoured.
+ * boundaries. A cancel seen by a beat aborts the signal: the judge, given
+ * that signal, makes no further model call (lib/segment/vision.ts checks it
+ * before every reviewer and skeptic call), and once `fn` returns the abort
+ * is honoured here.
  */
 export async function withHeartbeat<T>(ctx: StageContext, fn: () => Promise<T>, everyMs = 30_000): Promise<T> {
   const timer = setInterval(() => {

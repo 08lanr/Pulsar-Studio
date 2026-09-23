@@ -219,6 +219,13 @@ export class FakePipelineRunner implements PipelineRunner {
     renameSync(`${out}.part`, out);
   }
 
+  /** The fake's join proxy is the first episode's bytes (4 s of fixture film); the real runner joins the last 2 s of one to the first 2 s of the next. */
+  async joinProxy(before: string, _after: string, out: string): Promise<void> {
+    mkdirSync(path.dirname(out), { recursive: true });
+    copyFileSync(before, `${out}.part`);
+    renameSync(`${out}.part`, out);
+  }
+
   /** The table: boundary 1 is sure; boundary 2 is low confidence and the skeptic names a better time. A re-judge (attempt > 1) is sure. */
   async judge(req: JudgeRequest): Promise<JudgeResult | JudgeUnavailable> {
     const attempt = req.opts.attempt ?? 1;
