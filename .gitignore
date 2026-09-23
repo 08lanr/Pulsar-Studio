@@ -9,6 +9,8 @@ out/
 .env.local
 .env.local.*
 .env*.bak
+# TikTok authorizations written by the admin OAuth callback (lib/tiktok/tokens.ts).
+.tokens.json
 
 # Next.js auto-generated types + TypeScript incremental cache
 next-env.d.ts
