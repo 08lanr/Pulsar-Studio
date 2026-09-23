@@ -146,9 +146,10 @@ export class LlmUnavailableError extends Error {
   }
 }
 
-export type LlmFailure = "refused" | "invalid_output" | "truncated" | "api";
+/** `invalid` never reached a provider: the call itself was wrong (a model from another vendor). */
+export type LlmFailure = "refused" | "invalid_output" | "truncated" | "api" | "invalid";
 
-/** A call that reached the API and came back unusable. `status` is the HTTP status when there was one. */
+/** A call that reached the API and came back unusable (or, `invalid`, one refused before it left). `status` is the HTTP status when there was one. */
 export class LlmError extends Error {
   readonly code: LlmFailure;
   readonly status: number | undefined;
@@ -176,6 +177,20 @@ export function modelSupportsVision(provider: LlmProvider, model: string): boole
     case "deepseek":
       return /^deepseek-(flash|v4-flash|v4-flash-vision-exp)$/.test(model);
   }
+}
+
+/**
+ * The vendor a model id belongs to, by its prefix: claude-* is Anthropic's,
+ * gpt-* OpenAI's, deepseek-* DeepSeek's; null for an id no family claims
+ * (OpenAI's o-series, say). resolveCall refuses a model on another vendor's
+ * gateway, so a prompt that names `provider: "deepseek"` but keeps
+ * MODEL_FAST under LLM_PROVIDER=anthropic fails before any request.
+ */
+export function modelFamily(model: string): LlmProvider | null {
+  if (/^claude-/.test(model)) return "anthropic";
+  if (/^gpt-/.test(model)) return "openai";
+  if (/^deepseek-/.test(model)) return "deepseek";
+  return null;
 }
 
 /** The ad engine's text passes (nomination): ADS_TEXT_PROVIDER, DeepSeek unless said otherwise. */
@@ -608,7 +623,7 @@ export type StructuredResult<T> = {
 };
 
 /** What callStructured resolved before dispatching: the provider, its model and the loaded images. */
-type CallContext = { provider: LlmProvider; model: string; images: LoadedImage[] };
+export type CallContext = { provider: LlmProvider; model: string; images: LoadedImage[] };
 
 type Parsed<T> =
   | { ok: true; data: T }
@@ -770,12 +785,69 @@ function schemaIssues(error: { issues: { path: (string | number)[]; message: str
     .join("\n")}`;
 }
 
+// ---- DeepSeek thinking mode ---------------------------------------------------------------
+//
+// The V4 API thinks unless told not to (`thinking.type` defaults to
+// "enabled" at effort high; api-docs.deepseek.com/api/create-chat-completion,
+// read 2026-09-23) and its reasoning tokens count against max_tokens, so a
+// budget sized for a JSON answer would end with finish_reason "length" and
+// every reading pass would pay reasoning at the output rate. The rule
+// (decision 2026-09-22): the fast tier never thinks (what deepseek-chat was);
+// the strong tier thinks when the call names an effort (what deepseek-reasoner
+// was), and the reasoning then gets its own room on top of the call's
+// maxTokens. `reasoning_effort` is a top-level field beside `thinking`.
+
+export type DeepSeekEffort = "low" | "high" | "max";
+
+export type DeepSeekReasoning =
+  | { thinking: { type: "disabled" } }
+  | { thinking: { type: "enabled" }; reasoning_effort: DeepSeekEffort };
+
+/** Tokens the reasoning may use on top of the call's own maxTokens when thinking is on. */
+export const DEEPSEEK_THINKING_TOKENS = 32_000;
+
+/** DeepSeek accepts none/low/high/max and itself maps medium and xhigh to high; sent explicitly so the body only carries documented values. */
+const DEEPSEEK_EFFORT: Record<Effort, DeepSeekEffort> = { low: "low", medium: "high", high: "high", xhigh: "high", max: "max" };
+
+/** The thinking decision for one call, from its tier and effort. Pure; the tests prove both tiers. */
+export function deepSeekReasoning(call: Pick<StructuredCall<unknown>, "effort">, model: string, env: Env = process.env): DeepSeekReasoning {
+  // A model that also serves the fast tier never thinks: the fast tier is the cheap lane whatever id it carries.
+  const strong = model === modelFor("deepseek", "strong", env) && model !== modelFor("deepseek", "fast", env);
+  if (!strong || !call.effort) return { thinking: { type: "disabled" } };
+  return { thinking: { type: "enabled" }, reasoning_effort: DEEPSEEK_EFFORT[call.effort] };
+}
+
+/** The chat.completions body; `thinking` is not in the SDK's type but the SDK posts the params object as the JSON body untouched. */
+export type DeepSeekRequestBody = OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming & DeepSeekReasoning;
+
+/** The whole request body for one DeepSeek turn. Pure; exported for the tests. */
+export function deepSeekRequestBody<T>(
+  call: StructuredCall<T>,
+  ctx: Pick<CallContext, "model" | "images">,
+  turn: { system: string; user: string },
+  env: Env = process.env
+): DeepSeekRequestBody {
+  const reasoning = deepSeekReasoning(call, ctx.model, env);
+  return {
+    model: ctx.model,
+    messages: [
+      { role: "system", content: turn.system },
+      { role: "user", content: chatUserContent(turn.user, ctx.images) },
+    ],
+    max_tokens: reasoning.thinking.type === "enabled" ? call.maxTokens + DEEPSEEK_THINKING_TOKENS : call.maxTokens,
+    response_format: { type: "json_object" },
+    stream: false,
+    ...reasoning,
+  };
+}
+
 /**
  * DeepSeek equivalent: chat completions in JSON mode with the schema stated
  * in the system prompt (no server-side schema enforcement there), the same
- * zod validation on our side, and the same single repair turn. `effort` has
- * no counterpart. Images ride in the user message as data URIs; the
- * text-only model was refused before this point.
+ * zod validation on our side, and the same single repair turn. `effort`
+ * becomes `reasoning_effort` on the strong tier only (deepSeekReasoning).
+ * Images ride in the user message as data URIs; the text-only model was
+ * refused before this point.
  */
 async function callDeepSeekStructured<T>(call: StructuredCall<T>, ctx: CallContext): Promise<StructuredResult<T>> {
   const { provider, model } = ctx;
@@ -787,18 +859,7 @@ async function callDeepSeekStructured<T>(call: StructuredCall<T>, ctx: CallConte
 
   try {
     for (let turn = 1; turn <= 2; turn++) {
-      const res = await withRetries(() =>
-        deepSeekClient().chat.completions.create({
-          model,
-          messages: [
-            { role: "system", content: system },
-            { role: "user", content: chatUserContent(user, ctx.images) },
-          ],
-          max_tokens: call.maxTokens,
-          response_format: { type: "json_object" },
-          stream: false,
-        })
-      );
+      const res = await withRetries(() => deepSeekClient().chat.completions.create(deepSeekRequestBody(call, ctx, { system, user })));
       if (res.usage) addChatUsage(usage, res.usage);
       const choice = res.choices[0];
       if (!choice) throw new LlmError("invalid_output", "No choices in the response.");
@@ -839,14 +900,19 @@ async function callDeepSeekStructured<T>(call: StructuredCall<T>, ctx: CallConte
 
 /**
  * Resolve the call's provider and model and refuse what cannot run before a
- * single byte leaves the process: a missing key, or images for a model that
- * does not read them. Pure apart from reading the environment; exported so
- * the tests can prove the refusals without a network.
+ * single byte leaves the process: a model from another vendor, a missing
+ * key, or images for a model that does not read them. Pure apart from
+ * reading the environment; exported so the tests can prove the refusals
+ * without a network.
  */
 export function resolveCall<T>(call: StructuredCall<T>, env: Env = process.env): { provider: LlmProvider; model: string } {
   const provider = call.provider ?? (parseProvider(env.LLM_PROVIDER) ?? "anthropic");
-  if (!isLlmAvailable(provider, env)) throw new LlmUnavailableError(undefined, provider);
   const model = call.model ?? modelFor(provider, "fast", env);
+  const family = modelFamily(model);
+  if (family && family !== provider) {
+    throw new LlmError("invalid", `${model} is a ${family} model and cannot be sent to ${provider}; set the call's provider and model together`);
+  }
+  if (!isLlmAvailable(provider, env)) throw new LlmUnavailableError(undefined, provider);
   if (call.images?.length && !modelSupportsVision(provider, model)) {
     throw new LlmUnavailableError(
       `vision provider unavailable: ${model} (${provider}) does not read images; set ADS_VISION_PROVIDER to a provider with a vision model and its key`,

@@ -8,6 +8,11 @@
 // Reads DEEPSEEK_API_KEY (and optional DEEPSEEK_BASE_URL / ZH_NATIVE_MODEL)
 // from .env.local. This is developer tooling, not an app path: nothing here
 // writes to locales/ or studio.jobs. Outputs land under tmp/zh-native/.
+//
+// The model is deepseek-flash with thinking off: the deepseek-chat this pass
+// was written for was discontinued on 2026-07-24, and the V4 API thinks by
+// default, which would count reasoning against max_tokens (lib/llm.ts,
+// "DeepSeek thinking mode").
 
 import fs from "node:fs";
 import path from "node:path";
@@ -31,7 +36,7 @@ if (!process.env.DEEPSEEK_API_KEY) {
   process.exit(1);
 }
 const client = new OpenAI({ apiKey: process.env.DEEPSEEK_API_KEY, baseURL: process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com", maxRetries: 3, timeout: 5 * 60 * 1000 });
-const MODEL = process.env.ZH_NATIVE_MODEL || "deepseek-chat";
+const MODEL = process.env.ZH_NATIVE_MODEL || "deepseek-flash";
 
 type Entry = { key: string; en: string; zh: string; file: string; refs: string[] };
 const entries: Entry[] = JSON.parse(fs.readFileSync(path.join(work, "keys.json"), "utf8"));
@@ -62,7 +67,8 @@ function terminology(): string {
 }
 
 async function json<T>(system: string, user: string): Promise<T> {
-  const res = await client.chat.completions.create({
+  // `thinking` is not in the SDK's type; the SDK posts the params object as the body untouched.
+  const body: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming & { thinking: { type: "disabled" } } = {
     model: MODEL,
     messages: [
       { role: "system", content: system },
@@ -71,7 +77,9 @@ async function json<T>(system: string, user: string): Promise<T> {
     response_format: { type: "json_object" },
     temperature: 0.3,
     max_tokens: 8192,
-  });
+    thinking: { type: "disabled" },
+  };
+  const res = await client.chat.completions.create(body);
   const choice = res.choices[0];
   if (choice?.finish_reason === "length") throw new Error("response truncated at max_tokens; make the batch smaller");
   const text = choice?.message.content ?? "";

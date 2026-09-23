@@ -17,8 +17,10 @@ next-env.d.ts
 *.tsbuildinfo
 
 # Local runtime state (uploads, scratch renders). Supabase is the source of truth.
+# .uploads-e2e/ is the e2e server's own pair (studio-fixture-3201 in .claude/launch.json).
 .data/
 .uploads/
+.uploads-e2e/
 tmp/
 output/
 

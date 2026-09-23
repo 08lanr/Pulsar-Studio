@@ -6,7 +6,9 @@
 // not_found 404, forbidden 403, invalid 400, frozen/conflict 409), a
 // LlmUnavailableError is 503 { code: 'llm_unavailable' } so the UI can draw
 // the "set ANTHROPIC_API_KEY" state, an LlmError (the call reached the API
-// and came back unusable) is 502, anything else is a logged 500. Lives
+// and came back unusable) is 502 except code 'invalid' (the call itself was
+// wrong, refused before any request: a logged 500 with its code), anything
+// else is a logged 500. Lives
 // under app/api/titles/_lib (a private folder Next never routes) because
 // the api agent owns no lib/ file.
 
@@ -26,6 +28,10 @@ export function errorResponse(e: unknown): NextResponse {
     return NextResponse.json({ error: e.message, code: e.code }, { status: 503 });
   }
   if (e instanceof LlmError) {
+    if (e.code === "invalid") {
+      console.error("[api] invalid model call", e);
+      return NextResponse.json({ error: e.message, code: e.code }, { status: 500 });
+    }
     return NextResponse.json({ error: e.message, code: e.code }, { status: 502 });
   }
   console.error("[api] unhandled", e);

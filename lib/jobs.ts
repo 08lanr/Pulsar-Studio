@@ -84,7 +84,8 @@ export type RunJobSpec<T> = {
   model?: string | null;
   /** Small: ids and the prompt version, never the prompt text. */
   input?: Json | null;
-  run: () => Promise<{ output: T; usage: LlmUsage; cost_cents: number; model: string }>;
+  /** The call; `provider` and `model` are what it actually went to (StructuredResult carries both), checked against the row. */
+  run: () => Promise<{ output: T; usage: LlmUsage; cost_cents: number; model: string; provider: LlmProvider }>;
 };
 
 export type RunJobResult<T> = {
@@ -140,6 +141,14 @@ export async function runJob<T>(session: Session, spec: RunJobSpec<T>): Promise<
     // Best effort: the original failure is what the caller must see.
     await data.finishJob(session, job.id, { status: "failed", error: message }).catch(() => undefined);
     throw e;
+  }
+  // The row records the provider it actually called (decision 2026-09-22).
+  // A call that went elsewhere than the row and the key check named is a
+  // programming error: the spend is kept on the failed row, the output is not.
+  if (result.provider !== provider) {
+    const message = `runJob(${spec.kind}): the call went to ${result.provider} but the job named ${provider}; pass one provider to both the spec and the call`;
+    await data.finishJob(session, job.id, { status: "failed", error: message, usage: toJobUsage(result.usage), cost_cents: result.cost_cents }).catch(() => undefined);
+    throw new Error(message);
   }
   const done = await data.finishJob(session, job.id, {
     status: "done",
@@ -280,7 +289,7 @@ export async function runUnderstandTitle(session: Session, titleId: string): Pro
     input: { prompt_version: PROMPT_VERSION, episodes_sampled: sample.map((s) => s.episode_number) },
     run: async () => {
       const c = await callStructured(prompt);
-      return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model };
+      return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model, provider: c.provider };
     },
   });
   const out = r.output;
@@ -351,7 +360,7 @@ export async function runUnderstandScene(
     input: { prompt_version: PROMPT_VERSION, scene_number: scene.number },
     run: async () => {
       const c = await callStructured(prompt);
-      return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model };
+      return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model, provider: c.provider };
     },
   });
   // A skipped job whose context never landed (a failed write) is applied now.
@@ -468,7 +477,7 @@ export async function runFirstPass(
       },
       run: async () => {
         const c = await callStructured(prompt);
-        return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model };
+        return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model, provider: c.provider };
       },
     });
     if (!r.skipped) cost += r.job.cost_cents ?? 0;
@@ -588,7 +597,7 @@ export async function runAlternatives(
     input: { prompt_version: PROMPT_VERSION, batch, seq: line.seq, direction: opts.direction ?? null },
     run: async () => {
       const c = await callStructured(prompt);
-      return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model };
+      return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model, provider: c.provider };
     },
   });
 
@@ -664,7 +673,7 @@ export async function runRewrite(
     input: { prompt_version: PROMPT_VERSION, seq: line.seq, instruction: trimmed.slice(0, 200) },
     run: async () => {
       const c = await callStructured(prompt);
-      return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model };
+      return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model, provider: c.provider };
     },
   });
   const o = r.output;
@@ -767,7 +776,7 @@ export async function runCreativePack(session: Session, titleId: string): Promis
     input: { prompt_version: PROMPT_VERSION, batch, episodes: episodes.map((e) => e.episode_number) },
     run: async () => {
       const c = await callStructured(prompt);
-      return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model };
+      return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model, provider: c.provider };
     },
   });
 
@@ -866,7 +875,7 @@ export async function runFindClips(
     input: { prompt_version: PROMPT_VERSION, clip_prompt_version: CLIP_PROMPT_VERSION, line_count: lines.length, wants_opening: wantsOpening },
     run: async () => {
       const c = await callStructured(prompt);
-      return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model };
+      return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model, provider: c.provider };
     },
   });
 
