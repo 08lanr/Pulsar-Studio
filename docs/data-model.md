@@ -1180,8 +1180,9 @@ core.platform_links                          -- which drama on the platform a ti
   platform text* in ('crazydramas'),         -- checked, not an enum: a second platform needs no migration of the type
   slug text* (^[a-z0-9]+(-[a-z0-9]+)*$),     -- the slug the drama is read under now: a CMS rename, followed through the catalog, moves it
   title_slug text* (same rule),              -- the title's own crazydramas_slug when the link was made or last re-pointed in Studio;
-                                             --   a followed rename never changes it, so a film-meta still carrying the pre-rename slug
-                                             --   is not "the person re-pointed the title" (resolveReadSlug; the phase 3a review)
+                                             --   a followed rename keeps it (or records the title's current slug when the link had
+                                             --   already accepted that slug), so a film-meta still carrying the pre-rename slug, or
+                                             --   the first of two renames, is not "the person re-pointed the title" (resolveReadSlug)
   cd_drama_id uuid*,                         -- the platform's own id (crazydramas dramas.id): the match key from the first 200 on,
                                              --   because a slug can be edited in the crazydramas CMS
   linked_at timestamptz*, linked_by uuid references core.profiles on delete set null,   -- null for the system actor (the sweep)
@@ -1213,10 +1214,13 @@ of the check (the hourly sweep, Check now, the after-import check;
 `lib/crazydramas/sweep.ts`). The link is made on the first 200 read of
 `core.titles.crazydramas_slug` (0015) with the drama id the platform
 returned; a CMS rename is followed through the catalog (the link's `slug`
-moves, its `title_slug` stays); a slug the person re-points in Studio (none
+moves, its `title_slug` stays, or becomes the title's current slug when the
+link had already accepted it); a slug the person re-points in Studio (none
 of `title_slug`, `slug` or the platform's) moves the link to the drama it
 answers with, refused (in the snapshot's `error`, naming no other title)
-when another title holds that drama. A title's reading is built from its own
+when another title holds that drama, and until that slug answers 200 the
+screens read it with no link ("not checked yet", or "not live" on a 404),
+never the old drama. A title's reading is built from its own
 snapshot rows of the slug (`title_id`), never another title's, since two
 companies' titles can carry one slug. `identical` and `local_newer` in the
 reading need the ledger of plan A6 (`studio.cd_publications`, the write

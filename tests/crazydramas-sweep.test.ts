@@ -14,7 +14,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import { fixtureSession, systemSession } from "@/lib/auth";
-import { fakeCrazydramasTransport, FAKE_SLUGS } from "@/lib/crazydramas/fake";
+import { fakeCrazydramasTransport, FAKE_PLACEHOLDER_POSTER_URL, FAKE_POSTER_URL, FAKE_SLUGS } from "@/lib/crazydramas/fake";
+import { crazydramasReadMode, shownPosterUrl } from "@/lib/crazydramas/pick";
 import { CHECK_MIN_AGE_MS, SWEEP_EVERY_MS, SWEEP_HOT_EVERY_MS, checkCrazydramasTitle, listUnmatchedCrazydramas, loadCrazydramasStatus, loadCrazydramasStatuses, nextSweepAt, resetCrazydramasSweep, sweepCrazydramas, tickCrazydramas } from "@/lib/crazydramas/sweep";
 import { CrazydramasApiError, type CrazydramasTransport } from "@/lib/crazydramas/transport";
 import { PLATFORM, type SeriesRead } from "@/lib/crazydramas/types";
@@ -219,6 +220,125 @@ test("a CMS rename is followed through the catalog, the link moves with it and e
   assert.equal((await fixtureData.getPlatformLink(staff(), title.id, PLATFORM))?.cd_drama_id, "f1000000-0000-4000-8000-000000000002", "not moved");
 });
 
+test("a title re-pointed at a slug that is not live: the check and every screen answer not_live under the slug the title now carries, never the old drama with a frozen checked time", async () => {
+  const title = await fixtureTitle(FAKE_SLUGS.complete);
+  const first = await checkCrazydramasTitle(staff(), title.id);
+  assert.equal(first.outcome, "checked");
+  const before = await loadCrazydramasStatus(staff(), title);
+  assert.equal(before.state, "live_complete");
+
+  // The ordinary case: film-meta now names a series that is still a draft (or not uploaded yet), which answers 404.
+  await fixtureData.setTitleImport(staff(), title.id, { crazydramas_slug: FAKE_SLUGS.draft });
+  const edited = (await fixtureData.getTitle(staff(), title.id)).title;
+  const shownBefore = await loadCrazydramasStatus(staff(), edited);
+  assert.equal(shownBefore.state, "not_checked", "before any read of the new slug the screens say so");
+  assert.equal(shownBefore.slug, FAKE_SLUGS.draft);
+  assert.equal(shownBefore.link, null);
+  assert.equal(shownBefore.checked_at, null);
+
+  const r = await checkCrazydramasTitle(staff(), title.id, { force: true });
+  assert.equal(r.outcome, "checked");
+  if (r.outcome !== "checked") return;
+  assert.equal(r.slug, FAKE_SLUGS.draft);
+  assert.equal(r.http_status, 404);
+  assert.equal(r.linked, false);
+  assert.equal(r.status.state, "not_live");
+  assert.equal(r.status.slug, FAKE_SLUGS.draft, "the check's reading is of the slug it read");
+  assert.equal(r.status.link, null, "the old drama's link is not this reading's");
+  assert.equal(r.status.series, null);
+
+  const shown = await loadCrazydramasStatus(staff(), edited);
+  assert.equal(shown.state, "not_live");
+  assert.equal(shown.slug, FAKE_SLUGS.draft);
+  assert.equal(shown.checked_at, r.snapshot.read_at, "the screens show this read");
+  assert.equal(shown.series, null);
+  const many = await loadCrazydramasStatuses(staff(), [edited]);
+  assert.equal(many.get(title.id)?.state, "not_live");
+  assert.equal(many.get(title.id)?.slug, FAKE_SLUGS.draft);
+
+  // A second Check now inside 30 s is refused under the new slug, with the same reading.
+  const soon = await checkCrazydramasTitle(staff(), title.id);
+  assert.equal(soon.outcome, "too_soon");
+  if (soon.outcome === "too_soon") {
+    assert.equal(soon.slug, FAKE_SLUGS.draft);
+    assert.equal(soon.status.state, "not_live");
+    assert.equal(soon.status.slug, FAKE_SLUGS.draft);
+  }
+
+  // The link itself stays on the old drama until the new slug answers 200 — nothing moved on a 404.
+  const link = await fixtureData.getPlatformLink(staff(), title.id, PLATFORM);
+  assert.equal(link?.slug, FAKE_SLUGS.complete);
+  assert.equal(link?.title_slug, FAKE_SLUGS.complete);
+
+  // The sweep counts it as not live too.
+  const summary = await sweepCrazydramas();
+  assert.equal(summary.states.not_live, 1);
+
+  // Pointed back at the live series: the link's own slug, read again, and the screens follow.
+  await fixtureData.setTitleImport(staff(), title.id, { crazydramas_slug: FAKE_SLUGS.complete });
+  const back = await checkCrazydramasTitle(staff(), title.id, { force: true });
+  assert.equal(back.outcome, "checked");
+  if (back.outcome === "checked") {
+    assert.equal(back.slug, FAKE_SLUGS.complete);
+    assert.equal(back.status.state, "live_complete");
+    const again = await loadCrazydramasStatus(staff(), (await fixtureData.getTitle(staff(), title.id)).title);
+    assert.equal(again.state, "live_complete");
+    assert.equal(again.checked_at, back.snapshot.read_at);
+  }
+});
+
+test("two CMS renames: film-meta brought up to date with the first is the title's own slug, so the second rename records it on the link and every later check keeps reading the platform's slug", async () => {
+  const title = await fixtureTitle(FAKE_SLUGS.complete);
+  assert.equal((await checkCrazydramasTitle(staff(), title.id)).outcome, "checked");
+  const base = await fakeCrazydramasTransport.catalog();
+  /** The fake with the complete series renamed to `current` in the CMS: the catalog lists it there and only that slug answers. */
+  const renamedTo = (current: string): CrazydramasTransport => ({
+    mode: "fake",
+    catalog: async () => base.map((d) => (d.slug === FAKE_SLUGS.complete ? { ...d, slug: current } : d)),
+    series: async (slug): Promise<SeriesRead> => {
+      if (slug === current) {
+        const s = await fakeCrazydramasTransport.series(FAKE_SLUGS.complete);
+        return s.http_status === 200 ? { ...s, drama: { ...s.drama, slug } } : s;
+      }
+      return { http_status: 404, drama: null, episodes: null };
+    },
+  });
+
+  // The first rename, followed; then the person edits film-meta to the new slug and Update carries it to the title.
+  const b = await checkCrazydramasTitle(staff(), title.id, { force: true, transport: renamedTo("fixture-film-b") });
+  assert.equal(b.outcome, "checked");
+  if (b.outcome === "checked") assert.equal(b.slug, "fixture-film-b");
+  await fixtureData.setTitleImport(staff(), title.id, { crazydramas_slug: "fixture-film-b" });
+  const same = await checkCrazydramasTitle(staff(), title.id, { force: true, transport: renamedTo("fixture-film-b") });
+  assert.equal(same.outcome, "checked");
+  if (same.outcome === "checked") {
+    assert.equal(same.slug, "fixture-film-b", "the title's slug is the link's: not a re-point");
+    assert.equal(same.linked, false);
+    assert.equal(same.status.state, "live_complete");
+  }
+  assert.equal((await fixtureData.getPlatformLink(staff(), title.id, PLATFORM))?.title_slug, FAKE_SLUGS.complete, "no rewrite while nothing moved");
+
+  // The second rename: the link moves to c and records b — the title's own slug, which it had accepted — as title_slug,
+  // so no later check reads film-meta's b as a re-point (the reviewer's probe found every later check reading b, 404).
+  for (let n = 1; n <= 3; n++) {
+    const c = await checkCrazydramasTitle(staff(), title.id, { force: true, transport: renamedTo("fixture-film-c") });
+    assert.equal(c.outcome, "checked");
+    if (c.outcome !== "checked") return;
+    assert.equal(c.slug, "fixture-film-c", `check ${n} after the second rename reads the platform's slug`);
+    assert.equal(c.http_status, 200);
+    assert.equal(c.status.state, "live_complete");
+    assert.equal(c.status.slug, "fixture-film-c");
+    const shown = await loadCrazydramasStatus(staff(), (await fixtureData.getTitle(staff(), title.id)).title);
+    assert.equal(shown.state, "live_complete");
+    assert.equal(shown.slug, "fixture-film-c");
+    assert.equal(shown.checked_at, c.snapshot.read_at, `the screens show check ${n}'s read`);
+  }
+  const link = await fixtureData.getPlatformLink(staff(), title.id, PLATFORM);
+  assert.equal(link?.slug, "fixture-film-c");
+  assert.equal(link?.title_slug, "fixture-film-b", "the title's own slug, as film-meta carries it");
+  assert.equal(link?.cd_drama_id, "f1000000-0000-4000-8000-000000000001");
+});
+
 test("two companies' titles on one slug: each title's reading is its own reads, so the other company's refusal never shows on this title, for its producer or for staff", async () => {
   const mine = await fixtureTitle(FAKE_SLUGS.complete);
   const first = await checkCrazydramasTitle(producer(), mine.id);
@@ -339,4 +459,24 @@ test("a successful import that set a slug runs one check: the link and the snaps
   assert.equal(status.state, "live_complete");
   assert.equal(status.counts.same_length, 3);
   assert.deepEqual(fakeCrazydramasTransport.calls, [{ what: "series", slug: "fixture-film" }]);
+});
+
+// ---- the poster a screen may load -----------------------------------------------------------------------------------
+
+test("in fake mode the screens put only a same-origin poster in an <img>: a crazydramas.com URL left behind by a live read is withheld, and the picture returns with the live-read override", () => {
+  assert.equal(crazydramasReadMode(), "fake");
+  assert.equal(shownPosterUrl(FAKE_POSTER_URL), FAKE_POSTER_URL);
+  assert.equal(shownPosterUrl(FAKE_PLACEHOLDER_POSTER_URL), FAKE_PLACEHOLDER_POSTER_URL);
+  assert.equal(shownPosterUrl("https://crazydramas.com/posters/one-night.jpg"), null, "persisted from an earlier CRAZYDRAMAS_LIVE_READ=1 run: not fetched from fixture mode");
+  assert.equal(shownPosterUrl("//crazydramas.com/posters/one-night.jpg"), null, "protocol-relative is not same-origin");
+  assert.equal(shownPosterUrl(null), null);
+  assert.equal(shownPosterUrl(undefined), null);
+  process.env.CRAZYDRAMAS_LIVE_READ = "1";
+  try {
+    assert.equal(crazydramasReadMode(), "live");
+    assert.equal(shownPosterUrl("https://crazydramas.com/posters/one-night.jpg"), "https://crazydramas.com/posters/one-night.jpg");
+  } finally {
+    delete process.env.CRAZYDRAMAS_LIVE_READ;
+  }
+  assert.equal(crazydramasReadMode(), "fake");
 });

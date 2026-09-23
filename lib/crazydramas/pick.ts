@@ -12,9 +12,11 @@
 //
 // Its own small module, imported by sweep.ts and re-exported by index.ts:
 // when the choice lived in index.ts, sweep.ts importing it while index.ts
-// re-exported sweep.ts made a cycle that `next build` could not finish
-// under the default heap (the phase 3a review). Nothing inside this folder
-// imports "./index"; everything outside asks "@/lib/crazydramas".
+// re-exported sweep.ts made a cycle, which the phase 3a review first blamed
+// for a `next build` that ran out of heap (the cause was output tracing
+// walking the runtime .uploads folder; next.config.js excludes it since).
+// Nothing inside this folder imports "./index"; everything outside asks
+// "@/lib/crazydramas".
 
 import { dataSource } from "@/lib/data-source";
 import { fakeCrazydramasTransport } from "./fake";
@@ -31,4 +33,19 @@ export function crazydramasReadMode(): CrazydramasReadMode {
 export function crazydramasTransport(): CrazydramasTransport {
   if (typeof window !== "undefined") throw new Error("crazydramas reads are server-only.");
   return crazydramasReadMode() === "fake" ? fakeCrazydramasTransport : liveCrazydramasTransport;
+}
+
+/**
+ * The poster URL a screen may put in an <img>: in fake mode only a
+ * same-origin one (the fake's SVGs under /crazydramas-fake/). The fixture
+ * store persists its snapshots, so one run with CRAZYDRAMAS_LIVE_READ=1
+ * leaves real https://crazydramas.com/posters/... URLs behind, and a later
+ * plain fixture run would otherwise have the browser fetch them from
+ * crazydramas.com (the phase 3a review, round two). The facts about the
+ * poster (set, placeholder) are still shown; only the picture is withheld.
+ */
+export function shownPosterUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (crazydramasReadMode() === "fake" && !(url.startsWith("/") && !url.startsWith("//"))) return null;
+  return url;
 }

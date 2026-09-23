@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { adminLocale, staffSession } from "@/components/admin/server";
 import { chipReading, CrazydramasChip } from "@/components/producer/CrazydramasChip";
 import CrazydramasPanel from "@/components/producer/CrazydramasPanel";
-import { crazydramasPublicUrl, loadCrazydramasStatus } from "@/lib/crazydramas";
+import { crazydramasPublicUrl, loadCrazydramasStatus, shownPosterUrl } from "@/lib/crazydramas";
 import { getData, isDataError } from "@/lib/data";
 import { t } from "@/lib/i18n";
 
@@ -39,6 +39,7 @@ export default async function StaffCrazydramasPage({ params }: { params: { id: s
           titleId={detail.title.id}
           status={status}
           publicUrl={status.slug ? crazydramasPublicUrl(status.slug) : null}
+          posterUrl={shownPosterUrl(status.series?.poster_url)}
           imported={!!detail.title.source_ref}
           canCheck
         />

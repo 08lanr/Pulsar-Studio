@@ -21,6 +21,8 @@ type Props = {
   status: CrazydramasStatus;
   /** The series' public page (crazydramasPublicUrl on the server), null without a slug. */
   publicUrl: string | null;
+  /** The poster the browser may load (shownPosterUrl on the server: in fake mode only a same-origin one); null shows the empty frame. */
+  posterUrl: string | null;
   /** The title came from the film workspace (its slug travels in film-meta). */
   imported: boolean;
   /** Whether this session may press Check now; when not, `reason` says why in portal words. */
@@ -30,7 +32,7 @@ type Props = {
 
 type CheckReply = { error?: string; code?: string };
 
-export default function CrazydramasPanel({ titleId, status, publicUrl, imported, canCheck, reason = null }: Props) {
+export default function CrazydramasPanel({ titleId, status, publicUrl, posterUrl, imported, canCheck, reason = null }: Props) {
   const { tt, locale } = useT();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -81,8 +83,8 @@ export default function CrazydramasPanel({ titleId, status, publicUrl, imported,
       <section className="card cd-series" aria-label={tt("cd.title")}>
         <div style={{ display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
           <span className="cd-poster" style={{ width: 96, aspectRatio: "3 / 4", borderRadius: 6, overflow: "hidden", background: "var(--surface-3)", flexShrink: 0 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element -- the poster as crazydramas.com serves it (in fixture mode the fake's same-origin SVG); a plain <img>, nothing proxied */}
-            {series?.poster_url ? <img src={series.poster_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null}
+            {/* eslint-disable-next-line @next/next/no-img-element -- the poster as crazydramas.com serves it (in fixture mode only the fake's same-origin SVG, see shownPosterUrl); a plain <img>, nothing proxied */}
+            {posterUrl ? <img src={posterUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null}
           </span>
           <dl className="tw-facts" style={{ flex: "1 1 320px" }}>
             <div>

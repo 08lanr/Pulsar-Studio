@@ -4,11 +4,13 @@
 // the app reads — the fake in fixture mode, the live one in Supabase mode,
 // CRAZYDRAMAS_LIVE_READ=1 as the engineer's override — is decided in
 // pick.ts, which the modules inside this folder import directly: a module
-// here never imports "./index" (that cycle broke `next build`). The reading
-// the screens call (crazydramasStatusFor) and the rule constants are
+// here never imports "./index" (a cycle was once blamed for a `next build`
+// that ran out of heap; the cause was output tracing walking the runtime
+// .uploads folder, excluded in next.config.js since). The reading the
+// screens call (crazydramasStatusFor) and the rule constants are
 // re-exported from match.ts.
 
-export { crazydramasReadMode, crazydramasTransport } from "./pick";
+export { crazydramasReadMode, crazydramasTransport, shownPosterUrl } from "./pick";
 export type { CrazydramasReadMode } from "./pick";
 export { CrazydramasApiError, crazydramasBaseUrl, crazydramasPublicUrl, DEFAULT_BASE_URL } from "./transport";
 export type { CrazydramasTransport } from "./transport";

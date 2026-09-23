@@ -2,7 +2,7 @@ import { chipReading } from "@/components/producer/CrazydramasChip";
 import CrazydramasPanel from "@/components/producer/CrazydramasPanel";
 import TitleShell from "@/components/producer/TitleShell";
 import { isStaffPreview, portalSession, producerLocale } from "@/components/producer/server";
-import { crazydramasPublicUrl } from "@/lib/crazydramas";
+import { crazydramasPublicUrl, shownPosterUrl } from "@/lib/crazydramas";
 import { t } from "@/lib/i18n";
 import { loadTitleWorkspace } from "@/lib/research/title-workspace";
 
@@ -27,6 +27,7 @@ export default async function CrazydramasPage({ params }: { params: { id: string
         titleId={params.id}
         status={w.crazydramas}
         publicUrl={w.crazydramas.slug ? crazydramasPublicUrl(w.crazydramas.slug) : null}
+        posterUrl={shownPosterUrl(w.crazydramas.series?.poster_url)}
         imported={!!w.detail.title.source_ref}
         canCheck={canCheck}
         reason={preview ? "preview" : canCheck ? null : "readOnly"}

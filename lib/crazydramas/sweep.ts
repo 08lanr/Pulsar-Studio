@@ -53,15 +53,23 @@ async function titleSnapshots(session: Session, titleId: string, slug: string): 
  * the title's snapshots of the slug (newest first) and the episode rows.
  * The caller's session decides what it may read (a foreign title is not
  * found). Pass the episodes when a page already has them.
+ *
+ * The slug read is the one a check would read now (resolveReadSlug without
+ * a catalog): the link's, or — when the person re-pointed the title in
+ * Studio and the new slug has not answered 200 yet — the title's own, with
+ * no link, so the screens say "not checked yet" or "not live" under the
+ * slug the title carries instead of staying on the old drama with a frozen
+ * checked time (the phase 3a review, round two).
  */
 export async function loadCrazydramasStatus(session: Session, title: Title, episodes?: readonly Episode[]): Promise<CrazydramasStatus> {
   const data = getData();
   const slug = title.crazydramas_slug?.trim() || null;
   const link = slug ? await data.getPlatformLink(session, title.id, PLATFORM) : null;
-  if (!slug && !link) return crazydramasStatusFor(title, episodes ?? [], null, null);
+  const read = resolveReadSlug(title, link, null);
+  if (!read) return crazydramasStatusFor(title, episodes ?? [], null, null);
   const eps = episodes ?? (await data.listTitleEpisodes(session, title.id));
-  const snapshots = await titleSnapshots(session, title.id, link?.slug ?? slug!);
-  return crazydramasStatusFor(title, eps, snapshots, link);
+  const snapshots = await titleSnapshots(session, title.id, read.slug);
+  return crazydramasStatusFor(title, eps, snapshots, read.reason === "title_edited" ? null : link);
 }
 
 /** The statuses of many titles (the catalog page, the Import rows), one map by title id, read side by side; titles with no slug read `not_linked` without a query. */
@@ -144,7 +152,13 @@ export async function checkCrazydramasTitle(session: Session, titleId: string, o
   const link = await data.getPlatformLink(sys, titleId, PLATFORM);
   const episodes = await data.listTitleEpisodes(sys, titleId);
   const transport = opts.transport ?? crazydramasTransport();
-  const statusOf = async (slug: string, current: PlatformLink | null) => crazydramasStatusFor(title, episodes, await titleSnapshots(session, titleId, slug), current);
+  // The reading of one slug: the link goes with it only when it is the link's slug; a re-point that answered 404 (or a
+  // followed rename whose read failed) reads under the slug that was read, with no link, so the answer never names the
+  // old drama as if it were still this title's (the phase 3a review, round two).
+  const statusOf = async (slug: string, current: PlatformLink | null) => {
+    const link = current?.slug === slug ? current : null;
+    return crazydramasStatusFor(link ? title : { crazydramas_slug: slug }, episodes, await titleSnapshots(session, titleId, slug), link);
+  };
 
   /** The 30-second rule on one slug: the seconds to wait, or null. Judged on every read of the slug (the system's view), so two companies cannot hammer one slug together. */
   const tooSoon = async (slug: string): Promise<CheckResult | null> => {
@@ -187,9 +201,12 @@ export async function checkCrazydramasTitle(session: Session, titleId: string, o
       const sameDrama = !!link && link.cd_drama_id === answer.drama.id;
       if (!link || read.reason === "title_edited" || (sameDrama && read.slug !== link.slug)) {
         // The first 200 makes the link; a re-pointed title moves it (title_slug becomes the slug the person set); a followed
-        // rename updates its slug and keeps title_slug, so the next check still knows the title's own slug is not an edit.
+        // rename updates its slug and keeps title_slug — or records the title's own slug when the link already accepted it
+        // (film-meta brought up to date with the first rename before a second one), so the next check still knows the
+        // title's own slug is not an edit.
         try {
-          const titleSlug = link && read.reason !== "title_edited" ? link.title_slug : read.slug;
+          const own = title.crazydramas_slug?.trim() || null;
+          const titleSlug = !link || read.reason === "title_edited" ? read.slug : own && (own === link.title_slug || own === link.slug) ? own : link.title_slug;
           currentLink = await data.upsertPlatformLink(sys, { title_id: titleId, platform: PLATFORM, slug: read.slug, title_slug: titleSlug, cd_drama_id: answer.drama.id });
           linked = !link || currentLink.cd_drama_id !== link.cd_drama_id;
         } catch (e) {
