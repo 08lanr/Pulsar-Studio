@@ -55,6 +55,7 @@ export function episodeImportPatch(patch: EpisodeImportInput, current?: Pick<Epi
     if (typeof patch.auto_cut !== "boolean") throw invalid("auto_cut must be a boolean");
     out.auto_cut = patch.auto_cut;
   }
+  if (patch.duration_ms !== undefined) out.duration_ms = nonNegativeInt(patch.duration_ms, "duration_ms");
   return out;
 }
 

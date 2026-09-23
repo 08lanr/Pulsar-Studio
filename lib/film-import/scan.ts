@@ -93,7 +93,10 @@ export const nodeScanFs: ScanFs = {
 
 // ---- the walk ---------------------------------------------------------------------------------
 
-type Project = { folder: string; source_ref: string; abs: string };
+/** One project under the root; `realpath` is its folded (case as the OS compares it) real path, the identity junctions and casing share. */
+export type Project = { folder: string; source_ref: string; abs: string; realpath: string };
+
+const foldFor = (opts: ScanOptions) => ((opts.caseInsensitive ?? process.platform === "win32") ? (s: string) => s.toLowerCase() : (s: string) => s);
 
 async function isDir(sfs: ScanFs, p: string): Promise<boolean> {
   return (await sfs.stat(p))?.is_directory === true;
@@ -117,7 +120,7 @@ async function childDirs(sfs: ScanFs, dir: string): Promise<{ name: string; abs:
 /** The project folders under the root, at depth one or two, each realpath once. */
 export async function listProjects(opts: ScanOptions): Promise<Project[]> {
   const sfs = opts.fs ?? nodeScanFs;
-  const fold = (opts.caseInsensitive ?? process.platform === "win32") ? (s: string) => s.toLowerCase() : (s: string) => s;
+  const fold = foldFor(opts);
   // One entry per realpath. When a junction and the folder it points at are
   // both under the root, the folder itself is the film (`alias` sorts before
   // `low-quality/`, so the order of the walk cannot decide).
@@ -127,7 +130,7 @@ export async function listProjects(opts: ScanOptions): Promise<Project[]> {
     const real = fold(await sfs.realpath(abs));
     const isReal = real === fold(path.resolve(abs));
     const have = byKey.get(real);
-    if (!have || (isReal && !have.real)) byKey.set(real, { folder: name, source_ref: sourceRef, abs, real: isReal });
+    if (!have || (isReal && !have.real)) byKey.set(real, { folder: name, source_ref: sourceRef, abs, realpath: real, real: isReal });
     return true;
   };
   if (!(await isDir(sfs, opts.root))) return [];
@@ -136,6 +139,26 @@ export async function listProjects(opts: ScanOptions): Promise<Project[]> {
     for (const e of await childDirs(sfs, d.abs)) await consider(e.name, e.abs, `${d.name}/${e.name}`);
   }
   return [...byKey.values()].map(({ real: _real, ...p }) => p).sort((a, b) => a.source_ref.localeCompare(b.source_ref));
+}
+
+/**
+ * The project a source ref names, by the same identity the listing uses:
+ * `Low-Quality/Mafia-King` on a case-insensitive disk, or a junction alias,
+ * resolves to the film's canonical entry (its own folder, its own ref), so
+ * one film can never become two titles for one company (spec §3.2). Null
+ * when the ref is not a project folder under the root.
+ */
+export async function resolveProject(sourceRef: string, opts: ScanOptions): Promise<Project | null> {
+  const sfs = opts.fs ?? nodeScanFs;
+  const abs = workspacePath(opts.root, sourceRef);
+  if (!(await isDir(sfs, abs))) return null;
+  let real: string;
+  try {
+    real = foldFor(opts)(await sfs.realpath(abs));
+  } catch {
+    return null;
+  }
+  return (await listProjects(opts)).find((p) => p.realpath === real) ?? null;
 }
 
 // ---- one film -----------------------------------------------------------------------------------
@@ -179,7 +202,9 @@ async function probeViaLink(sfs: ScanFs, opts: ScanOptions, original: string, fo
   try {
     try {
       await sfs.link(original, link);
-    } catch {
+    } catch (e) {
+      // A copy holds the original open for its whole length; only another volume justifies it (EXDEV). Anything else is a warning, not a read of the original.
+      if ((e as NodeJS.ErrnoException).code !== "EXDEV") throw e;
       await sfs.copy(original, link);
     }
     const r = await opts.probe(link);

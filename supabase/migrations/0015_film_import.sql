@@ -50,12 +50,15 @@ alter table core.episodes add column if not exists film_end_ms int check (film_e
 alter table core.episodes add column if not exists end_note jsonb;
 alter table core.episodes add column if not exists auto_cut boolean not null default true;
 
--- 0011 narrowed the producer's UPDATE on core.episodes to a column list; the
--- import fields join it so a producer editor's session writes them under the
--- same row rule (producer_update_episodes: can_edit_title). The import job
--- itself runs as the system actor through the service role.
-grant update (source_ref, video_sha256, video_bytes, video_frames, film_start_ms, film_end_ms, end_note, auto_cut)
-  on core.episodes to authenticated;
+-- 0011 narrowed the producer's UPDATE on core.episodes to a column list, and
+-- the import fields stay OUT of it: the import job writes them as the system
+-- actor through the service role, no producer-facing write exists, and a
+-- session that could set video_sha256, the film window or auto_cut directly
+-- through PostgREST would be forging what the ad engine trusts. The revoke
+-- undoes the grant an earlier draft of this migration made (a no-op where it
+-- never ran).
+revoke update (source_ref, video_sha256, video_bytes, video_frames, film_start_ms, film_end_ms, end_note, auto_cut)
+  on core.episodes from authenticated;
 
 -- ---- studio.film_assets: the pipeline's files, kept beside the title ----
 

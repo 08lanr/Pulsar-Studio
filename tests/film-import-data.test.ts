@@ -189,11 +189,13 @@ test("setEpisodeImport patches the import fields and validates them; a refused p
   await assert.rejects(fixtureData.setEpisodeImport(producer(), ep.id, { video_bytes: -1 }), { code: "invalid" });
   await assert.rejects(fixtureData.setEpisodeImport(producer(), ep.id, { film_start_ms: 200_000 }), { code: "invalid" }, "an end before the start, against the stored window");
   await assert.rejects(fixtureData.setEpisodeImport(producer(), ep.id, { video_path: "" }), { code: "invalid" });
+  await assert.rejects(fixtureData.setEpisodeImport(producer(), ep.id, { duration_ms: 1.5 }), { code: "invalid" });
   const untouched = (await fixtureData.getWorkbench(staff(), title.id, 1)).episode;
   assert.equal(untouched.video_sha256, SHA_B);
   assert.equal(untouched.film_start_ms, 0);
 
   assert.equal((await fixtureData.setEpisodeImport(systemSession(), ep.id, { auto_cut: true })).auto_cut, true);
+  assert.equal((await fixtureData.setEpisodeImport(systemSession(), ep.id, { duration_ms: 120_000 })).duration_ms, 120_000, "the measured length travels with the import fields");
 
   const { session: them } = await stranger();
   await assert.rejects(fixtureData.setEpisodeImport(them, ep.id, { auto_cut: false }), { code: "not_found" });
@@ -269,6 +271,11 @@ test("localPathOf resolves the tier on disk and refuses a bucket path, an escape
     assert.throws(() => localPathOf(`local/${titleId}`), { code: "invalid" }, "a title alone is not a file");
     assert.throws(() => localPathOf(`local/${titleId}//ep01.mp4`), { code: "invalid" });
     assert.throws(() => localPathOf(`local/${titleId}/ws/${path.resolve(workspace, "x.mp4")}`), { code: "invalid" });
+    // A backslash inside a segment (Next decodes %5C before the handler runs) would walk into another title's folder on Windows.
+    assert.throws(() => localPathOf(`local/${titleId}/ws\\..\\..\\other-title\\ws\\film\\ep01.mp4`), { code: "invalid" });
+    assert.throws(() => localPathOf(`local/${titleId}/ws/C:\\x.mp4`), { code: "invalid" });
+    assert.throws(() => resolveUploadPath(`${titleId}\\..\\other-title\\ep\\file.mp4`), { code: "invalid" });
+    assert.throws(() => resolveUploadPath(`${titleId}/ep/a:b.mp4`), { code: "invalid" });
 
     // A tier configured inside the workspace would read the pipeline's files in place: every path is refused.
     process.env.STUDIO_LOCAL_MEDIA_DIR = path.join(workspace, "low-quality", "mafia-king", "cut", "eps");
@@ -354,6 +361,9 @@ test("the media route streams a disk file with Range (whole, a slice, a suffix, 
     assert.equal(titleIdOfMediaPath(["T"]), null);
     assert.equal(titleIdOfMediaPath(["local", "..", "x", "y"]), null);
     assert.equal(titleIdOfMediaPath(["T", "", "y"]), null);
+    assert.equal(titleIdOfMediaPath(["local", "T", "ws\\..\\..\\F\\ws\\slug\\ep01-abc.mp4"]), null, "a decoded %5C (Next decodes each segment) never reaches the disk");
+    assert.equal(titleIdOfMediaPath(["T", "ep", "C:\\file.mp4"]), null);
+    assert.equal(titleIdOfMediaPath(["T", "ep", "a\0b.mp4"]), null);
   } finally {
     rmSync(scratch, { recursive: true, force: true });
   }

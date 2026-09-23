@@ -298,8 +298,10 @@ export const supabaseData: DataLayer = {
     return out;
   },
 
-  async getTitle(_session, titleId): Promise<TitleDetail> {
-    const c = db();
+  async getTitle(session, titleId): Promise<TitleDetail> {
+    // dbFor: the import job reads the title it updates as the system actor, in
+    // the background and from scripts, where no request cookie exists.
+    const c = dbFor(session);
     const title = await one<Title>(core(c).from("titles").select("*").eq("id", titleId).maybeSingle(), "title", titleId);
     const [r, adaptation, characters, variants] = await Promise.all([
       loadTitleRows(c, title),

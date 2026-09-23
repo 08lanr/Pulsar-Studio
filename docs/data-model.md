@@ -995,15 +995,18 @@ core.episodes  (added)
   end_note jsonb,                            -- the pipeline's vision record for the boundary plus a band_fix flag
   auto_cut boolean not null default true     -- FALSE on an imported episode: lib/clips/run.ts and the fixture's starter
                                              --   cuts skip it (the ad engine cuts imported films); uploads keep true.
-  -- authenticated UPDATE column grant (0011 narrowed it) extended to these columns; row rule can_edit_title.
+  -- NOT in the authenticated UPDATE column grant (0011): the import job writes these as the service role; a session
+  --   that could set the hash, the window or auto_cut directly would be forging what the ad engine trusts.
 
-studio.film_assets                           -- the pipeline files that came with the film, linked into the local tier
+studio.film_assets                           -- the pipeline files that came with the film, copied into the local tier
   id uuid pk, title_id uuid* references core.titles on delete cascade,
   kind text* in ('transcript','shots','motion','candidates','source_facts','delivered_plan','vision_notes','film_meta','poster'),
-  storage_path text*,                        -- local/<title_id>/ws/<slug>/<file> for a linked workspace file; a bucket path
+  storage_path text*,                        -- local/<title_id>/ws/<slug>/<stem>-<sha8>.<ext>: the file's bytes written under
+                                             --   its hash (a COPY, never a hardlink: the index writers and a hand edit rewrite
+                                             --   the same inode in place, so only cut/eps episodes are linked); a bucket path
                                              --   for a Studio-made one
   sha256 text* (hex), bytes bigint*, origin text* in ('workspace','studio'),
-  source_ref text,                           -- the workspace file it was linked from, relative to WORKSPACE_ROOT
+  source_ref text,                           -- the workspace file it was copied from, relative to WORKSPACE_ROOT
   meta jsonb default '{}', created_at,
   unique (title_id, kind, sha256)            -- append-only, idempotent on the hash; the NEWEST row per kind wins
                                              -- the import's own record is a 'delivered_plan' row of origin 'studio' whose
@@ -1013,7 +1016,7 @@ studio.film_assets                           -- the pipeline files that came wit
   -- RLS: select via can_read_title(title_id); INSERT/UPDATE/DELETE service role only (putFilmAsset checks the
   --   caller's edit right, then writes as the service role).
 
-studio.job_kind  + 'import_film'             -- cost 0, one running per title, idempotency key import:<source_ref>:<delivered_sha>
+studio.job_kind  + 'import_film'             -- cost 0, one running per title, idempotency key import:<producer_id>:<source_ref>:<delivered_sha>
 ```
 
 **The local media tier** (`lib/data/storage.ts`). The one exception to "a
@@ -1026,12 +1029,16 @@ it; the title id second, so `GET /api/media/[...path]` authorizes on the title
 and streams the file with Range in both modes — nothing of the tier is in the
 bucket, so there is no signed URL to redirect to. `localPathOf(stored)` is the
 only way from a stored value to a disk path; it refuses a bucket path, a
-value that would leave the tier (`..`, an absolute segment) and one that
-resolves into `WORKSPACE_ROOT` (the pipeline's own files are read through
-their links only: a render holding the original path open would crash the
-pipeline's `os.replace`). `linkIntoLocalTier(srcAbs, stored)` makes the
-snapshot: `fs.linkSync` on the same volume, `copyFileSync` across volumes,
-idempotent when the target exists with the same size; the source is stat'ed,
-never opened, unless the copy fallback runs. `withSourceFile` (the cutter)
+value that would leave the tier (`..`, an absolute segment, a backslash or a
+colon inside a segment — Next decodes `%5C` before the handler runs, and
+Windows would read `ws\..\..\<other>` as directories), a file that does not
+sit under the title id the value names, and one that resolves into
+`WORKSPACE_ROOT` (the pipeline's own files are read through their links only:
+a render holding the original path open would crash the pipeline's
+`os.replace`). `linkIntoLocalTier(srcAbs, stored)` makes the episode
+snapshot: `fs.linkSync` on the same volume, `copyFileSync` only across volumes
+(EXDEV; any other link error is rethrown, because a copy would hold the
+original open), idempotent when the target exists with the same size; the
+source is stat'ed, never opened, unless that one fallback runs. `withSourceFile` (the cutter)
 reads a local-tier source in place instead of buffering a copy per run.
 Rendered ads and every upload still go to `studio-media`.

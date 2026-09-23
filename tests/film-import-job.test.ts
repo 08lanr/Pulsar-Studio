@@ -13,7 +13,7 @@ process.env.PROMO_RENDER = "off";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
@@ -118,6 +118,7 @@ test("importFilm: an en-US title, three hardlinked episodes hashed and probed th
     assert.equal(statSync(link).ino, statSync(original).ino, "a hardlink, not a copy");
     assert.equal(ep.video_bytes, statSync(original).size);
     assert.equal(ep.video_frames, PLAN_FRAMES[n] + (n === 2 ? 1 : 0));
+    assert.equal(ep.duration_ms, (PLAN_FRAMES[n] / 30) * 1000, "the measured length of the file, not the end of its last cue");
     assert.equal(ep.auto_cut, false);
     assert.equal(ep.source_ref, `${FILM}/cut/eps/ep0${n}.mp4`);
     assert.deepEqual([ep.film_start_ms, ep.film_end_ms], [[0, 4000], [4000, 9000], [9000, 15000]][n - 1]);
@@ -160,6 +161,7 @@ test("importFilm: an en-US title, three hardlinked episodes hashed and probed th
     assert.ok(isLocalTierPath(a.storage_path), a.storage_path);
     assert.equal(statSync(localPathOf(a.storage_path)).size, a.bytes);
     if (a.origin === "workspace") assert.equal(sha(localPathOf(a.storage_path)), a.sha256);
+    if (a.origin === "workspace") assert.equal(statSync(localPathOf(a.storage_path)).nlink, 1, `${a.kind} is a copy of the bytes, not a link to a file its writer rewrites in place`);
   }
   const visionFiles = assets.filter((a) => a.kind === "vision_notes").map((a) => (a.meta as { file: string }).file).sort();
   assert.deepEqual(visionFiles, ["2026-09-22_0-end.json", "2026-09-22_0-end_band-fix.md"], "the superseded record and the applied options file are not linked");
@@ -176,7 +178,7 @@ test("a second run of the same bytes skips every episode; the transcript is neve
   assert.equal(again.title_id, first.title_id);
   assert.notEqual(again.job_id, first.job_id, "an update of an already imported plan is its own job row");
   assert.deepEqual(again.counts, { added: 0, updated: 0, unchanged: 3, flagged: 0, transcripts: 0, transcripts_skipped: 3 });
-  assert.equal(again.flags.filter((f) => /kept its \d+ existing lines/.test(f)).length, 3);
+  assert.deepEqual(again.flags, [], "lines kept under an unchanged file and window are not worth a flag");
   const wb = await fixtureData.getWorkbench(staff(), first.title_id, 1);
   assert.equal(wb.lines.length, 1, "the lines are the first import's");
   const detail = await fixtureData.getTitle(staff(), first.title_id);
@@ -314,6 +316,7 @@ test("refusals: not READY, unknown, already imported, never imported, already ru
   await importFilm(producer(), { source_ref: FILM, mode: "import" }, who(), opts());
   await assert.rejects(importFilm(producer(), { source_ref: FILM, mode: "import" }, who(), opts()), { code: "conflict" });
   assert.equal((await fixtureData.listTitles(staff())).length, 1);
+  assert.equal(importProgress(producer().producerId!, FILM)?.step, "done", "a refused start gives the key back: the finished import's line stays");
 
   // A staff caller must name the company; a producer's own company is implied.
   await assert.rejects(importFilm(staff(), { source_ref: FILM, mode: "import" }, {}, opts()), { code: "invalid" });
@@ -341,6 +344,91 @@ test("startImport returns once the title exists; the registry reports the progre
   assert.equal(done?.step, "done");
   assert.deepEqual(done?.result?.counts, { added: 3, updated: 0, unchanged: 0, flagged: 1, transcripts: 3, transcripts_skipped: 0 });
   assert.equal((await fixtureData.getTitle(staff(), started.title_id)).episodes.length, 3);
+});
+
+test("two companies importing the same film at once are two jobs on two titles", async () => {
+  const other = await fixtureData.createProducer(staff(), { name_zh: "别家影视" });
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const slow = async (link: string) => {
+    await gate;
+    return fakeProbe(link);
+  };
+  const a = await startImport(producer(), { source_ref: FILM, mode: "import" }, who(), { ...opts(), probe: slow });
+  const b = await startImport(fixtureSession("producer", other.id), { source_ref: FILM, mode: "import" }, { producer_id: other.id, created_by: producer().userId }, { ...opts(), probe: slow });
+  assert.notEqual(a.title_id, b.title_id);
+  assert.notEqual(a.job_id, b.job_id, "the job key is scoped to the company: B never adopts A's running row");
+  release();
+  const both = () => [producer().producerId!, other.id].every((pid) => importProgress(pid, FILM)?.step === "done");
+  for (let i = 0; i < 200 && !both(); i++) await new Promise((r) => setTimeout(r, 25));
+  assert.ok(both(), "both imports finished");
+  assert.equal((await fixtureData.getTitle(staff(), a.title_id)).episodes.length, 3);
+  assert.equal((await fixtureData.getTitle(staff(), b.title_id)).episodes.length, 3);
+});
+
+test("the index files are copies, not links: a writer rewriting candidates.json in place leaves the asset's bytes hashing to its row; the episodes stay hardlinks", async () => {
+  const root = tempWorkspace();
+  const r = await importFilm(producer(), { source_ref: FILM, mode: "import" }, who(), opts(root));
+  const assets = await fixtureData.listFilmAssets(staff(), r.title_id);
+  const candidates = assets.find((a) => a.kind === "candidates")!;
+  const workspaceFile = path.join(root, "low-quality", "fixture-film", "cut", "index", "candidates.json");
+  const copy = localPathOf(candidates.storage_path);
+  assert.notEqual(statSync(copy).ino, statSync(workspaceFile).ino, "not the workspace file's inode");
+  // The pipeline's re-index: json.dump(..., open(path, "w")) truncates and rewrites the same inode (as writeFileSync does).
+  writeFileSync(workspaceFile, readFileSync(workspaceFile, "utf8").replace(/\}\s*$/, ',\n "allowed": [{"t": 4.5, "why": "--allow"}]\n}\n'));
+  assert.notEqual(sha(workspaceFile), candidates.sha256, "the workspace file moved on");
+  assert.equal(sha(copy), candidates.sha256, "the asset did not");
+  assert.equal(statSync(copy).size, candidates.bytes);
+  for (const a of assets.filter((x) => x.origin === "workspace")) assert.equal(statSync(localPathOf(a.storage_path)).nlink, 1, `${a.kind} is a copy`);
+  const ep = (await fixtureData.getWorkbench(staff(), r.title_id, 1)).episode;
+  assert.ok(statSync(localPathOf(ep.video_path!)).nlink >= 2, "an episode is a hardlink to the render's file, which os.replace swaps rather than rewrites");
+});
+
+test("a source ref names the film by its real folder: another casing or a junction alias is the same title, and a bucket folder is not a film", { skip: process.platform !== "win32" && "case-insensitive paths and junctions are Windows" }, async () => {
+  const root = tempWorkspace();
+  symlinkSync(path.join(root, "low-quality", "fixture-film"), path.join(root, "alias"), "junction");
+  const r = await importFilm(producer(), { source_ref: "Low-Quality/Fixture-Film", mode: "import" }, who(), opts(root));
+  const title = (await fixtureData.getTitle(staff(), r.title_id)).title;
+  assert.equal(title.source_ref, FILM, "the canonical ref, not the typed one");
+  await assert.rejects(importFilm(producer(), { source_ref: "alias", mode: "import" }, who(), opts(root)), (e: Error & { code?: string }) => e.code === "conflict" && /already imported/.test(e.message));
+  const again = await importFilm(producer(), { source_ref: "alias", mode: "update" }, who(), opts(root));
+  assert.equal(again.title_id, r.title_id);
+  assert.equal(again.counts.unchanged, 3);
+  assert.equal((await fixtureData.listTitles(staff())).length, 1, "one film, one title");
+  assert.equal(importProgress(producer().producerId!, FILM)?.step, "done", "the progress line lives under the canonical ref");
+  await assert.rejects(importFilm(producer(), { source_ref: "low-quality", mode: "import" }, who(), opts(root)), { code: "not_found" });
+});
+
+test("the last episode's planned frames are capped at the measured count (the container duration overshoots the source's last frame); a failed probe falls back to the window length", async () => {
+  const probe = async (link: string): Promise<VideoFacts | null> => {
+    const n = Number(path.basename(link).match(/^ep(\d+)/)?.[1]);
+    if (n === 1) return null;
+    return { width: 720, height: 1280, fps: 30, frames: n === 3 ? 178 : PLAN_FRAMES[n], duration_s: PLAN_FRAMES[n] / 30 };
+  };
+  const r = await importFilm(producer(), { source_ref: FILM, mode: "import" }, who(), { ...opts(), probe });
+  assert.deepEqual(r.flags, ["ep01: ffprobe could not read the file; the frame count is not recorded"], "two frames short on the last episode is not a shortfall");
+  assert.equal(r.counts.flagged, 0);
+  const record = latestImportRecord(await fixtureData.listFilmAssets(staff(), r.title_id))!;
+  assert.deepEqual(record.episodes.map((e) => [e.n, e.frames, e.planned_frames]), [[1, null, 120], [2, 150, 150], [3, 178, 178]]);
+  const ep1 = (await fixtureData.getWorkbench(staff(), r.title_id, 1)).episode;
+  assert.equal(ep1.video_frames, null);
+  assert.equal(ep1.duration_ms, 4000, "the window length when nothing was measured");
+  assert.equal((await fixtureData.getWorkbench(staff(), r.title_id, 3)).episode.video_frames, 178);
+});
+
+test("an update to a shrunk plan flags the episodes past the new count; kept lines are flagged only under a moved window or file", async () => {
+  const root = tempWorkspace();
+  const r = await importFilm(producer(), { source_ref: FILM, mode: "import" }, who(), opts(root));
+  const cut = path.join(root, "low-quality", "fixture-film", "cut");
+  rmSync(path.join(cut, "eps", "ep03.mp4"));
+  const planFile = path.join(cut, "review", "cuts-0-15-DELIVERED.json");
+  const plan = JSON.parse(readFileSync(planFile, "utf8"));
+  plan.episodes = plan.episodes.slice(0, 2);
+  writeFileSync(planFile, JSON.stringify(plan, null, 1));
+  const update = await importFilm(producer(), { source_ref: FILM, mode: "update" }, who(), opts(root));
+  assert.deepEqual([update.counts.updated, update.counts.unchanged, update.counts.flagged, update.counts.transcripts_skipped], [0, 2, 1, 2]);
+  assert.deepEqual(update.flags, ["ep03: no longer in the delivered plan (2 episodes); its file and window are the old delivery's"]);
+  assert.equal((await fixtureData.getTitle(staff(), r.title_id)).episodes.length, 3, "nothing is deleted");
 });
 
 // ---- the pure pieces ---------------------------------------------------------------------------------------

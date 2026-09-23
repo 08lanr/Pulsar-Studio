@@ -13,7 +13,11 @@
 // Each episode is HARDLINKED into the local media tier first, the link is
 // hashed (streamed) and probed (ffprobe), and the link is what the episode
 // row points at. Holding the original open would make the pipeline's
-// os.replace fail and crash cut_episodes.py.
+// os.replace fail and crash cut_episodes.py. The episodes are the ONLY
+// hardlinks: the plan, index, vision, film-meta and poster files are read
+// once and their bytes written into the tier (`copyAsset`), because their
+// writers rewrite the same inode in place and a link to them would not be a
+// snapshot.
 //
 // Two entry points: `startImport` does the checks that can refuse (the film
 // is READY, the title exists or does not, no import is already running),
@@ -31,13 +35,13 @@ import path from "node:path";
 import { z } from "zod";
 import { cuesToVtt, restoreMachineLines, transcriptToCues, type AsrSegment, type AsrWord } from "@/lib/asr";
 import { systemSession, type Session } from "@/lib/auth";
-import { DataError, getData, isDataError, type NewJob } from "@/lib/data";
+import { DataError, getData, isDataError, type EpisodeImportInput, type NewJob } from "@/lib/data";
 import { normalizeSourceRef } from "@/lib/data/film-import";
 import { linkIntoLocalTier, localPathOf, localStoredPath, mediaUrl, putStoredBytes, uploadImport, workspaceRoot } from "@/lib/data/storage";
 import { ingestEpisodeFile } from "@/lib/ingest";
 import type { AdRules, Episode, FilmAsset, FilmAssetKind, Job, JobKind, Json, Title } from "@/lib/types";
 import { POSTER_FILE, listBandFixFiles, loadFilmIndex, sha256Hex } from "./manifest";
-import { applyImportState, nodeScanFs, scanFilm, scanWorkspace, workspacePath, type ProbeFn, type ScanOptions } from "./scan";
+import { applyImportState, nodeScanFs, resolveProject, scanFilm, scanWorkspace, workspacePath, type ProbeFn, type ScanOptions } from "./scan";
 import type { BoundaryNote, DeliveredEpisode, FilmIndex, FilmScan, FilmScanState, ScanReason, WhisperIndex } from "./types";
 
 export const IMPORT_JOB_KIND: Extract<JobKind, "import_film"> = "import_film";
@@ -551,80 +555,104 @@ function reasonText(reason: ScanReason | null): string {
  * title. Throws a DataError the route maps: `not_found` for a film that is
  * not there, `conflict` when it is not READY, already imported (import mode),
  * never imported (update mode) or being imported right now.
+ *
+ * The request's ref is resolved to the film's canonical entry first
+ * (`resolveProject`: `Low-Quality/Mafia-King` and a junction alias are the
+ * same film as `low-quality/mafia-king`), so the title, its source_ref, the
+ * job key and the progress key all carry one spelling per film.
  */
 async function prepare(caller: Session, request: ImportRequest, context: ImportContext, opts: ImportOptions): Promise<Prepared> {
   const ctx = contextOf(caller, context);
   const root = resolveRoot(opts);
-  const ref = normalizeSourceRef(request.source_ref);
+  const requested = normalizeSourceRef(request.source_ref);
   const data = getData();
   const sys = systemSession();
-  if (!(await nodeScanFs.stat(workspacePath(root, ref)))?.is_directory) throw new DataError("not_found", `film ${ref} not found under the workspace`);
+  if (!(await nodeScanFs.stat(workspacePath(root, requested)))?.is_directory) throw new DataError("not_found", `film ${requested} not found under the workspace`);
+  const project = await resolveProject(requested, scanOptions(root, opts));
+  if (!project) throw new DataError("not_found", `${requested} is not a film folder under the workspace`);
+  const ref = project.source_ref;
 
   const key = progressKey(ctx.producer_id, ref);
-  if (importIsRunning(registry().get(key))) throw new DataError("conflict", `an import of ${ref} is already running`);
-
-  const scan = await scanFilm(ref, scanOptions(root, opts));
-  if (scan.state !== "READY" || !scan.delivered) throw new DataError("conflict", `${ref} is not ready to import: ${reasonText(scan.reason)}`);
-
-  const existing = await data.findTitleBySourceRef(sys, ctx.producer_id, ref);
-  if (request.mode === "import" && existing) throw new DataError("conflict", `${ref} is already imported as ${existing.external_id}; update it instead`);
-  if (request.mode === "update" && !existing) throw new DataError("not_found", `${ref} has not been imported for this company yet`);
-
-  const displayTitle = request.display_title?.trim() || scan.display_title;
-  let title: Title;
-  let created = false;
-  if (existing) {
-    title = existing;
-    const patch: { display_title_en?: string; crazydramas_slug?: string | null } = {};
-    if (request.display_title?.trim() && request.display_title.trim() !== (existing.name_en ?? "")) patch.display_title_en = request.display_title.trim();
-    if (scan.meta?.crazydramas_slug && scan.meta.crazydramas_slug !== (existing.crazydramas_slug ?? null)) patch.crazydramas_slug = scan.meta.crazydramas_slug;
-    if (Object.keys(patch).length) title = await data.setTitleImport(sys, existing.id, patch);
-  } else {
-    title = await data.createImportedTitle(sys, {
-      producer_id: ctx.producer_id,
-      source_ref: ref,
-      display_title_en: displayTitle,
-      crazydramas_slug: scan.meta?.crazydramas_slug ?? null,
-      created_by: ctx.created_by,
-    });
-    created = true;
-  }
-
-  // One job per film and plan; a second run of the same plan (an update after a re-render) is its own row.
-  const baseKey = `import:${ref}:${scan.delivered.sha256}`;
-  const jobInput = (key: string): NewJob => ({
-    kind: IMPORT_JOB_KIND,
-    title_id: title.id,
-    target_type: "title",
-    target_id: title.id,
-    idempotency_key: key,
-    provider: null,
-    model: null,
-    input: { source_ref: ref, delivered_file: scan.delivered!.file, delivered_sha256: scan.delivered!.sha256, mode: request.mode, attach_transcript: request.attach_transcript !== false, caller: ctx.created_by },
-  });
-  let job = await data.recordJob(sys, jobInput(baseKey));
-  if (job.status === "done") job = await data.recordJob(sys, jobInput(`${baseKey}:u${Date.now().toString(36)}`));
-
+  const previous = registry().get(key);
+  if (importIsRunning(previous)) throw new DataError("conflict", `an import of ${ref} is already running`);
+  // Claimed synchronously, before the first await below: two POSTs landing
+  // together would otherwise both pass the check and share one job row.
   const at = new Date().toISOString();
-  const progress: ImportProgress = {
+  const placeholder: ImportProgress = {
     key,
     producer_id: ctx.producer_id,
     source_ref: ref,
     mode: request.mode,
-    job_id: job.id,
-    title_id: title.id,
+    job_id: "",
+    title_id: "",
     started_at: at,
     updated_at: at,
     step: "scan",
     episode: null,
-    total: scan.delivered.count,
+    total: 0,
     what: null,
     counts: zeroCounts(),
     error: null,
     result: null,
   };
-  registry().set(key, progress);
-  return { root, ref, slug: scan.folder, scan, title, created, job, progress, request, ctx, opts };
+  registry().set(key, placeholder);
+  let claimed = false;
+  try {
+    const scan = await scanFilm(ref, scanOptions(root, opts));
+    if (scan.state !== "READY" || !scan.delivered) throw new DataError("conflict", `${ref} is not ready to import: ${reasonText(scan.reason)}`);
+
+    const existing = await data.findTitleBySourceRef(sys, ctx.producer_id, ref);
+    if (request.mode === "import" && existing) throw new DataError("conflict", `${ref} is already imported as ${existing.external_id}; update it instead`);
+    if (request.mode === "update" && !existing) throw new DataError("not_found", `${ref} has not been imported for this company yet`);
+
+    const displayTitle = request.display_title?.trim() || scan.display_title;
+    let title: Title;
+    let created = false;
+    if (existing) {
+      title = existing;
+      const patch: { display_title_en?: string; crazydramas_slug?: string | null } = {};
+      if (request.display_title?.trim() && request.display_title.trim() !== (existing.name_en ?? "")) patch.display_title_en = request.display_title.trim();
+      if (scan.meta?.crazydramas_slug && scan.meta.crazydramas_slug !== (existing.crazydramas_slug ?? null)) patch.crazydramas_slug = scan.meta.crazydramas_slug;
+      if (Object.keys(patch).length) title = await data.setTitleImport(sys, existing.id, patch);
+    } else {
+      title = await data.createImportedTitle(sys, {
+        producer_id: ctx.producer_id,
+        source_ref: ref,
+        display_title_en: displayTitle,
+        crazydramas_slug: scan.meta?.crazydramas_slug ?? null,
+        created_by: ctx.created_by,
+      });
+      created = true;
+    }
+
+    // One job per company, film and plan (another company's import of the same
+    // film is its own row on its own title); a second run of the same plan (an
+    // update after a re-render) is its own row too.
+    const baseKey = `import:${ctx.producer_id}:${ref}:${scan.delivered.sha256}`;
+    const jobInput = (key: string): NewJob => ({
+      kind: IMPORT_JOB_KIND,
+      title_id: title.id,
+      target_type: "title",
+      target_id: title.id,
+      idempotency_key: key,
+      provider: null,
+      model: null,
+      input: { source_ref: ref, delivered_file: scan.delivered!.file, delivered_sha256: scan.delivered!.sha256, mode: request.mode, attach_transcript: request.attach_transcript !== false, caller: ctx.created_by },
+    });
+    let job = await data.recordJob(sys, jobInput(baseKey));
+    if (job.status === "done") job = await data.recordJob(sys, jobInput(`${baseKey}:u${Date.now().toString(36)}`));
+
+    const progress: ImportProgress = { ...placeholder, job_id: job.id, title_id: title.id, total: scan.delivered.count, updated_at: new Date().toISOString(), counts: zeroCounts() };
+    registry().set(key, progress);
+    claimed = true;
+    return { root, ref, slug: project.folder, scan, title, created, job, progress, request, ctx, opts };
+  } finally {
+    // A refusal gives the key back: the line of the last finished import stays where it was.
+    if (!claimed && registry().get(key) === placeholder) {
+      if (previous) registry().set(key, previous);
+      else registry().delete(key);
+    }
+  }
 }
 
 function touch(p: ImportProgress, patch: Partial<ImportProgress>): void {
@@ -645,15 +673,26 @@ async function existingEpisodes(titleId: string): Promise<Map<number, EpisodeSta
   return out;
 }
 
-/** Link one workspace file into the tier under a hashed name and record it as a film asset. */
-async function linkAsset(p: Prepared, kind: FilmAssetKind, relFile: string, meta: Json): Promise<FilmAsset> {
+const ASSET_CONTENT_TYPES: Record<string, string> = { ".json": "application/json", ".txt": "text/plain; charset=utf-8", ".md": "text/markdown; charset=utf-8", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png" };
+
+/**
+ * One workspace file recorded as a film asset: read once, hashed, and those
+ * same bytes WRITTEN into the tier under the hash's name, so the stored copy
+ * is exactly what the row describes. Never a hardlink: the pipeline's index
+ * writers (candidates.py, motion.py, transcribe.py, source_facts.py) rewrite
+ * the same inode in place with open(path, 'w'), and film-meta.json is edited
+ * by hand, so a link would change under its row at the next re-index — only
+ * the episodes, which the render swaps with os.replace, are linked. These
+ * files are small (2 MB at most); the poster takes the same path.
+ */
+async function copyAsset(p: Prepared, kind: FilmAssetKind, relFile: string, meta: Json): Promise<FilmAsset> {
   const abs = path.join(p.root, ...relFile.split("/"));
   const bytes = await fsp.readFile(abs);
   const sha = sha256Hex(bytes);
   const ext = path.extname(relFile);
   const stem = path.basename(relFile, ext);
   const stored = localStoredPath(p.title.id, p.slug, `${stem}-${sha.slice(0, 8)}${ext}`);
-  linkIntoLocalTier(abs, stored);
+  await putStoredBytes(stored, bytes, ASSET_CONTENT_TYPES[ext.toLowerCase()] ?? "application/octet-stream");
   return getData().putFilmAsset(systemSession(), { title_id: p.title.id, kind, storage_path: stored, sha256: sha, bytes: bytes.length, origin: "workspace", source_ref: relFile, meta });
 }
 
@@ -675,6 +714,8 @@ async function run(p: Prepared): Promise<ImportResult> {
   const known = p.created ? new Map<number, EpisodeState>() : await existingEpisodes(title.id);
   const facts: ImportedEpisodeFacts[] = [];
   const boundaries = new Map(index.boundaries.map((b) => [b.n, b]));
+  /** Episodes whose file or window moved in this run: the ones whose kept lines are worth a flag. */
+  const changed = new Set<number>();
 
   // Step 3: every episode, in plan order.
   touch(progress, { step: "episodes" });
@@ -683,22 +724,31 @@ async function run(p: Prepared): Promise<ImportResult> {
     if (!file) throw new DataError("conflict", `episode ${ep.n} has no file in cut/eps (the film changed since the scan)`);
     const original = path.join(root, ...file.file.split("/"));
     const nn = String(ep.n).padStart(2, "0");
+    const isLast = ep.n === plan.episodes.length;
     touch(progress, { episode: ep.n, what: "link" });
 
     // The hardlink first, under a pending name; the hash names the final link.
+    // The link's own stat is the size and mtime the row and the record carry:
+    // an os.replace between the scan and the link swaps the file, and what was
+    // linked and hashed is the file that is there now, not the one the scan saw.
     const pendingStored = localStoredPath(title.id, slug, `ep${nn}.pending-${randomUUID().slice(0, 8)}.mp4`);
     const pending = linkIntoLocalTier(original, pendingStored);
     let finalStored: string;
     let finalAbs: string;
     let sha: string;
+    let bytes: number;
+    let mtimeMs: number;
     try {
+      const linked = statSync(pending.abs);
+      bytes = linked.size;
+      mtimeMs = linked.mtimeMs;
       touch(progress, { what: "hash" });
       sha = await sha256File(pending.abs);
       finalStored = localStoredPath(title.id, slug, `ep${nn}-${sha.slice(0, 8)}.mp4`);
       finalAbs = localPathOf(finalStored);
       if (existsSync(finalAbs)) {
         const have = statSync(finalAbs);
-        if (have.size !== file.bytes) throw new DataError("conflict", `${finalStored} exists with another size`);
+        if (have.size !== bytes) throw new DataError("conflict", `${finalStored} exists with another size`);
         unlinkSync(pending.abs);
       } else {
         renameSync(pending.abs, finalAbs);
@@ -713,20 +763,26 @@ async function run(p: Prepared): Promise<ImportResult> {
     }
 
     const window = { film_start_ms: Math.round(ep.start * 1000), film_end_ms: Math.round(ep.end * 1000) };
-    const endNote = endNoteFor(ep, boundaries.get(ep.n) ?? null, ep.n === plan.episodes.length);
+    const endNote = endNoteFor(ep, boundaries.get(ep.n) ?? null, isLast);
     const have = known.get(ep.n);
-    const planned = fps ? plannedFrames(ep, fps) : null;
+    let planned = fps ? plannedFrames(ep, fps) : null;
+    // The film's last episode ends at the container duration, where the source's last frames are not: the measured count is the plan's there (amendment 2 reads planned_frames for the cliff out-point).
+    const capLast = (frames: number | null) => (isLast && planned !== null && frames !== null && frames < planned ? frames : planned);
 
     if (have && have.row.video_sha256 === sha && have.row.video_path === finalStored) {
-      // Same bytes: skipped, unless the plan moved this episode's window under the same file.
-      if (have.row.film_start_ms !== window.film_start_ms || have.row.film_end_ms !== window.film_end_ms) {
-        const row = await data.setEpisodeImport(sys, have.row.id, { ...window, end_note: endNote, auto_cut: false });
-        known.set(ep.n, { row, lines: have.lines });
+      // Same bytes: skipped, unless the plan moved this episode's window under the same file; a stale size on the row is corrected either way.
+      const windowMoved = have.row.film_start_ms !== window.film_start_ms || have.row.film_end_ms !== window.film_end_ms;
+      const patch: EpisodeImportInput = windowMoved ? { ...window, end_note: endNote, auto_cut: false } : {};
+      if ((have.row.video_bytes ?? null) !== bytes) patch.video_bytes = bytes;
+      if (Object.keys(patch).length) known.set(ep.n, { row: await data.setEpisodeImport(sys, have.row.id, patch), lines: have.lines });
+      if (windowMoved) {
+        changed.add(ep.n);
         counts.updated += 1;
       } else {
         counts.unchanged += 1;
       }
-      facts.push({ n: ep.n, bytes: file.bytes, mtime_ms: file.mtime_ms, sha256: sha, frames: have.row.video_frames ?? null, planned_frames: planned, video_path: finalStored });
+      const frames = have.row.video_frames ?? null;
+      facts.push({ n: ep.n, bytes, mtime_ms: mtimeMs, sha256: sha, frames, planned_frames: capLast(frames), video_path: finalStored });
       await beat();
       continue;
     }
@@ -734,12 +790,15 @@ async function run(p: Prepared): Promise<ImportResult> {
     touch(progress, { what: "probe" });
     const probed = await probe(finalAbs);
     const frames = probed?.frames ?? null;
+    planned = capLast(frames);
     if (!probed) flags.push(`ep${nn}: ffprobe could not read the file; the frame count is not recorded`);
     else if (planned !== null && frames !== null && frames !== planned) {
       flags.push(`ep${nn}: ${frames} frames on disk, the plan expects ${planned} (${frames - planned > 0 ? "+" : ""}${frames - planned})`);
       counts.flagged += 1;
     }
-    const patch = { source_ref: file.file, video_sha256: sha, video_bytes: file.bytes, video_frames: frames, ...window, end_note: endNote, auto_cut: false as const };
+    // The measured length, set before any transcript attaches (attachIngestToEpisode keeps a duration it finds; the last cue is not the file's end).
+    const durationMs = probed?.duration_s ? Math.round(probed.duration_s * 1000) : window.film_end_ms - window.film_start_ms;
+    const patch = { source_ref: file.file, video_sha256: sha, video_bytes: bytes, video_frames: frames, duration_ms: durationMs, ...window, end_note: endNote, auto_cut: false as const };
     let row: Episode;
     if (have) {
       row = await data.setEpisodeImport(sys, have.row.id, { video_path: finalStored, ...patch });
@@ -748,9 +807,15 @@ async function run(p: Prepared): Promise<ImportResult> {
       row = await data.addVideoOnlyEpisode(sys, title.id, ep.n, finalStored, patch);
       counts.added += 1;
     }
+    changed.add(ep.n);
     known.set(ep.n, { row, lines: have?.lines ?? 0 });
-    facts.push({ n: ep.n, bytes: file.bytes, mtime_ms: file.mtime_ms, sha256: sha, frames, planned_frames: planned, video_path: finalStored });
+    facts.push({ n: ep.n, bytes, mtime_ms: mtimeMs, sha256: sha, frames, planned_frames: planned, video_path: finalStored });
     await beat();
+  }
+  // An episode the title still has past the plan's count: an update to a shrunk plan leaves it with the old delivery's file and window.
+  for (const n of [...known.keys()].filter((n) => n > plan.episodes.length).sort((a, b) => a - b)) {
+    flags.push(`ep${String(n).padStart(2, "0")}: no longer in the delivered plan (${plan.episodes.length} episodes); its file and window are the old delivery's`);
+    counts.flagged += 1;
   }
   touch(progress, { episode: null, what: null });
   await opts.hooks?.afterEpisodes?.();
@@ -767,8 +832,9 @@ async function run(p: Prepared): Promise<ImportResult> {
         if (!state) continue;
         touch(progress, { episode: ep.n });
         if (state.lines > 0) {
+          // Kept lines are only worth a flag when the video under them moved: they were cut for the old window or file.
           counts.transcripts_skipped += 1;
-          flags.push(`ep${String(ep.n).padStart(2, "0")}: kept its ${state.lines} existing lines (a script is never replaced)`);
+          if (changed.has(ep.n)) flags.push(`ep${String(ep.n).padStart(2, "0")}: kept its ${state.lines} existing lines, which are from the old window or file (a script is never replaced)`);
           continue;
         }
         const cues = transcriptToCues({ segments: sliceTranscript(index.whisper, ep.start, ep.end) });
@@ -789,28 +855,28 @@ async function run(p: Prepared): Promise<ImportResult> {
     touch(progress, { episode: null });
   }
 
-  // Step 5: the pipeline's files beside the title, linked into the tier; the poster becomes the cover; film-meta's rules the title's.
+  // Step 5: the pipeline's files beside the title, copied into the tier; the poster becomes the cover; film-meta's rules the title's.
   touch(progress, { step: "assets" });
-  await linkAsset(p, "delivered_plan", `${ref}/cut/${index.delivered_file}`, { end: scan.delivered!.end, episodes: plan.episodes.length });
-  if (index.whisper) await linkAsset(p, "transcript", `${ref}/cut/index/whisper.json`, { model: index.whisper.model, language: index.whisper.language, segments: index.whisper.segments.length });
-  if (index.shot_cuts) await linkAsset(p, "shots", `${ref}/cut/index/scdet.txt`, { cuts: index.shot_cuts.length });
-  if (index.motion) await linkAsset(p, "motion", `${ref}/cut/index/motion.json`, { fps: index.motion.fps, beats: index.motion.beats.length });
-  if (index.candidates) await linkAsset(p, "candidates", `${ref}/cut/index/candidates.json`, { legal: index.candidates.legal, allowed: index.candidates.allowed.length });
-  if (index.source) await linkAsset(p, "source_facts", `${ref}/cut/index/source.json`, { fps: index.source.fps, width: index.source.width, height: index.source.height });
+  await copyAsset(p, "delivered_plan", `${ref}/cut/${index.delivered_file}`, { end: scan.delivered!.end, episodes: plan.episodes.length });
+  if (index.whisper) await copyAsset(p, "transcript", `${ref}/cut/index/whisper.json`, { model: index.whisper.model, language: index.whisper.language, segments: index.whisper.segments.length });
+  if (index.shot_cuts) await copyAsset(p, "shots", `${ref}/cut/index/scdet.txt`, { cuts: index.shot_cuts.length });
+  if (index.motion) await copyAsset(p, "motion", `${ref}/cut/index/motion.json`, { fps: index.motion.fps, beats: index.motion.beats.length });
+  if (index.candidates) await copyAsset(p, "candidates", `${ref}/cut/index/candidates.json`, { legal: index.candidates.legal, allowed: index.candidates.allowed.length });
+  if (index.source) await copyAsset(p, "source_facts", `${ref}/cut/index/source.json`, { fps: index.source.fps, width: index.source.width, height: index.source.height });
   for (const name of [...new Set(index.vision.map((v) => v.source_file))].sort()) {
-    await linkAsset(p, "vision_notes", `${ref}/cut/review/vision/${name}`, { file: name, role: "record", boundaries: index.vision.filter((v) => v.source_file === name).length });
+    await copyAsset(p, "vision_notes", `${ref}/cut/review/vision/${name}`, { file: name, role: "record", boundaries: index.vision.filter((v) => v.source_file === name).length });
   }
   for (const name of await listBandFixFiles(nodeScanFs, path.join(root, ...ref.split("/"), "cut"))) {
-    await linkAsset(p, "vision_notes", `${ref}/cut/review/vision/${name}`, { file: name, role: "band_fix_note" });
+    await copyAsset(p, "vision_notes", `${ref}/cut/review/vision/${name}`, { file: name, role: "band_fix_note" });
   }
   let metaSha: string | null = null;
   if (index.meta) {
-    const asset = await linkAsset(p, "film_meta", `${ref}/cut/film-meta.json`, { display_title_en: index.meta.display_title_en, crazydramas_slug: index.meta.crazydramas_slug });
+    const asset = await copyAsset(p, "film_meta", `${ref}/cut/film-meta.json`, { display_title_en: index.meta.display_title_en, crazydramas_slug: index.meta.crazydramas_slug });
     metaSha = asset.sha256;
   }
   let coverPath: string | null = title.cover_path ?? null;
   if (scan.poster) {
-    const asset = await linkAsset(p, "poster", scan.poster, { live: scan.meta?.live_poster ?? null, file: path.posix.basename(scan.poster) });
+    const asset = await copyAsset(p, "poster", scan.poster, { live: scan.meta?.live_poster ?? null, file: path.posix.basename(scan.poster) });
     coverPath = asset.storage_path;
   }
   if (coverPath !== (title.cover_path ?? null)) await data.setTitleImport(sys, title.id, { cover_path: coverPath });

@@ -79,20 +79,32 @@ function underWorkspace(abs: string): boolean {
 }
 
 /**
+ * A backslash, a colon or a NUL inside a stored path segment: Windows reads
+ * `ws\..\..\<other>` as directories (path.resolve splits on both slashes),
+ * and Next decodes `%5C` in a route segment before the handler sees it, so
+ * a segment that is not literally `..` could still walk out of the title's
+ * folder. Refused wherever a stored value meets the disk.
+ */
+export const BAD_PATH_CHARS = /[\\:\0]/;
+
+/**
  * The absolute disk file behind a local-tier value, in both modes. Refuses
  * anything else: a bucket path, a value that would escape the tier (`..`,
- * an absolute segment) or one that resolves into WORKSPACE_ROOT — the
- * pipeline's files are read through their links only, never in place.
+ * an absolute segment, a backslash or colon inside a segment) or one that
+ * resolves into WORKSPACE_ROOT — the pipeline's files are read through their
+ * links only, never in place. The resolved file must sit under the title id
+ * the value names, which is what the media route authorized on.
  */
 export function localPathOf(stored: string): string {
   if (!isLocalTierPath(stored)) throw invalid("not a local-tier media path");
   const rest = stored.slice(LOCAL_TIER.length + 1);
   const segments = rest.split("/");
-  if (segments.length < 2 || segments.some((s) => !s || s === "." || s === "..")) throw invalid("invalid media path");
+  if (segments.length < 2 || segments.some((s) => !s || s === "." || s === ".." || BAD_PATH_CHARS.test(s))) throw invalid("invalid media path");
   const root = localMediaDir();
   const abs = path.resolve(root, ...segments);
   const rel = path.relative(root, abs);
   if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) throw invalid("invalid media path");
+  if (rel.split(path.sep)[0] !== segments[0]) throw invalid("invalid media path");
   if (underWorkspace(abs)) throw invalid("the workspace is read-only: a media path may not point into WORKSPACE_ROOT");
   return abs;
 }
@@ -101,11 +113,15 @@ export type LocalLink = { abs: string; how: "linked" | "copied" | "existing" };
 
 /**
  * Snapshot a file into the local tier: a hardlink (the same volume; the
- * pipeline's later os.replace leaves the link on the old bytes), a copy when
- * the volumes differ. The source is only stat'ed here — never opened — unless
- * the copy fallback runs. Idempotent: a target already there with the same
- * size is the snapshot; one with another size is refused (the stored name
- * carries the hash, so that is a caller's mistake, not a race to win).
+ * pipeline's later os.replace leaves the link on the old bytes), a copy only
+ * when the volumes differ (EXDEV). The source is only stat'ed here — never
+ * opened — unless that one fallback runs; any other link error (EPERM,
+ * EBUSY, ENOSPC …) is rethrown, because a copy would hold the original open
+ * for its whole length, which is exactly what a running render cannot
+ * survive; the import fails and is retried instead. Idempotent: a target
+ * already there with the same size is the snapshot; one with another size
+ * is refused (the stored name carries the hash, so that is a caller's
+ * mistake, not a race to win).
  */
 export function linkIntoLocalTier(srcAbs: string, stored: string): LocalLink {
   const abs = localPathOf(stored);
@@ -122,11 +138,13 @@ export function linkIntoLocalTier(srcAbs: string, stored: string): LocalLink {
     linkSync(src, abs);
     return { abs, how: "linked" };
   } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === "EEXIST") {
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code === "EEXIST") {
       const raced = statSync(abs, { throwIfNoEntry: false });
       if (raced?.isFile() && raced.size === source.size) return { abs, how: "existing" };
       throw invalid(`${stored} already exists with a different size`);
     }
+    if (code !== "EXDEV") throw e;
     copyFileSync(src, abs);
     return { abs, how: "copied" };
   }
@@ -159,6 +177,7 @@ export function mediaUrl(stored: string | null | undefined): string | null {
  */
 export function resolveUploadPath(stored: string): string {
   if (isLocalTierPath(stored)) return localPathOf(stored);
+  if (BAD_PATH_CHARS.test(stored)) throw invalid("invalid media path");
   const root = uploadsDir();
   const abs = path.resolve(root, stored);
   const rel = path.relative(root, abs);

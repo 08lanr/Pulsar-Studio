@@ -172,6 +172,8 @@ export type EpisodeImportInput = {
   end_note?: Json | null;
   /** False keeps the upload-time clip run away from the episode (the ad engine cuts it). */
   auto_cut?: boolean;
+  /** The measured length of the file (ffprobe on the link), set before a transcript attaches so the last cue never stands in for it. */
+  duration_ms?: number | null;
 };
 
 /** One pipeline file (or a Studio-made one) recorded beside an imported title. */
