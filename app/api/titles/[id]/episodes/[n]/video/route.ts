@@ -25,6 +25,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string;
     }
 
     const data = getData();
+    await data.assertTitleEditable(g.session, params.id); // refuse a viewer before the bytes are stored
     const wb = await data.getWorkbench(g.session, params.id, n); // scoping + 404 for foreign titles
     const stored = await uploadMedia(
       params.id,

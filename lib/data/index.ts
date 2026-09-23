@@ -91,6 +91,15 @@ export type CreateTitleInput = {
   synopsis_zh?: string | null;
   synopsis_en?: string | null;
   character_notes?: string | null;
+  /** Locale of the source script. The tables default to zh-CN; a workspace import says en-US. */
+  source_locale?: string | null;
+  /**
+   * Who the adaptation records as its creator; the session's user when absent.
+   * The system actor has no core.profiles row and adaptations.created_by is a
+   * foreign key to it, so a job running as the system names the real caller
+   * here (or the row keeps null).
+   */
+  created_by?: string | null;
 };
 
 export type UpdateTitleInput = Partial<
@@ -461,6 +470,13 @@ export interface DataLayer {
   listTitles(session: Session): Promise<TitleSummary[]>;
   getTitle(session: Session, titleId: string): Promise<TitleDetail>;
   createTitle(session: Session, input: CreateTitleInput): Promise<Title>;
+  /**
+   * The edit check on its own — staff, the system actor, or the title's own
+   * approver/reviewer — so a route can refuse BEFORE it writes to storage. A
+   * foreign title is not found, a viewer is forbidden: the same answers every
+   * write below gives (requireTitleEditor / core.can_edit_title).
+   */
+  assertTitleEditable(session: Session, titleId: string): Promise<Title>;
   updateTitle(session: Session, titleId: string, patch: UpdateTitleInput): Promise<Title>;
   listProducers(session: Session): Promise<Producer[]>;
   createProducer(session: Session, input: CreateProducerInput): Promise<Producer>;
@@ -576,11 +592,12 @@ export interface DataLayer {
   // jobs and cost
   /** Idempotent: an existing 'done' row for the key is returned as is (callers check status). */
   recordJob(session: Session, job: NewJob): Promise<Job>;
-  finishJob(jobId: string, result: JobResult): Promise<Job>;
+  /** The session is the one that recorded the job: the system actor's rows are written through the service role. */
+  finishJob(session: Session, jobId: string, result: JobResult): Promise<Job>;
   /** The newest job of a kind on an episode (any status), or null; readable by whoever can read the title. */
   latestEpisodeJob(session: Session, titleId: string, episodeNumber: number, kind: JobKind): Promise<Job | null>;
   /** A long run says it is still alive (lib/clips/state.ts treats a quiet heartbeat as a dead run). */
-  heartbeatJob(jobId: string): Promise<void>;
+  heartbeatJob(session: Session, jobId: string): Promise<void>;
   sumCostCents(titleId: string): Promise<number>;
 
   // partner portal

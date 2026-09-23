@@ -319,7 +319,10 @@ export const supabaseData: DataLayer = {
   },
 
   async createTitle(session, input) {
-    const c = db();
+    // dbFor: a workspace import creates the title as the system actor (decision
+    // 2026-09-22); the cookie client has no session on that path and RLS would
+    // refuse the insert. A person's session still writes under RLS as before.
+    const c = dbFor(session);
     if (blank(input.name_zh)) throw invalid("name_zh is required");
     const producer = await one<Producer>(
       core(c).from("producers").select("*").eq("id", input.producer_id).maybeSingle(),
@@ -338,20 +341,38 @@ export const supabaseData: DataLayer = {
           synopsis_en: input.synopsis_en?.trim() || null,
           character_notes: input.character_notes?.trim() || null,
           deliverables: producer.deliverables,
+          // The column defaults to zh-CN (0001); only a stated locale is sent.
+          ...(input.source_locale?.trim() ? { source_locale: input.source_locale.trim() } : {}),
         })
         .select("*")
         .single(),
       "title"
     );
-    // One adaptation per title in V1, created with the title.
+    // One adaptation per title in V1, created with the title. created_by is a
+    // foreign key to core.profiles: the system actor has no row there, so it
+    // records the caller it was given, or nothing.
+    const createdBy = input.created_by ?? (isSystemSession(session) ? null : session.userId);
     await one<Adaptation>(
       studio(c)
         .from("adaptations")
-        .insert({ title_id: title.id, display_title_en: title.name_en, created_by: session.userId })
+        .insert({ title_id: title.id, display_title_en: title.name_en, created_by: createdBy })
         .select("*")
         .single(),
       "adaptation"
     );
+    return title;
+  },
+
+  async assertTitleEditable(session, titleId) {
+    // Read under the caller's own client first: RLS answers "not found" for a
+    // foreign title exactly as the fixture does. The role test is the session's
+    // profile against the title's company — the same predicate as
+    // core.can_edit_title() (0002), which the write policies still enforce.
+    const c = dbFor(session);
+    const title = await one<Title>(core(c).from("titles").select("*").eq("id", titleId).maybeSingle(), "title", titleId);
+    if (isSystemSession(session) || session.kind === "staff") return title;
+    const editor = session.kind === "producer" && session.producerId === title.producer_id && (session.producerRole === "approver" || session.producerRole === "reviewer");
+    if (!editor) throw new DataError("forbidden", "editing needs the reviewer role on this title");
     return title;
   },
 
@@ -387,8 +408,8 @@ export const supabaseData: DataLayer = {
 
   // ---- ingest and the workbench ----
 
-  async addEpisodeFromIngest(_session, titleId, episodeNumber, ingest, files) {
-    const c = db();
+  async addEpisodeFromIngest(session, titleId, episodeNumber, ingest, files) {
+    const c = dbFor(session);
     if (!Number.isInteger(episodeNumber) || episodeNumber < 1) throw invalid("episode_number must be a positive integer");
     if (!ingest.lines.length) throw invalid("the file parsed to no lines");
     const title = await one<Title>(core(c).from("titles").select("*").eq("id", titleId).maybeSingle(), "title", titleId);
@@ -509,8 +530,8 @@ export const supabaseData: DataLayer = {
     return episode;
   },
 
-  async addVideoOnlyEpisode(_session, titleId, episodeNumber, videoPath) {
-    const c = db();
+  async addVideoOnlyEpisode(session, titleId, episodeNumber, videoPath) {
+    const c = dbFor(session);
     if (!Number.isInteger(episodeNumber) || episodeNumber < 1) throw invalid("episode_number must be a positive integer");
     const { data: dup } = await core(c).from("episodes").select("id").eq("title_id", titleId).eq("number", episodeNumber).maybeSingle();
     if (dup) throw conflict(`episode ${episodeNumber} already exists for this title`);
@@ -519,8 +540,8 @@ export const supabaseData: DataLayer = {
     return episode;
   },
 
-  async attachIngestToEpisode(_session, titleId, episodeNumber, ingest, files) {
-    const c = db();
+  async attachIngestToEpisode(session, titleId, episodeNumber, ingest, files) {
+    const c = dbFor(session);
     if (!ingest.lines.length) throw invalid("the file parsed to no lines");
     const title = await one<Title>(core(c).from("titles").select("*").eq("id", titleId).maybeSingle(), "title", titleId);
     const adaptation = await adaptationOf(c, titleId);
@@ -658,8 +679,9 @@ export const supabaseData: DataLayer = {
     return updated;
   },
 
-  async getWorkbench(_session, titleId, episodeNumber) {
-    const c = db();
+  async getWorkbench(session, titleId, episodeNumber) {
+    // The clip engine and the transcription run read the workbench as the system actor.
+    const c = dbFor(session);
     const [title, adaptation, episode] = await Promise.all([
       one<Title>(core(c).from("titles").select("*").eq("id", titleId).maybeSingle(), "title", titleId),
       adaptationOf(c, titleId),
@@ -930,8 +952,8 @@ export const supabaseData: DataLayer = {
     throw new DataError("invalid", "the stamp-retime repair runs in fixture mode only in V1");
   },
 
-  async setEpisodeVideo(_session, titleId, episodeNumber, storedPath) {
-    const c = db();
+  async setEpisodeVideo(session, titleId, episodeNumber, storedPath) {
+    const c = dbFor(session);
     return one<Episode>(
       core(c)
         .from("episodes")
@@ -1066,8 +1088,8 @@ export const supabaseData: DataLayer = {
     );
   },
 
-  async listClips(_session, titleId, episodeNumber) {
-    const c = db();
+  async listClips(session, titleId, episodeNumber) {
+    const c = dbFor(session);
     let q = studio(c).from("clips").select("*").eq("title_id", titleId);
     if (episodeNumber !== undefined) {
       const episode = await episodeByNumber(c, titleId, episodeNumber);
@@ -1081,8 +1103,8 @@ export const supabaseData: DataLayer = {
     return clips.sort((a, b) => (number.get(a.episode_id) ?? 0) - (number.get(b.episode_id) ?? 0) || a.rank - b.rank);
   },
 
-  async upsertClips(_session, episodeId, clips) {
-    const c = db();
+  async upsertClips(session, episodeId, clips) {
+    const c = dbFor(session);
     const episode = await one<Episode>(core(c).from("episodes").select("*").eq("id", episodeId).maybeSingle(), "episode", episodeId);
     // Script clips need cue timecodes; footage clips (decision 2026-09-14) only need the video (guard_timecodes, 0010).
     if (!episode.has_timecodes && !episode.video_path) throw invalid("clips need a timed episode or an episode with video");
@@ -1135,8 +1157,8 @@ export const supabaseData: DataLayer = {
     return many<Clip>(studio(c).from("clips").select("*").eq("episode_id", episodeId).order("rank"));
   },
 
-  async setClipStatus(_session, clipId, status) {
-    return one<Clip>(studio(db()).from("clips").update({ status }).eq("id", clipId).select("*").maybeSingle(), "clip", clipId);
+  async setClipStatus(session, clipId, status) {
+    return one<Clip>(studio(dbFor(session)).from("clips").update({ status }).eq("id", clipId).select("*").maybeSingle(), "clip", clipId);
   },
 
   async listEpisodeClips(session, titleId, episodeNumber) {
@@ -1173,8 +1195,11 @@ export const supabaseData: DataLayer = {
 
   // ---- jobs and cost ----
 
-  async recordJob(_session, job) {
-    const c = db();
+  async recordJob(session, job) {
+    // The clip engine, the transcription run and the import job record as the
+    // system actor; before dbFor, that was the cookie client with no cookie
+    // and every background job failed at its first write in live mode.
+    const c = dbFor(session);
     const at = now();
     const { data: existing, error } = await studio(c).from("jobs").select("*").eq("idempotency_key", job.idempotency_key).maybeSingle();
     if (error) throw mapError(error);
@@ -1216,14 +1241,14 @@ export const supabaseData: DataLayer = {
     );
   },
 
-  async finishJob(jobId, result) {
+  async finishJob(session, jobId, result) {
     const at = now();
     const update: Record<string, unknown> = { status: result.status, heartbeat_at: at, finished_at: at };
     if (result.usage !== undefined) update.usage = result.usage;
     if (result.cost_cents !== undefined) update.cost_cents = result.cost_cents;
     if (result.output !== undefined) update.output = result.output;
     if (result.error !== undefined) update.error = result.error;
-    return one<Job>(studio(db()).from("jobs").update(update).eq("id", jobId).select("*").maybeSingle(), "job", jobId);
+    return one<Job>(studio(dbFor(session)).from("jobs").update(update).eq("id", jobId).select("*").maybeSingle(), "job", jobId);
   },
 
   async latestEpisodeJob(session, titleId, episodeNumber, kind) {
@@ -1233,8 +1258,8 @@ export const supabaseData: DataLayer = {
     return rows[0] ?? null;
   },
 
-  async heartbeatJob(jobId) {
-    await one<Job>(studio(db()).from("jobs").update({ heartbeat_at: now() }).eq("id", jobId).select("*").maybeSingle(), "job", jobId);
+  async heartbeatJob(session, jobId) {
+    await one<Job>(studio(dbFor(session)).from("jobs").update({ heartbeat_at: now() }).eq("id", jobId).select("*").maybeSingle(), "job", jobId);
   },
 
   async sumCostCents(titleId) {
@@ -1353,9 +1378,9 @@ export const supabaseData: DataLayer = {
     );
   },
 
-  async generatePromoDrafts(_session, campaignId) {
+  async generatePromoDrafts(session, campaignId) {
     legacyCampaignRetired();
-    const c = db();
+    const c = dbFor(session);
     const campaign = await one<PromoCampaign>(promote(c).from("campaigns").select("*").eq("id", campaignId).maybeSingle(), "promotion campaign", campaignId);
     if (!["draft", "review", "generating"].includes(campaign.status)) throw conflict("this campaign is already approved");
     const existing = await many<PromoCreative>(promote(c).from("creatives").select("*").eq("campaign_id", campaign.id).neq("status", "superseded"));
@@ -1374,9 +1399,9 @@ export const supabaseData: DataLayer = {
     return rows;
   },
 
-  async appendPromoDraftsFromClips(_session, campaignId) {
+  async appendPromoDraftsFromClips(session, campaignId) {
     legacyCampaignRetired();
-    const c = db();
+    const c = dbFor(session);
     const campaign = await campaignById(c, campaignId);
     if (campaign.status !== "review") throw conflict("new clips can only be added while the round is in review");
     const [title, episodes, active, clips] = await Promise.all([

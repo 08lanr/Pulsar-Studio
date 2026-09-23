@@ -354,7 +354,7 @@ export async function runTranscribeEpisode(
 
   // The transcription can outlive the 10-minute stale window; heartbeats
   // keep the concurrency guard honest for the whole 8-minute budget.
-  const pulse = setInterval(() => void data.heartbeatJob(job.id).catch(() => undefined), HEARTBEAT_MS);
+  const pulse = setInterval(() => void data.heartbeatJob(sys, job.id).catch(() => undefined), HEARTBEAT_MS);
   // The paid call's spend is recorded even when a LATER step fails.
   let billed = 0;
   let usage: { audio_minutes: number } | null = null;
@@ -377,7 +377,7 @@ export async function runTranscribeEpisode(
       scriptFormat: "asr",
     });
 
-    await data.finishJob(job.id, {
+    await data.finishJob(sys, job.id, {
       status: "done",
       cost_cents: billed,
       usage,
@@ -414,7 +414,7 @@ export async function runTranscribeEpisode(
     // finished, its record stands and this failure only reaches the caller.
     const cur = await data.latestEpisodeJob(sys, titleId, episodeNumber, ASR_JOB_KIND).catch(() => null);
     if (!(cur && cur.id === job.id && cur.status === "done")) {
-      await data.finishJob(job.id, { status: "failed", error: message, cost_cents: billed, usage: usage ?? undefined }).catch(() => undefined);
+      await data.finishJob(sys, job.id, { status: "failed", error: message, cost_cents: billed, usage: usage ?? undefined }).catch(() => undefined);
     }
     throw e;
   } finally {

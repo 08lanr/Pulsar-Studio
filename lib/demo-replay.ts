@@ -122,7 +122,7 @@ export async function replayFirstPass(
     out.push({ scene_id: scene.id, scene_number: scene.number, lines: written });
   }
 
-  const done = await data.finishJob(job.id, {
+  const done = await data.finishJob(session, job.id, {
     status: "done",
     cost_cents: 0,
     usage: null,

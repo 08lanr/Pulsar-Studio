@@ -29,6 +29,7 @@ import {
   isLlmAvailable,
   titleBible,
   toJobUsage,
+  type LlmProvider,
   type LlmSystemBlock,
   type LlmUsage,
 } from "@/lib/llm";
@@ -78,6 +79,8 @@ export type RunJobSpec<T> = {
   target_type: string;
   target_id: string;
   idempotency_key: string;
+  /** The gateway this job calls (decision 2026-09-22: text on one provider, vision on another); LLM_PROVIDER when absent. */
+  provider?: LlmProvider | null;
   model?: string | null;
   /** Small: ids and the prompt version, never the prompt text. */
   input?: Json | null;
@@ -99,15 +102,16 @@ export type RunJobResult<T> = {
  * through the data layer directly). Checked before the key so the producer
  * reads "demo mode", never an environment-variable name.
  */
-export function assertModelCallsAllowed(): void {
+export function assertModelCallsAllowed(provider: LlmProvider = LLM_PROVIDER): void {
   if (demoReplayActive()) {
     throw new LlmUnavailableError("AI passes are off in demo mode: the demo replays the bundled sample script.");
   }
-  if (!isLlmAvailable()) throw new LlmUnavailableError();
+  if (!isLlmAvailable(provider)) throw new LlmUnavailableError(undefined, provider);
 }
 
 export async function runJob<T>(session: Session, spec: RunJobSpec<T>): Promise<RunJobResult<T>> {
-  assertModelCallsAllowed();
+  const provider = spec.provider ?? LLM_PROVIDER;
+  assertModelCallsAllowed(provider);
   const data = getData();
   const job = await data.recordJob(session, {
     kind: spec.kind,
@@ -117,7 +121,7 @@ export async function runJob<T>(session: Session, spec: RunJobSpec<T>): Promise<
     target_type: spec.target_type,
     target_id: spec.target_id,
     idempotency_key: spec.idempotency_key,
-    provider: LLM_PROVIDER,
+    provider,
     model: spec.model ?? null,
     input: spec.input ?? null,
   });
@@ -134,10 +138,10 @@ export async function runJob<T>(session: Session, spec: RunJobSpec<T>): Promise<
   } catch (e) {
     const message = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
     // Best effort: the original failure is what the caller must see.
-    await data.finishJob(job.id, { status: "failed", error: message }).catch(() => undefined);
+    await data.finishJob(session, job.id, { status: "failed", error: message }).catch(() => undefined);
     throw e;
   }
-  const done = await data.finishJob(job.id, {
+  const done = await data.finishJob(session, job.id, {
     status: "done",
     usage: toJobUsage(result.usage),
     cost_cents: result.cost_cents,

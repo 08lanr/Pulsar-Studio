@@ -14,61 +14,17 @@
 //   · Video-only rows are valid for Promote. Adapt can attach text later.
 
 import { useState, type Dispatch, type SetStateAction } from "react";
-import { guessEpisodeNumber } from "@/lib/ingest/episode-number";
 import { useT } from "@/components/locale";
+import { SUBTITLE_EXT, VIDEO_EXT, assignFiles, emptySlot, type EpisodeSlot } from "@/lib/ingest/episode-slots";
 import { IconCheck } from "./icons";
 
-export const SUBTITLE_EXT = /\.(srt|vtt|ass|ssa|txt)$/i;
-export const VIDEO_EXT = /\.(mp4|mov|webm)$/i;
-
-export type EpisodeSlot = {
-  number: number;
-  subtitle: File | null;
-  video: File | null;
-  status: "idle" | "busy" | "ok" | "error";
-  message?: string;
-};
-
-export function emptySlot(number: number): EpisodeSlot {
-  return { number, subtitle: null, video: null, status: "idle" };
-}
-
-export function hasDuplicateNumbers(slots: EpisodeSlot[]): boolean {
-  const seen = new Set<number>();
-  for (const s of slots) {
-    if (seen.has(s.number)) return true;
-    seen.add(s.number);
-  }
-  return false;
-}
+// The row model and the sorting rule live in lib/ingest/episode-slots (unit-tested); re-exported for the two forms.
+export { SUBTITLE_EXT, VIDEO_EXT, emptySlot, hasDuplicateNumbers } from "@/lib/ingest/episode-slots";
+export type { EpisodeSlot } from "@/lib/ingest/episode-slots";
 
 /** Kept for callers compiled against the earlier picker; video-only is now valid. */
 export function hasVideoOnlyRow(slots: EpisodeSlot[]): boolean {
   return false;
-}
-
-/** Sort dropped files into slots: by filename number first, then the first
- * open slot of that kind, then a new row. Latest pick wins a filled slot. */
-function assignFiles(prev: EpisodeSlot[], list: FileList | File[], startNumber: number): EpisodeSlot[] {
-  const files = Array.from(list).filter((f) => SUBTITLE_EXT.test(f.name) || VIDEO_EXT.test(f.name));
-  if (!files.length) return prev;
-  const slots = prev.map((s) => ({ ...s }));
-  for (const file of files) {
-    const kind: "subtitle" | "video" = SUBTITLE_EXT.test(file.name) ? "subtitle" : "video";
-    const n = guessEpisodeNumber(file.name);
-    let slot = n != null ? slots.find((s) => s.number === n && s.status !== "ok") : undefined;
-    if (!slot) slot = slots.find((s) => !s[kind] && s.status !== "ok");
-    if (!slot) {
-      const taken = new Set(slots.map((s) => s.number));
-      let next = n != null && !taken.has(n) ? n : startNumber;
-      while (taken.has(next)) next += 1;
-      slot = emptySlot(next);
-      slots.push(slot);
-    }
-    slot[kind] = file;
-  }
-  slots.sort((a, b) => a.number - b.number);
-  return slots;
 }
 
 type Props = {

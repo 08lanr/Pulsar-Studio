@@ -12,10 +12,18 @@
 // row can never carry usage without cents. Nothing in this file touches the
 // database.
 //
+// Provider per call (decision 2026-09-22): LLM_PROVIDER stays the process-wide
+// default for the adaptation passes; a StructuredCall may name its own
+// `provider`, so the ad engine nominates text on DeepSeek and judges frames on
+// Anthropic. A call may carry `images` (files, sent base64); a model that does
+// not read images is refused BEFORE any request. Which provider judges frames
+// is `visionProviderStatus()`, the one answer the UI and the verify job read.
+//
 // Works without credentials: isLlmAvailable() is the switch the UI and the
 // jobs read; callStructured() throws LlmUnavailableError before any request
 // when the key is missing.
 
+import fs from "node:fs";
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { ContentFilterFinishReasonError, LengthFinishReasonError } from "openai/error";
@@ -25,27 +33,55 @@ import type { Character, JobUsage, Title } from "@/lib/types";
 
 export type LlmProvider = "anthropic" | "openai" | "deepseek";
 
-/** One switch for every pass; fixture replay remains provider-free. */
-export const LLM_PROVIDER: LlmProvider = (() => {
-  const v = process.env.LLM_PROVIDER?.toLowerCase();
-  return v === "openai" || v === "deepseek" ? v : "anthropic";
-})();
+/** An environment-shaped record, so the pure selectors can be tested without touching process.env. */
+type Env = Record<string, string | undefined>;
 
-const KEY_VAR: Record<LlmProvider, string> = { anthropic: "ANTHROPIC_API_KEY", openai: "OPENAI_API_KEY", deepseek: "DEEPSEEK_API_KEY" };
+export function parseProvider(v: string | undefined | null): LlmProvider | null {
+  const s = v?.trim().toLowerCase();
+  return s === "anthropic" || s === "openai" || s === "deepseek" ? s : null;
+}
+
+/** One switch for every adaptation pass; fixture replay remains provider-free. */
+export const LLM_PROVIDER: LlmProvider = parseProvider(process.env.LLM_PROVIDER) ?? "anthropic";
+
+export const KEY_VAR: Record<LlmProvider, string> = { anthropic: "ANTHROPIC_API_KEY", openai: "OPENAI_API_KEY", deepseek: "DEEPSEEK_API_KEY" };
 
 /**
  * Two tiers. FAST does the reading passes (title bible, scene context, clip
- * ranking); STRONG does the writing passes (first pass, alternatives,
- * rewrites, the creative pack). Both overridable from the environment so a
- * cheaper model can be tried without a code change.
+ * ranking, ad nomination, the frame judge); STRONG does the writing passes
+ * (first pass, alternatives, rewrites, the creative pack). Both overridable
+ * from the environment so a cheaper model can be tried without a code change.
+ *
+ * DeepSeek ids are the V4.1 generation (api-docs.deepseek.com/quick_start/pricing,
+ * read 2026-09-22): `deepseek-flash` reads images, `deepseek-v4-pro` does not.
+ * The older `deepseek-chat` / `deepseek-reasoner` names were discontinued on
+ * 2026-07-24 (api-docs.deepseek.com/updates) and must not be sent.
  */
-const DEFAULT_MODELS: Record<LlmProvider, { fast: string; strong: string }> = {
+export const DEFAULT_MODELS: Record<LlmProvider, { fast: string; strong: string }> = {
   anthropic: { fast: "claude-sonnet-5", strong: "claude-opus-5" },
   openai: { fast: "gpt-5.6-terra", strong: "gpt-5.6-sol" },
-  deepseek: { fast: "deepseek-chat", strong: "deepseek-reasoner" },
+  deepseek: { fast: "deepseek-flash", strong: "deepseek-v4-pro" },
 };
-export const MODEL_FAST = process.env.LLM_MODEL_FAST || DEFAULT_MODELS[LLM_PROVIDER].fast;
-export const MODEL_STRONG = process.env.LLM_MODEL_STRONG || DEFAULT_MODELS[LLM_PROVIDER].strong;
+
+export type ModelTier = "fast" | "strong";
+
+/**
+ * The model a tier resolves to for a provider. LLM_MODEL_FAST / LLM_MODEL_STRONG
+ * override the process-wide provider's models only: a Claude id would be
+ * nonsense to DeepSeek, so a per-call provider that differs from LLM_PROVIDER
+ * always takes its own defaults.
+ */
+export function modelFor(provider: LlmProvider, tier: ModelTier, env: Env = process.env): string {
+  const processProvider = parseProvider(env.LLM_PROVIDER) ?? "anthropic";
+  if (provider === processProvider) {
+    const override = tier === "fast" ? env.LLM_MODEL_FAST : env.LLM_MODEL_STRONG;
+    if (override) return override;
+  }
+  return DEFAULT_MODELS[provider][tier];
+}
+
+export const MODEL_FAST = modelFor(LLM_PROVIDER, "fast");
+export const MODEL_STRONG = modelFor(LLM_PROVIDER, "strong");
 
 export type Effort = "low" | "medium" | "high" | "xhigh" | "max";
 
@@ -56,6 +92,13 @@ export type ModelPrice = {
   cache_write: number;
   cache_read: number;
 };
+
+// DeepSeek list prices at PEAK rates (api-docs.deepseek.com/quick_start/pricing,
+// read 2026-09-22): deepseek-flash cache miss $0.30, cache hit $0.006, output
+// $1.20 per million; deepseek-v4-pro $1.32 / $0.044 / $3.96. Off-peak is half.
+// Peak is charged so spend is never under-reported; no cache-write surcharge.
+const DEEPSEEK_FLASH: ModelPrice = { input: 0.3, output: 1.2, cache_write: 0.3, cache_read: 0.006 };
+const DEEPSEEK_V4_PRO: ModelPrice = { input: 1.32, output: 3.96, cache_write: 1.32, cache_read: 0.044 };
 
 export const PRICES: Record<string, ModelPrice> = {
   "claude-opus-5": { input: 5, output: 25, cache_write: 6.25, cache_read: 0.5 },
@@ -69,11 +112,11 @@ export const PRICES: Record<string, ModelPrice> = {
   "claude-haiku-4-5": { input: 1, output: 5, cache_write: 1.25, cache_read: 0.1 },
   "gpt-5.6-sol": { input: 4, output: 20, cache_write: 4, cache_read: 0.4 },
   "gpt-5.6-terra": { input: 2, output: 12, cache_write: 2, cache_read: 0.2 },
-  // DeepSeek list prices (V3.2, api-docs.deepseek.com/quick_start/pricing): cache
-  // miss $0.28, cache hit $0.028, output $0.42 per million; no cache-write surcharge.
-  // Re-check when DeepSeek changes its price table.
-  "deepseek-chat": { input: 0.28, output: 0.42, cache_write: 0.28, cache_read: 0.028 },
-  "deepseek-reasoner": { input: 0.28, output: 0.42, cache_write: 0.28, cache_read: 0.028 },
+  "deepseek-flash": DEEPSEEK_FLASH,
+  "deepseek-v4-pro": DEEPSEEK_V4_PRO,
+  // Legacy ids DeepSeek still accepts and serves with V4.1-Flash at flash prices (updates page, 2026-09-10).
+  "deepseek-v4-flash": DEEPSEEK_FLASH,
+  "deepseek-v4-flash-vision-exp": DEEPSEEK_FLASH,
 };
 
 /** An unknown model id is priced at the dearest known tier: spend must never be under-reported. */
@@ -87,17 +130,19 @@ export function priceFor(model: string): ModelPrice {
 
 // ---- availability and errors --------------------------------------------------------
 
-export function isLlmAvailable(): boolean {
-  return !!process.env[KEY_VAR[LLM_PROVIDER]];
+export function isLlmAvailable(provider: LlmProvider = LLM_PROVIDER, env: Env = process.env): boolean {
+  return !!env[KEY_VAR[provider]];
 }
 
 /** No key. Routes map it to 503 with error code 'llm_unavailable'. */
 export class LlmUnavailableError extends Error {
   readonly code = "llm_unavailable" as const;
-  constructor(message?: string) {
-    const key = KEY_VAR[LLM_PROVIDER];
+  readonly provider: LlmProvider;
+  constructor(message?: string, provider: LlmProvider = LLM_PROVIDER) {
+    const key = KEY_VAR[provider];
     super(message ?? `AI passes are not configured on this server (missing ${key})`);
     this.name = "LlmUnavailableError";
+    this.provider = provider;
   }
 }
 
@@ -113,6 +158,66 @@ export class LlmError extends Error {
     this.code = code;
     this.status = status;
   }
+}
+
+// ---- vision and the ad engine's providers ------------------------------------------------
+
+/**
+ * Which models read images. Every current Claude and GPT-5 model is
+ * multimodal; on DeepSeek only the Flash line is (api-docs.deepseek.com/guides/vision,
+ * read 2026-09-22: `deepseek-flash`, plus the two legacy ids it serves).
+ */
+export function modelSupportsVision(provider: LlmProvider, model: string): boolean {
+  switch (provider) {
+    case "anthropic":
+      return true;
+    case "openai":
+      return true;
+    case "deepseek":
+      return /^deepseek-(flash|v4-flash|v4-flash-vision-exp)$/.test(model);
+  }
+}
+
+/** The ad engine's text passes (nomination): ADS_TEXT_PROVIDER, DeepSeek unless said otherwise. */
+export function adsTextProvider(env: Env = process.env): LlmProvider {
+  return parseProvider(env.ADS_TEXT_PROVIDER) ?? "deepseek";
+}
+
+export type VisionProviderStatus = {
+  available: boolean;
+  provider: LlmProvider;
+  /** The model the frame judge would run on (the provider's fast tier). */
+  model: string;
+  /** Why it is unavailable, or the note that a fallback was taken; null on the plain path. */
+  reason: string | null;
+};
+
+/**
+ * The frame judge's provider (amendment 4, 2026-09-22): ADS_VISION_PROVIDER,
+ * Anthropic by default. With no ADS_VISION_PROVIDER set, no ANTHROPIC_API_KEY
+ * and a DEEPSEEK_API_KEY, the judge runs on deepseek-flash, which reads
+ * images. An explicit provider is never swapped behind the operator's back:
+ * its missing key or text-only model is reported, and the verify stage
+ * refuses cleanly with this reason instead of guessing.
+ */
+export function visionProviderStatus(env: Env = process.env): VisionProviderStatus {
+  const requested = parseProvider(env.ADS_VISION_PROVIDER);
+  const provider = requested ?? "anthropic";
+  const model = modelFor(provider, "fast", env);
+  if (isLlmAvailable(provider, env)) {
+    if (!modelSupportsVision(provider, model)) {
+      return { available: false, provider, model, reason: `vision provider unavailable: ${model} does not read images; point ADS_VISION_PROVIDER at a vision model (deepseek-flash, claude-sonnet-5)` };
+    }
+    return { available: true, provider, model, reason: null };
+  }
+  if (!requested && isLlmAvailable("deepseek", env)) {
+    const fallback = modelFor("deepseek", "fast", env);
+    if (modelSupportsVision("deepseek", fallback)) {
+      return { available: true, provider: "deepseek", model: fallback, reason: `${KEY_VAR.anthropic} is not set; frames are judged by ${fallback} (${KEY_VAR.deepseek})` };
+    }
+  }
+  const hint = requested ? "" : ` (or ${KEY_VAR.deepseek}, which runs deepseek-flash)`;
+  return { available: false, provider, model, reason: `vision provider unavailable: add ${KEY_VAR[provider]} to .env.local${hint}` };
 }
 
 // ---- usage and cost --------------------------------------------------------------------
@@ -175,6 +280,56 @@ export function toJobUsage(u: LlmUsage): JobUsage {
     output_tokens: u.output_tokens,
     cache_read_tokens: u.cache_read_tokens,
   };
+}
+
+// ---- images --------------------------------------------------------------------------------
+
+export type LlmImageMediaType = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+
+/** An image on disk (a frame strip, a join sheet); read and sent base64 at call time. */
+export type LlmImage = { media_type: LlmImageMediaType; path: string };
+
+/** The same image once read: base64 bytes, never a path. */
+export type LoadedImage = { media_type: LlmImageMediaType; data: string };
+
+export function loadImages(images: LlmImage[]): LoadedImage[] {
+  return images.map((i) => ({ media_type: i.media_type, data: fs.readFileSync(i.path).toString("base64") }));
+}
+
+export function imageDataUri(image: LoadedImage): string {
+  return `data:${image.media_type};base64,${image.data}`;
+}
+
+/** Anthropic: image blocks first, then the text, so the words refer to what the model has already seen. */
+export function anthropicUserContent(text: string, images: LoadedImage[]): string | Anthropic.ContentBlockParam[] {
+  if (!images.length) return text;
+  return [
+    ...images.map((i): Anthropic.ImageBlockParam => ({ type: "image", source: { type: "base64", media_type: i.media_type, data: i.data } })),
+    { type: "text", text },
+  ];
+}
+
+/** Chat completions (DeepSeek): image_url parts carrying data URIs, in the user message only — the API refuses images anywhere else. */
+export function chatUserContent(text: string, images: LoadedImage[]): string | OpenAI.Chat.Completions.ChatCompletionContentPart[] {
+  if (!images.length) return text;
+  return [
+    ...images.map((i): OpenAI.Chat.Completions.ChatCompletionContentPartImage => ({ type: "image_url", image_url: { url: imageDataUri(i) } })),
+    { type: "text", text },
+  ];
+}
+
+/** Responses API (OpenAI): one user item with input_image parts before the text. */
+export function responsesUserInput(text: string, images: LoadedImage[]): string | OpenAI.Responses.ResponseInputItem[] {
+  if (!images.length) return text;
+  return [
+    {
+      role: "user",
+      content: [
+        ...images.map((i): OpenAI.Responses.ResponseInputImage => ({ type: "input_image", image_url: imageDataUri(i), detail: "auto" })),
+        { type: "input_text", text },
+      ],
+    },
+  ];
 }
 
 // ---- the client ------------------------------------------------------------------------
@@ -258,15 +413,15 @@ async function withRetries<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 /** SDK errors become one LlmError so callers never depend on SDK classes. */
-function toLlmError(e: unknown): Error {
+function toLlmError(e: unknown, provider: LlmProvider): Error {
   if (e instanceof LlmError || e instanceof LlmUnavailableError) return e;
-  if (e instanceof Anthropic.AuthenticationError) return new LlmUnavailableError();
+  if (e instanceof Anthropic.AuthenticationError) return new LlmUnavailableError(undefined, provider);
   if (e instanceof Anthropic.APIError) {
     return new LlmError("api", `Claude API ${e.status ?? "?"}: ${e.message}`, e.status);
   }
-  if (e instanceof OpenAI.AuthenticationError) return new LlmUnavailableError();
+  if (e instanceof OpenAI.AuthenticationError) return new LlmUnavailableError(undefined, provider);
   if (e instanceof OpenAI.APIError) {
-    const who = LLM_PROVIDER === "deepseek" ? "DeepSeek" : "OpenAI";
+    const who = provider === "deepseek" ? "DeepSeek" : "OpenAI";
     return new LlmError("api", `${who} API ${e.status ?? "?"}: ${e.message}`, e.status);
   }
   if (e instanceof ContentFilterFinishReasonError) {
@@ -423,7 +578,12 @@ export type StructuredCall<T> = {
   description?: string;
   system: string | LlmSystemBlock[];
   user: string;
+  /** Images the user message carries (frame strips, join sheets); refused before any request on a text-only model. */
+  images?: LlmImage[];
   schema: ZodType<T>;
+  /** The gateway for this call; LLM_PROVIDER when absent. `model` must then be one of that provider's ids. */
+  provider?: LlmProvider;
+  /** Defaults to the provider's fast tier (modelFor). */
   model?: string;
   maxTokens: number;
   /** Mark the last system block as a cache breakpoint (the whole tools+system prefix is then cached). */
@@ -441,10 +601,14 @@ export type StructuredResult<T> = {
   data: T;
   usage: LlmUsage;
   cost_cents: number;
+  provider: LlmProvider;
   model: string;
   /** 1 when the first answer validated, 2 when the repair turn was needed. */
   turns: number;
 };
+
+/** What callStructured resolved before dispatching: the provider, its model and the loaded images. */
+type CallContext = { provider: LlmProvider; model: string; images: LoadedImage[] };
 
 type Parsed<T> =
   | { ok: true; data: T }
@@ -488,8 +652,8 @@ function parseResponse<T>(res: Anthropic.Message, call: StructuredCall<T>): Pars
  * backoff; validates with zod and, on a schema or semantic failure, sends the
  * violations back as an error tool_result and lets the model call once more.
  */
-async function callAnthropicStructured<T>(call: StructuredCall<T>): Promise<StructuredResult<T>> {
-  const model = call.model ?? MODEL_FAST;
+async function callAnthropicStructured<T>(call: StructuredCall<T>, ctx: CallContext): Promise<StructuredResult<T>> {
+  const { provider, model } = ctx;
   const tool: Anthropic.Tool = {
     name: call.name,
     description: call.description ?? `Record the ${call.name} result.`,
@@ -497,7 +661,7 @@ async function callAnthropicStructured<T>(call: StructuredCall<T>): Promise<Stru
     strict: true,
   };
   const system = systemParam(call.system, call.cacheSystem);
-  const messages: Anthropic.MessageParam[] = [{ role: "user", content: call.user }];
+  const messages: Anthropic.MessageParam[] = [{ role: "user", content: anthropicUserContent(call.user, ctx.images) }];
   const usage = zeroUsage();
 
   const request = () =>
@@ -543,18 +707,18 @@ async function callAnthropicStructured<T>(call: StructuredCall<T>): Promise<Stru
     }
 
     if (!parsed.ok) throw new LlmError(parsed.code, parsed.problem);
-    return { data: parsed.data, usage, cost_cents: costCents(model, usage), model, turns };
+    return { data: parsed.data, usage, cost_cents: costCents(model, usage), provider, model, turns };
   } catch (e) {
-    throw toLlmError(e);
+    throw toLlmError(e, provider);
   }
 }
 
 /** OpenAI Responses API equivalent of the Claude forced-tool contract. */
-async function callOpenAiStructured<T>(call: StructuredCall<T>): Promise<StructuredResult<T>> {
-  const model = call.model ?? MODEL_FAST;
+async function callOpenAiStructured<T>(call: StructuredCall<T>, ctx: CallContext): Promise<StructuredResult<T>> {
+  const { provider, model } = ctx;
   const usage = zeroUsage();
   const instructions = typeof call.system === "string" ? call.system : call.system.map((b) => b.text).join("\n\n");
-  let input = call.user;
+  let input = responsesUserInput(call.user, ctx.images);
 
   try {
     for (let turn = 1; turn <= 2; turn++) {
@@ -578,7 +742,7 @@ async function callOpenAiStructured<T>(call: StructuredCall<T>): Promise<Structu
       const parsed = call.schema.safeParse(res.output_parsed);
       const semantic = parsed.success && call.check ? call.check(parsed.data) : null;
       if (parsed.success && !semantic) {
-        return { data: parsed.data, usage, cost_cents: costCents(model, usage), model, turns: turn };
+        return { data: parsed.data, usage, cost_cents: costCents(model, usage), provider, model, turns: turn };
       }
 
       const problem = parsed.success
@@ -588,11 +752,14 @@ async function callOpenAiStructured<T>(call: StructuredCall<T>): Promise<Structu
             .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
             .join("\n")}`;
       if (turn === 2) throw new LlmError("invalid_output", problem);
-      input = `${call.user}\n\nYOUR PREVIOUS STRUCTURED ANSWER WAS INVALID:\n${res.output_text}\n\nVALIDATION ERROR:\n${problem}\n\nReturn a corrected answer. Fix only what the error names; keep everything else identical.`;
+      input = responsesUserInput(
+        `${call.user}\n\nYOUR PREVIOUS STRUCTURED ANSWER WAS INVALID:\n${res.output_text}\n\nVALIDATION ERROR:\n${problem}\n\nReturn a corrected answer. Fix only what the error names; keep everything else identical.`,
+        ctx.images
+      );
     }
     throw new LlmError("invalid_output", "No structured output was returned.");
   } catch (e) {
-    throw toLlmError(e);
+    throw toLlmError(e, provider);
   }
 }
 
@@ -607,10 +774,11 @@ function schemaIssues(error: { issues: { path: (string | number)[]; message: str
  * DeepSeek equivalent: chat completions in JSON mode with the schema stated
  * in the system prompt (no server-side schema enforcement there), the same
  * zod validation on our side, and the same single repair turn. `effort` has
- * no counterpart; deepseek-reasoner thinks on its own terms.
+ * no counterpart. Images ride in the user message as data URIs; the
+ * text-only model was refused before this point.
  */
-async function callDeepSeekStructured<T>(call: StructuredCall<T>): Promise<StructuredResult<T>> {
-  const model = call.model ?? MODEL_FAST;
+async function callDeepSeekStructured<T>(call: StructuredCall<T>, ctx: CallContext): Promise<StructuredResult<T>> {
+  const { provider, model } = ctx;
   const usage = zeroUsage();
   const systemText = typeof call.system === "string" ? call.system : call.system.map((b) => b.text).join("\n\n");
   const contract = call.description ?? `Record the ${call.name} result.`;
@@ -624,7 +792,7 @@ async function callDeepSeekStructured<T>(call: StructuredCall<T>): Promise<Struc
           model,
           messages: [
             { role: "system", content: system },
-            { role: "user", content: user },
+            { role: "user", content: chatUserContent(user, ctx.images) },
           ],
           max_tokens: call.maxTokens,
           response_format: { type: "json_object" },
@@ -656,7 +824,7 @@ async function callDeepSeekStructured<T>(call: StructuredCall<T>): Promise<Struc
         if (!parsed.success) problem = schemaIssues(parsed.error);
         else {
           const semantic = call.check ? call.check(parsed.data) : null;
-          if (!semantic) return { data: parsed.data, usage, cost_cents: costCents(model, usage), model, turns: turn };
+          if (!semantic) return { data: parsed.data, usage, cost_cents: costCents(model, usage), provider, model, turns: turn };
           problem = semantic;
         }
       }
@@ -665,13 +833,33 @@ async function callDeepSeekStructured<T>(call: StructuredCall<T>): Promise<Struc
     }
     throw new LlmError("invalid_output", "No structured output was returned.");
   } catch (e) {
-    throw toLlmError(e);
+    throw toLlmError(e, provider);
   }
 }
 
+/**
+ * Resolve the call's provider and model and refuse what cannot run before a
+ * single byte leaves the process: a missing key, or images for a model that
+ * does not read them. Pure apart from reading the environment; exported so
+ * the tests can prove the refusals without a network.
+ */
+export function resolveCall<T>(call: StructuredCall<T>, env: Env = process.env): { provider: LlmProvider; model: string } {
+  const provider = call.provider ?? (parseProvider(env.LLM_PROVIDER) ?? "anthropic");
+  if (!isLlmAvailable(provider, env)) throw new LlmUnavailableError(undefined, provider);
+  const model = call.model ?? modelFor(provider, "fast", env);
+  if (call.images?.length && !modelSupportsVision(provider, model)) {
+    throw new LlmUnavailableError(
+      `vision provider unavailable: ${model} (${provider}) does not read images; set ADS_VISION_PROVIDER to a provider with a vision model and its key`,
+      provider
+    );
+  }
+  return { provider, model };
+}
+
 export async function callStructured<T>(call: StructuredCall<T>): Promise<StructuredResult<T>> {
-  if (!isLlmAvailable()) throw new LlmUnavailableError();
-  if (LLM_PROVIDER === "openai") return callOpenAiStructured(call);
-  if (LLM_PROVIDER === "deepseek") return callDeepSeekStructured(call);
-  return callAnthropicStructured(call);
+  const { provider, model } = resolveCall(call);
+  const ctx: CallContext = { provider, model, images: call.images?.length ? loadImages(call.images) : [] };
+  if (provider === "openai") return callOpenAiStructured(call, ctx);
+  if (provider === "deepseek") return callDeepSeekStructured(call, ctx);
+  return callAnthropicStructured(call, ctx);
 }

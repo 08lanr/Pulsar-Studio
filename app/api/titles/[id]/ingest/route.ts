@@ -44,6 +44,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const subtitles = asFile(form.get("subtitles"));
     if (!subtitles && !video) return apiError("A subtitle/script or video file is required", undefined, 400);
     if (subtitles && subtitles.size > MAX_SUBTITLE_BYTES) return apiError("Subtitle file too large", undefined, 400);
+    // The edit check comes BEFORE any storage write: a viewer's or a stranger's
+    // upload used to land in the bucket and only then be refused by the data
+    // layer, leaving an orphan file (review 2026-09-22).
+    await getData().assertTitleEditable(g.session, params.id);
 
     const folder = randomUUID();
     if (!subtitles && video) {

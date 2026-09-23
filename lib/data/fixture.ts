@@ -862,7 +862,7 @@ export const fixtureData: DataLayer = {
       logline_zh: null,
       logline_en: null,
       episode_count: null,
-      source_locale: "zh-CN",
+      source_locale: input.source_locale?.trim() || "zh-CN",
       status: "selected",
       china_metrics: {},
       localization_effort: null,
@@ -881,13 +881,18 @@ export const fixtureData: DataLayer = {
       target_locale: "en-US",
       label: "U.S. general",
       display_title_en: title.name_en,
-      created_by: session.userId,
+      // The system actor names the real caller (or nothing): in SQL this column is a foreign key to core.profiles.
+      created_by: input.created_by ?? (isSystemSession(session) ? null : session.userId),
       created_at: at,
     };
     s.db.titles.push(title);
     s.db.adaptations.push(adaptation);
     audit(s, session, "create_title", "core.titles", title.id, title.id, null, { name_zh: title.name_zh });
     return clone(title);
+  },
+
+  async assertTitleEditable(session, titleId) {
+    return clone(requireTitleEditor(store().db, session, titleId));
   },
 
   async updateTitle(session, titleId, patch) {
@@ -2208,9 +2213,13 @@ export const fixtureData: DataLayer = {
     return clone(row);
   },
 
-  async finishJob(jobId, result) {
-    const job = store().db.jobs.find((j) => j.id === jobId);
+  async finishJob(session, jobId, result) {
+    const { db } = store();
+    const job = db.jobs.find((j) => j.id === jobId);
     if (!job) throw notFound("job", jobId);
+    // The same rule as recordJob (producer_update_jobs in 0002: can_edit_title).
+    if (job.title_id) requireTitleEditor(db, session, job.title_id);
+    else requireStaff(session);
     const at = now();
     job.status = result.status;
     if (result.usage !== undefined) job.usage = result.usage;
@@ -2230,9 +2239,12 @@ export const fixtureData: DataLayer = {
     return jobs.length ? clone(jobs[0]) : null;
   },
 
-  async heartbeatJob(jobId) {
-    const job = store().db.jobs.find((j) => j.id === jobId);
+  async heartbeatJob(session, jobId) {
+    const { db } = store();
+    const job = db.jobs.find((j) => j.id === jobId);
     if (!job) throw notFound("job", jobId);
+    if (job.title_id) requireTitleEditor(db, session, job.title_id);
+    else requireStaff(session);
     job.heartbeat_at = now();
   },
 

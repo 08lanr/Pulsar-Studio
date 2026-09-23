@@ -1,9 +1,10 @@
 // Filename → episode number (lib/ingest/episode-number): the guesses the
-// bulk uploader makes for a producer dropping a whole season at once.
+// bulk uploader makes for a producer dropping a whole season at once, and
+// the exact rule the workspace scanner uses.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { guessEpisodeNumber } from "@/lib/ingest/episode-number";
+import { guessEpisodeNumber, isPartialFile, parseWorkspaceEpisodeFile } from "@/lib/ingest/episode-number";
 
 test("Chinese episode markers", () => {
   assert.equal(guessEpisodeNumber("向园 第3集.srt"), 3);
@@ -27,4 +28,25 @@ test("bare trailing number, ignoring years and resolutions", () => {
 test("nothing usable returns null", () => {
   assert.equal(guessEpisodeNumber("final draft.srt"), null);
   assert.equal(guessEpisodeNumber("字幕.srt"), null);
+});
+
+test("a render still being written is never an episode", () => {
+  assert.equal(guessEpisodeNumber("ep30.mp4"), 30);
+  assert.equal(guessEpisodeNumber("ep30.part.mp4"), null, "the pipeline's in-progress file used to parse as 30");
+  assert.equal(guessEpisodeNumber("ep30.mp4.part"), null);
+  assert.equal(guessEpisodeNumber("第3集.PART.mp4"), null);
+  assert.equal(isPartialFile("ep30.part.mp4"), true);
+  assert.equal(isPartialFile("ep30.mp4"), false);
+  assert.equal(isPartialFile("party.mp4"), false);
+});
+
+test("the workspace's own file names are exact: epNN.mp4 and nothing else", () => {
+  assert.equal(parseWorkspaceEpisodeFile("ep07.mp4"), 7);
+  assert.equal(parseWorkspaceEpisodeFile("ep52.mp4"), 52);
+  assert.equal(parseWorkspaceEpisodeFile("ep30.part.mp4"), null);
+  assert.equal(parseWorkspaceEpisodeFile("Ep07.mp4"), null);
+  assert.equal(parseWorkspaceEpisodeFile("ep07.mov"), null);
+  assert.equal(parseWorkspaceEpisodeFile("ep07.mp4.bak"), null);
+  assert.equal(parseWorkspaceEpisodeFile("eps.zip"), null);
+  assert.equal(parseWorkspaceEpisodeFile("ep0.mp4"), null);
 });

@@ -68,7 +68,7 @@ export async function cutEpisodeClips(titleId: string, episodeNumber: number, op
   if (job.status === "done") return { outcome: "skipped", source: null, selected: 0, rendered: 0, failed: [], job_id: job.id };
 
   const fail = async (error: string): Promise<CutRunResult> => {
-    await data.finishJob(job.id, { status: "failed", error, cost_cents: 0 });
+    await data.finishJob(session, job.id, { status: "failed", error, cost_cents: 0 });
     return { outcome: "failed", source: null, selected: 0, rendered: 0, failed: [error], job_id: job.id };
   };
 
@@ -96,7 +96,7 @@ export async function cutEpisodeClips(titleId: string, episodeNumber: number, op
           failed.push(`${clip.external_id}: ${note}`);
           await data.setClipRender(session, clip.id, { render_status: "failed", render_note: note }).catch(() => undefined);
         }
-        await data.heartbeatJob(job.id).catch(() => undefined);
+        await data.heartbeatJob(session, job.id).catch(() => undefined);
       }
       // Rows this run selected but did not render (over the limit) must not sit "pending" forever.
       for (const clip of selection.clips) {
@@ -105,7 +105,7 @@ export async function cutEpisodeClips(titleId: string, episodeNumber: number, op
         }
       }
       const output: Json = { source: selection.source, selected: selection.clips.length, rendered, failed, duration_ms: durationMs, source_size: sourceSize ? `${sourceSize.width}x${sourceSize.height}` : null };
-      await data.finishJob(job.id, { status: rendered > 0 || !toRender.length ? "done" : "failed", output, cost_cents: 0, error: rendered === 0 && failed.length ? failed[0] : null });
+      await data.finishJob(session, job.id, { status: rendered > 0 || !toRender.length ? "done" : "failed", output, cost_cents: 0, error: rendered === 0 && failed.length ? failed[0] : null });
       log(`${wb.title.id}/${episode.number}: ${selection.source}, ${rendered}/${toRender.length} rendered${failed.length ? `, ${failed.length} failed` : ""}`);
       return { outcome: rendered > 0 || !toRender.length ? "done" : "failed", source: selection.source, selected: selection.clips.length, rendered, failed, job_id: job.id };
     });
