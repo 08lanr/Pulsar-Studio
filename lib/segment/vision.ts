@@ -23,7 +23,7 @@ import { z } from "zod";
 import { systemSession, type Session } from "@/lib/auth";
 import { demoReplayActive } from "@/lib/data-source";
 import { runJob, type RunJobResult, type RunJobSpec } from "@/lib/jobs";
-import { KEY_VAR, LlmError, callStructured, isLlmAvailable, modelFamily, modelSupportsVision, visionProviderStatus, type LlmProvider, type StructuredCall, type StructuredResult } from "@/lib/llm";
+import { KEY_VAR, LlmError, LlmUnavailableError, callStructured, isLlmAvailable, modelFamily, modelSupportsVision, parseProvider, visionProviderStatus, type LlmProvider, type StructuredCall, type StructuredResult, type TurnTrace } from "@/lib/llm";
 import {
   BAND_FIX_RULE_VERSION,
   bandFixNote,
@@ -426,8 +426,16 @@ export type JudgeOptions = {
 
 /** The `errors[].error` text of a boundary the pass did not reach because the run was cancelled. */
 export const CANCELLED = "cancelled";
+/** The `errors[].error` text of a boundary the pass did not reach because the provider answered that it cannot run (the pass then returns `{unavailable}`). */
+export const UNAVAILABLE = "vision provider unavailable";
 
-export type JudgedJob = { boundary_s: number; role: "look" | "verify" | "tiebreak"; job_id: string; cost_cents: number; skipped: boolean };
+/** One studio.jobs row of the pass: done (reused when `skipped`) or failed with the spend it kept; `output_tokens` from the row (thinking included), `trace` per turn on the Anthropic path. */
+export type JudgedJob = { boundary_s: number; role: "look" | "verify" | "tiebreak"; job_id: string; cost_cents: number; skipped: boolean; status: "done" | "failed"; output_tokens: number; trace: TurnTrace[] };
+
+/** The `jobs` entry of a row that finished done (or was reused). */
+function doneRow(boundary_s: number, role: JudgedJob["role"], r: Pick<RunJobResult<unknown>, "job" | "skipped">, trace: TurnTrace[] = []): JudgedJob {
+  return { boundary_s, role, job_id: r.job.id, cost_cents: r.job.cost_cents ?? 0, skipped: r.skipped, status: "done", output_tokens: r.job.usage?.output_tokens ?? 0, trace };
+}
 
 export type JudgeResult = {
   file: string;
@@ -489,9 +497,11 @@ async function writeJson(file: string, value: unknown): Promise<void> {
 
 const SUMMARY = "Choose each episode boundary by looking at contact strips, then adversarially verify each choice";
 
-/** A failure a second call may cure: the transport (an API error, a timeout) or a reply that was not a JSON object at all. A check or schema failure after the repair turn is not one: the same prompt would fail the same way. */
+/** A failure a second call may cure: the transport (a 5xx, a timeout, a rate limit) or a reply that was not a JSON object at all. A check or schema failure after the repair turn is not one, and neither is a 4xx other than 408/409/429: the same request would fail the same way (the smoke of 2026-09-23 retried a configuration 400 twice per boundary). */
 export function isTransientLlmFailure(e: unknown): boolean {
-  return e instanceof LlmError && (e.code === "api" || (e.code === "invalid_output" && /not a JSON object/i.test(e.message)));
+  if (!(e instanceof LlmError)) return false;
+  if (e.code === "api") return e.status === undefined || e.status >= 500 || e.status === 408 || e.status === 409 || e.status === 429;
+  return e.code === "invalid_output" && /not a JSON object/i.test(e.message);
 }
 
 /**
@@ -562,25 +572,62 @@ export async function judgeBoundaries(run: SegmentRun, doc: OptionsDoc, opts: Ju
   let done = 0;
   const keyFor = (b: number, role: JudgedJob["role"]) => `verify_boundaries:${run.id}:${b}:${role}:${sha.slice(0, 12)}:${BOUNDARY_RULE_VERSION}:${attempt}`;
   const cancelled = () => opts.signal?.aborted === true;
+  // The provider answered that it cannot run at all (a key that names no workspace, an invalid key): the pass stops
+  // at the first such answer, spends nothing more, and returns {unavailable} naming what .env.local lacks — a doomed
+  // call per boundary would read as forty errors instead of one gap.
+  let unavailableHit: string | null = null;
+  const stopUnavailable = (e: LlmUnavailableError) => {
+    if (unavailableHit) return;
+    const deepseek = !parseProvider(env.ADS_VISION_PROVIDER) && provider !== "deepseek" && isLlmAvailable("deepseek", env) ? "; meanwhile ADS_VISION_PROVIDER=deepseek judges on deepseek-flash" : "";
+    unavailableHit = `${e.message}${deepseek}`;
+  };
+  const stopped = () => cancelled() || unavailableHit !== null;
+  const stopError = () => (unavailableHit ? new LlmUnavailableError(unavailableHit, provider) : new Error(CANCELLED));
   const common = { kind: JOB_KIND, title_id: NO_TITLE, target_type: FILM_RUN_TARGET, target_id: run.id, provider, model } as const;
   const describe = (e: unknown) => (e instanceof LlmError ? `${e.name} (${e.code}): ${e.message}` : e instanceof Error ? `${e.name}: ${e.message}` : String(e));
 
-  /** One job-level retry after a transport or non-JSON failure (the failed row is re-run under its own key); anything else is thrown as it came. */
-  const callJob = async <T>(b: number, role: JudgedJob["role"], spec: RunJobSpec<T>): Promise<RunJobResult<T>> => {
+  /**
+   * One call as a job row, listed in `jobs` whether it ended done or failed
+   * (a failed row keeps its spend and its id, lib/jobs.ts: every call is a
+   * row with usage and cost_cents), with one job-level retry after a
+   * transport or non-JSON failure (the failed row is re-run under its own
+   * key); anything else is thrown as it came, and a provider that cannot
+   * run at all stops the pass.
+   */
+  const callJob = async <T>(b: number, role: JudgedJob["role"], spec: Omit<RunJobSpec<T>, "run">, call: StructuredCall<T>): Promise<T> => {
+    const once = async (): Promise<T> => {
+      let trace: TurnTrace[] = [];
+      try {
+        const r = await runJob<T>(session, {
+          ...spec,
+          run: async () => {
+            const c = await llm(call);
+            trace = c.trace ?? [];
+            return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model, provider: c.provider };
+          },
+        });
+        jobs.push(doneRow(b, role, r, trace));
+        return r.output;
+      } catch (e) {
+        if (e instanceof LlmError && e.job_id) jobs.push({ boundary_s: b, role, job_id: e.job_id, cost_cents: e.cost_cents ?? 0, skipped: false, status: "failed", output_tokens: e.usage?.output_tokens ?? 0, trace });
+        if (e instanceof LlmUnavailableError) stopUnavailable(e);
+        throw e;
+      }
+    };
     try {
-      return await runJob<T>(session, spec);
+      return await once();
     } catch (e) {
-      if (!isTransientLlmFailure(e) || cancelled()) throw e;
+      if (!isTransientLlmFailure(e) || stopped()) throw e;
       retries.push({ boundary_s: b, role, error: describe(e) });
-      return await runJob<T>(session, spec);
+      return await once();
     }
   };
 
   const judgeOne = async (boundary: OptionsBoundary): Promise<WorkflowRecord | null> => {
     const b = boundary.boundary_s;
-    // A cancelled run makes no further call: the boundary is reported, not judged.
-    if (cancelled()) {
-      errors.push({ boundary_s: b, error: CANCELLED });
+    // A cancelled run, or one whose provider answered that it cannot run, makes no further call: the boundary is reported, not judged.
+    if (stopped()) {
+      errors.push({ boundary_s: b, error: unavailableHit ? UNAVAILABLE : CANCELLED });
       done += 1;
       return null;
     }
@@ -598,17 +645,12 @@ export async function judgeBoundaries(run: SegmentRun, doc: OptionsDoc, opts: Ju
       let pick: BoundaryPick;
       let lookRefused: string | null = null;
       try {
-        const looked = await callJob<BoundaryPick>(b, "look", {
-          ...common,
-          idempotency_key: keyFor(b, "look"),
-          input: { boundary_s: b, role: "look", label, attempt, options_sha: sha, rule_version: look.prompt_version, strips: strips.map((s) => s.rel), annotated: strips.every((s) => !!s.annotated), range },
-          run: async () => {
-            const c = await llm(look);
-            return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model, provider: c.provider };
-          },
-        });
-        jobs.push({ boundary_s: b, role: "look", job_id: looked.job.id, cost_cents: looked.job.cost_cents ?? 0, skipped: looked.skipped });
-        pick = looked.output;
+        pick = await callJob<BoundaryPick>(
+          b,
+          "look",
+          { ...common, idempotency_key: keyFor(b, "look"), input: { boundary_s: b, role: "look", label, attempt, options_sha: sha, rule_version: look.prompt_version, strips: strips.map((s) => s.rel), annotated: strips.every((s) => !!s.annotated), range } },
+          look
+        );
       } catch (e) {
         if (!(e instanceof LlmError && e.code === "invalid_output")) throw e;
         lookRefused = e.message;
@@ -623,7 +665,7 @@ export async function judgeBoundaries(run: SegmentRun, doc: OptionsDoc, opts: Ju
           : { agree: false, fault: "", better_key: "", reason: "reviewer refused (confidence 0); not verified", guard: { outcome: "refused", rule: null, detail: "", better_t: null } satisfies VerdictGuard };
       } else {
         // The reviewer's row is done and reused by a retry; the skeptic is not called for a cancelled run.
-        if (cancelled()) throw new Error(CANCELLED);
+        if (stopped()) throw stopError();
         const denseRaw = opts.dense ? await opts.dense(boundary, pick.chosen_t) : null;
         const dense = denseRaw && annotate ? await annotate(denseRaw, pick.chosen_t) : denseRaw;
         const images = [...strips, ...(dense ? [dense] : [])];
@@ -634,17 +676,12 @@ export async function judgeBoundaries(run: SegmentRun, doc: OptionsDoc, opts: Ju
         let skeptic: BoundaryVerdict | null = null;
         let verifyFailed: string | null = null;
         try {
-          const verified2 = await callJob<BoundaryVerdict>(b, "verify", {
-            ...common,
-            idempotency_key: keyFor(b, "verify"),
-            input: { boundary_s: b, role: "verify", label, attempt, options_sha: sha, rule_version: verify.prompt_version, chosen_t: pick.chosen_t, dense: dense ? dense.rel : null, legal_cuts: legal.map((c) => c.t), range },
-            run: async () => {
-              const c = await llm(verify);
-              return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model, provider: c.provider };
-            },
-          });
-          jobs.push({ boundary_s: b, role: "verify", job_id: verified2.job.id, cost_cents: verified2.job.cost_cents ?? 0, skipped: verified2.skipped });
-          skeptic = verified2.output;
+          skeptic = await callJob<BoundaryVerdict>(
+            b,
+            "verify",
+            { ...common, idempotency_key: keyFor(b, "verify"), input: { boundary_s: b, role: "verify", label, attempt, options_sha: sha, rule_version: verify.prompt_version, chosen_t: pick.chosen_t, dense: dense ? dense.rel : null, legal_cuts: legal.map((c) => c.t), range } },
+            verify
+          );
         } catch (e) {
           if (!(e instanceof LlmError)) throw e;
           verifyFailed = describe(e);
@@ -674,7 +711,7 @@ export async function judgeBoundaries(run: SegmentRun, doc: OptionsDoc, opts: Ju
               verdict = { agree: true, fault: "", better_key: "", reason: `skeptic disputed ${pick.chosen_t}s (${skeptic.fault ?? "fault"}) and named ${betterT}s, not applied (${guard.rule}: ${guard.detail}). Skeptic said: ${skeptic.reason}`, skeptic_raw: skeptic, guard: note("rejected", guard.rule, guard.detail), evidence };
             } else {
               // The blind tie-break: the reviewer's cut and the skeptic's, as A and B, each with its images; no reasoning from either side.
-              if (cancelled()) throw new Error(CANCELLED);
+              if (stopped()) throw stopError();
               const optionStripAt = (t: number) => strips.find((s) => Math.abs(s.t - t) <= 0.0015) ?? null;
               const skepticDenseRaw = opts.dense ? await opts.dense(boundary, betterT) : null;
               const skepticDense = skepticDenseRaw && annotate ? await annotate(skepticDenseRaw, betterT) : skepticDenseRaw;
@@ -697,17 +734,12 @@ export async function judgeBoundaries(run: SegmentRun, doc: OptionsDoc, opts: Ju
                 let tv: TiebreakVerdict | null = null;
                 let tiebreakFailed: string | null = null;
                 try {
-                  const broken = await callJob<TiebreakVerdict>(b, "tiebreak", {
-                    ...common,
-                    idempotency_key: keyFor(b, "tiebreak"),
-                    input: { boundary_s: b, role: "tiebreak", label, attempt, options_sha: sha, rule_version: tb.prompt_version, a_t: a.t, b_t: bSide.t, a_side: first, images: [...a.images, ...bSide.images].map((i) => i.rel) },
-                    run: async () => {
-                      const c = await llm(tb);
-                      return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model, provider: c.provider };
-                    },
-                  });
-                  jobs.push({ boundary_s: b, role: "tiebreak", job_id: broken.job.id, cost_cents: broken.job.cost_cents ?? 0, skipped: broken.skipped });
-                  tv = broken.output;
+                  tv = await callJob<TiebreakVerdict>(
+                    b,
+                    "tiebreak",
+                    { ...common, idempotency_key: keyFor(b, "tiebreak"), input: { boundary_s: b, role: "tiebreak", label, attempt, options_sha: sha, rule_version: tb.prompt_version, a_t: a.t, b_t: bSide.t, a_side: first, images: [...a.images, ...bSide.images].map((i) => i.rel) } },
+                    tb
+                  );
                 } catch (e) {
                   if (!(e instanceof LlmError)) throw e;
                   tiebreakFailed = describe(e);
@@ -745,6 +777,8 @@ export async function judgeBoundaries(run: SegmentRun, doc: OptionsDoc, opts: Ju
   };
 
   const judged = await pool(wanted, opts.concurrency ?? 3, judgeOne);
+  // The provider cannot run: nothing is written (the done rows stay for a retry) and the reason names what is missing.
+  if (unavailableHit) return { unavailable: unavailableHit };
   const records = judged.filter((r): r is WorkflowRecord => r !== null).sort((a, b) => a.boundary_s - b.boundary_s);
   const costCents = jobs.reduce((s, j) => s + j.cost_cents, 0);
   const output: WorkflowOutput = {
@@ -841,6 +875,7 @@ export async function judgeBandFix(run: SegmentRun, doc: OptionsDoc, groups: Ban
     const records = firstPass.filter((r) => group.boundaries.some((b) => keyOf(b.key) === keyOf(r.boundary_s)));
     const input = { group, band: doc.band, boundaries, strips, layout, legal_cuts: legal, first_pass: records, film_notes: run.film_notes ?? null, provider, model };
     const judge = buildBandFixJudge(input);
+    let judgeTrace: TurnTrace[] = [];
     const judged = await runJob<BandFixPick>(session, {
       kind: JOB_KIND,
       title_id: NO_TITLE,
@@ -852,16 +887,18 @@ export async function judgeBandFix(run: SegmentRun, doc: OptionsDoc, groups: Ban
       input: { group: group.label, role: "band_judge", label, attempt, options_sha: sha, rule_version: judge.prompt_version, keys: group.boundaries.map((b) => b.key) },
       run: async () => {
         const c = await llm(judge);
+        judgeTrace = c.trace ?? [];
         return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model, provider: c.provider };
       },
     });
-    jobs.push({ boundary_s: group.boundaries[0]?.key ?? 0, role: "look", job_id: judged.job.id, cost_cents: judged.job.cost_cents ?? 0, skipped: judged.skipped });
+    jobs.push(doneRow(group.boundaries[0]?.key ?? 0, "look", judged, judgeTrace));
     const pick = judged.output;
     const verdicts: BandFixVerdict[] = [];
     if (pick.confidence > 0) {
       for (const lens of [0, 1] as const) {
         checkCancelled();
         const verify = buildBandFixSkeptic(input, pick, lens);
+        let verifyTrace: TurnTrace[] = [];
         const r = await runJob<BandFixVerdict>(session, {
           kind: JOB_KIND,
           title_id: NO_TITLE,
@@ -873,10 +910,11 @@ export async function judgeBandFix(run: SegmentRun, doc: OptionsDoc, groups: Ban
           input: { group: group.label, role: `band_verify_${lens}`, label, attempt, options_sha: sha, rule_version: verify.prompt_version, times: pick.times },
           run: async () => {
             const c = await llm(verify);
+            verifyTrace = c.trace ?? [];
             return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model, provider: c.provider };
           },
         });
-        jobs.push({ boundary_s: group.boundaries[0]?.key ?? 0, role: "verify", job_id: r.job.id, cost_cents: r.job.cost_cents ?? 0, skipped: r.skipped });
+        jobs.push(doneRow(group.boundaries[0]?.key ?? 0, "verify", r, verifyTrace));
         verdicts.push(r.output);
       }
     }

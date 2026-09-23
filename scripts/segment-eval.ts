@@ -177,6 +177,13 @@ async function main() {
   }
   const wall = Math.round((Date.now() - t0) / 1000);
   console.log(`\n${result.records.length} judged, ${result.errors.length} failed, ${result.retries.length} retried, ${result.jobs.length} job rows, ${result.cost_cents} cents, ${wall} s wall (${result.provider} ${result.model})`);
+  // What the rows say of the model's work: the output tokens (thinking included), the failed rows whose spend is kept, and per turn how it stopped and whether it thought first.
+  const failedRows = result.jobs.filter((j) => j.status === "failed");
+  const outputTokens = result.jobs.reduce((s, j) => s + j.output_tokens, 0);
+  const turns = result.jobs.flatMap((j) => j.trace);
+  const stops = new Map<string, number>();
+  for (const t of turns) stops.set(t.stop_reason ?? "none", (stops.get(t.stop_reason ?? "none") ?? 0) + 1);
+  console.log(`  ${outputTokens} output tokens over ${result.jobs.length} rows; ${failedRows.length} failed rows (${failedRows.reduce((s, j) => s + j.cost_cents, 0)} cents kept on them); ${turns.length} turns traced, ${turns.filter((t) => t.thinking_blocks > 0).length} thought first; stop reasons: ${turns.length ? [...stops].map(([k, v]) => `${k} ${v}`).join(", ") : "none traced (reused rows, or a gateway that traces none)"}`);
   for (const e of result.errors) console.log(`  FAILED ${e.boundary_s}s: ${e.error}`);
   for (const r of result.retries) console.log(`  RETRIED ${r.boundary_s}s ${r.role}: ${r.error}`);
   // A check that failed after its repair turn is a record now (a refusal, skeptic_failed, no_tiebreak), never a lost boundary: say so.
@@ -218,7 +225,7 @@ async function main() {
   console.log(`  ${bar.every((b) => b.pass) ? "ALL PASS" : `${bar.filter((b) => !b.pass).length} of ${bar.length} not met`}; wall ${wall} s`);
 
   const evalFile = path.join(outDir, `${label}.eval.json`);
-  await fsp.writeFile(evalFile, `${JSON.stringify({ film, truth: truthMode, delivered_file: delivered?.file ?? null, provider: result.provider, model: result.model, dense: denseOn, annotated: annotatedOn, tiebreak, card_prompt: cardPrompt, film_notes: filmNotes, indices: selection.indices, errors: result.errors, retries: result.retries, cost_cents: result.cost_cents, wall_s: wall, score, recorded: evRecorded, bar }, null, 1)}\n`, "utf8");
+  await fsp.writeFile(evalFile, `${JSON.stringify({ film, truth: truthMode, delivered_file: delivered?.file ?? null, provider: result.provider, model: result.model, dense: denseOn, annotated: annotatedOn, tiebreak, card_prompt: cardPrompt, film_notes: filmNotes, indices: selection.indices, errors: result.errors, retries: result.retries, cost_cents: result.cost_cents, output_tokens: outputTokens, failed_rows: failedRows.length, turns_thought_first: turns.filter((t) => t.thinking_blocks > 0).length, turns_traced: turns.length, wall_s: wall, score, recorded: evRecorded, bar }, null, 1)}\n`, "utf8");
   console.log(`\nevaluation -> ${evalFile}`);
 }
 

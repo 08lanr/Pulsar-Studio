@@ -8,18 +8,24 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
+import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { fixtureData, resetFixtureStore } from "@/lib/data/fixture";
 import { assertModelCallsAllowed, runJob } from "@/lib/jobs";
 import {
+  ANTHROPIC_THINKING_TOKENS,
   DEEPSEEK_THINKING_TOKENS,
   DEFAULT_MODELS,
   KEY_VAR,
   LlmError,
   LlmUnavailableError,
   PRICES,
+  acceptsForcedToolChoice,
   adsTextProvider,
+  anthropicRequestParams,
+  anthropicToolChoice,
   anthropicUserContent,
+  anthropicUserText,
   chatUserContent,
   costCents,
   deepSeekRequestBody,
@@ -29,11 +35,15 @@ import {
   modelFamily,
   modelFor,
   modelSupportsVision,
+  parseAnthropicResponse,
   priceFor,
   resolveCall,
   responsesUserInput,
+  toLlmError,
+  turnTraceOf,
   visionProviderStatus,
   type LlmProvider,
+  type StructuredCall,
 } from "@/lib/llm";
 import { producer, seedMinute } from "./seed-minute";
 
@@ -57,6 +67,99 @@ test("every default model of every provider has a list price; the discontinued D
 
 test("an unknown model is charged at the dearest tier, never under-reported", () => {
   assert.deepEqual(priceFor("some-model-that-does-not-exist"), PRICES["claude-fable-5-1"]);
+});
+
+test("claude-opus-5-5 is priced at its own rate, not the Fable fallback that charged it 2.5x", () => {
+  assert.deepEqual(PRICES["claude-opus-5-5"], { input: 4, output: 20, cache_write: 5, cache_read: 0.2 });
+  const z0 = { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0 };
+  assert.equal(costCents("claude-opus-5-5", { ...z0, input_tokens: 1_000_000 }), 400);
+  assert.equal(costCents("claude-opus-5-5", { ...z0, output_tokens: 1_000_000 }), 2000);
+  assert.equal(costCents("claude-sonnet-5", { ...z0, output_tokens: 1_000_000 }), 1000, "the judge's default");
+});
+
+// ---- the Anthropic request ---------------------------------------------------------------------
+
+const probeCall: StructuredCall<{ ok: boolean }> = { name: "probe", system: "s", user: "u", schema: z.object({ ok: z.boolean() }), maxTokens: 6000 };
+
+test("the Anthropic request: the thinking's room on top of the call's budget, a strict tool, effort medium, and the tool choice per model", () => {
+  const sonnet = anthropicRequestParams(probeCall, "claude-sonnet-5", {});
+  assert.equal(ANTHROPIC_THINKING_TOKENS, 16_000);
+  assert.equal(sonnet.max_tokens, 6000 + ANTHROPIC_THINKING_TOKENS, "adaptive thinking counts against max_tokens: the answer's budget alone truncated the reviewer");
+  assert.equal(sonnet.model, "claude-sonnet-5");
+  const tool = sonnet.tools?.[0] as Anthropic.Tool;
+  assert.equal(tool.name, "probe");
+  assert.equal(tool.strict, true);
+  assert.deepEqual(tool.input_schema, { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"], additionalProperties: false });
+  assert.deepEqual(sonnet.tool_choice, { type: "tool", name: "probe", disable_parallel_tool_use: true });
+  assert.deepEqual(sonnet.output_config, { effort: "medium" });
+  assert.deepEqual(sonnet.system, [{ type: "text", text: "s" }]);
+  const cached = anthropicRequestParams({ ...probeCall, cacheSystem: true, effort: "high" }, "claude-sonnet-5", {});
+  assert.deepEqual(cached.system, [{ type: "text", text: "s", cache_control: { type: "ephemeral" } }]);
+  assert.deepEqual(cached.output_config, { effort: "high" });
+
+  // Opus 5.5, Fable 5.1 and Mythos 5.1 answer 400 to a forced tool_choice; the rest accept it.
+  assert.equal(acceptsForcedToolChoice("claude-sonnet-5"), true);
+  assert.equal(acceptsForcedToolChoice("claude-opus-5"), true);
+  assert.equal(acceptsForcedToolChoice("claude-fable-5"), true);
+  assert.equal(acceptsForcedToolChoice("claude-opus-4-8"), true);
+  assert.equal(acceptsForcedToolChoice("claude-opus-5-5"), false);
+  assert.equal(acceptsForcedToolChoice("claude-fable-5-1"), false);
+  assert.equal(acceptsForcedToolChoice("claude-mythos-5-1"), false);
+  assert.deepEqual(anthropicToolChoice("claude-opus-5-5", "probe", {}), { type: "auto", disable_parallel_tool_use: true });
+  assert.deepEqual(anthropicRequestParams(probeCall, "claude-opus-5-5", {}).tool_choice, { type: "auto", disable_parallel_tool_use: true });
+  assert.deepEqual(anthropicToolChoice("claude-sonnet-5", "probe", { ANTHROPIC_TOOL_CHOICE: "auto" }), { type: "auto", disable_parallel_tool_use: true }, "the probe's switch: every model on the auto path");
+  assert.deepEqual(anthropicToolChoice("claude-sonnet-5", "probe", { ANTHROPIC_TOOL_CHOICE: "forced" }), { type: "tool", name: "probe", disable_parallel_tool_use: true }, "anything but auto leaves the default");
+  // On the auto path the user turn says which tool to answer with; on the forced path it is the call's own text.
+  assert.equal(anthropicUserText("u", "probe", sonnet.tool_choice), "u");
+  assert.equal(anthropicUserText("u", "probe", { type: "auto", disable_parallel_tool_use: true }), "u\n\nAnswer only by calling probe.");
+});
+
+/** A reply as the SDK returns it; only the fields the parser and the trace read are real. */
+function reply(content: Anthropic.ContentBlock[], stop_reason: Anthropic.StopReason | null, extra: { output_tokens?: number; stop_details?: unknown } = {}): Anthropic.Message {
+  return { id: "msg_1", type: "message", role: "assistant", model: "claude-sonnet-5", content, stop_reason, stop_sequence: null, stop_details: extra.stop_details ?? null, usage: { input_tokens: 10, output_tokens: extra.output_tokens ?? 50, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } as unknown as Anthropic.Message;
+}
+const toolUse = (input: unknown, name = "probe"): Anthropic.ContentBlock => ({ type: "tool_use", id: "tu_1", name, input } as Anthropic.ContentBlock);
+const thinking: Anthropic.ContentBlock = { type: "thinking", thinking: "", signature: "sig" } as Anthropic.ContentBlock;
+const text = (t: string): Anthropic.ContentBlock => ({ type: "text", text: t, citations: null } as Anthropic.ContentBlock);
+
+test("parseAnthropicResponse: a tool call validates, a text-only reply gets the nudge, a schema or check failure the tool_result, a truncation or refusal no repair", () => {
+  assert.deepEqual(parseAnthropicResponse(reply([thinking, toolUse({ ok: true })], "tool_use"), probeCall), { ok: true, data: { ok: true } });
+  // No tool call at all (a tool_choice of auto answered in text): one nudge.
+  assert.deepEqual(parseAnthropicResponse(reply([thinking, text("The answer is yes.")], "end_turn"), probeCall), { ok: false, code: "invalid_output", problem: "No probe tool call in the response (stop_reason end_turn).", repair: { kind: "nudge" } });
+  assert.deepEqual(parseAnthropicResponse(reply([toolUse({ ok: true }, "other_tool")], "tool_use"), probeCall).ok, false, "another tool's call is no answer");
+  // The budget ran out before the tool call: no repair, the message says how much was produced (thinking included).
+  assert.deepEqual(parseAnthropicResponse(reply([thinking, text("…")], "max_tokens", { output_tokens: 22_000 }), probeCall), { ok: false, code: "truncated", problem: "Output hit max_tokens (22000 output tokens, thinking included) before the tool call completed.", repair: null });
+  assert.deepEqual(parseAnthropicResponse(reply([], "refusal", { stop_details: { type: "refusal", category: "cyber", explanation: "declined" } }), probeCall), { ok: false, code: "refused", problem: "declined", repair: null });
+  // A schema violation or a failed check goes back as the tool's error result.
+  const bad = parseAnthropicResponse(reply([toolUse({ ok: "yes" })], "tool_use"), probeCall);
+  assert.equal(bad.ok, false);
+  if (!bad.ok) {
+    assert.equal(bad.code, "invalid_output");
+    assert.match(bad.problem, /^Schema violations:\nok: /);
+    assert.deepEqual(bad.repair, { kind: "tool_result", tool_use_id: "tu_1" });
+  }
+  const checked = parseAnthropicResponse(reply([toolUse({ ok: false })], "tool_use"), { ...probeCall, check: (d) => (d.ok ? null : "ok must be true") });
+  assert.deepEqual(checked, { ok: false, code: "invalid_output", problem: "ok must be true", repair: { kind: "tool_result", tool_use_id: "tu_1" } });
+  // The trace: how the turn stopped, what it produced, whether it thought first (an omitted-display thinking block is present with empty text).
+  assert.deepEqual(turnTraceOf(reply([thinking, toolUse({ ok: true })], "tool_use", { output_tokens: 1800 })), { stop_reason: "tool_use", output_tokens: 1800, thinking_blocks: 1 });
+  assert.deepEqual(turnTraceOf(reply([toolUse({ ok: true })], "tool_use", { output_tokens: 300 })), { stop_reason: "tool_use", output_tokens: 300, thinking_blocks: 0 });
+});
+
+test("toLlmError: the workspace 400 is unavailable naming ANTHROPIC_WORKSPACE_ID, a refused tool_choice is invalid, any other 400 is an api error", () => {
+  const bad = (message: string) => new Anthropic.BadRequestError(400, { type: "error", error: { type: "invalid_request_error", message } }, message, new Headers());
+  const workspace = toLlmError(bad("This API key is not scoped to a workspace, so this request must include the anthropic-workspace-id header with the ID of the workspace to use. Add the header, or use an API key that is scoped to a workspace."), "anthropic");
+  assert.ok(workspace instanceof LlmUnavailableError);
+  assert.equal(workspace.provider, "anthropic");
+  assert.match(workspace.message, /ANTHROPIC_WORKSPACE_ID \(wrkspc_/);
+  assert.match(workspace.message, /this ANTHROPIC_API_KEY is not scoped to a workspace/);
+  const forced = toLlmError(bad('tool_choice: type "tool" and "any" are not supported for this model.'), "anthropic");
+  assert.ok(forced instanceof LlmError && forced.code === "invalid" && forced.status === 400, "the request was wrong; a retry would repeat it");
+  const other = toLlmError(bad("messages: text content blocks must be non-empty"), "anthropic");
+  assert.ok(other instanceof LlmError && other.code === "api" && other.status === 400);
+  const auth = toLlmError(new Anthropic.AuthenticationError(401, { type: "error", error: { type: "authentication_error", message: "invalid x-api-key" } }, "invalid x-api-key", new Headers()), "anthropic");
+  assert.ok(auth instanceof LlmUnavailableError);
+  const own = new LlmError("truncated", "x");
+  assert.equal(toLlmError(own, "anthropic"), own, "the gateway's own errors pass through");
 });
 
 test("DeepSeek is charged at peak rates and every non-zero call is at least one cent", () => {
@@ -295,6 +398,36 @@ test("runJob fails a job whose call went to another provider than the row names,
     const ok = await runJob(producer(), { ...spec, idempotency_key: "probe:provider-match", run: async () => ({ output: { ok: true }, usage, cost_cents: 3, model: "claude-sonnet-5", provider: "anthropic" as const }) });
     assert.equal(ok.job.status, "done");
     assert.equal(ok.job.provider, "anthropic");
+  } finally {
+    resetFixtureStore();
+  }
+});
+
+test("runJob keeps a failed call's spend on the failed row and hands the row's id back on the error", async () => {
+  const t = await seedMinute();
+  try {
+    const wb = await fixtureData.getWorkbench(producer(), t.id, 1);
+    const spec = { kind: "rewrite" as const, title_id: t.id, episode_id: wb.episode.id, target_type: "title", target_id: t.id, provider: "anthropic" as const, model: "claude-sonnet-5" };
+    // A refusal after the repair turn: two turns with images were paid for. The gateway put the usage on the error.
+    const spent = Object.assign(new LlmError("refused", "The model declined to process this content."), { usage: { input_tokens: 4000, output_tokens: 900, cache_read_tokens: 2000, cache_write_tokens: 100 }, cost_cents: 2 });
+    await assert.rejects(
+      runJob(producer(), { ...spec, idempotency_key: "probe:failed-spend", run: async () => { throw spent; } }),
+      (e: unknown) => e === spent
+    );
+    const failed = await fixtureData.latestEpisodeJob(producer(), t.id, 1, "rewrite");
+    assert.equal(failed?.status, "failed");
+    assert.equal(failed?.cost_cents, 2, "the spend is on the failed row");
+    assert.deepEqual(failed?.usage, { input_tokens: 4100, output_tokens: 900, cache_read_tokens: 2000 }, "as toJobUsage keeps it: cache writes are billed input");
+    assert.match(failed?.error ?? "", /^LlmError: The model declined/);
+    assert.equal(spent.job_id, failed?.id, "the caller can list the row");
+    // No spend on the error (nothing reached the API): the row carries none, and still names itself.
+    const plain = new LlmError("api", "connect ETIMEDOUT");
+    await assert.rejects(runJob(producer(), { ...spec, idempotency_key: "probe:failed-plain", run: async () => { throw plain; } }), (e: unknown) => e === plain);
+    const bare = await fixtureData.latestEpisodeJob(producer(), t.id, 1, "rewrite");
+    assert.equal(bare?.idempotency_key, "probe:failed-plain");
+    assert.equal(bare?.cost_cents ?? null, null);
+    assert.equal(bare?.usage ?? null, null);
+    assert.equal(plain.job_id, bare?.id);
   } finally {
     resetFixtureStore();
   }

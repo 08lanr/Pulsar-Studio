@@ -4,12 +4,15 @@
 // prompt module (lib/prompts/*) only says WHAT it wants back and lib/jobs.ts
 // only says WHERE the result goes.
 //
-// Structured output is a forced tool call: one tool per call whose
-// input_schema is derived from the caller's zod schema, `strict: true` so the
-// API guarantees schema-valid arguments, and the same zod schema (plus an
-// optional semantic `check`) re-validates on our side; a failure gets exactly
-// one repair turn. Cost is computed here from PRICES on every call so a job
-// row can never carry usage without cents. Nothing in this file touches the
+// Structured output is a tool call — forced where the model accepts it, `auto`
+// with an instruction on the models that refuse a forced choice (see "the
+// Anthropic request" below): one tool per call whose input_schema is derived
+// from the caller's zod schema, `strict: true` so the API guarantees
+// schema-valid arguments, and the same zod schema (plus an optional semantic
+// `check`) re-validates on our side; a failure gets exactly one repair turn.
+// Cost is computed here from PRICES on every call so a job row can never carry
+// usage without cents, and a call that fails after spending carries its usage
+// on the LlmError so the job row keeps it. Nothing in this file touches the
 // database.
 //
 // Provider per call (decision 2026-09-22): LLM_PROVIDER stays the process-wide
@@ -102,6 +105,8 @@ const DEEPSEEK_V4_PRO: ModelPrice = { input: 1.32, output: 3.96, cache_write: 1.
 
 export const PRICES: Record<string, ModelPrice> = {
   "claude-opus-5": { input: 5, output: 25, cache_write: 6.25, cache_read: 0.5 },
+  // The Workflow's own model (docs/decisions.md, "The vision pass as an API module"); it refuses a forced tool_choice, see anthropicToolChoice.
+  "claude-opus-5-5": { input: 4, output: 20, cache_write: 5, cache_read: 0.2 },
   "claude-sonnet-5": { input: 2, output: 10, cache_write: 2.5, cache_read: 0.2 },
   "claude-fable-5-1": { input: 10, output: 50, cache_write: 12.5, cache_read: 0.25 },
   "claude-fable-5": { input: 10, output: 50, cache_write: 12.5, cache_read: 1 },
@@ -149,10 +154,20 @@ export class LlmUnavailableError extends Error {
 /** `invalid` never reached a provider: the call itself was wrong (a model from another vendor). */
 export type LlmFailure = "refused" | "invalid_output" | "truncated" | "api" | "invalid";
 
-/** A call that reached the API and came back unusable (or, `invalid`, one refused before it left). `status` is the HTTP status when there was one. */
+/**
+ * A call that reached the API and came back unusable (or, `invalid`, one
+ * refused before it left). `status` is the HTTP status when there was one.
+ * `usage` and `cost_cents` are what the failed call still spent (a refusal
+ * after its repair turn, a truncated reply: the gateway attaches them), and
+ * `job_id` the failed studio.jobs row that kept that spend (lib/jobs.ts
+ * attaches it), so a caller can list the row.
+ */
 export class LlmError extends Error {
   readonly code: LlmFailure;
   readonly status: number | undefined;
+  usage?: LlmUsage;
+  cost_cents?: number;
+  job_id?: string;
   constructor(code: LlmFailure, message: string, status?: number) {
     super(message);
     this.name = "LlmError";
@@ -427,10 +442,21 @@ async function withRetries<T>(fn: () => Promise<T>): Promise<T> {
   throw last;
 }
 
-/** SDK errors become one LlmError so callers never depend on SDK classes. */
-function toLlmError(e: unknown, provider: LlmProvider): Error {
+/** The 400 an identity-linked console key gets when the request names no workspace: a gap in .env.local, never a transient failure. */
+const WORKSPACE_400 = /anthropic-workspace-id|not scoped to a workspace/i;
+
+/** SDK errors become one LlmError so callers never depend on SDK classes. Exported for the tests. */
+export function toLlmError(e: unknown, provider: LlmProvider): Error {
   if (e instanceof LlmError || e instanceof LlmUnavailableError) return e;
   if (e instanceof Anthropic.AuthenticationError) return new LlmUnavailableError(undefined, provider);
+  if (e instanceof Anthropic.BadRequestError) {
+    // The calibration smoke of 2026-09-23 retried this twice per boundary and exited 0: it is the key's configuration, reported as unavailable with the variable named.
+    if (WORKSPACE_400.test(e.message)) {
+      return new LlmUnavailableError(`AI passes unavailable: this ${KEY_VAR.anthropic} is not scoped to a workspace, so ANTHROPIC_WORKSPACE_ID (wrkspc_…, console.anthropic.com → Settings → Workspaces) must be in .env.local, or use a key scoped to a workspace`, provider);
+    }
+    // A model that refuses the request's shape (a forced tool_choice on Opus 5.5): the call was wrong, a retry would repeat it.
+    if (/tool_choice/i.test(e.message) && /not supported/i.test(e.message)) return new LlmError("invalid", `Claude API 400: ${e.message}`, 400);
+  }
   if (e instanceof Anthropic.APIError) {
     return new LlmError("api", `Claude API ${e.status ?? "?"}: ${e.message}`, e.status);
   }
@@ -612,6 +638,9 @@ export type StructuredCall<T> = {
   check?: (data: T) => string | null;
 };
 
+/** How one Anthropic turn ended: its stop reason, its output tokens (thinking included) and how many thinking blocks came before the answer, so the job record and the eval can see whether the model thought first. */
+export type TurnTrace = { stop_reason: string | null; output_tokens: number; thinking_blocks: number };
+
 export type StructuredResult<T> = {
   data: T;
   usage: LlmUsage;
@@ -620,32 +649,93 @@ export type StructuredResult<T> = {
   model: string;
   /** 1 when the first answer validated, 2 when the repair turn was needed. */
   turns: number;
+  /** One entry per turn on the Anthropic path; absent on the other gateways. */
+  trace?: TurnTrace[];
 };
 
 /** What callStructured resolved before dispatching: the provider, its model and the loaded images. */
 export type CallContext = { provider: LlmProvider; model: string; images: LoadedImage[] };
 
-type Parsed<T> =
-  | { ok: true; data: T }
-  | { ok: false; code: LlmFailure; problem: string; toolUseId: string | null };
+// ---- the Anthropic request ----------------------------------------------------------------
+//
+// Adaptive thinking is on by default on Sonnet 5 and Opus 5 (and cannot be
+// switched off on Opus 5.5), and the thinking counts against max_tokens, so a
+// budget sized for the JSON answer alone ends in stop_reason "max_tokens"
+// with no tool_use block: a lost call, paid for. The call's maxTokens is the
+// room for the answer; ANTHROPIC_THINKING_TOKENS is added on top for the
+// thinking, as DEEPSEEK_THINKING_TOKENS is on DeepSeek's strong tier. Every
+// request streams, so the larger ceiling costs no timeout.
+//
+// The tool call is forced (`tool_choice: {type: "tool"}`) on the models that
+// accept it. Opus 5.5, Fable 5.1 and Mythos 5.1 answer a forced choice with
+// 400 (`tool_choice: type "tool" and "any" are not supported for this
+// model.`), so on those the choice is `auto` with one call at most, the user
+// turn ends with "Answer only by calling <tool>.", and a reply with no tool
+// call gets the nudge as its repair turn. ANTHROPIC_TOOL_CHOICE=auto takes
+// that path on every model: the switch for the calibration probe, which
+// checks whether a forced call still thinks first (decision 2026-09-23, "The
+// frame judge on Claude").
 
-function parseResponse<T>(res: Anthropic.Message, call: StructuredCall<T>): Parsed<T> {
+/** Tokens added to the call's maxTokens for the thinking the model does before its tool call. */
+export const ANTHROPIC_THINKING_TOKENS = 16_000;
+
+/** Whether a model accepts `tool_choice: {type: "tool"}`; Opus 5.5, Fable 5.1 and Mythos 5.1 answer 400 to it. */
+export function acceptsForcedToolChoice(model: string): boolean {
+  return !/^claude-(opus-5-5|fable-5-1|mythos-5-1)(-|$)/.test(model);
+}
+
+export type AnthropicToolChoice = Anthropic.ToolChoiceTool | Anthropic.ToolChoiceAuto;
+
+/** The tool_choice of one call: forced where the model accepts it and ANTHROPIC_TOOL_CHOICE is not `auto`; else auto with at most one call. Pure. */
+export function anthropicToolChoice(model: string, name: string, env: Env = process.env): AnthropicToolChoice {
+  const auto = (env.ANTHROPIC_TOOL_CHOICE ?? "").trim().toLowerCase() === "auto";
+  if (!auto && acceptsForcedToolChoice(model)) return { type: "tool", name, disable_parallel_tool_use: true };
+  return { type: "auto", disable_parallel_tool_use: true };
+}
+
+/** The user text of the first turn: the call's own, plus the instruction to answer through the tool when the call is not forced. */
+export function anthropicUserText(user: string, name: string, toolChoice: AnthropicToolChoice): string {
+  return toolChoice.type === "tool" ? user : `${user}\n\nAnswer only by calling ${name}.`;
+}
+
+/** Everything of one Anthropic turn but the messages. */
+export type AnthropicTurnParams = Pick<Anthropic.MessageCreateParams, "model" | "max_tokens" | "system" | "tools" | "output_config"> & { tool_choice: AnthropicToolChoice };
+
+/** The request of one turn without its messages: the strict tool, the budget with the thinking's room, the tool choice for the model, the effort. Pure; the tests pin it per model. */
+export function anthropicRequestParams<T>(call: StructuredCall<T>, model: string, env: Env = process.env): AnthropicTurnParams {
+  const tool: Anthropic.Tool = {
+    name: call.name,
+    description: call.description ?? `Record the ${call.name} result.`,
+    input_schema: zodToJsonSchema(call.schema) as Anthropic.Tool.InputSchema,
+    strict: true,
+  };
+  return {
+    model,
+    max_tokens: call.maxTokens + ANTHROPIC_THINKING_TOKENS,
+    system: systemParam(call.system, call.cacheSystem),
+    tools: [tool],
+    tool_choice: anthropicToolChoice(model, call.name, env),
+    output_config: { effort: call.effort ?? "medium" },
+  };
+}
+
+/** How a turn's reply can be repaired: the tool's error result (a schema or check failure), the nudge (no tool call at all), or not at all. */
+export type TurnRepair = { kind: "tool_result"; tool_use_id: string } | { kind: "nudge" } | null;
+
+export type ParsedTurn<T> = { ok: true; data: T } | { ok: false; code: LlmFailure; problem: string; repair: TurnRepair };
+
+/** One reply read against the call's schema and check. Pure; exported for the tests. */
+export function parseAnthropicResponse<T>(res: Anthropic.Message, call: StructuredCall<T>): ParsedTurn<T> {
   if (res.stop_reason === "refusal") {
-    return {
-      ok: false,
-      code: "refused",
-      problem: res.stop_details?.explanation || "The model declined to process this content.",
-      toolUseId: null,
-    };
+    return { ok: false, code: "refused", problem: res.stop_details?.explanation || "The model declined to process this content.", repair: null };
   }
-  const block = res.content.find(
-    (b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && b.name === call.name
-  );
+  const block = res.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && b.name === call.name);
   if (!block) {
     if (res.stop_reason === "max_tokens") {
-      return { ok: false, code: "truncated", problem: "Output hit max_tokens before the tool call completed.", toolUseId: null };
+      return { ok: false, code: "truncated", problem: `Output hit max_tokens (${res.usage.output_tokens} output tokens, thinking included) before the tool call completed.`, repair: null };
     }
-    return { ok: false, code: "invalid_output", problem: `No ${call.name} tool call in the response (stop_reason ${res.stop_reason}).`, toolUseId: null };
+    // The model answered in text (a tool_choice of auto): one nudge, then it is invalid output.
+    return { ok: false, code: "invalid_output", problem: `No ${call.name} tool call in the response (stop_reason ${res.stop_reason}).`, repair: { kind: "nudge" } };
   }
   const parsed = call.schema.safeParse(block.input);
   if (!parsed.success) {
@@ -653,11 +743,26 @@ function parseResponse<T>(res: Anthropic.Message, call: StructuredCall<T>): Pars
       .slice(0, 12)
       .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
       .join("\n");
-    return { ok: false, code: "invalid_output", problem: `Schema violations:\n${issues}`, toolUseId: block.id };
+    return { ok: false, code: "invalid_output", problem: `Schema violations:\n${issues}`, repair: { kind: "tool_result", tool_use_id: block.id } };
   }
   const semantic = call.check ? call.check(parsed.data) : null;
-  if (semantic) return { ok: false, code: "invalid_output", problem: semantic, toolUseId: block.id };
+  if (semantic) return { ok: false, code: "invalid_output", problem: semantic, repair: { kind: "tool_result", tool_use_id: block.id } };
   return { ok: true, data: parsed.data };
+}
+
+/** The trace of one reply: how it stopped, what it produced, whether it thought first (a thinking block with `display` omitted is present with empty text, so the count still says). */
+export function turnTraceOf(res: Pick<Anthropic.Message, "stop_reason" | "content" | "usage">): TurnTrace {
+  return { stop_reason: res.stop_reason, output_tokens: res.usage.output_tokens, thinking_blocks: res.content.filter((b) => b.type === "thinking" || b.type === "redacted_thinking").length };
+}
+
+/** The spend of a failed call rides on its error, so the job row keeps it (CLAUDE.md: every model call has a row with usage and cost_cents). */
+function withSpend(err: Error, model: string, usage: LlmUsage): Error {
+  const spent = usage.input_tokens + usage.output_tokens + usage.cache_read_tokens + usage.cache_write_tokens > 0;
+  if (err instanceof LlmError && !err.usage && spent) {
+    err.usage = { ...usage };
+    err.cost_cents = costCents(model, usage);
+  }
+  return err;
 }
 
 /**
@@ -665,66 +770,53 @@ function parseResponse<T>(res: Anthropic.Message, call: StructuredCall<T>): Pars
  * what it cost. Streams so a long first pass cannot outlive the SDK's
  * non-streaming ceiling; retries transport and rate-limit failures with
  * backoff; validates with zod and, on a schema or semantic failure, sends the
- * violations back as an error tool_result and lets the model call once more.
+ * violations back as an error tool_result and lets the model call once more
+ * (after a reply with no tool call at all, the repair turn is the nudge).
  */
 async function callAnthropicStructured<T>(call: StructuredCall<T>, ctx: CallContext): Promise<StructuredResult<T>> {
   const { provider, model } = ctx;
-  const tool: Anthropic.Tool = {
-    name: call.name,
-    description: call.description ?? `Record the ${call.name} result.`,
-    input_schema: zodToJsonSchema(call.schema) as Anthropic.Tool.InputSchema,
-    strict: true,
-  };
-  const system = systemParam(call.system, call.cacheSystem);
-  const messages: Anthropic.MessageParam[] = [{ role: "user", content: anthropicUserContent(call.user, ctx.images) }];
+  const params = anthropicRequestParams(call, model);
+  const messages: Anthropic.MessageParam[] = [{ role: "user", content: anthropicUserContent(anthropicUserText(call.user, call.name, params.tool_choice), ctx.images) }];
   const usage = zeroUsage();
+  const trace: TurnTrace[] = [];
 
-  const request = () =>
-    withRetries(() =>
-      anthropicClient()
-        .messages.stream({
-          model,
-          max_tokens: call.maxTokens,
-          system,
-          messages,
-          tools: [tool],
-          tool_choice: { type: "tool", name: call.name, disable_parallel_tool_use: true },
-          output_config: { effort: call.effort ?? "medium" },
-        })
-        .finalMessage()
-    );
+  const request = async () => {
+    const res = await withRetries(() => anthropicClient().messages.stream({ ...params, messages }).finalMessage());
+    addAnthropicUsage(usage, res.usage);
+    trace.push(turnTraceOf(res));
+    return res;
+  };
 
   try {
     let res = await request();
-    addAnthropicUsage(usage, res.usage);
-    let parsed = parseResponse(res, call);
+    let parsed = parseAnthropicResponse(res, call);
     let turns = 1;
 
-    if (!parsed.ok && parsed.toolUseId) {
+    if (!parsed.ok && parsed.repair) {
       // The repair turn: hand the violations back as the tool's error result
-      // and force the same tool again. Thinking blocks ride along unchanged
-      // (same model), which the API requires.
+      // and ask for the same tool again, or, after a reply with no tool call,
+      // the nudge. Thinking blocks ride along unchanged (same model), which
+      // the API requires.
       messages.push({ role: "assistant", content: res.content });
       messages.push({
         role: "user",
-        content: [
-          { type: "tool_result", tool_use_id: parsed.toolUseId, is_error: true, content: parsed.problem },
-          {
-            type: "text",
-            text: `Call ${call.name} again with a corrected input. Fix only what the error names; keep everything else identical.`,
-          },
-        ],
+        content:
+          parsed.repair.kind === "tool_result"
+            ? [
+                { type: "tool_result", tool_use_id: parsed.repair.tool_use_id, is_error: true, content: parsed.problem },
+                { type: "text", text: `Call ${call.name} again with a corrected input. Fix only what the error names; keep everything else identical.` },
+              ]
+            : [{ type: "text", text: `Call ${call.name} now with your answer; do not answer in text.` }],
       });
       res = await request();
-      addAnthropicUsage(usage, res.usage);
-      parsed = parseResponse(res, call);
+      parsed = parseAnthropicResponse(res, call);
       turns = 2;
     }
 
     if (!parsed.ok) throw new LlmError(parsed.code, parsed.problem);
-    return { data: parsed.data, usage, cost_cents: costCents(model, usage), provider, model, turns };
+    return { data: parsed.data, usage, cost_cents: costCents(model, usage), provider, model, turns, trace };
   } catch (e) {
-    throw toLlmError(e, provider);
+    throw withSpend(toLlmError(e, provider), model, usage);
   }
 }
 
@@ -774,7 +866,7 @@ async function callOpenAiStructured<T>(call: StructuredCall<T>, ctx: CallContext
     }
     throw new LlmError("invalid_output", "No structured output was returned.");
   } catch (e) {
-    throw toLlmError(e, provider);
+    throw withSpend(toLlmError(e, provider), model, usage);
   }
 }
 
@@ -894,7 +986,7 @@ async function callDeepSeekStructured<T>(call: StructuredCall<T>, ctx: CallConte
     }
     throw new LlmError("invalid_output", "No structured output was returned.");
   } catch (e) {
-    throw toLlmError(e, provider);
+    throw withSpend(toLlmError(e, provider), model, usage);
   }
 }
 

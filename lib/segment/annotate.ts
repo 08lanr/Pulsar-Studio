@@ -131,10 +131,25 @@ export function annotateArgs(src: string, out: string, spec: AnnotateSpec): stri
 /** The cut tile of a strip: the tile at `cutT`, else the centre tile (lib/segment/strips; the prompts' reading block uses the same rule for the dense strip). */
 export { cutIndexOf };
 
+/**
+ * A copy over this size is re-encoded as JPEG: the Anthropic API refuses an
+ * image over 5 MB, and an annotated dense strip's PNG reaches 3.05 MB, 4.07 MB
+ * once base64-encoded, so a busier frame could cross the line and 400 the
+ * skeptic's or the tie-break's call.
+ */
+export const ANNOTATE_JPEG_OVER_BYTES = 3_500_000;
+
+/** The ffmpeg call that re-encodes a PNG copy as JPEG at `-q:v 2` (about quality 90). Pure. */
+export function jpegArgs(src: string, out: string): string[] {
+  return ["-hide_banner", "-y", "-v", "error", "-i", src, "-q:v", "2", "-frames:v", "1", out];
+}
+
 export type AnnotateDeps = {
   env?: Env;
   /** Runs ffmpeg; injected by the tests. Resolves with the exit code. */
   run?: (args: string[]) => Promise<{ code: number | null; stderr: string }>;
+  /** The PNG size above which the copy is re-encoded as JPEG (ANNOTATE_JPEG_OVER_BYTES); the tests lower it. */
+  jpeg_over_bytes?: number;
 };
 
 const ffmpegRun = async (args: string[]) => {
@@ -147,32 +162,48 @@ export function annotateEnabled(env: Env = process.env): boolean {
   return (env.SEGMENT_STRIP_ANNOTATE ?? "").trim().toLowerCase() !== "off";
 }
 
+const stderrTail = (s: string) => s.trim().split(/\r?\n/).slice(-3).join(" | ");
+
 /**
  * The annotated copy of one strip in `outDir` (made once; remade when the
  * source PNG is newer), as a StripImage whose `path` is the copy and whose
  * `rel` still names the pipeline's file. `cutT` says which tile is the cut
- * (the option time for an option strip, the centre of a dense strip).
+ * (the option time for an option strip, the centre of a dense strip). A copy
+ * over ANNOTATE_JPEG_OVER_BYTES is re-encoded as JPEG, and `media_type` says
+ * which the copy is.
  */
 export async function annotateStrip(strip: StripImage, cutT: number, outDir: string, deps: AnnotateDeps = {}): Promise<StripImage> {
   const env = deps.env ?? process.env;
   const run = deps.run ?? ffmpegRun;
+  const jpegOver = deps.jpeg_over_bytes ?? ANNOTATE_JPEG_OVER_BYTES;
   await fsp.mkdir(outDir, { recursive: true });
   const base = path.basename(strip.path).replace(/\.png$/i, "");
-  const out = path.join(outDir, `${base}.annotated.png`);
-  let fresh = false;
-  try {
-    const [a, b] = await Promise.all([fsp.stat(out), fsp.stat(strip.path)]);
-    fresh = a.size > 0 && a.mtimeMs >= b.mtimeMs;
-  } catch {
-    fresh = false;
+  const outPng = path.join(outDir, `${base}.annotated.png`);
+  const outJpg = path.join(outDir, `${base}.annotated.jpg`);
+  // The copy already on disk, JPEG or PNG, when it is newer than the source.
+  const sourceMtime = await fsp.stat(strip.path).then((s) => s.mtimeMs).catch(() => null);
+  if (sourceMtime !== null) {
+    for (const [out, media_type] of [[outJpg, "image/jpeg"], [outPng, "image/png"]] as const) {
+      const copy = await fsp.stat(out).catch(() => null);
+      if (copy && copy.size > 0 && copy.mtimeMs >= sourceMtime) return { ...strip, path: out, media_type, annotated: true };
+    }
   }
-  if (!fresh) {
-    const size = await pngSize(strip.path);
-    const spec: AnnotateSpec = { tiles: strip.tiles, cols: strip.cols, cut_index: cutIndexOf(strip.tiles, cutT), label: strip.key, cut_t: cutT, size, font: annotateFont(env) };
-    const part = `${out}.part.png`;
-    const r = await run(annotateArgs(strip.path, part, spec));
-    if (r.code !== 0) throw new SegmentError("python", `ffmpeg could not annotate ${path.basename(strip.path)}: ${r.stderr.trim().split(/\r?\n/).slice(-3).join(" | ")}`);
-    await fsp.rename(part, out);
+  const size = await pngSize(strip.path);
+  const spec: AnnotateSpec = { tiles: strip.tiles, cols: strip.cols, cut_index: cutIndexOf(strip.tiles, cutT), label: strip.key, cut_t: cutT, size, font: annotateFont(env) };
+  const part = `${outPng}.part.png`;
+  const r = await run(annotateArgs(strip.path, part, spec));
+  if (r.code !== 0) throw new SegmentError("python", `ffmpeg could not annotate ${path.basename(strip.path)}: ${stderrTail(r.stderr)}`);
+  const bytes = (await fsp.stat(part)).size;
+  if (bytes > jpegOver) {
+    const partJpg = `${outJpg}.part.jpg`;
+    const j = await run(jpegArgs(part, partJpg));
+    if (j.code !== 0) throw new SegmentError("python", `ffmpeg could not re-encode ${path.basename(strip.path)} as JPEG (${bytes} bytes, over ${jpegOver}): ${stderrTail(j.stderr)}`);
+    await fsp.rm(part, { force: true });
+    await fsp.rm(outPng, { force: true });
+    await fsp.rename(partJpg, outJpg);
+    return { ...strip, path: outJpg, media_type: "image/jpeg", annotated: true };
   }
-  return { ...strip, path: out, annotated: true };
+  await fsp.rm(outJpg, { force: true });
+  await fsp.rename(part, outPng);
+  return { ...strip, path: outPng, media_type: "image/png", annotated: true };
 }

@@ -178,7 +178,8 @@ export type StripImage = {
   path: string;
   /** The path as the options file wrote it (relative to `cut/`), for the record and the job input. */
   rel: string;
-  media_type: "image/png";
+  /** The pipeline's strips are PNG; Studio's annotated copy is JPEG when the PNG would be over the API's image size (lib/segment/annotate). */
+  media_type: "image/png" | "image/jpeg";
   /** Tile times in reading order (left to right, then top to bottom). */
   tiles: number[];
   cols: number;

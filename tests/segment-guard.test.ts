@@ -17,11 +17,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import { resetFixtureStore } from "@/lib/data/fixture";
-import { LlmError, type StructuredCall, type StructuredResult } from "@/lib/llm";
+import { LlmError, LlmUnavailableError, type StructuredCall, type StructuredResult } from "@/lib/llm";
 import type { BoundaryPick } from "@/lib/prompts/boundary-review";
 import type { BoundaryVerdict } from "@/lib/prompts/boundary-skeptic";
 import type { TiebreakVerdict } from "@/lib/prompts/boundary-tiebreak";
-import { HEADER_PX, annotateArgs, annotateFilter, annotateFont, annotateStrip, cutIndexOf, filterQuote, fontfileArg, pngSize, tileBoxes } from "@/lib/segment/annotate";
+import { ANNOTATE_JPEG_OVER_BYTES, HEADER_PX, annotateArgs, annotateFilter, annotateFont, annotateStrip, cutIndexOf, filterQuote, fontfileArg, jpegArgs, pngSize, tileBoxes } from "@/lib/segment/annotate";
 import { reviewState } from "@/lib/segment/plan";
 import {
   SEEN_TOLERANCE_S,
@@ -440,8 +440,8 @@ test("a skeptic fault that cites no image and tile, or names no fix, follows the
   assert.deepEqual(evidenceTiles({ agree: true, reason: "" }), []);
 });
 
-/** The fake with one role failing as the gateway does after its repair turn: one LlmError per call, `times` calls in a row. */
-function failingLlm(script: Script, role: string, error: () => LlmError, times = Infinity) {
+/** The fake with one role failing as the gateway does after its repair turn: one error per call (an LlmError, or the gateway's unavailable), `times` calls in a row. */
+function failingLlm(script: Script, role: string, error: () => Error, times = Infinity) {
   const base = fakeLlm(script);
   let thrown = 0;
   const llm = async <T>(call: StructuredCall<T>): Promise<StructuredResult<T>> => {
@@ -563,6 +563,76 @@ test("a transport or non-JSON failure is retried once at the job level, in every
   assert.ok(!isUnavailable(r4));
   assert.deepEqual([r4.records.length, r4.retries.length, down.thrown()], [0, 1, 2]);
   assert.deepEqual(r4.errors, [{ boundary_s: 4550.267, error: "LlmError (api): connect ETIMEDOUT" }]);
+  // A 4xx is the request's own fault and repeats: not retried, but for a timeout, a conflict or a rate limit (the smoke of 2026-09-23 retried a configuration 400 twice per boundary).
+  assert.ok(!isTransientLlmFailure(new LlmError("api", "Claude API 400: this API key is not scoped to a workspace", 400)));
+  assert.ok(!isTransientLlmFailure(new LlmError("api", "Claude API 404: model not found", 404)));
+  assert.ok(isTransientLlmFailure(new LlmError("api", "Claude API 429: rate limited", 429)));
+  assert.ok(isTransientLlmFailure(new LlmError("api", "Claude API 408", 408)));
+  assert.ok(isTransientLlmFailure(new LlmError("api", "Claude API 503", 503)));
+  assert.ok(!isTransientLlmFailure(new LlmError("invalid", "a forced tool_choice on a model that refuses it", 400)));
+});
+
+test("a provider that answers it cannot run (an identity-linked key with no ANTHROPIC_WORKSPACE_ID) stops the pass at the first answer: {unavailable} naming what is missing, no further call, no file", async () => {
+  const cut = tempCut();
+  const doc = withFillers(await loadOptionsDoc(cut));
+  const message = "AI passes unavailable: this ANTHROPIC_API_KEY is not scoped to a workspace, so ANTHROPIC_WORKSPACE_ID (wrkspc_…) must be in .env.local, or use a key scoped to a workspace";
+  const fake = failingLlm({}, "verify_boundaries_look", () => new LlmUnavailableError(message, "anthropic"));
+  const r = await judgeBoundaries({ id: RUN_ID, cut_dir: cut }, doc, { label: "no-workspace", llm: fake.llm, boundaries: [424.433, 4550.267], concurrency: 1, card_spans: [], env: { ANTHROPIC_API_KEY: "k", DEEPSEEK_API_KEY: "d" } });
+  assert.ok(isUnavailable(r));
+  assert.equal(r.unavailable, `${message}; meanwhile ADS_VISION_PROVIDER=deepseek judges on deepseek-flash`, "the way round is named when the other key is there");
+  assert.equal(fake.thrown(), 1, "one doomed call, not one per boundary: the second boundary is never attempted");
+  assert.equal(fake.calls.length, 1);
+  assert.ok(!existsSync(path.join(cut, "review", "vision", "no-workspace.json")), "nothing is written; the stage waits for the hand-off with the reason");
+  // Without a DeepSeek key there is no way round to name; an explicitly named provider is never swapped either.
+  const bare = failingLlm({}, "verify_boundaries_look", () => new LlmUnavailableError(message, "anthropic"));
+  const r2 = await judgeBoundaries({ id: `${RUN_ID.slice(0, -1)}5`, cut_dir: cut }, doc, { label: "no-workspace-2", llm: bare.llm, boundaries: [4550.267], card_spans: [], env: { ANTHROPIC_API_KEY: "k" } });
+  assert.ok(isUnavailable(r2));
+  assert.equal(r2.unavailable, message);
+  const named = failingLlm({}, "verify_boundaries_look", () => new LlmUnavailableError(message, "anthropic"));
+  const r3 = await judgeBoundaries({ id: `${RUN_ID.slice(0, -1)}6`, cut_dir: cut }, doc, { label: "no-workspace-3", llm: named.llm, boundaries: [4550.267], card_spans: [], env: { ANTHROPIC_API_KEY: "k", DEEPSEEK_API_KEY: "d", ADS_VISION_PROVIDER: "anthropic" } });
+  assert.ok(isUnavailable(r3));
+  assert.equal(r3.unavailable, message);
+});
+
+test("a call that failed after the API answered keeps its spend: the failed row is listed in jobs with its cents, and cost_cents covers everything spent", async () => {
+  const cut = tempCut();
+  const doc = withFillers(await loadOptionsDoc(cut));
+  const spend = (input_tokens: number, output_tokens: number, cost_cents: number) => ({ usage: { input_tokens, output_tokens, cache_read_tokens: 0, cache_write_tokens: 0 }, cost_cents });
+  // The reviewer truncated: the thinking used the budget, no tool call came, the call was paid for. The boundary errors, the row is a failed one with its cents.
+  const truncated = failingLlm({}, "verify_boundaries_look", () => Object.assign(new LlmError("truncated", "Output hit max_tokens (22000 output tokens, thinking included) before the tool call completed."), spend(9000, 22000, 24)));
+  const r = await judgeBoundaries({ id: RUN_ID, cut_dir: cut }, doc, { label: "spent-look", llm: truncated.llm, boundaries: [4550.267], card_spans: [] });
+  assert.ok(!isUnavailable(r));
+  assert.deepEqual(r.errors, [{ boundary_s: 4550.267, error: "LlmError (truncated): Output hit max_tokens (22000 output tokens, thinking included) before the tool call completed." }]);
+  assert.deepEqual(r.retries, [], "a truncated reply is not transient");
+  assert.equal(r.jobs.length, 1);
+  assert.deepEqual([r.jobs[0].role, r.jobs[0].status, r.jobs[0].cost_cents, r.jobs[0].output_tokens, r.jobs[0].skipped, r.jobs[0].trace], ["look", "failed", 24, 22000, false, []]);
+  assert.ok(r.jobs[0].job_id);
+  assert.equal(r.cost_cents, 24, "the bar's cost line counts it");
+  const file = readJson(r.file);
+  assert.equal(file.agentCount, 1);
+  assert.deepEqual([file.jobs[0].status, file.jobs[0].cost_cents], ["failed", 24]);
+  // The skeptic failed after its repair turn: the reviewer's pick stands (skeptic_failed), and both rows are listed, the failed one with its cents.
+  const skeptic = failingLlm({}, "verify_boundaries_verify", () => Object.assign(new LlmError("invalid_output", "better_key opt3 is the option you are disputing; name a different one, a legal cut, or no fix"), spend(14000, 2600, 9)));
+  const r2 = await judgeBoundaries({ id: `${RUN_ID.slice(0, -1)}4`, cut_dir: cut }, doc, { label: "spent-verify", llm: skeptic.llm, boundaries: [4550.267], card_spans: [] });
+  assert.ok(!isUnavailable(r2));
+  assert.deepEqual(r2.jobs.map((j) => [j.role, j.status, j.cost_cents]), [["look", "done", 2], ["verify", "failed", 9]]);
+  assert.equal(r2.cost_cents, 11);
+  assert.equal(readGuard(r2.records[0].verdict)?.outcome, "skeptic_failed");
+  // A transport failure that spent, then the retry that answered: both entries are listed. The fixture retries a failed row in place, so
+  // the two share a job_id and the row holds the last attempt's spend; the pass's cost_cents is what was really paid.
+  const flaky = failingLlm({}, "verify_boundaries_look", () => Object.assign(new LlmError("api", "Claude API 529: overloaded", 529), spend(9000, 0, 1)), 1);
+  const r3 = await judgeBoundaries({ id: `${RUN_ID.slice(0, -1)}3`, cut_dir: cut }, doc, { label: "spent-retry", llm: flaky.llm, boundaries: [4550.267], card_spans: [] });
+  assert.ok(!isUnavailable(r3));
+  assert.deepEqual(r3.jobs.map((j) => [j.role, j.status, j.cost_cents]), [["look", "failed", 1], ["look", "done", 2], ["verify", "done", 2]]);
+  assert.equal(r3.jobs[0].job_id, r3.jobs[1].job_id, "retried in place");
+  assert.equal(r3.cost_cents, 5);
+  assert.deepEqual(r3.retries.map((x) => x.role), ["look"]);
+  // The trace rides on a done row when the gateway traces (the Anthropic path); the fake traces nothing.
+  const traced = fakeLlm();
+  const llm = async <T>(call: StructuredCall<T>): Promise<StructuredResult<T>> => ({ ...(await traced.llm(call)), trace: [{ stop_reason: "tool_use", output_tokens: 1800, thinking_blocks: 1 }] });
+  const r4 = await judgeBoundaries({ id: `${RUN_ID.slice(0, -1)}2`, cut_dir: cut }, doc, { label: "traced", llm, boundaries: [4550.267], card_spans: [] });
+  assert.ok(!isUnavailable(r4));
+  assert.deepEqual(r4.jobs.map((j) => [j.role, j.status, j.output_tokens, j.trace]), [["look", "done", 200, [{ stop_reason: "tool_use", output_tokens: 1800, thinking_blocks: 1 }]], ["verify", "done", 200, [{ stop_reason: "tool_use", output_tokens: 1800, thinking_blocks: 1 }]]], "output_tokens from the row's usage, the trace from the call");
 });
 
 test("the model override: a model of the provider's family that reads images runs; another family's or a text-only model is refused before any call", async () => {
@@ -654,6 +724,50 @@ test("annotateStrip writes the copy once under the work dir with the pipeline's 
   const failing = async (args: string[]) => ({ code: 1, stderr: `ffmpeg: ${args.length} args\nno such filter` });
   rmSync(out.path);
   await assert.rejects(annotateStrip(strip, 424.433, outDir, { run: failing }), /ffmpeg could not annotate b424_opt1.png: ffmpeg: \d+ args \| no such filter/);
+});
+
+test("annotateStrip re-encodes a copy over the size line as JPEG, says so in media_type, keeps it fresh like the PNG, and goes back to PNG under the line", async () => {
+  const cut = tempCut();
+  const doc = await loadOptionsDoc(cut);
+  const b = findBoundary(doc, 424.433)!;
+  const strip: StripImage = { key: "opt1", t: 424.433, path: path.join(cut, "review", "frames", "b424_opt1.png"), rel: "review/frames/b424_opt1.png", media_type: "image/png", tiles: b.options[0].strip_tiles!, cols: 6, step: 0.5 };
+  const outDir = path.join(tempDir(), "annotated-jpeg");
+  const runs: string[][] = [];
+  const run = async (args: string[]) => {
+    runs.push(args);
+    writeFileSync(args[args.length - 1], readFileSync(strip.path));
+    return { code: 0, stderr: "" };
+  };
+  assert.equal(ANNOTATE_JPEG_OVER_BYTES, 3_500_000, "under the API's 5 MB per image, base64 included: a dense strip's PNG reaches 3.05 MB");
+  const out = await annotateStrip(strip, 424.433, outDir, { run, jpeg_over_bytes: 1 });
+  assert.equal(out.path, path.join(outDir, "b424_opt1.annotated.jpg"));
+  assert.equal(out.media_type, "image/jpeg");
+  assert.equal(out.rel, "review/frames/b424_opt1.png", "the record still names the pipeline's file");
+  assert.equal(out.annotated, true);
+  assert.equal(runs.length, 2, "the annotation pass, then the JPEG pass");
+  const partPng = path.join(outDir, "b424_opt1.annotated.png.part.png");
+  assert.deepEqual(runs[1], jpegArgs(partPng, `${out.path}.part.jpg`));
+  assert.deepEqual(runs[1].slice(-5), ["-q:v", "2", "-frames:v", "1", `${out.path}.part.jpg`]);
+  assert.ok(!existsSync(partPng), "the PNG part is removed");
+  assert.ok(!existsSync(path.join(outDir, "b424_opt1.annotated.png")));
+  assert.ok(existsSync(out.path));
+  const again = await annotateStrip(strip, 424.433, outDir, { run, jpeg_over_bytes: 1 });
+  assert.equal(runs.length, 2, "the JPEG copy is current: not remade");
+  assert.deepEqual([again.path, again.media_type], [out.path, "image/jpeg"]);
+  // A newer source under the line: the PNG copy, and the stale JPEG goes.
+  const later = new Date(statSync(out.path).mtimeMs + 60_000);
+  utimesSync(strip.path, later, later);
+  const png = await annotateStrip(strip, 424.433, outDir, { run });
+  assert.deepEqual([png.path, png.media_type], [path.join(outDir, "b424_opt1.annotated.png"), "image/png"]);
+  assert.ok(!existsSync(out.path), "the stale JPEG is removed");
+  assert.equal(runs.length, 3);
+  // The JPEG pass failing is a refusal naming the size and the line.
+  const jpegFails = async (args: string[]) => {
+    if (args.includes("-q:v")) return { code: 1, stderr: "jpeg: no" };
+    writeFileSync(args[args.length - 1], readFileSync(strip.path));
+    return { code: 0, stderr: "" };
+  };
+  await assert.rejects(annotateStrip(strip, 424.433, path.join(tempDir(), "annotated-jpeg-fail"), { run: jpegFails, jpeg_over_bytes: 1 }), /^SegmentError: ffmpeg could not re-encode b424_opt1.png as JPEG \(\d+ bytes, over 1\): jpeg: no$/);
 });
 
 // ---- scoring against the delivered cuts -----------------------------------------------------------------
@@ -783,6 +897,11 @@ test("the eval selects boundaries by index range, index or time, reads the film 
   assert.match(errored[5].line, /^cost 0.350 \$ per boundary/, "the cost is per boundary asked");
   assert.match(calibrationBar(score, indices20, 700, { card_prompt: true })[4].line, /; card spans were in the prompt\)$/);
   assert.equal(calibrationBar({ ...score, n: 19 } as typeof score, [], 700, { errors })[0].line.startsWith("applied agreement 15/20"), true, "no indices: the selection is the scored plus the errored");
+  // Nothing scored (the smoke of 2026-09-23: 0 judged, 1 errored): no line passes, and each says so, instead of PASS on hard rules, overrides and cost over an empty set.
+  const nothing = calibrationBar({ ...score, n: 0, applied_agree: 0, handoffs: 0, false_handoffs: 0, person_reviews: 0, truth_not_option: 0, rule7_vs_delivered: 0, skeptic: { bad_overrides: 0 }, cards: { boundaries: 0, agree: 0, errored: 0 } } as typeof score, [1], 0, { errors: [{ boundary_s: 115.367, error: "LlmError (api): Claude API 400" }] });
+  assert.deepEqual(nothing.map((b) => b.pass), [false, false, false, false, false, false]);
+  assert.ok(nothing.every((b) => b.line.endsWith("; nothing scored, not met)")), nothing.map((b) => b.line).join("\n"));
+  assert.match(nothing[0].line, /^applied agreement 0\/1 \(bar 1\/1, tuning 15\/20; 1 errored, counted as missed: 115.367s LlmError \(api\): Claude API 400/);
 });
 
 test("legalCutsInView with no range lists every seen legal cut", async () => {

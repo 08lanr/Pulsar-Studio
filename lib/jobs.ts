@@ -23,6 +23,7 @@
 import type { Session } from "@/lib/auth";
 import { DataError, getData, type FirstPassLine as FirstPassRow, type NewClip, type NewVariant } from "@/lib/data";
 import {
+  LlmError,
   LlmUnavailableError,
   LLM_PROVIDER,
   callStructured,
@@ -139,8 +140,12 @@ export async function runJob<T>(session: Session, spec: RunJobSpec<T>): Promise<
     result = await spec.run();
   } catch (e) {
     const message = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
-    // Best effort: the original failure is what the caller must see.
-    await data.finishJob(session, job.id, { status: "failed", error: message }).catch(() => undefined);
+    // Best effort: the original failure is what the caller must see. A call that reached the API and failed still
+    // spent (a refusal after its repair turn, a truncated reply): the LlmError carries that usage, the failed row
+    // keeps it, and the row's id rides back on the error so the caller can list the row (decision 2026-09-23).
+    const spend = e instanceof LlmError ? { usage: e.usage ? toJobUsage(e.usage) : undefined, cost_cents: e.cost_cents } : {};
+    await data.finishJob(session, job.id, { status: "failed", error: message, ...spend }).catch(() => undefined);
+    if (e instanceof LlmError) e.job_id = job.id;
     throw e;
   }
   // The row records the provider it actually called (decision 2026-09-22).
