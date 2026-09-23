@@ -38,10 +38,14 @@ export type DeliveredPlan = {
   band: [number, number];
   pinned: number | null;
   pin_from: string | null;
-  moves: unknown[];
+  /** The delivered boundaries a QA re-pin moved (`pick_cuts.py --repin`): `cut_episodes.py` refuses a plan that moves one it does not declare. */
+  moves: PlanMove[];
   final_end_is_boundary: boolean | null;
   episodes: DeliveredEpisode[];
 };
+
+/** One declared move of a delivered boundary, film seconds: the old end and the new one. */
+export type PlanMove = { from: number; to: number };
 
 // ---- index/ ----------------------------------------------------------------------------------
 
@@ -152,6 +156,8 @@ export type BoundaryDecision =
   | "skeptic"
   /** A band-fix note moved it here (a person re-judged the pair; not a first-pass vision pick). */
   | "band_fix"
+  /** The plan's own `moves` list declares it: a QA re-pin moved the boundary here from a judged time (the record at `from` travels with it). */
+  | "qa_move"
   /** No record explains this end. */
   | "none";
 
@@ -165,6 +171,8 @@ export type BoundaryNote = {
   vision: VisionBoundary | null;
   /** The band-fix paragraph that names this boundary, when one does. */
   band_fix_note: string | null;
+  /** The plan's declared move that ends here, when one does (the decision is `qa_move` unless a record names the end itself). */
+  move: PlanMove | null;
 };
 
 // ---- cut/film-meta.json (hand-written) -------------------------------------------------------

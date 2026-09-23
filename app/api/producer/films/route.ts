@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireProducer } from "@/lib/auth";
+import { apiError } from "@/lib/api-guard";
+import { requireSession } from "@/lib/auth";
 import { listFilms } from "@/lib/film-import/import";
 import { handle } from "../../titles/_lib/handler";
 
@@ -9,11 +10,16 @@ import { handle } from "../../titles/_lib/handler";
 // the progress of an import that is running. The scan stats files and reads
 // JSON; no episode is opened, nothing is hashed here (the update run hashes
 // the links). Any producer role may look; importing needs the approver.
+// Staff previewing the portal (the sidebar shows them the desk) get the
+// states from disk alone — no company's import records, nothing to act on —
+// instead of the 403 a producer-only guard would answer.
 
 export async function GET(req: NextRequest) {
   return handle(req, async () => {
-    const g = await requireProducer();
+    const g = await requireSession();
     if (g.response) return g.response;
-    return NextResponse.json(await listFilms(g.session, g.session.producerId!));
+    const session = g.session;
+    if (session.kind === "producer" && !session.producerId) return apiError("Producer accounts only", undefined, 403);
+    return NextResponse.json(await listFilms(session, session.kind === "producer" ? session.producerId! : null));
   });
 }

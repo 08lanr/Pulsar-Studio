@@ -981,6 +981,9 @@ one rule set in `lib/data/film-import.ts` in both modes.
 core.titles  (added)
   source_ref text,                           -- the film's folder under WORKSPACE_ROOT (`low-quality/mafia-king`);
                                              --   UNIQUE (producer_id, source_ref) where not null. Null = not imported.
+                                             --   source_locale (0001) is the film's own language on an imported title:
+                                             --   zh-CN when the scan found zh (film-meta, else whisper), en-US otherwise
+                                             --   (`sourceLocaleOf`; an unmapped language is en-US with a run warning)
   cover_path text,                           -- storage path of the live poster; thumbnails only, never an ad card
   crazydramas_slug text,                     -- the slug the title plays under on crazydramas.com
   ad_rules jsonb                             -- {spoiler_from_s: number|null, exclusions: [{from_s, to_s, why, source?}]}
@@ -992,11 +995,17 @@ core.episodes  (added)
   video_bytes bigint, video_frames int,      -- measured by stat / ffprobe on the link (Mafia King has +1-frame cases the
                                              --   ad timeline must not see: the plan's frame count is what cuts)
   film_start_ms int, film_end_ms int,        -- the episode's window in the film (film_end_ms >= film_start_ms)
-  end_note jsonb,                            -- the pipeline's vision record for the boundary plus a band_fix flag
+  end_note jsonb,                            -- the pipeline's vision record for the boundary plus a band_fix flag and, for
+                                             --   a boundary the plan's own `moves` declares, the QA move {from, to}
+                                             --   (decision `qa_move`, carrying the record that judged the time it left)
   auto_cut boolean not null default true     -- FALSE on an imported episode: lib/clips/run.ts and the fixture's starter
                                              --   cuts skip it (the ad engine cuts imported films); uploads keep true.
-  -- NOT in the authenticated UPDATE column grant (0011): the import job writes these as the service role; a session
-  --   that could set the hash, the window or auto_cut directly would be forging what the ad engine trusts.
+  -- NOT granted to authenticated on UPDATE (0011's column list) or INSERT (0015 revokes the table and grants the
+  --   pre-0015 columns): the import job writes these as the service role; a session that could set the hash, the
+  --   window or auto_cut directly would be forging what the ad engine trusts. Both backends refuse a producer session
+  --   the same way (setEpisodeImport, addVideoOnlyEpisode with the import fields: forbidden), and setEpisodeVideo
+  --   refuses an episode whose source_ref is set (conflict): a file replaced by hand would leave the hash, frames,
+  --   window and end note describing the workspace snapshot, so the film is updated through the import instead.
 
 studio.film_assets                           -- the pipeline files that came with the film, copied into the local tier
   id uuid pk, title_id uuid* references core.titles on delete cascade,
@@ -1029,13 +1038,19 @@ it; the title id second, so `GET /api/media/[...path]` authorizes on the title
 and streams the file with Range in both modes — nothing of the tier is in the
 bucket, so there is no signed URL to redirect to. `localPathOf(stored)` is the
 only way from a stored value to a disk path; it refuses a bucket path, a
-value that would leave the tier (`..`, an absolute segment, a backslash or a
-colon inside a segment — Next decodes `%5C` before the handler runs, and
-Windows would read `ws\..\..\<other>` as directories), a file that does not
-sit under the title id the value names, and one that resolves into
-`WORKSPACE_ROOT` (the pipeline's own files are read through their links only:
-a render holding the original path open would crash the pipeline's
-`os.replace`). `linkIntoLocalTier(srcAbs, stored)` makes the episode
+value that would leave the tier (`..`, an absolute segment, a slash, a
+backslash or a colon inside a segment — Next decodes `%2F` and `%5C` before
+the handler runs, so `x%2F..%2F..%2F<other>` or, on Windows,
+`ws%5C..%5C..%5C<other>` arrives as ONE segment that is not literally `..`),
+a file that does not sit under the title id the value names, and one that
+resolves into `WORKSPACE_ROOT` (the pipeline's own files are read through
+their links only: a render holding the original path open would crash the
+pipeline's `os.replace`). `resolveUploadPath` applies the same segment rules
+to a bucket path under `.uploads/` and requires the resolved file to sit
+under the title the value names: staying under `.uploads/` is not enough,
+since every other title and the local tier live there too, and
+`titleIdOfMediaPath` refuses those characters in a route segment before the
+access check. `linkIntoLocalTier(srcAbs, stored)` makes the episode
 snapshot: `fs.linkSync` on the same volume, `copyFileSync` only across volumes
 (EXDEV; any other link error is rethrown, because a copy would hold the
 original open), idempotent when the target exists with the same size; the

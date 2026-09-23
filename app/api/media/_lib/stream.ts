@@ -10,7 +10,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { NextResponse, type NextRequest } from "next/server";
 import { apiError } from "@/lib/api-guard";
-import { BAD_PATH_CHARS, LOCAL_TIER } from "@/lib/data/storage";
+import { BAD_SEGMENT_CHARS, LOCAL_TIER } from "@/lib/data/storage";
 
 const CONTENT_TYPES: Record<string, string> = {
   mp4: "video/mp4",
@@ -43,12 +43,14 @@ export function contentTypeFor(file: string): string {
  * segment of a bucket path (`<title_id>/<folder>/<file>`), the second of a
  * local-tier one (`local/<title_id>/ws/<slug>/<file>`, decision 2026-09-22).
  * Null when the shape is wrong (too short, an empty or dot segment, or a
- * backslash / colon / NUL inside a segment: Next decodes `%5C` before the
- * handler runs, and on Windows `ws\..\..\<other>` would resolve into another
- * title's folder after the access check passed on this one).
+ * slash / backslash / colon / NUL inside a segment: Next decodes `%2F` and
+ * `%5C` before the handler runs, so `x/../../<other>/f.mp4` or, on Windows,
+ * `ws\..\..\<other>` arrives as ONE segment that is not literally `..` and
+ * would resolve into another title's folder after the access check passed
+ * on this one).
  */
 export function titleIdOfMediaPath(segments: string[]): string | null {
-  if (segments.some((s) => !s || s === "." || s === ".." || BAD_PATH_CHARS.test(s))) return null;
+  if (segments.some((s) => !s || s === "." || s === ".." || BAD_SEGMENT_CHARS.test(s))) return null;
   const local = segments[0] === LOCAL_TIER;
   if (segments.length < (local ? 3 : 2)) return null;
   return local ? segments[1] : segments[0];

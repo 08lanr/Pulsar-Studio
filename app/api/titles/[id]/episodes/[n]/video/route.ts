@@ -27,6 +27,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string;
     const data = getData();
     await data.assertTitleEditable(g.session, params.id); // refuse a viewer before the bytes are stored
     const wb = await data.getWorkbench(g.session, params.id, n); // scoping + 404 for foreign titles
+    // An imported episode (decision 2026-09-22) is a workspace snapshot whose hash, frames, window and end note
+    // the ad engine trusts: the film is updated through the import desk, never one file by hand. Refused before
+    // the bytes are stored (the data layer refuses it again) so a refused upload leaves no orphan file.
+    if (wb.episode.source_ref) {
+      return apiError("this episode comes from the film workspace; update the film instead", undefined, 409);
+    }
     const stored = await uploadMedia(
       params.id,
       wb.episode.id,

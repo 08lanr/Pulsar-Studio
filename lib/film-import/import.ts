@@ -198,13 +198,32 @@ export function sliceTranscript(whisper: Pick<WhisperIndex, "segments">, startS:
   return out;
 }
 
-/** What the episode row records about why it ends where it does (the pipeline's vision record, the band-fix flag). */
+/**
+ * The title's source_locale for the language the scan found (film-meta's
+ * `language`, else the code whisper detected): en → en-US, zh → zh-CN;
+ * anything else, or nothing, is en-US, the pipeline's own default (the run
+ * warns when that happens, so the label is never silently wrong).
+ */
+export function sourceLocaleOf(language: string | null | undefined): string {
+  const lang = (language ?? "").trim().toLowerCase();
+  if (lang === "zh" || lang.startsWith("zh-") || lang.startsWith("zh_")) return "zh-CN";
+  return "en-US";
+}
+
+/** True when `sourceLocaleOf` maps the language by its own rule rather than by the default. */
+export function sourceLocaleKnown(language: string | null | undefined): boolean {
+  const lang = (language ?? "").trim().toLowerCase();
+  return /^(en|zh)([-_]|$)/.test(lang);
+}
+
+/** What the episode row records about why it ends where it does (the pipeline's vision record, the band-fix flag, a declared QA move). */
 export function endNoteFor(ep: DeliveredEpisode, boundary: BoundaryNote | null, isLast: boolean): Json {
   if (isLast) return { decision: "film_end", planned_end_s: ep.end, ends_after_line: ep.ends_after_line, next_opens_on: ep.next_opens_on };
   const note = {
     decision: boundary?.decision ?? "none",
     band_fix: boundary?.decision === "band_fix",
     band_fix_note: boundary?.band_fix_note ?? null,
+    move: boundary?.move ?? null,
     planned_end_s: ep.end,
     ends_after_line: ep.ends_after_line,
     next_opens_on: ep.next_opens_on,
@@ -621,6 +640,8 @@ async function prepare(caller: Session, request: ImportRequest, context: ImportC
         display_title_en: displayTitle,
         crazydramas_slug: scan.meta?.crazydramas_slug ?? null,
         created_by: ctx.created_by,
+        // The film's own language (film-meta, else whisper's detection): The Cold CEO's Mandarin dialogue is not en-US.
+        source_locale: sourceLocaleOf(scan.language),
       });
       created = true;
     }
@@ -710,6 +731,9 @@ async function run(p: Prepared): Promise<ImportResult> {
   // Step 1 happened in prepare (the re-scan); the whole index is read now, once.
   const index = await loadFilmIndex(nodeScanFs, root, ref);
   warnings.push(...index.problems);
+  if (p.created && !sourceLocaleKnown(scan.language)) {
+    warnings.push(scan.language ? `the film's language is "${scan.language}", which Studio does not map; the title is recorded as ${title.source_locale}` : `the film names no language; the title is recorded as ${title.source_locale}`);
+  }
   const fps = plan.fps ?? index.source?.fps ?? scan.video?.fps ?? null;
   const known = p.created ? new Map<number, EpisodeState>() : await existingEpisodes(title.id);
   const facts: ImportedEpisodeFacts[] = [];

@@ -146,6 +146,8 @@ export type ImportedTitleInput = {
   genre?: string | null;
   /** Who the adaptation records as its creator: the real caller when the job runs as the system actor. */
   created_by?: string | null;
+  /** Locale of the film's dialogue, from the language the scan found (`sourceLocaleOf`); en-US when absent. */
+  source_locale?: string | null;
 };
 
 /** Update mode: what a re-import may refresh on an imported title. A missing key is left alone. */
@@ -556,7 +558,9 @@ export interface DataLayer {
   /**
    * Promote intake: register a shared episode master before any subtitle/script
    * exists. The workspace import passes its fields (`imported`) so the row is
-   * born with its hash, its film window and auto_cut false, in one write.
+   * born with its hash, its film window and auto_cut false, in one write —
+   * with `imported`, staff or the system only (both backends; 0015 grants a
+   * producer session none of those columns on insert).
    */
   addVideoOnlyEpisode(session: Session, titleId: string, episodeNumber: number, videoPath: string, imported?: EpisodeImportInput): Promise<Episode>;
   /**
@@ -593,7 +597,12 @@ export interface DataLayer {
   addAlternatives(session: Session, adaptedLineId: string, alternatives: NewAlternative[]): Promise<LineAlternative[]>;
   chooseAlternative(session: Session, adaptedLineId: string, alternativeId: string): Promise<AdaptedLine>;
   setSceneStatus(session: Session, sceneId: string, status: SceneStatus): Promise<Scene>;
-  /** Point the episode at a (new) stored video (attach or replace). */
+  /**
+   * Point the episode at a (new) stored video (attach or replace). Conflict
+   * on an imported episode (`source_ref` set): its file, hash, frame count,
+   * film window and end note describe the workspace snapshot, so the film is
+   * updated through the import instead, never one episode's file by hand.
+   */
   setEpisodeVideo(session: Session, titleId: string, episodeNumber: number, storedPath: string): Promise<Episode>;
 
   // the workspace import (decision 2026-09-22; migration 0015). The job runs as
@@ -605,9 +614,10 @@ export interface DataLayer {
    */
   findTitleBySourceRef(session: Session, producerId: string, sourceRef: string): Promise<Title | null>;
   /**
-   * A title for an imported film: source_locale en-US, name_en and name_zh
-   * both the display title (name_zh is NOT NULL), the adaptation's
-   * display_title_en the same, plus the slug, the cover and the source_ref.
+   * A title for an imported film: source_locale from the input (en-US when
+   * absent), name_en and name_zh both the display title (name_zh is NOT
+   * NULL), the adaptation's display_title_en the same, plus the slug, the
+   * cover and the source_ref.
    * Conflict when the producer already has a title for that source_ref. The
    * same rights as createTitle (a producer creates under their own company).
    */
@@ -618,8 +628,10 @@ export interface DataLayer {
   setTitleAdRules(session: Session, titleId: string, rules: AdRules): Promise<Title>;
   /**
    * The import fields of an episode (and, with them, a new file): the sha256
-   * must be hex, auto_cut false keeps the upload-time clip run away. Title
-   * editors; a foreign title's episode is not found, a viewer is forbidden.
+   * must be hex, auto_cut false keeps the upload-time clip run away. Staff or
+   * the system only, in both backends (a producer session could otherwise
+   * forge the hash, the window or auto_cut the ad engine trusts; 0015 grants
+   * it none of these columns); a foreign title's episode is not found.
    */
   setEpisodeImport(session: Session, episodeId: string, patch: EpisodeImportInput): Promise<Episode>;
   /** Every recorded file of the title, newest first; readable by whoever can read the title (a foreign title is not found). */

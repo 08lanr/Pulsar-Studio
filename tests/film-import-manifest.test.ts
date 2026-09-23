@@ -65,6 +65,10 @@ test("the delivered plan parses the pipeline's shape and refuses a broken one", 
   assert.deepEqual(first.moves, []);
 
   const base = readJson(path.join(FIXTURE_CUT, "review", "cuts-0-15-DELIVERED.json"));
+  // A QA re-pin declares its moves (pick_cuts.py --repin writes {from, to}); anything else there is a broken plan.
+  assert.deepEqual(parseDeliveredPlan({ ...base, moves: [{ from: 4, to: 4.5, why: "extra keys pass" }] }).moves, [{ from: 4, to: 4.5 }]);
+  assert.throws(() => parseDeliveredPlan({ ...base, moves: [{ from: "4", to: 4.5 }] }));
+  assert.throws(() => parseDeliveredPlan({ ...base, moves: [4.5] }));
   assert.throws(() => parseDeliveredPlan({ ...base, episodes: [base.episodes[0], base.episodes[2]] }), /numbered 3/);
   assert.throws(() => parseDeliveredPlan({ ...base, episodes: [base.episodes[0], { ...base.episodes[1], start: 4.5 }, base.episodes[2]] }), /starts at 4.5/);
   assert.throws(() => parseDeliveredPlan({ ...base, episodes: [] }));
@@ -183,7 +187,8 @@ test("every delivered boundary is explained by the record that set it", () => {
     verdict: { agree: better === null, reason: "", fault: null, better_key: null, better_t: better },
     source_file: "x.json",
   });
-  const notes = explainBoundaries(plan, [rec(100, null), rec(205, 210), rec(290, null), rec(400, null)], [{ t: 400, note: "boundary 390 -> 400" }]);
+  const vision = [rec(100, null), rec(205, 210), rec(290, null), rec(400, null)];
+  const notes = explainBoundaries(plan, vision, [{ t: 400, note: "boundary 390 -> 400" }]);
   assert.deepEqual(notes.map((n) => [n.n, n.end, n.decision, n.vision?.pick.chosen_t ?? null]), [
     [1, 100, "chosen", 100],
     [2, 210, "skeptic", 205],
@@ -191,7 +196,23 @@ test("every delivered boundary is explained by the record that set it", () => {
     [4, 400, "band_fix", 400],
   ]);
   assert.equal(notes[3].band_fix_note, "boundary 390 -> 400");
+  assert.ok(notes.every((n) => n.move === null));
   assert.equal(notes.length, 4, "the final end is the end of the film, not a boundary");
+
+  // A QA re-pin the plan declares (He Hated All Women's ep29 end went 3276.333 -> 3278.3 on 2026-09-23: an ordinary
+  // legal candidate, no --allow, no new vision record): the end is a qa_move carrying the record that judged the time
+  // it moved from. A record that names the end itself still wins, and the move rides along on it.
+  const moved = explainBoundaries({ ...plan, moves: [{ from: 290, to: 300 }, { from: 99, to: 100 }, { from: 7, to: 210 }] }, vision, [{ t: 400, note: "boundary 390 -> 400" }]);
+  assert.deepEqual(moved.map((n) => [n.n, n.end, n.decision, n.vision?.pick.chosen_t ?? null]), [
+    [1, 100, "chosen", 100],
+    [2, 210, "skeptic", 205],
+    [3, 300, "qa_move", 290],
+    [4, 400, "band_fix", 400],
+  ]);
+  assert.deepEqual(moved.map((n) => n.move), [{ from: 99, to: 100 }, { from: 7, to: 210 }, { from: 290, to: 300 }, null]);
+  // A move from a time no record judged is still the plan's own word for the end, with no record to carry.
+  const blind = explainBoundaries({ ...plan, moves: [{ from: 280, to: 300 }] }, vision, []);
+  assert.deepEqual([blind[2].decision, blind[2].vision, blind[2].move], ["qa_move", null, { from: 280, to: 300 }]);
 });
 
 // ---- film-meta ------------------------------------------------------------------------------------
@@ -302,10 +323,13 @@ test("real Mafia King: three plan files, the whole-film index, four split vision
 });
 
 // The pipeline keeps working on these films (a QA pass on He Hated All Women
-// was moving boundaries while this was written, 2026-09-23 00:43), so what
-// follows checks the invariants of the records, not counts a re-cut moves:
-// every delivered end is explained by a vision pick, a skeptic override or a
-// band-fix note, or else it is a QA `--allow` cut named in candidates.json.
+// was moving boundaries while this was written, 2026-09-23 00:43, and moved
+// ep29's end to a plain legal candidate at 02:01), so what follows checks the
+// invariants of the records, not counts a re-cut moves: every delivered end
+// is explained by a vision pick, a skeptic override, a band-fix note or a
+// move the plan itself declares, or else it is a legal cut of candidates.json
+// (a QA `--allow` exception or an ordinary candidate). A legitimate pipeline
+// edit must never turn this gate red.
 async function checkExplained(film: string, expect: { band_fix: number[]; skeptic: number[] }) {
   const index = await loadFilmIndex(nodeScanFs, REAL_ROOT, `low-quality/${film}`);
   assert.deepEqual(index.problems, [], `${film}: every present file parses`);
@@ -314,9 +338,17 @@ async function checkExplained(film: string, expect: { band_fix: number[]; skepti
   for (const end of expect.band_fix) if (ends.has(end)) assert.equal(decisionOf(end), "band_fix", `${film}: ${end} is a band-fix boundary`);
   for (const end of expect.skeptic) if (ends.has(end)) assert.equal(decisionOf(end), "skeptic", `${film}: ${end} is the skeptic's time`);
   const allowed = new Set((index.candidates?.allowed ?? []).map((a) => Math.round(a.t * 1000)));
+  const legal = (t: number) => allowed.has(Math.round(t * 1000)) || (index.candidates?.candidates ?? []).some((c) => Math.abs(c.t - t) <= 0.02);
   for (const b of index.boundaries) {
-    if (b.decision === "none") assert.ok(allowed.has(Math.round(b.end * 1000)), `${film}: the unexplained end ${b.end} is a QA --allow cut`);
+    if (b.decision === "none") assert.ok(legal(b.end), `${film}: the unexplained end ${b.end} is a legal cut (a QA --allow or an ordinary candidate)`);
+    if (b.decision === "qa_move") {
+      assert.equal(b.move?.to, b.end, `${film}: the declared move ends at ${b.end}`);
+      assert.ok(legal(b.end), `${film}: the QA-moved end ${b.end} is a legal cut`);
+    }
     if (b.decision === "band_fix") assert.match(b.band_fix_note ?? "", new RegExp(String(b.end).replace(".", "\\.")), `${film}: the band-fix note names ${b.end}`);
+  }
+  for (const m of index.delivered.moves) {
+    if (ends.has(m.to)) assert.notEqual(decisionOf(m.to), "none", `${film}: the declared move to ${m.to} is never an unexplained end`);
   }
   for (const a of index.candidates?.allowed ?? []) {
     const row = index.candidates?.candidates.find((c) => Math.abs(c.t - a.t) <= 0.02);
@@ -325,10 +357,18 @@ async function checkExplained(film: string, expect: { band_fix: number[]; skepti
   return index;
 }
 
-test("real He Hated All Women: the --allow exceptions, the skeptic overrides, the three band-fix boundaries", async (t) => {
+test("real He Hated All Women: the --allow exceptions, the skeptic overrides, the three band-fix boundaries, the QA moves", async (t) => {
   const cut = realCut("he-hated-all-women");
   if (!cut) return t.skip(SKIP_NOTE("he-hated-all-women"));
   const index = await checkExplained("he-hated-all-women", { band_fix: [1342.067, 3152.433, 6612.3], skeptic: [763.267, 4316.967, 5298, 6805.933] });
+  // The 02:01 QA session: ep29's end 3276.333 -> 3278.3 is declared in the plan's moves, a plain candidate, and the
+  // note carries the reviewer's record for 3276.333 (the two --allow moves at 315.533 and 6390.933 read the same way).
+  for (const m of index.delivered.moves) {
+    const b = index.boundaries.find((x) => x.end === m.to);
+    if (!b) continue;
+    assert.equal(b.decision, "qa_move", `${m.from} -> ${m.to} is a declared QA move`);
+    assert.equal(b.vision?.pick.chosen_t, m.from, `the record that judged ${m.from} travels with the moved end`);
+  }
   assert.ok(index.candidates!.allowed.some((a) => a.t === 5298), "the --allow at 5298.0 (band-fix note)");
   assert.match(index.candidates!.candidates.find((c) => c.t === 5298)?.exception ?? "", /voice starts at \+0\.40 s/);
   const preAllow = parseCandidates(readJson(path.join(cut, "index", "candidates.pre-allow.json")));

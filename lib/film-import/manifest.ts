@@ -46,7 +46,7 @@ export const DeliveredPlanSchema = z
     band: z.tuple([z.number(), z.number()]),
     pinned: z.number().int().nonnegative().nullish(),
     pin_from: z.string().nullish(),
-    moves: z.array(z.unknown()).nullish(),
+    moves: z.array(z.object({ from: z.number(), to: z.number() }).passthrough()).nullish(),
     final_end_is_boundary: z.boolean().nullish(),
     episodes: z.array(EpisodeSchema).min(1),
   })
@@ -71,7 +71,7 @@ export function parseDeliveredPlan(json: unknown): DeliveredPlan {
     band: p.band,
     pinned: p.pinned ?? null,
     pin_from: p.pin_from ?? null,
-    moves: p.moves ?? [],
+    moves: (p.moves ?? []).map((m) => ({ from: m.from, to: m.to })),
     final_end_is_boundary: p.final_end_is_boundary ?? null,
     episodes: p.episodes.map((e) => ({ ...e })),
   };
@@ -360,22 +360,32 @@ export function parseBandFixNotes(markdown: string): { t: number; note: string }
  * band-fix note wins over a matching vision pick (He Hated All Women's
  * 6612.3 is the first reviewer's time, applied by a person after the skeptic
  * had disagreed), then the reviewer's `chosen_t`, then the skeptic's
- * `better_t`; an end no record names is `none`.
+ * `better_t`, then a move the plan itself declares (`moves[].to`: a QA
+ * re-pin moved the boundary to an ordinary legal candidate, which needs no
+ * `--allow` and no new vision record — He Hated All Women's ep29 end went
+ * 3276.333 -> 3278.3 on 2026-09-23; the note carries the record that judged
+ * the time it moved FROM); an end no record and no move names is `none`.
  */
 export function explainBoundaries(plan: DeliveredPlan, vision: VisionBoundary[], bandFix: { t: number; note: string }[]): BoundaryNote[] {
   const byChosen = new Map(vision.map((v) => [keyOf(v.pick.chosen_t), v]));
   const byBetter = new Map<number, VisionBoundary>();
   for (const v of vision) if (v.verdict?.better_t != null) byBetter.set(keyOf(v.verdict.better_t), v);
   const fixes = new Map(bandFix.map((f) => [keyOf(f.t), f.note]));
+  const byMove = new Map(plan.moves.map((m) => [keyOf(m.to), m]));
   return plan.episodes.slice(0, -1).map((ep) => {
     const k = keyOf(ep.end);
     const fix = fixes.get(k);
     const chosen = byChosen.get(k) ?? null;
     const better = byBetter.get(k) ?? null;
-    if (fix !== undefined) return { n: ep.n, end: ep.end, decision: "band_fix", vision: chosen ?? better, band_fix_note: fix };
-    if (chosen) return { n: ep.n, end: ep.end, decision: "chosen", vision: chosen, band_fix_note: null };
-    if (better) return { n: ep.n, end: ep.end, decision: "skeptic", vision: better, band_fix_note: null };
-    return { n: ep.n, end: ep.end, decision: "none", vision: null, band_fix_note: null };
+    const move = byMove.get(k) ?? null;
+    if (fix !== undefined) return { n: ep.n, end: ep.end, decision: "band_fix", vision: chosen ?? better, band_fix_note: fix, move };
+    if (chosen) return { n: ep.n, end: ep.end, decision: "chosen", vision: chosen, band_fix_note: null, move };
+    if (better) return { n: ep.n, end: ep.end, decision: "skeptic", vision: better, band_fix_note: null, move };
+    if (move) {
+      const from = keyOf(move.from);
+      return { n: ep.n, end: ep.end, decision: "qa_move", vision: byChosen.get(from) ?? byBetter.get(from) ?? null, band_fix_note: null, move };
+    }
+    return { n: ep.n, end: ep.end, decision: "none", vision: null, band_fix_note: null, move: null };
   });
 }
 

@@ -87,6 +87,12 @@ test("createImportedTitle: en-US, the display title in every name slot, the film
   await assert.rejects(fixtureData.createImportedTitle(viewer(), { producer_id: who.producerId!, source_ref: "low-quality/rhw", display_title_en: "x" }), { code: "forbidden" });
   await assert.rejects(fixtureData.createImportedTitle(staff(), { producer_id: who.producerId!, source_ref: "../etc", display_title_en: "x" }), { code: "invalid" });
   await assert.rejects(fixtureData.createImportedTitle(staff(), { producer_id: who.producerId!, source_ref: "low-quality/rhw", display_title_en: "  " }), { code: "invalid" });
+
+  // The film's own language travels in (The Cold CEO's Mandarin dialogue); absent, en-US is the pipeline's default.
+  const zh = await fixtureData.createImportedTitle(systemSession(), { producer_id: who.producerId!, source_ref: "low-quality/the-cold-ceo", display_title_en: "The Cold CEO", source_locale: "zh-CN" });
+  assert.equal(zh.source_locale, "zh-CN");
+  const blank = await fixtureData.createImportedTitle(systemSession(), { producer_id: who.producerId!, source_ref: "low-quality/rhw", display_title_en: "RHW", source_locale: "  " });
+  assert.equal(blank.source_locale, "en-US");
 });
 
 test("findTitleBySourceRef answers its own company; another company's film reads as nothing, never forbidden", async () => {
@@ -168,15 +174,21 @@ test("an imported episode is born with its hash, its film window and auto_cut fa
   // A bad field creates nothing.
   await assert.rejects(fixtureData.addVideoOnlyEpisode(systemSession(), title.id, 3, stored, { video_sha256: "not-hex", auto_cut: false }), { code: "invalid" });
   await assert.rejects(fixtureData.getWorkbench(staff(), title.id, 3), { code: "not_found" });
+
+  // The import fields are staff's and the system's alone: the company's own approver is refused with them (0015 grants
+  // authenticated none of those columns on insert), the same call without them is the Promote intake and still works.
+  await assert.rejects(fixtureData.addVideoOnlyEpisode(producer(), title.id, 3, stored, { video_sha256: SHA_A, auto_cut: false }), { code: "forbidden" });
+  await assert.rejects(fixtureData.getWorkbench(staff(), title.id, 3), { code: "not_found" });
+  assert.equal((await fixtureData.addVideoOnlyEpisode(staff(), title.id, 3, stored, { video_sha256: SHA_A, auto_cut: false })).video_sha256, SHA_A);
 });
 
-test("setEpisodeImport patches the import fields and validates them; a refused patch changes nothing; foreign not found, viewer forbidden", async () => {
+test("setEpisodeImport patches the import fields and validates them; a refused patch changes nothing; foreign not found, every producer role forbidden", async () => {
   const title = await importedTitle();
   const first = localStoredPath(title.id, "mafia-king", "ep01-aaaaaaaa.mp4");
   const ep = await fixtureData.addVideoOnlyEpisode(systemSession(), title.id, 1, first, { video_sha256: SHA_A, film_start_ms: 0, film_end_ms: 120_000, auto_cut: false });
 
   const second = localStoredPath(title.id, "mafia-king", "ep01-bbbbbbbb.mp4");
-  const patched = await fixtureData.setEpisodeImport(producer(), ep.id, { video_path: second, video_sha256: SHA_B, video_frames: 3601, end_note: { band_fix: true } });
+  const patched = await fixtureData.setEpisodeImport(systemSession(), ep.id, { video_path: second, video_sha256: SHA_B, video_frames: 3601, end_note: { band_fix: true } });
   assert.equal(patched.video_path, second, "a new file and its hash land in one write");
   assert.equal(patched.video_sha256, SHA_B);
   assert.equal(patched.video_frames, 3601);
@@ -185,11 +197,11 @@ test("setEpisodeImport patches the import fields and validates them; a refused p
   assert.deepEqual(patched.end_note, { band_fix: true });
   assert.equal((await fixtureData.getWorkbench(staff(), title.id, 1)).episode.video_path, second);
 
-  await assert.rejects(fixtureData.setEpisodeImport(producer(), ep.id, { video_sha256: "nope" }), { code: "invalid" });
-  await assert.rejects(fixtureData.setEpisodeImport(producer(), ep.id, { video_bytes: -1 }), { code: "invalid" });
-  await assert.rejects(fixtureData.setEpisodeImport(producer(), ep.id, { film_start_ms: 200_000 }), { code: "invalid" }, "an end before the start, against the stored window");
-  await assert.rejects(fixtureData.setEpisodeImport(producer(), ep.id, { video_path: "" }), { code: "invalid" });
-  await assert.rejects(fixtureData.setEpisodeImport(producer(), ep.id, { duration_ms: 1.5 }), { code: "invalid" });
+  await assert.rejects(fixtureData.setEpisodeImport(staff(), ep.id, { video_sha256: "nope" }), { code: "invalid" });
+  await assert.rejects(fixtureData.setEpisodeImport(staff(), ep.id, { video_bytes: -1 }), { code: "invalid" });
+  await assert.rejects(fixtureData.setEpisodeImport(staff(), ep.id, { film_start_ms: 200_000 }), { code: "invalid" }, "an end before the start, against the stored window");
+  await assert.rejects(fixtureData.setEpisodeImport(staff(), ep.id, { video_path: "" }), { code: "invalid" });
+  await assert.rejects(fixtureData.setEpisodeImport(staff(), ep.id, { duration_ms: 1.5 }), { code: "invalid" });
   const untouched = (await fixtureData.getWorkbench(staff(), title.id, 1)).episode;
   assert.equal(untouched.video_sha256, SHA_B);
   assert.equal(untouched.film_start_ms, 0);
@@ -197,10 +209,32 @@ test("setEpisodeImport patches the import fields and validates them; a refused p
   assert.equal((await fixtureData.setEpisodeImport(systemSession(), ep.id, { auto_cut: true })).auto_cut, true);
   assert.equal((await fixtureData.setEpisodeImport(systemSession(), ep.id, { duration_ms: 120_000 })).duration_ms, 120_000, "the measured length travels with the import fields");
 
+  // A producer session never writes what the ad engine trusts, whatever its role (0015: no column grant; the same
+  // refusal in both backends); a stranger's company still reads nothing, never forbidden.
   const { session: them } = await stranger();
   await assert.rejects(fixtureData.setEpisodeImport(them, ep.id, { auto_cut: false }), { code: "not_found" });
+  await assert.rejects(fixtureData.setEpisodeImport(producer(), ep.id, { video_sha256: SHA_C }), { code: "forbidden" }, "the company's own approver");
   await assert.rejects(fixtureData.setEpisodeImport(viewer(), ep.id, { auto_cut: false }), { code: "forbidden" });
+  assert.equal((await fixtureData.getWorkbench(staff(), title.id, 1)).episode.video_sha256, SHA_B, "a refused patch changed nothing");
   await assert.rejects(fixtureData.setEpisodeImport(staff(), "00000000-0000-0000-0000-000000000000", { auto_cut: false }), { code: "not_found" });
+});
+
+test("setEpisodeVideo refuses an imported episode (its hash, frames, window and end note describe the snapshot); an uploaded one is replaced", async () => {
+  const title = await importedTitle();
+  const linked = localStoredPath(title.id, "mafia-king", "ep01-aaaaaaaa.mp4");
+  await fixtureData.addVideoOnlyEpisode(systemSession(), title.id, 1, linked, { source_ref: "low-quality/mafia-king/cut/eps/ep01.mp4", video_sha256: SHA_A, video_frames: 3600, film_start_ms: 0, film_end_ms: 120_000, auto_cut: false });
+  await fixtureData.addVideoOnlyEpisode(producer(), title.id, 2, `${title.id}/folder/ep2.mp4`);
+
+  await assert.rejects(fixtureData.setEpisodeVideo(producer(), title.id, 1, `${title.id}/ep1/replacement.mp4`), { code: "conflict", message: /film workspace/ });
+  await assert.rejects(fixtureData.setEpisodeVideo(staff(), title.id, 1, `${title.id}/ep1/replacement.mp4`), { code: "conflict" }, "staff too: the film is updated through the import");
+  const kept = (await fixtureData.getWorkbench(staff(), title.id, 1)).episode;
+  assert.equal(kept.video_path, linked);
+  assert.equal(kept.video_sha256, SHA_A);
+  assert.equal(kept.video_frames, 3600);
+
+  const replaced = await fixtureData.setEpisodeVideo(producer(), title.id, 2, `${title.id}/ep2/replacement.mp4`);
+  assert.equal(replaced.video_path, `${title.id}/ep2/replacement.mp4`);
+  assert.equal(replaced.source_ref, null);
 });
 
 // ---- film assets ----------------------------------------------------------------------------------
@@ -276,6 +310,14 @@ test("localPathOf resolves the tier on disk and refuses a bucket path, an escape
     assert.throws(() => localPathOf(`local/${titleId}/ws/C:\\x.mp4`), { code: "invalid" });
     assert.throws(() => resolveUploadPath(`${titleId}\\..\\other-title\\ep\\file.mp4`), { code: "invalid" });
     assert.throws(() => resolveUploadPath(`${titleId}/ep/a:b.mp4`), { code: "invalid" });
+    // A decoded %2F inside a route segment joins into a dot segment: staying under .uploads/ is not enough, the file
+    // must sit under the title the value names (the other title's folder and the local tier both live in .uploads/).
+    assert.equal(resolveUploadPath(`${titleId}/ep/file.mp4`), path.join(process.cwd(), ".uploads", titleId, "ep", "file.mp4"));
+    assert.throws(() => resolveUploadPath(`${titleId}/x/../../other-title/ep/file.mp4`), { code: "invalid" });
+    assert.throws(() => resolveUploadPath(`${titleId}/x/../../local/other-title/ws/film/ep01.mp4`), { code: "invalid" });
+    assert.throws(() => resolveUploadPath(`${titleId}/./ep/file.mp4`), { code: "invalid" });
+    assert.throws(() => resolveUploadPath(`${titleId}//ep/file.mp4`), { code: "invalid" });
+    assert.throws(() => resolveUploadPath(`local/${titleId}/x/../../other-title/ws/film/ep01.mp4`), { code: "invalid" });
 
     // A tier configured inside the workspace would read the pipeline's files in place: every path is refused.
     process.env.STUDIO_LOCAL_MEDIA_DIR = path.join(workspace, "low-quality", "mafia-king", "cut", "eps");
@@ -364,6 +406,11 @@ test("the media route streams a disk file with Range (whole, a slice, a suffix, 
     assert.equal(titleIdOfMediaPath(["local", "T", "ws\\..\\..\\F\\ws\\slug\\ep01-abc.mp4"]), null, "a decoded %5C (Next decodes each segment) never reaches the disk");
     assert.equal(titleIdOfMediaPath(["T", "ep", "C:\\file.mp4"]), null);
     assert.equal(titleIdOfMediaPath(["T", "ep", "a\0b.mp4"]), null);
+    // Next decodes %2F the same way: one segment that is not literally `..` and yet walks into another title once joined.
+    assert.equal(titleIdOfMediaPath(["T", "x/../../F/ep/source.mp4"]), null, "a decoded %2F on a bucket path");
+    assert.equal(titleIdOfMediaPath(["T", "x/../../local/F/ws/slug/ep01-abc.mp4"]), null, "a decoded %2F into the local tier");
+    assert.equal(titleIdOfMediaPath(["local", "T", "ws/../../F/ws/slug/ep01-abc.mp4"]), null, "a decoded %2F on a local-tier path");
+    assert.equal(titleIdOfMediaPath(["T", "ep", "a/b.mp4"]), null);
   } finally {
     rmSync(scratch, { recursive: true, force: true });
   }

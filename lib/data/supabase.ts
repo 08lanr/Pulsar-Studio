@@ -536,6 +536,8 @@ export const supabaseData: DataLayer = {
 
   async addVideoOnlyEpisode(session, titleId, episodeNumber, videoPath, imported) {
     const c = dbFor(session);
+    // The import fields are the system's and staff's alone (0015 grants authenticated none of those columns on insert; refused here the way the fixture refuses).
+    if (imported) requireSystemOrStaff(session);
     if (!Number.isInteger(episodeNumber) || episodeNumber < 1) throw invalid("episode_number must be a positive integer");
     // The import's fields (hash, film window, auto_cut false) are validated before anything is written.
     const fields = imported ? episodeImportPatch({ ...imported, video_path: undefined }) : {};
@@ -960,17 +962,15 @@ export const supabaseData: DataLayer = {
 
   async setEpisodeVideo(session, titleId, episodeNumber, storedPath) {
     const c = dbFor(session);
-    return one<Episode>(
-      core(c)
-        .from("episodes")
-        .update({ video_path: storedPath })
-        .eq("title_id", titleId)
-        .eq("number", episodeNumber)
-        .select("*")
-        .maybeSingle(),
+    // Read under the caller's own client (RLS: a foreign title's episode is not found). An imported episode's hash,
+    // frames, window and end note describe the workspace snapshot; a file replaced by hand would leave them describing another file.
+    const current = await one<Pick<Episode, "id" | "source_ref">>(
+      core(c).from("episodes").select("id, source_ref").eq("title_id", titleId).eq("number", episodeNumber).maybeSingle(),
       "episode",
       `${episodeNumber}`
     );
+    if (current.source_ref) throw conflict("this episode comes from the film workspace; update the film instead");
+    return one<Episode>(core(c).from("episodes").update({ video_path: storedPath }).eq("id", current.id).select("*").maybeSingle(), "episode", `${episodeNumber}`);
   },
 
   // ---- the workspace import (decision 2026-09-22; migration 0015) ----
@@ -1007,7 +1007,7 @@ export const supabaseData: DataLayer = {
           genre: input.genre?.trim() || null,
           synopsis_en: input.synopsis_en?.trim() || null,
           deliverables: producer.deliverables,
-          source_locale: "en-US",
+          source_locale: input.source_locale?.trim() || "en-US",
           source_ref: ref,
           crazydramas_slug: input.crazydramas_slug?.trim() || null,
           cover_path: input.cover_path?.trim() || null,
@@ -1049,9 +1049,11 @@ export const supabaseData: DataLayer = {
 
   async setEpisodeImport(session, episodeId, patch) {
     const c = dbFor(session);
-    // Read under the caller's own client: RLS hides a foreign title's episode (not found); the role test refuses a viewer.
+    // Read under the caller's own client: RLS hides a foreign title's episode (not found). Then staff or the system only,
+    // the same refusal as the fixture's: 0015 grants authenticated none of these columns, and a producer session that
+    // could set the hash, the window or auto_cut would be forging what the ad engine trusts.
     const episode = await one<Episode>(core(c).from("episodes").select("*").eq("id", episodeId).maybeSingle(), "episode", episodeId);
-    await supabaseData.assertTitleEditable(session, episode.title_id);
+    requireSystemOrStaff(session);
     const fields = episodeImportPatch(patch, episode);
     if (!Object.keys(fields).length) return episode;
     return one<Episode>(core(c).from("episodes").update(fields).eq("id", episodeId).select("*").maybeSingle(), "episode", episodeId);

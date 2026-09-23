@@ -33,6 +33,7 @@ import {
   readPoster,
   resetImportRegistry,
   sliceTranscript,
+  sourceLocaleOf,
   startImport,
   stateAgainstRecord,
   type VideoFacts,
@@ -186,6 +187,33 @@ test("a second run of the same bytes skips every episode; the transcript is neve
   const records = (await fixtureData.listFilmAssets(staff(), first.title_id)).filter((a) => a.origin === "studio");
   assert.equal(records.length, 2, "every finished import leaves its record; the newest is the one that counts");
   assert.equal(latestImportRecord(await fixtureData.listFilmAssets(staff(), first.title_id))?.job_id, again.job_id);
+});
+
+test("the title's source_locale follows the film's language: a zh whisper file makes zh-CN, an unmapped language is en-US with a warning", async () => {
+  const root = tempWorkspace();
+  const cut = path.join(root, "low-quality", "fixture-film", "cut");
+  const setLanguage = (lang: string) => {
+    const metaFile = path.join(cut, "film-meta.json");
+    writeFileSync(metaFile, JSON.stringify({ ...JSON.parse(readFileSync(metaFile, "utf8")), language: lang }, null, 1));
+    const whisperFile = path.join(cut, "index", "whisper.json");
+    writeFileSync(whisperFile, JSON.stringify({ ...JSON.parse(readFileSync(whisperFile, "utf8")), language: lang }, null, 1));
+  };
+
+  setLanguage("zh");
+  const scan = await scanFilm(FILM, { root, quietMs: 0 });
+  assert.equal(scan.language, "zh");
+  const zh = await importFilm(producer(), { source_ref: FILM, mode: "import" }, who(), opts(root));
+  assert.equal((await fixtureData.getTitle(staff(), zh.title_id)).title.source_locale, "zh-CN");
+  assert.ok(!zh.warnings.some((w) => /language/.test(w)), "a mapped language draws no warning");
+
+  resetFixtureStore();
+  resetImportRegistry();
+  setLanguage("ja");
+  const ja = await importFilm(producer(), { source_ref: FILM, mode: "import" }, who(), opts(root));
+  assert.equal((await fixtureData.getTitle(staff(), ja.title_id)).title.source_locale, "en-US");
+  assert.ok(ja.warnings.some((w) => /language is "ja"/.test(w) && /en-US/.test(w)), `the run says so: ${ja.warnings.join(" | ")}`);
+
+  assert.deepEqual(["en", "EN", "en-US", "zh", "zh-CN", "zh_TW", "ja", null, ""].map(sourceLocaleOf), ["en-US", "en-US", "en-US", "zh-CN", "zh-CN", "zh-CN", "en-US", "en-US", "en-US"]);
 });
 
 test("attach_transcript false imports the episodes without a script; the display title typed before the import wins", async () => {

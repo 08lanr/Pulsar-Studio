@@ -88,6 +88,21 @@ function underWorkspace(abs: string): boolean {
 export const BAD_PATH_CHARS = /[\\:\0]/;
 
 /**
+ * The same for ONE segment of a route path, where a slash is bad too: Next
+ * decodes `%2F` inside a catch-all segment as well, so `x/../../<other>`
+ * arrives as one segment that is not literally `..` and yet walks into
+ * another title's folder once the segments are joined.
+ */
+export const BAD_SEGMENT_CHARS = /[\\/:\0]/;
+
+/** The segments of a stored value, or null when one is empty, a dot segment or carries a bad character. */
+function storedSegments(stored: string): string[] | null {
+  const segments = stored.split("/");
+  if (segments.some((s) => !s || s === "." || s === ".." || BAD_SEGMENT_CHARS.test(s))) return null;
+  return segments;
+}
+
+/**
  * The absolute disk file behind a local-tier value, in both modes. Refuses
  * anything else: a bucket path, a value that would escape the tier (`..`,
  * an absolute segment, a backslash or colon inside a segment) or one that
@@ -97,9 +112,8 @@ export const BAD_PATH_CHARS = /[\\:\0]/;
  */
 export function localPathOf(stored: string): string {
   if (!isLocalTierPath(stored)) throw invalid("not a local-tier media path");
-  const rest = stored.slice(LOCAL_TIER.length + 1);
-  const segments = rest.split("/");
-  if (segments.length < 2 || segments.some((s) => !s || s === "." || s === ".." || BAD_PATH_CHARS.test(s))) throw invalid("invalid media path");
+  const segments = storedSegments(stored.slice(LOCAL_TIER.length + 1));
+  if (!segments || segments.length < 2) throw invalid("invalid media path");
   const root = localMediaDir();
   const abs = path.resolve(root, ...segments);
   const rel = path.relative(root, abs);
@@ -170,20 +184,25 @@ export function mediaUrl(stored: string | null | undefined): string | null {
 }
 
 /**
- * The absolute file under .uploads/ for a stored path. Rejects anything that
- * would escape the root (`..`, absolute segments) so the media route cannot
- * be pointed at the rest of the disk. A local-tier value resolves through
- * `localPathOf` instead (the tier may live outside .uploads/).
+ * The absolute file under .uploads/ for a stored path. The same rules as
+ * `localPathOf`: no empty or dot segment, no backslash, colon or NUL, and
+ * the resolved file must sit under the first segment the value names (the
+ * title id the media route authorized on) — staying under .uploads/ is not
+ * enough, since the local tier and every other title live there too. A
+ * local-tier value resolves through `localPathOf` instead (the tier may
+ * live outside .uploads/).
  */
 export function resolveUploadPath(stored: string): string {
   if (isLocalTierPath(stored)) return localPathOf(stored);
-  if (BAD_PATH_CHARS.test(stored)) throw invalid("invalid media path");
+  const segments = storedSegments(stored);
+  if (!segments) throw invalid("invalid media path");
   const root = uploadsDir();
-  const abs = path.resolve(root, stored);
+  const abs = path.resolve(root, ...segments);
   const rel = path.relative(root, abs);
   if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) {
     throw invalid("invalid media path");
   }
+  if (rel.split(path.sep)[0] !== segments[0]) throw invalid("invalid media path");
   return abs;
 }
 

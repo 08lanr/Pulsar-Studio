@@ -10,7 +10,8 @@
 --    note (the vision record plus a band_fix flag) and auto_cut, which the
 --    import sets false: an imported episode is cut by the ad engine, never
 --    by the upload-time clip run (lib/clips/run.ts and the fixture's
---    starter cuts skip it).
+--    starter cuts skip it). None of these columns is granted to
+--    authenticated, on update or on insert: the service role writes them.
 -- 3. studio.film_assets: the pipeline files that came with the film
 --    (transcript, shots, motion, candidates, source facts, the delivered
 --    plan, vision notes, film-meta, poster), linked into the local media
@@ -59,6 +60,19 @@ alter table core.episodes add column if not exists auto_cut boolean not null def
 -- never ran).
 revoke update (source_ref, video_sha256, video_bytes, video_frames, film_start_ms, film_end_ms, end_note, auto_cut)
   on core.episodes from authenticated;
+
+-- INSERT the same way. 0001 granted table-level INSERT on core.episodes to
+-- authenticated and 0002's producer_insert_episodes admits any reviewer or
+-- approver of the title, so a producer could still insert a row over
+-- PostgREST with an arbitrary hash, window, end_note or auto_cut. Revoke the
+-- table, grant the pre-0015 columns (the ones addEpisodeFromIngest and
+-- addVideoOnlyEpisode write for a producer session; id, external_id and
+-- created_at are defaults): the import fields are the service role's alone
+-- on insert as on update. Both backends refuse a producer session that
+-- passes them (setEpisodeImport, addVideoOnlyEpisode with the import fields).
+revoke insert on core.episodes from authenticated;
+grant insert (title_id, number, name_zh, name_en, duration_ms, source_script_path, script_format, has_timecodes, video_path)
+  on core.episodes to authenticated;
 
 -- ---- studio.film_assets: the pipeline's files, kept beside the title ----
 

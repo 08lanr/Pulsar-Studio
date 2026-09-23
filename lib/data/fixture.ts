@@ -1118,6 +1118,8 @@ export const fixtureData: DataLayer = {
   async addVideoOnlyEpisode(session, titleId, episodeNumber, videoPath, imported) {
     const s = store();
     const title = requireTitleEditor(s.db, session, titleId);
+    // The import fields are the system's and staff's alone (0015 grants a producer none of those columns on insert).
+    if (imported) requireSystemOrStaff(session);
     if (!Number.isInteger(episodeNumber) || episodeNumber < 1) throw invalid("episode_number must be a positive integer");
     if (s.db.episodes.some((e) => e.title_id === titleId && e.number === episodeNumber)) throw conflict(`episode ${episodeNumber} already exists for this title`);
     // The import's fields (hash, film window, auto_cut false) are validated before the row exists, so a bad value creates nothing.
@@ -1628,6 +1630,8 @@ export const fixtureData: DataLayer = {
     const s = store();
     requireTitleEditor(s.db, session, titleId);
     const episode = findEpisode(s.db, titleId, episodeNumber);
+    // An imported episode's hash, frames, window and end note describe the workspace snapshot; a file replaced by hand would leave them describing another file.
+    if (episode.source_ref) throw conflict("this episode comes from the film workspace; update the film instead");
     const before = episode.video_path;
     episode.video_path = storedPath;
     audit(s, session, "set_episode_video", "core.episodes", episode.id, titleId, { video_path: before }, { video_path: storedPath });
@@ -1659,7 +1663,7 @@ export const fixtureData: DataLayer = {
       producer_id: input.producer_id,
       genre: input.genre ?? null,
       synopsis_en: input.synopsis_en ?? null,
-      source_locale: "en-US",
+      source_locale: input.source_locale?.trim() || "en-US",
       created_by: input.created_by ?? null,
     });
     const title = findTitle(s.db, created.id);
@@ -1703,7 +1707,8 @@ export const fixtureData: DataLayer = {
     const s = store();
     const episode = s.db.episodes.find((e) => e.id === episodeId);
     if (!episode) throw notFound("episode", episodeId);
-    requireTitleEditor(s.db, session, episode.title_id); // not_found for a foreign title, forbidden for a viewer
+    readableTitle(s.db, session, episode.title_id); // not_found for a foreign title, like RLS
+    requireSystemOrStaff(session); // a producer session never writes what the ad engine trusts (0015: no column grant)
     const fields = episodeImportPatch(patch, episode);
     const before: Json = { video_path: episode.video_path, video_sha256: episode.video_sha256 ?? null, auto_cut: episode.auto_cut ?? true };
     Object.assign(episode, fields);
