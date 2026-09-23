@@ -30,6 +30,7 @@ import {
   mergeAdRules,
   parseProbeJson,
   plannedFrames,
+  playedMs,
   readPoster,
   resetImportRegistry,
   sliceTranscript,
@@ -481,6 +482,15 @@ test("sliceTranscript: a word belongs to the window that holds its midpoint, shi
   const ep3 = sliceTranscript(whisper, 9.0, 15.0);
   assert.deepEqual(ep3.map((s) => [s.text, s.start_ms, s.end_ms]), [["four", 0, 400]], "a word straddling the boundary is written once, clamped into its episode");
   assert.deepEqual(sliceTranscript(whisper, 20, 30), []);
+
+  // A source-episodes plan's skips (plan B4): a word inside a trimmed card is dropped, a word after it moves up by what the card took out.
+  const trimmed = sliceTranscript(whisper, 0, 10, [[4.0, 6.0]]);
+  assert.deepEqual(trimmed.map((s) => [s.text, s.start_ms, s.end_ms]), [["one", 3000, 3900], ["four", 6900, 7400]], "two and three sat inside the card; four moved up 2 s");
+  const straddled = sliceTranscript(whisper, 5.0, 10.0, [[4.0, 6.0]]);
+  assert.deepEqual(straddled.map((s) => [s.text, s.start_ms, s.end_ms]), [["four", 2900, 3400]], "only the second of the card sits inside this window, so the shift is 1 s");
+  assert.deepEqual(sliceTranscript(whisper, 0, 10, [[20, 22]]), sliceTranscript(whisper, 0, 10), "a skip elsewhere changes nothing");
+  assert.equal(playedMs({ start: 0, end: 10 }, [[4.0, 6.0]]), 8000);
+  assert.equal(playedMs({ start: 0, end: 102.167 }, [[100.3, 102.167]]), 100300, "She Returned's first episode: 100.3 s play once its card is out");
 });
 
 test("parseProbeJson prefers the counted packets, falls back to nb_frames, refuses a streamless answer", () => {
@@ -501,6 +511,9 @@ test("plannedFrames counts on frame boundaries the way the pipeline cuts; mergeA
   assert.equal(plannedFrames({ start: 0, end: 4 }, 30), 120);
   assert.equal(plannedFrames({ start: 1800, end: 1936.533 }, 30), Math.round(1936.533 * 30) - 54000);
   assert.equal(plannedFrames({ start: 0.01, end: 0.015 }, 30), 0, "both ends round to the same frame");
+  assert.equal(plannedFrames({ start: 0, end: 300 }, 30, [[100, 102], [200, 202]]), 9000 - 120, "two cards inside: the frames of the three pieces (cut_episodes.py planned_frames)");
+  assert.equal(plannedFrames({ start: 0, end: 300 }, 30, [[400, 402]]), 9000, "a skip elsewhere changes nothing");
+  assert.equal(plannedFrames({ start: 100, end: 200 }, 30, [[90, 110]]), 2700, "a card straddling the start");
 
   const current: AdRules = { spoiler_from_s: 100, exclusions: [{ from_s: 1, to_s: 2, why: "old meta", source: "film_meta" }, { from_s: 5, to_s: 6, why: "a card a reviewer saw", source: "review" }] };
   const meta = { display_title_en: "X", source_title_en: null, crazydramas_slug: null, language: "en", spoiler_from_s: null, exclusions: [{ from_s: 10, to_s: 11, why: "stinger", kind: "stinger" }], live_poster: null, notes: null };

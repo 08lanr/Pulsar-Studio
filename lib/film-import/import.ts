@@ -40,9 +40,9 @@ import { normalizeSourceRef } from "@/lib/data/film-import";
 import { linkIntoLocalTier, localPathOf, localStoredPath, mediaUrl, putStoredBytes, uploadImport, workspaceRoot } from "@/lib/data/storage";
 import { ingestEpisodeFile } from "@/lib/ingest";
 import type { AdRules, Episode, FilmAsset, FilmAssetKind, Job, JobKind, Json, Title } from "@/lib/types";
-import { POSTER_FILE, listBandFixFiles, loadFilmIndex, sha256Hex } from "./manifest";
+import { POSTER_FILE, listBandFixFiles, loadFilmIndex, playedPieces, sha256Hex, skippedWithin } from "./manifest";
 import { applyImportState, nodeScanFs, resolveProject, scanFilm, scanWorkspace, workspacePath, type ProbeFn, type ScanOptions } from "./scan";
-import type { BoundaryNote, DeliveredEpisode, FilmIndex, FilmScan, FilmScanState, ScanReason, WhisperIndex } from "./types";
+import type { BoundaryNote, DeliveredEpisode, FilmIndex, FilmScan, FilmScanState, PlanSkip, ScanReason, WhisperIndex } from "./types";
 
 export const IMPORT_JOB_KIND: Extract<JobKind, "import_film"> = "import_film";
 
@@ -166,9 +166,19 @@ export function sha256File(file: string): Promise<string> {
   });
 }
 
-/** The frames the plan expects of an episode: the pipeline cuts on frame boundaries, `round(t * fps)` at each end. */
-export function plannedFrames(ep: Pick<DeliveredEpisode, "start" | "end">, fps: number): number {
-  return Math.round(ep.end * fps) - Math.round(ep.start * fps);
+/**
+ * The frames the plan expects of an episode: the pipeline cuts on frame
+ * boundaries, `round(t * fps)` at each end of every piece that plays
+ * (`cut_episodes.py planned_frames`), so an episode holding a trimmed span
+ * (a source-episodes plan's `skips`) counts the frames of its pieces only.
+ */
+export function plannedFrames(ep: Pick<DeliveredEpisode, "start" | "end">, fps: number, skips: readonly PlanSkip[] = []): number {
+  return playedPieces(ep, skips).reduce((n, [a, b]) => n + Math.max(0, Math.round(b * fps) - Math.round(a * fps)), 0);
+}
+
+/** The played length of an episode window in ms: the window minus the skips inside it. */
+export function playedMs(ep: Pick<DeliveredEpisode, "start" | "end">, skips: readonly PlanSkip[] = []): number {
+  return Math.round((ep.end - ep.start - skippedWithin(ep.start, ep.end, skips)) * 1000);
 }
 
 /**
@@ -176,18 +186,24 @@ export function plannedFrames(ep: Pick<DeliveredEpisode, "start" | "end">, fps: 
  * to episode time in ms, in the shape transcriptToCues reads (lib/asr.ts). A
  * word belongs to the episode whose window holds its midpoint, so a word
  * that straddles a boundary is written once. A whisper segment with no word
- * inside the window contributes nothing (its whole text would be wrong).
+ * inside the window contributes nothing (its whole text would be wrong). A
+ * word inside one of the plan's `skips` (a trimmed card) is dropped, and a
+ * word after a skip moves up by what the skip took out — the built episode
+ * is the pieces joined, so a cue after a card would otherwise land about the
+ * card's length late (plan B4).
  */
-export function sliceTranscript(whisper: Pick<WhisperIndex, "segments">, startS: number, endS: number): AsrSegment[] {
+export function sliceTranscript(whisper: Pick<WhisperIndex, "segments">, startS: number, endS: number, skips: readonly PlanSkip[] = []): AsrSegment[] {
   const out: AsrSegment[] = [];
-  const lengthMs = Math.round((endS - startS) * 1000);
-  const toMs = (s: number) => Math.min(lengthMs, Math.max(0, Math.round((s - startS) * 1000)));
+  const inside = skips.filter(([a, b]) => b > startS && a < endS);
+  const lengthMs = playedMs({ start: startS, end: endS }, inside);
+  const toMs = (s: number) => Math.min(lengthMs, Math.max(0, Math.round((s - startS - skippedWithin(startS, s, inside)) * 1000)));
+  const skipped = (t: number) => inside.some(([a, b]) => t >= a && t < b);
   for (const seg of whisper.segments) {
     if (seg.end <= startS || seg.start >= endS) continue;
     const words: AsrWord[] = [];
     for (const w of seg.words) {
       const mid = (w.s + w.e) / 2;
-      if (mid < startS || mid >= endS) continue;
+      if (mid < startS || mid >= endS || skipped(mid)) continue;
       words.push({ w: w.w, start_ms: toMs(w.s), end_ms: Math.max(toMs(w.e), toMs(w.s)) });
     }
     if (!words.length) continue;
@@ -789,7 +805,7 @@ async function run(p: Prepared): Promise<ImportResult> {
     const window = { film_start_ms: Math.round(ep.start * 1000), film_end_ms: Math.round(ep.end * 1000) };
     const endNote = endNoteFor(ep, boundaries.get(ep.n) ?? null, isLast);
     const have = known.get(ep.n);
-    let planned = fps ? plannedFrames(ep, fps) : null;
+    let planned = fps ? plannedFrames(ep, fps, plan.skips) : null;
     // The film's last episode ends at the container duration, where the source's last frames are not: the measured count is the plan's there (amendment 2 reads planned_frames for the cliff out-point).
     const capLast = (frames: number | null) => (isLast && planned !== null && frames !== null && frames < planned ? frames : planned);
 
@@ -820,8 +836,8 @@ async function run(p: Prepared): Promise<ImportResult> {
       flags.push(`ep${nn}: ${frames} frames on disk, the plan expects ${planned} (${frames - planned > 0 ? "+" : ""}${frames - planned})`);
       counts.flagged += 1;
     }
-    // The measured length, set before any transcript attaches (attachIngestToEpisode keeps a duration it finds; the last cue is not the file's end).
-    const durationMs = probed?.duration_s ? Math.round(probed.duration_s * 1000) : window.film_end_ms - window.film_start_ms;
+    // The measured length, set before any transcript attaches (attachIngestToEpisode keeps a duration it finds; the last cue is not the file's end); without a probe, what the window plays once the skips are out.
+    const durationMs = probed?.duration_s ? Math.round(probed.duration_s * 1000) : playedMs(ep, plan.skips);
     const patch = { source_ref: file.file, video_sha256: sha, video_bytes: bytes, video_frames: frames, duration_ms: durationMs, ...window, end_note: endNote, auto_cut: false as const };
     let row: Episode;
     if (have) {
@@ -861,7 +877,7 @@ async function run(p: Prepared): Promise<ImportResult> {
           if (changed.has(ep.n)) flags.push(`ep${String(ep.n).padStart(2, "0")}: kept its ${state.lines} existing lines, which are from the old window or file (a script is never replaced)`);
           continue;
         }
-        const cues = transcriptToCues({ segments: sliceTranscript(index.whisper, ep.start, ep.end) });
+        const cues = transcriptToCues({ segments: sliceTranscript(index.whisper, ep.start, ep.end, plan.skips) });
         if (!cues.length) {
           counts.transcripts_skipped += 1;
           continue;

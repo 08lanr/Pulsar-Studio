@@ -9,9 +9,9 @@
 // the known text is fitted to the audio rather than re-transcribed and
 // guessed. Configuration in docs/audio-alignment.md.
 
-import { spawn } from "node:child_process";
 import path from "node:path";
 import { resolveUploadPath } from "@/lib/data/storage";
+import { runProcess } from "@/lib/python";
 
 export type AlignmentCue = {
   line_id: string;
@@ -49,29 +49,11 @@ const localWhisper: AlignmentProvider = {
       cues,
       model: process.env.STUDIO_WHISPER_MODEL || "small",
     });
-    const out = await new Promise<string>((resolve, reject) => {
-      const p = spawn(python, [script], { env: { ...process.env, PYTHONIOENCODING: "utf-8" } });
-      let stdout = "";
-      let stderr = "";
-      p.stdout.on("data", (d) => (stdout += String(d)));
-      p.stderr.on("data", (d) => (stderr += String(d)));
-      const timer = setTimeout(() => {
-        p.kill();
-        reject(new Error("alignment timed out after 8 minutes"));
-      }, ALIGN_TIMEOUT_MS);
-      p.on("error", (e) => {
-        clearTimeout(timer);
-        reject(new Error(`could not run ${python}: ${e.message}`));
-      });
-      p.on("close", (code) => {
-        clearTimeout(timer);
-        if (code === 0) resolve(stdout);
-        else reject(new Error(`alignment failed: ${stderr.slice(-400) || `exit ${code}`}`));
-      });
-      p.stdin.write(job, "utf-8");
-      p.stdin.end();
-    });
-    const parsed = JSON.parse(out) as { proposals: AlignmentProposal[] };
+    // The shared runner (lib/python.ts): the JSON answer is the whole stdout; a timeout and a failure keep their messages.
+    const r = await runProcess(python, [script], { stdin: job, timeoutMs: ALIGN_TIMEOUT_MS, captureStdout: true, priority: "normal" }).done;
+    if (r.timedOut) throw new Error("alignment timed out after 8 minutes");
+    if (r.code !== 0) throw new Error(`alignment failed: ${r.stderrTail.slice(-400) || `exit ${r.code}`}`);
+    const parsed = JSON.parse(r.stdout) as { proposals: AlignmentProposal[] };
     return parsed.proposals;
   },
 };

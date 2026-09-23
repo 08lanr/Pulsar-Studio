@@ -73,7 +73,8 @@ import type {
 
 export type RunJobSpec<T> = {
   kind: JobKind;
-  title_id: string;
+  /** Null for a job on a target that is no title (a film run's vision pass); NewJob allows it and the row's target_id names the run. */
+  title_id: string | null;
   episode_id?: string | null;
   version_id?: string | null;
   target_type: string;

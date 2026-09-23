@@ -70,12 +70,13 @@ export default function Nav({ displayName, role }: NavProps) {
     { href: "/promote", label: tt("lv2.legacyCampaigns"), icon: <IconSparkle /> },
     { href: "/titles", label: tt("admin.nav.projects"), icon: <IconProjects /> },
     { href: "/films/import", label: tt("fi.nav"), icon: <IconFilm /> },
+    { href: "/films/runs", label: tt("seg.nav"), icon: <IconFilm /> },
     { href: "/producers", label: tt("admin.nav.producers"), icon: <IconProducers /> },
   ];
 
   // The header names the screen with the same word the rail uses; derived from
   // the path so no page threads a prop through. Deeper routes are matched first.
-  const title = pathname.startsWith("/films") ? tt("fi.nav") : pathname.startsWith("/clips") ? tt("lv2.clips.title") : pathname.startsWith("/meta") ? tt("lv2.meta.title") : pathname.startsWith("/promote/launches") ? tt("lv2.launch.title") : pathname.startsWith("/promote/monitor") ? tt("lv2.monitor.title") : pathname.startsWith("/tiktok")
+  const title = pathname.startsWith("/films/runs") ? tt("seg.nav") : pathname.startsWith("/films") ? tt("fi.nav") : pathname.startsWith("/clips") ? tt("lv2.clips.title") : pathname.startsWith("/meta") ? tt("lv2.meta.title") : pathname.startsWith("/promote/launches") ? tt("lv2.launch.title") : pathname.startsWith("/promote/monitor") ? tt("lv2.monitor.title") : pathname.startsWith("/tiktok")
     ? tt("admin.nav.connections")
     : pathname.startsWith("/promote")
     ? tt("lv2.legacyCampaigns")

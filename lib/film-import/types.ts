@@ -14,33 +14,45 @@
 
 // ---- review/cuts-0-<end>-DELIVERED.json ---------------------------------------------------
 
-/** One planned episode: `[start, end)` in film time; `dur` is the pipeline's own rounding of end - start. */
+/** One planned episode: `[start, end)` in film time; `dur` is the pipeline's own rounding of end - start; `play` (source-episodes mode) what plays once the skips are out. */
 export type DeliveredEpisode = {
   n: number;
   start: number;
   end: number;
   dur: number;
+  play: number | null;
   ends_after_line: string;
   next_opens_on: string;
 };
+
+/** A span of film time trimmed out of every episode that holds it (`[from, to)`, seconds): the source's own "To be continued" cards (cards.py). */
+export type PlanSkip = [number, number];
 
 /**
  * The delivered plan (`review/cuts-0-<end>-DELIVERED.json`). The newest by
  * numeric `<end>` is the one that counts (Mafia King keeps 0-1800,
  * 0-1936.533 and 0-5959.067 side by side). The first delivery of a film
  * (cuts-0-1800) has no `fps`, `pinned`, `pin_from`, `moves` or
- * `final_end_is_boundary`; later ones do.
+ * `final_end_is_boundary`; later ones do. A source-episodes plan (She
+ * Returned With Her Son, `cards.py --plan`) has no `target`, `band: null`,
+ * `source_breaks: true` and the `skips` the renderer leaves out.
  */
 export type DeliveredPlan = {
   source_duration: number;
-  target: number;
+  /** The episode length aimed at (~2-minute mode); null for a source-episodes plan. */
+  target: number | null;
   fps: number | null;
-  band: [number, number];
+  /** The length band the partition kept; null for a source-episodes plan. */
+  band: [number, number] | null;
   pinned: number | null;
   pin_from: string | null;
   /** The delivered boundaries a QA re-pin moved (`pick_cuts.py --repin`): `cut_episodes.py` refuses a plan that moves one it does not declare. */
   moves: PlanMove[];
   final_end_is_boundary: boolean | null;
+  /** True when the episodes are the source's own (cards.py --plan). */
+  source_breaks: boolean | null;
+  /** Spans the renderer trims out of the episodes that hold them (`cut_episodes.py pieces_of`); empty when none. */
+  skips: PlanSkip[];
   episodes: DeliveredEpisode[];
 };
 
@@ -285,6 +297,43 @@ export type ScannedVideo = {
   from: "source.json" | "probe";
 };
 
+/**
+ * Where a film is in the pipeline, read from its artifacts alone (plan B1,
+ * "artifact-derived stage"), so a restarted worker resumes from the last
+ * finished one. The newest step wins: a vision pass waiting on an unapplied
+ * `options.json` outranks an older delivery.
+ *   NO_SOURCE      no `source/*.mp4` and nothing in `cut/index/` yet
+ *   NOT_INDEXED    the source is there (or an index was started: `index/source.json`, whisper, scdet, motion or the watermark box) but `index/candidates.json` is not
+ *   INDEXED        candidates exist; no options emitted
+ *   OPTIONS_READY  `review/options.json` exists and is not stamped `applied` (a vision pass is due)
+ *   JUDGED         `review/choices.json` exists and the plan does not yet carry its choices
+ *   PLANNED        `cut/cuts.json` exists and differs from the newest DELIVERED plan (or the delivery's files are not complete)
+ *   RENDERING      a `.part` file in `eps/`, or a write there inside the quiet period
+ *   DELIVERED      the newest DELIVERED plan is what `cuts.json` holds and the episode files are exactly 1..N
+ */
+export type PipelineStage = "NO_SOURCE" | "NOT_INDEXED" | "INDEXED" | "OPTIONS_READY" | "JUDGED" | "PLANNED" | "RENDERING" | "DELIVERED";
+
+/** Which artifacts the stage was read from (all booleans: present or not). */
+export type PipelineArtifacts = {
+  /** `source/original.mp4` (or any `source/*.mp4`). */
+  source: boolean;
+  /** `index/source.json`, the first thing `index_cut.sh` writes (ffprobe facts). */
+  source_facts: boolean;
+  watermark: boolean;
+  unmark: boolean;
+  whisper: boolean;
+  scdet: boolean;
+  motion: boolean;
+  candidates: boolean;
+  skips: boolean;
+  options: boolean;
+  options_applied: boolean;
+  choices: boolean;
+  plan: boolean;
+  delivered: boolean;
+  parts: boolean;
+};
+
 export type FilmScan = {
   source_ref: string;
   /** The folder name (`mafia-king`). */
@@ -292,6 +341,11 @@ export type FilmScan = {
   display_title: string;
   state: FilmScanState;
   reason: ScanReason | null;
+  /** The pipeline stage the artifacts say the film is at (independent of the import state). */
+  pipeline_stage: PipelineStage;
+  /** A word on why it is that stage (the file that decided it), for the worker's log and the page. */
+  pipeline_note: string | null;
+  pipeline: PipelineArtifacts;
   episodes: ScannedEpisode[];
   /** The newest plan by numeric end, when one parses. */
   delivered: { file: string; end: number; count: number; sha256: string; plan: DeliveredPlan } | null;

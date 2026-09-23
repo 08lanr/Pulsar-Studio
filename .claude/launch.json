@@ -6,7 +6,7 @@
       "runtimeExecutable": "cmd",
       "runtimeArgs": [
         "/c",
-        "set WORKSPACE_ROOT=C:\\Users\\ruobi\\Github\\Pulsar-Workspace\\mini-drama-system\\projects&& set STUDIO_LOCAL_MEDIA_DIR=.uploads/local&& set STUDIO_WORK_DIR=.uploads/work&& npm run dev"
+        "set WORKSPACE_ROOT=C:\\Users\\ruobi\\Github\\Pulsar-Workspace\\mini-drama-system\\projects&& set STUDIO_LOCAL_MEDIA_DIR=.uploads/local&& set STUDIO_WORK_DIR=.uploads/work&& set STUDIO_PIPELINE_PYTHON=python&& set DRAMA_REMIX_ROOT=C:\\Users\\ruobi\\Github\\Pulsar-Workspace\\mini-drama-system\\drama-remix&& npm run dev"
       ],
       "port": 3200
     },
@@ -15,7 +15,7 @@
       "runtimeExecutable": "cmd",
       "runtimeArgs": [
         "/c",
-        "set DATA_SOURCE=fixture&& set TIKTOK_MODE=sandbox&& set WORKSPACE_ROOT=C:\\Users\\ruobi\\Github\\Pulsar-Workspace\\mini-drama-system\\projects&& set STUDIO_LOCAL_MEDIA_DIR=.uploads/local&& set STUDIO_WORK_DIR=.uploads/work&& set FFMPEG_PATH=%LOCALAPPDATA%\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-9.0.1-full_build\\bin\\ffmpeg.exe&& npm run dev"
+        "set DATA_SOURCE=fixture&& set TIKTOK_MODE=sandbox&& set WORKSPACE_ROOT=C:\\Users\\ruobi\\Github\\Pulsar-Workspace\\mini-drama-system\\projects&& set STUDIO_LOCAL_MEDIA_DIR=.uploads/local&& set STUDIO_WORK_DIR=.uploads/work&& set STUDIO_PIPELINE_PYTHON=python&& set DRAMA_REMIX_ROOT=C:\\Users\\ruobi\\Github\\Pulsar-Workspace\\mini-drama-system\\drama-remix&& set FFMPEG_PATH=%LOCALAPPDATA%\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-9.0.1-full_build\\bin\\ffmpeg.exe&& npm run dev"
       ],
       "port": 3200
     },
@@ -24,7 +24,7 @@
       "runtimeExecutable": "cmd",
       "runtimeArgs": [
         "/c",
-        "set DATA_SOURCE=fixture&& set TIKTOK_MODE=sandbox&& set FIXTURE_PERSIST=off&& set NEXT_DIST_DIR=.next-e2e&& set WORKSPACE_ROOT=C:\\Users\\ruobi\\Github\\Pulsar-Studio\\tests\\fixtures\\workspace&& set STUDIO_IMPORT_QUIET_MS=0&& set STUDIO_LOCAL_MEDIA_DIR=.uploads-e2e/local&& set STUDIO_WORK_DIR=.uploads-e2e/work&& set FFMPEG_PATH=%LOCALAPPDATA%\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-9.0.1-full_build\\bin\\ffmpeg.exe&& npx next dev -p 3201"
+        "set DATA_SOURCE=fixture&& set TIKTOK_MODE=sandbox&& set FIXTURE_PERSIST=off&& set NEXT_DIST_DIR=.next-e2e&& set WORKSPACE_ROOT=C:\\Users\\ruobi\\Github\\Pulsar-Studio\\tests\\fixtures\\workspace&& set STUDIO_IMPORT_QUIET_MS=0&& set STUDIO_FAKE_PIPELINE=1&& set STUDIO_LOCAL_MEDIA_DIR=.uploads-e2e/local&& set STUDIO_WORK_DIR=.uploads-e2e/work&& set STUDIO_PIPELINE_PYTHON=python&& set DRAMA_REMIX_ROOT=C:\\Users\\ruobi\\Github\\Pulsar-Workspace\\mini-drama-system\\drama-remix&& set FFMPEG_PATH=%LOCALAPPDATA%\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-9.0.1-full_build\\bin\\ffmpeg.exe&& npx next dev -p 3201"
       ],
       "port": 3201
     },
@@ -33,9 +33,17 @@
       "runtimeExecutable": "cmd",
       "runtimeArgs": [
         "/c",
-        "set DATA_SOURCE=supabase&& set TIKTOK_MODE=production&& set WORKSPACE_ROOT=C:\\Users\\ruobi\\Github\\Pulsar-Workspace\\mini-drama-system\\projects&& set STUDIO_LOCAL_MEDIA_DIR=.uploads/local&& set STUDIO_WORK_DIR=.uploads/work&& npm run dev"
+        "set DATA_SOURCE=supabase&& set TIKTOK_MODE=production&& set WORKSPACE_ROOT=C:\\Users\\ruobi\\Github\\Pulsar-Workspace\\mini-drama-system\\projects&& set STUDIO_LOCAL_MEDIA_DIR=.uploads/local&& set STUDIO_WORK_DIR=.uploads/work&& set STUDIO_PIPELINE_PYTHON=python&& set DRAMA_REMIX_ROOT=C:\\Users\\ruobi\\Github\\Pulsar-Workspace\\mini-drama-system\\drama-remix&& npm run dev"
       ],
       "port": 3200
+    },
+    {
+      "name": "studio-segment-worker",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set DATA_SOURCE=supabase&& set WORKSPACE_ROOT=C:\\Users\\ruobi\\Github\\Pulsar-Workspace\\mini-drama-system\\projects&& set STUDIO_LOCAL_MEDIA_DIR=.uploads/local&& set STUDIO_WORK_DIR=.uploads/work&& set STUDIO_PIPELINE_PYTHON=python&& set DRAMA_REMIX_ROOT=C:\\Users\\ruobi\\Github\\Pulsar-Workspace\\mini-drama-system\\drama-remix&& npx tsx scripts/segment-worker.ts"
+      ]
     },
     {
       "name": "studio-live-3203",

@@ -20,6 +20,7 @@ import type {
   Clip,
   Episode,
   FilmAsset,
+  FilmRun,
   Job,
   LaunchPreset,
   Line,
@@ -82,6 +83,8 @@ export type FixtureDb = {
   instant_page_templates: import("@/lib/types").InstantPageTemplate[];
   /** The pipeline files that came with an imported film (migration 0015); append-only, newest per kind wins. */
   film_assets: FilmAsset[];
+  /** Segmenting runs of the pipeline (migration 0016): the run row is the progress record. */
+  film_runs: FilmRun[];
 };
 
 export const fixtureDb: FixtureDb = {
@@ -116,6 +119,7 @@ export const fixtureDb: FixtureDb = {
   launch_presets: [],
   instant_page_templates: [],
   film_assets: [],
+  film_runs: [],
 };
 
 export type FixtureSeed = "demo" | "empty";

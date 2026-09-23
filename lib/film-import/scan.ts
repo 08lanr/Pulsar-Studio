@@ -23,7 +23,7 @@ import { promises as fsp } from "node:fs";
 import path from "node:path";
 import { isPartialFile, parseWorkspaceEpisodeFile } from "@/lib/ingest/episode-number";
 import { listPosters, parseDeliveredPlan, parseFilmMeta, parseSourceFacts, pickNewestDelivered, sha256Hex, toSourceRef } from "./manifest";
-import type { FilmMeta, FilmScan, ScanDirent, ScanFs, ScanReason, ScanStat, ScannedEpisode, ScannedVideo } from "./types";
+import type { DeliveredPlan, FilmMeta, FilmScan, PipelineArtifacts, PipelineStage, ScanDirent, ScanFs, ScanReason, ScanStat, ScannedEpisode, ScannedVideo } from "./types";
 
 /** No write in `eps/` may be younger than this for a film to be READY (spec §3.3). */
 export const DEFAULT_QUIET_MS = 5 * 60 * 1000;
@@ -218,6 +218,104 @@ async function probeViaLink(sfs: ScanFs, opts: ScanOptions, original: string, fo
   }
 }
 
+// ---- the pipeline stage (plan B1, "artifact-derived stage") -----------------------------------------
+
+export const EMPTY_ARTIFACTS: PipelineArtifacts = {
+  source: false,
+  source_facts: false,
+  watermark: false,
+  unmark: false,
+  whisper: false,
+  scdet: false,
+  motion: false,
+  candidates: false,
+  skips: false,
+  options: false,
+  options_applied: false,
+  choices: false,
+  plan: false,
+  delivered: false,
+  parts: false,
+};
+
+const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
+
+/** True when `cut/cuts.json` is the plan the newest DELIVERED file records: the same episode windows and the same skips (formatting aside). */
+export function planMatchesDelivered(plan: DeliveredPlan, delivered: DeliveredPlan): boolean {
+  if (plan.episodes.length !== delivered.episodes.length || plan.skips.length !== delivered.skips.length) return false;
+  if (!plan.episodes.every((e, i) => near(e.start, delivered.episodes[i].start, 0.0015) && near(e.end, delivered.episodes[i].end, 0.0015))) return false;
+  return plan.skips.every((s, i) => near(s[0], delivered.skips[i][0], 0.0015) && near(s[1], delivered.skips[i][1], 0.0015));
+}
+
+/**
+ * True when the plan already carries every choice of `review/choices.json`
+ * (`pick_cuts.py --choices` ran after apply_vision): each chosen time is an
+ * episode end, the film's end, or the `from` of a move the plan declares (a
+ * QA re-pin moved the boundary on after it was chosen — He Hated All Women's
+ * 3276.333 → 3278.3). False when there is no plan.
+ */
+export function choicesConsumed(choices: Record<string, number>, plan: DeliveredPlan | null): boolean {
+  if (!plan) return false;
+  const ends = plan.episodes.map((e) => e.end);
+  return Object.values(choices).every((t) => ends.some((e) => near(e, t, 0.002)) || plan.moves.some((m) => near(m.from, t, 0.05)));
+}
+
+export type StageFacts = {
+  artifacts: PipelineArtifacts;
+  /** `cut/cuts.json`, parsed, when it is there and parses. */
+  plan: DeliveredPlan | null;
+  /** The newest DELIVERED plan, parsed, when it is there and parses. */
+  delivered: DeliveredPlan | null;
+  /** `review/choices.json` when it is there and parses. */
+  choices: Record<string, number> | null;
+  /** The first `.part` file in `eps/`, when a render is writing. */
+  part: string | null;
+  /** A write in `eps/` inside the quiet period (the scanner's own rule), as its file name. */
+  recentWrite: string | null;
+  /** The disk-only import state: READY means the delivered files are exactly 1..N. */
+  ready: boolean;
+};
+
+/** The stage the artifacts say, newest step first, with the file that decided it (see PipelineStage). Pure; the scanner feeds it. */
+export function pipelineStageOf(f: StageFacts): { stage: PipelineStage; note: string | null } {
+  const a = f.artifacts;
+  if (f.part) return { stage: "RENDERING", note: `eps/${f.part} is being written` };
+  if (a.options && !a.options_applied) return { stage: "OPTIONS_READY", note: "review/options.json is not applied: a vision pass is due" };
+  if (f.choices && !choicesConsumed(f.choices, f.plan)) return { stage: "JUDGED", note: f.plan ? "review/choices.json is not in cut/cuts.json yet" : "review/choices.json waits for pick_cuts.py --choices" };
+  if (f.plan) {
+    if (!f.delivered) return { stage: "PLANNED", note: "cut/cuts.json has no DELIVERED render yet" };
+    if (!planMatchesDelivered(f.plan, f.delivered)) return { stage: "PLANNED", note: "cut/cuts.json differs from the newest DELIVERED plan" };
+    if (f.recentWrite) return { stage: "RENDERING", note: `eps/${f.recentWrite} was written inside the quiet period` };
+    if (f.ready) return { stage: "DELIVERED", note: null };
+    return { stage: "PLANNED", note: "the DELIVERED plan's episode files are not complete: render again" };
+  }
+  if (f.delivered) {
+    if (f.recentWrite) return { stage: "RENDERING", note: `eps/${f.recentWrite} was written inside the quiet period` };
+    return f.ready ? { stage: "DELIVERED", note: null } : { stage: "PLANNED", note: "the DELIVERED plan's episode files are not complete: render again" };
+  }
+  if (a.options) return { stage: "OPTIONS_READY", note: "review/options.json is applied but no choices.json followed" };
+  if (a.candidates) return { stage: "INDEXED", note: null };
+  if (a.source || a.source_facts || a.whisper || a.scdet || a.motion || a.watermark) return { stage: "NOT_INDEXED", note: a.source ? "index/candidates.json is missing" : "no source/*.mp4; an index was started" };
+  return { stage: "NO_SOURCE", note: "no source/*.mp4" };
+}
+
+/** True when a `review/options.json` text carries apply_vision.py's `applied` stamp (a cheap regex; the file is ~300 KB and the stamp is its last key). */
+export function optionsApplied(text: string): boolean {
+  return /"applied"\s*:\s*\{/.test(text);
+}
+
+async function readSmallJson(sfs: ScanFs, file: string): Promise<unknown> {
+  return JSON.parse(stripBom(await sfs.readFile(file)));
+}
+
+/** The film's source video: `source/original.mp4` (the pipeline's name), else any `.mp4` in `source/`. */
+async function hasSource(sfs: ScanFs, filmDir: string): Promise<boolean> {
+  const dir = path.join(filmDir, "source");
+  if (!(await isDir(sfs, dir))) return false;
+  if (await sfs.stat(path.join(dir, "original.mp4"))) return true;
+  return (await sfs.readdir(dir)).some((e) => e.kind === "file" && /\.mp4$/i.test(e.name));
+}
+
 function choosePoster(posters: string[], meta: FilmMeta | null): string | null {
   if (!posters.length) return null;
   const want = meta?.live_poster?.toLowerCase();
@@ -251,12 +349,18 @@ export async function scanFilm(sourceRef: string, opts: ScanOptions): Promise<Fi
     }
   }
 
+  const artifacts: PipelineArtifacts = { ...EMPTY_ARTIFACTS, source: await hasSource(sfs, abs) };
+  const facts: StageFacts = { artifacts, plan: null, delivered: null, choices: null, part: null, recentWrite: null, ready: false };
+
   const scan: FilmScan = {
     source_ref: sourceRef,
     folder,
     display_title: meta?.display_title_en ?? titleFromFolder(folder),
     state: "NO_MANIFEST",
     reason: null,
+    pipeline_stage: "NO_SOURCE",
+    pipeline_note: null,
+    pipeline: artifacts,
     episodes: [],
     delivered: null,
     totals: { count: 0, bytes: 0 },
@@ -268,9 +372,55 @@ export async function scanFilm(sourceRef: string, opts: ScanOptions): Promise<Fi
     ignored,
     warnings,
   };
-  const done = (state: FilmScan["state"], reason: ScanReason | null): FilmScan => ({ ...scan, state, reason });
+  const done = (state: FilmScan["state"], reason: ScanReason | null): FilmScan => {
+    facts.ready = state === "READY";
+    const staged = pipelineStageOf(facts);
+    return { ...scan, state, reason, pipeline_stage: staged.stage, pipeline_note: staged.note, pipeline: { ...artifacts } };
+  };
 
   if (!(await isDir(sfs, cutDir))) return done("NO_MANIFEST", { code: "no_cut_dir" });
+
+  // The pipeline's artifacts: presence only, plus the three small files the stage turns on.
+  const present = async (rel: string) => !!(await sfs.stat(path.join(cutDir, ...rel.split("/"))));
+  artifacts.source_facts = await present("index/source.json");
+  artifacts.watermark = await present("index/watermark.json");
+  artifacts.unmark = await present("index/unmark/mark_model.json");
+  artifacts.whisper = await present("index/whisper.json");
+  artifacts.scdet = await present("index/scdet.txt");
+  artifacts.motion = await present("index/motion.json");
+  artifacts.candidates = await present("index/candidates.json");
+  artifacts.skips = await present("index/skips.json");
+  if (await present("review/options.json")) {
+    artifacts.options = true;
+    try {
+      artifacts.options_applied = optionsApplied(await sfs.readFile(path.join(cutDir, "review", "options.json")));
+    } catch (e) {
+      warnings.push(`review/options.json: ${firstLine(e)}`);
+    }
+  }
+  if (await present("review/choices.json")) {
+    artifacts.choices = true;
+    try {
+      const raw = await readSmallJson(sfs, path.join(cutDir, "review", "choices.json"));
+      if (typeof raw !== "object" || raw === null || Array.isArray(raw)) throw new Error("not an object of boundary -> time");
+      const out: Record<string, number> = {};
+      for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+        if (typeof v !== "number" || !Number.isFinite(v)) throw new Error(`choice ${k} is not a time`);
+        out[k] = v;
+      }
+      facts.choices = out;
+    } catch (e) {
+      warnings.push(`review/choices.json: ${firstLine(e)}`);
+    }
+  }
+  if (await present("cuts.json")) {
+    artifacts.plan = true;
+    try {
+      facts.plan = parseDeliveredPlan(await readSmallJson(sfs, path.join(cutDir, "cuts.json")));
+    } catch (e) {
+      warnings.push(`cut/cuts.json: ${firstLine(e)}`);
+    }
+  }
 
   // The episode files: names and stats only.
   const epsDir = path.join(cutDir, "eps");
@@ -301,6 +451,9 @@ export async function scanFilm(sourceRef: string, opts: ScanOptions): Promise<Fi
   }
   parts.sort();
   ignored.sort();
+  artifacts.parts = parts.length > 0;
+  facts.part = parts[0] ?? null;
+  if (quietMs > 0 && newestWrite && now() - newestWrite.mtime_ms < quietMs) facts.recentWrite = newestWrite.name;
   scan.episodes = [...byNumber.values()].flat().sort((a, b) => a.n - b.n || a.name.localeCompare(b.name));
   scan.totals = { count: scan.episodes.length, bytes: scan.episodes.reduce((s, e) => s + e.bytes, 0) };
 
@@ -324,17 +477,19 @@ export async function scanFilm(sourceRef: string, opts: ScanOptions): Promise<Fi
   const reviewNames = (await isDir(sfs, review)) ? (await sfs.readdir(review)).filter((d) => d.kind === "file").map((d) => d.name) : [];
   const newest = pickNewestDelivered(reviewNames);
   if (!newest) return done("NOT_DELIVERED", { code: "no_delivered" });
+  artifacts.delivered = true;
   try {
     const bytes = await sfs.readBytes(path.join(review, newest.file));
     const plan = parseDeliveredPlan(JSON.parse(stripBom(Buffer.from(bytes).toString("utf8"))));
     scan.delivered = { file: `review/${newest.file}`, end: newest.end, count: plan.episodes.length, sha256: sha256Hex(bytes), plan };
+    facts.delivered = plan;
   } catch (e) {
     return done("NO_MANIFEST", { code: "bad_delivered", file: `review/${newest.file}`, detail: firstLine(e) });
   }
 
   // READY, or why not (spec §3.3).
   if (parts.length) return done("RENDERING", { code: "part_file", file: parts[0] });
-  if (quietMs > 0 && newestWrite && now() - newestWrite.mtime_ms < quietMs) {
+  if (newestWrite && facts.recentWrite) {
     return done("RENDERING", { code: "recent_write", file: newestWrite.name, seconds_ago: Math.max(0, Math.round((now() - newestWrite.mtime_ms) / 1000)) });
   }
   if (placeholder) return done("NOT_DELIVERED", { code: "placeholder", file: placeholder });
@@ -378,6 +533,12 @@ export function applyImportState(scan: FilmScan, stored: StoredImport | null): F
 /** The workspace path of a source ref (for the import's hardlink source; never for reading). */
 export function workspacePath(root: string, sourceRef: string): string {
   return path.join(root, ...sourceRef.split("/"));
+}
+
+/** The pipeline stage of one film, read from its artifacts (the scan without the import state). */
+export async function pipelineStage(sourceRef: string, opts: ScanOptions): Promise<{ stage: PipelineStage; note: string | null; artifacts: PipelineArtifacts }> {
+  const s = await scanFilm(sourceRef, opts);
+  return { stage: s.pipeline_stage, note: s.pipeline_note, artifacts: s.pipeline };
 }
 
 export { toSourceRef };

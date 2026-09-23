@@ -33,6 +33,11 @@ import type {
   FilmAsset,
   FilmAssetKind,
   FilmAssetOrigin,
+  FilmRun,
+  FilmRunDecision,
+  FilmRunMode,
+  FilmRunSettings,
+  FilmRunStage,
   CreativeResult,
   LaunchPreset,
   InstantPageTemplate,
@@ -191,6 +196,54 @@ export type NewFilmAsset = {
   source_ref?: string | null;
   meta?: Json;
 };
+
+// ---- film runs (decision 2026-09-23, "segment a film in Studio"; migration 0016) ----------------
+
+/** What intake records: the film, where it goes, how it is cut. Staff only (the phase is staff-gated). */
+export type NewFilmRun = {
+  producer_id: string;
+  /** The source video as picked at intake (absolute path; stored with forward slashes). */
+  source_path: string;
+  /** The workspace bucket (`low-quality`) and the film folder (`she-returned-with-her-son`): the film is `<bucket>/<slug>`. */
+  bucket: string;
+  slug: string;
+  /** `narrated` is reserved for the next phase: both backends refuse it (`invalid`). */
+  mode: FilmRunMode;
+  /** Whisper's `--lang`; `en` when absent. */
+  lang?: string | null;
+  settings?: FilmRunSettings | null;
+  /** The first stage; `queued` when absent. */
+  stage?: FilmRunStage;
+  drama_remix_sha?: string | null;
+  drama_remix_dirty?: boolean;
+  title_id?: string | null;
+};
+
+/** A worker's claim on a run: the row's revision as it read it, its own name, and how long it wants. */
+export type ClaimFilmRunInput = {
+  owner: string;
+  revision: number;
+  /** Default ten minutes (FILM_RUN_LEASE_MS). */
+  leaseMs?: number;
+};
+
+/** A stage write, revision-conditional; `owner` (the lease holder) makes a foreign live lease a conflict too. */
+export type FilmRunStageInput = {
+  stage: FilmRunStage;
+  stage_detail?: Json;
+  error_text?: string | null;
+  revision: number;
+  owner?: string;
+  /** The drama-remix commit the scripts were synced from, recorded by the intake stage. */
+  drama_remix_sha?: string | null;
+  drama_remix_dirty?: boolean;
+  title_id?: string | null;
+};
+
+/** A decision as the review screen records it; `at` and `by` are stamped by the data layer. */
+export type NewFilmRunDecision = Omit<FilmRunDecision, "at" | "by"> & { by?: string };
+
+export { FILM_RUN_LEASE_MS } from "./film-runs";
 
 /** Storage paths (lib/data/storage.ts) of what the ingest route stored; both optional. */
 export type IngestFiles = {
@@ -714,7 +767,45 @@ export interface DataLayer {
   latestEpisodeJob(session: Session, titleId: string, episodeNumber: number, kind: JobKind): Promise<Job | null>;
   /** A long run says it is still alive (lib/clips/state.ts treats a quiet heartbeat as a dead run). */
   heartbeatJob(session: Session, jobId: string): Promise<void>;
+  /**
+   * The newest job (any status) on a target that is not an episode — a film
+   * run's `segment_film` job, keyed by `target_type` / `target_id` — or null.
+   * Staff or the system only: a job row is Pulsar's spend record.
+   */
+  latestJobByTarget(session: Session, targetType: string, targetId: string, kind?: JobKind): Promise<Job | null>;
   sumCostCents(titleId: string): Promise<number>;
+
+  // film runs (decision 2026-09-23; migration 0016). Staff-gated for now: staff
+  // and the system read and write every run; a producer session reads its own
+  // company's runs (RLS) and writes nothing. Refusals are the same in both
+  // backends: a foreign run is not_found, a producer write is forbidden, a
+  // stale revision is conflict, `narrated` is invalid.
+  /** Staff or the system: the row intake writes. `stage` defaults to `queued`, `settings` to `{}`, `lang` to `en`. */
+  createFilmRun(session: Session, input: NewFilmRun): Promise<FilmRun>;
+  getFilmRun(session: Session, runId: string): Promise<FilmRun>;
+  /** Newest first. Staff: every company's, or one with `producerId`; a producer: their own company's only (another company's `producerId` reads empty). */
+  listFilmRuns(session: Session, opts?: { producerId?: string }): Promise<FilmRun[]>;
+  /**
+   * A worker takes the run: succeeds only when `revision` is still the row's
+   * (CAS) and no OTHER owner holds a live lease; then `lease_owner` /
+   * `leased_until` (ten minutes) are set and the revision bumps. Null when
+   * the race was lost (the revision moved or another live lease holds the
+   * row) — never a throw for that, so the worker can move on. Staff or the system.
+   */
+  claimFilmRun(session: Session, runId: string, input: ClaimFilmRunInput): Promise<FilmRun | null>;
+  /** The lease holder extends its lease without touching the revision; conflict when `owner` does not hold the lease. */
+  renewFilmRunLease(session: Session, runId: string, input: { owner: string; leaseMs?: number }): Promise<FilmRun>;
+  /**
+   * Move the run to a stage, revision-conditionally: conflict when `revision`
+   * is not the row's (someone wrote since — re-read and decide again) or when
+   * `owner` is given and another live lease holds the row. `error_text` is
+   * kept as given (null clears it); the revision bumps.
+   */
+  setFilmRunStage(session: Session, runId: string, input: FilmRunStageInput): Promise<FilmRun>;
+  /** Staff or the system: append one decision (stamped `at` now, `by` the session unless given); the revision bumps. */
+  appendFilmRunDecision(session: Session, runId: string, decision: NewFilmRunDecision): Promise<FilmRun>;
+  /** The lease holder (or anyone once it expired) gives the run back: lease cleared, revision bumped. Conflict when another live lease holds it. */
+  releaseFilmRun(session: Session, runId: string, input: { owner: string }): Promise<FilmRun>;
 
   // partner portal
   getProducerTitles(session: Session): Promise<ProducerTitleSummary[]>;

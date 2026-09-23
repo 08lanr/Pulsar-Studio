@@ -28,6 +28,7 @@ import {
   pickNewestDelivered,
 } from "@/lib/film-import/manifest";
 import { nodeScanFs } from "@/lib/film-import/scan";
+import { playedPieces, skippedWithin } from "@/lib/film-import/manifest";
 import type { DeliveredPlan, VisionBoundary } from "@/lib/film-import/types";
 
 const FIXTURE_ROOT = path.join(process.cwd(), "tests", "fixtures", "workspace");
@@ -72,6 +73,39 @@ test("the delivered plan parses the pipeline's shape and refuses a broken one", 
   assert.throws(() => parseDeliveredPlan({ ...base, episodes: [base.episodes[0], base.episodes[2]] }), /numbered 3/);
   assert.throws(() => parseDeliveredPlan({ ...base, episodes: [base.episodes[0], { ...base.episodes[1], start: 4.5 }, base.episodes[2]] }), /starts at 4.5/);
   assert.throws(() => parseDeliveredPlan({ ...base, episodes: [] }));
+  assert.equal(plan.target, 5);
+  assert.deepEqual(plan.skips, []);
+  assert.equal(plan.source_breaks, null);
+  assert.equal(plan.episodes[0].play, null);
+});
+
+test("a source-episodes plan (cards.py --plan, She Returned With Her Son): no target, band null, the skips the renderer trims out (plan B4)", () => {
+  const src = {
+    source_duration: 5527.301, fps: 30.0, band: null, pinned: 0, pin_from: null, moves: [], final_end_is_boundary: true, source_breaks: true,
+    skips: [[100.3, 102.167], [253.1, 254.933]],
+    cards: [[100.3, 102.167], [253.1, 254.933]],
+    episodes: [
+      { n: 1, start: 0.0, end: 102.167, dur: 102.17, play: 100.3, ends_after_line: "", next_opens_on: "" },
+      { n: 2, start: 102.167, end: 254.933, dur: 152.77, play: 150.93, ends_after_line: "", next_opens_on: "" },
+    ],
+  };
+  const plan = parseDeliveredPlan(src);
+  assert.equal(plan.target, null);
+  assert.equal(plan.band, null);
+  assert.equal(plan.source_breaks, true);
+  assert.deepEqual(plan.skips, [[100.3, 102.167], [253.1, 254.933]]);
+  assert.equal(plan.episodes[1].play, 150.93);
+  assert.throws(() => parseDeliveredPlan({ ...src, skips: [[102.167, 100.3]] }), /before it starts/);
+  assert.throws(() => parseDeliveredPlan({ ...src, skips: [[100.3, 102.167], [101, 103]] }), /inside the previous one/);
+  assert.throws(() => parseDeliveredPlan({ ...src, skips: [[100.3]] }));
+  assert.deepEqual(playedPieces(plan.episodes[0], plan.skips), [[0, 100.3]], "a card at the end of the episode leaves one piece");
+  assert.deepEqual(playedPieces(plan.episodes[1], plan.skips), [[102.167, 253.1]]);
+  assert.deepEqual(playedPieces({ start: 0, end: 300 }, [[100, 102], [200, 202]]), [[0, 100], [102, 200], [202, 300]], "two cards inside: three pieces");
+  assert.deepEqual(playedPieces({ start: 0, end: 300 }, [[400, 402]]), [[0, 300]], "a skip elsewhere changes nothing");
+  assert.deepEqual(playedPieces({ start: 100, end: 200 }, [[90, 110]]), [[110, 200]], "a card straddling the start");
+  assert.equal(skippedWithin(0, 300, [[100, 102], [200, 202]]), 4);
+  assert.equal(skippedWithin(0, 101, [[100, 102]]), 1, "only the part inside the window");
+  assert.equal(skippedWithin(0, 100, [[100, 102]]), 0);
 });
 
 // ---- index/ -------------------------------------------------------------------------------------
@@ -172,13 +206,13 @@ test("band-fix notes name the boundaries a person moved, not the picks they kept
 
 test("every delivered boundary is explained by the record that set it", () => {
   const plan: DeliveredPlan = {
-    source_duration: 500, target: 120, fps: 30, band: [95, 150], pinned: null, pin_from: null, moves: [], final_end_is_boundary: null,
+    source_duration: 500, target: 120, fps: 30, band: [95, 150], pinned: null, pin_from: null, moves: [], final_end_is_boundary: null, source_breaks: null, skips: [],
     episodes: [
-      { n: 1, start: 0, end: 100, dur: 100, ends_after_line: "", next_opens_on: "" },
-      { n: 2, start: 100, end: 210, dur: 110, ends_after_line: "", next_opens_on: "" },
-      { n: 3, start: 210, end: 300, dur: 90, ends_after_line: "", next_opens_on: "" },
-      { n: 4, start: 300, end: 400, dur: 100, ends_after_line: "", next_opens_on: "" },
-      { n: 5, start: 400, end: 500, dur: 100, ends_after_line: "", next_opens_on: "" },
+      { n: 1, start: 0, end: 100, dur: 100, play: null, ends_after_line: "", next_opens_on: "" },
+      { n: 2, start: 100, end: 210, dur: 110, play: null, ends_after_line: "", next_opens_on: "" },
+      { n: 3, start: 210, end: 300, dur: 90, play: null, ends_after_line: "", next_opens_on: "" },
+      { n: 4, start: 300, end: 400, dur: 100, play: null, ends_after_line: "", next_opens_on: "" },
+      { n: 5, start: 400, end: 500, dur: 100, play: null, ends_after_line: "", next_opens_on: "" },
     ],
   };
   const rec = (chosen: number, better: number | null): VisionBoundary => ({

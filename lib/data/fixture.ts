@@ -52,6 +52,7 @@ import type {
   Clip,
   Episode,
   FilmAsset,
+  FilmRun,
   Job,
   Json,
   Line,
@@ -73,6 +74,7 @@ import type {
 } from "@/lib/types";
 import { withHistoricalPromoSeed, legacyCampaignRetired, conflict, forbidden, frozen, invalid, notFound } from "./errors";
 import { episodeImportPatch, filmAssetRow, normalizeSourceRef, validateAdRules } from "./film-import";
+import { claimFields, decisionRow, filmRunRow, normalizeFilmRun, releaseFields, renewFields, stageFields } from "./film-runs";
 import type {
   ApproveOptions,
   DataLayer,
@@ -145,6 +147,7 @@ function store(): Store {
   s.db.launch_presets ??= [];
   s.db.instant_page_templates ??= [];
   s.db.film_assets ??= [];
+  s.db.film_runs ??= [];
   // Rows seeded or saved before the workspace import (migration 0015) lack its columns; a reader sees one shape.
   for (const t of s.db.titles) {
     t.source_ref ??= null;
@@ -604,6 +607,17 @@ function launchedRow(db: FixtureDb, campaign: PromoCampaign, any: boolean): { ca
 /** The engine and the scheduler (system) or Pulsar staff. */
 function requireSystemOrStaff(session: Session): void {
   if (!isSystemSession(session) && session.kind !== "staff") throw forbidden("Pulsar staff only");
+}
+
+/** A film run the session may read: staff and the system see every run, a producer their own company's; a foreign run is not found (never forbidden), as RLS answers. */
+function readableFilmRun(db: FixtureDb, session: Session, runId: string): FilmRun {
+  requireMemberSession(session);
+  const run = db.film_runs.find((r) => r.id === runId);
+  if (!run || (session.kind === "producer" && run.producer_id !== session.producerId)) throw notFound("film run", runId);
+  run.decisions ??= [];
+  run.settings ??= {};
+  run.stage_detail ??= {};
+  return run;
 }
 
 function blank(s: string | null | undefined): boolean {
@@ -2391,8 +2405,93 @@ export const fixtureData: DataLayer = {
     job.heartbeat_at = now();
   },
 
+  async latestJobByTarget(session, targetType, targetId, kind) {
+    const { db } = store();
+    requireSystemOrStaff(session); // a job row is Pulsar's spend record; a producer session never reads one by target
+    const jobs = db.jobs
+      .filter((j) => j.target_type === targetType && j.target_id === targetId && (kind === undefined || j.kind === kind))
+      .sort((a, b) => b.created_at.localeCompare(a.created_at) || (b.started_at ?? "").localeCompare(a.started_at ?? ""));
+    return jobs.length ? clone(jobs[0]) : null;
+  },
+
   async sumCostCents(titleId) {
     return costOf(store().db, titleId);
+  },
+
+  // ---- film runs (decision 2026-09-23; migration 0016) ----
+
+  async createFilmRun(session, input) {
+    const s = store();
+    requireSystemOrStaff(session); // staff-gated for now: a producer session creates nothing
+    const row = filmRunRow(input);
+    findProducer(s.db, row.producer_id); // not_found for a company that does not exist, as the FK would be
+    const at = now();
+    const run: FilmRun = { id: randomUUID(), created_at: at, updated_at: at, ...row, created_by: isSystemSession(session) ? null : session.userId };
+    s.db.film_runs.push(run);
+    audit(s, session, "create_film_run", "studio.film_runs", run.id, null, null, { producer_id: run.producer_id, bucket: run.bucket, slug: run.slug, mode: run.mode, stage: run.stage });
+    return clone(run);
+  },
+
+  async getFilmRun(session, runId) {
+    return clone(readableFilmRun(store().db, session, runId));
+  },
+
+  async listFilmRuns(session, opts = {}) {
+    const { db } = store();
+    requireMemberSession(session);
+    // A producer sees only their own company's runs; another company's producerId reads empty, never forbidden (RLS would answer the same).
+    const producerId = session.kind === "producer" ? session.producerId ?? null : opts.producerId ?? null;
+    if (session.kind === "producer" && opts.producerId && opts.producerId !== producerId) return [];
+    const rows = db.film_runs.filter((r) => !producerId || r.producer_id === producerId).slice().reverse();
+    return clone(rows.sort((a, b) => b.created_at.localeCompare(a.created_at)).map(normalizeFilmRun));
+  },
+
+  async claimFilmRun(session, runId, input) {
+    const s = store();
+    requireSystemOrStaff(session);
+    const run = readableFilmRun(s.db, session, runId);
+    const fields = claimFields(run, input);
+    if (!fields) return null;
+    Object.assign(run, fields);
+    return clone(run);
+  },
+
+  async renewFilmRunLease(session, runId, input) {
+    const s = store();
+    requireSystemOrStaff(session);
+    const run = readableFilmRun(s.db, session, runId);
+    Object.assign(run, renewFields(run, input));
+    return clone(run);
+  },
+
+  async setFilmRunStage(session, runId, input) {
+    const s = store();
+    requireSystemOrStaff(session);
+    const run = readableFilmRun(s.db, session, runId);
+    const before: Json = { stage: run.stage, revision: run.revision, error_text: run.error_text };
+    Object.assign(run, stageFields(run, input));
+    audit(s, session, "set_film_run_stage", "studio.film_runs", run.id, run.title_id, before, { stage: run.stage, revision: run.revision, error_text: run.error_text });
+    return clone(run);
+  },
+
+  async appendFilmRunDecision(session, runId, decision) {
+    const s = store();
+    requireSystemOrStaff(session);
+    const run = readableFilmRun(s.db, session, runId);
+    const row = decisionRow(decision, isSystemSession(session) ? "system" : session.userId);
+    run.decisions = [...(run.decisions ?? []), row];
+    run.revision += 1;
+    run.updated_at = now();
+    audit(s, session, "film_run_decision", "studio.film_runs", run.id, run.title_id, null, row as unknown as Json);
+    return clone(run);
+  },
+
+  async releaseFilmRun(session, runId, input) {
+    const s = store();
+    requireSystemOrStaff(session);
+    const run = readableFilmRun(s.db, session, runId);
+    Object.assign(run, releaseFields(run, input));
+    return clone(run);
   },
 
   // ---- partner portal ----

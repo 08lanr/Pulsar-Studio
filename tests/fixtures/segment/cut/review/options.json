@@ -1,0 +1,235 @@
+{
+ "duration": 7259.533,
+ "band": [
+  95.0,
+  150.0
+ ],
+ "strips_stale": false,
+ "strip": {
+  "window": 5.0,
+  "step": 0.5,
+  "cols": 6
+ },
+ "boundaries": [
+  {
+   "boundary_s": 424.433,
+   "dp_pick": 424.433,
+   "before": [
+    {
+     "t": 362.3,
+     "text": "The baby in the nursery the blood type was confirmed twice. There's no mistake"
+    },
+    {
+     "t": 391.6,
+     "text": "Run a paternity test. I want proof that he's a sterling"
+    },
+    {
+     "t": 397.1,
+     "text": "They're rushing the results now that bastard Julian"
+    },
+    {
+     "t": 409.4,
+     "text": "He acts like some celibate saint"
+    },
+    {
+     "t": 412.7,
+     "text": "Yet he fathered a child behind our backs my precious boy. I'm taking you home"
+    }
+   ],
+   "after": [
+    {
+     "t": 426.8,
+     "text": "So fair and chubby. He looks exactly like Julian did as a baby"
+    },
+    {
+     "t": 433.5,
+     "text": "Investigate find the child's mother. No sterling blood will be left out in the world. Is that the baby's father?"
+    },
+    {
+     "t": 442.9,
+     "text": "Why is he practically ancient?"
+    },
+    {
+     "t": 446.1,
+     "text": "What happened to Leia that night?"
+    },
+    {
+     "t": 460.3,
+     "text": "Where did they take Leila looks like that shameless woman abandoned her baby and ran"
+    },
+    {
+     "t": 468.5,
+     "text": "Harrison take my grandson back to the villa"
+    }
+   ],
+   "options": [
+    {
+     "key": "opt1",
+     "t": 424.433,
+     "in_action": false,
+     "since_action": 4.13,
+     "until_action": 22.17,
+     "line_before": "Yet he fathered a child behind our backs my precious boy. I'm taking you home",
+     "line_after": "So fair and chubby. He looks exactly like Julian did as a baby",
+     "is_dp_pick": true,
+     "strip": "review/frames/b424_opt1.png",
+     "strip_tiles": [
+      421.93,
+      422.43,
+      422.93,
+      423.43,
+      423.93,
+      424.43,
+      424.93,
+      425.43,
+      425.93,
+      426.43,
+      426.93
+     ]
+    },
+    {
+     "key": "opt2",
+     "t": 433.1,
+     "in_action": false,
+     "since_action": 12.8,
+     "until_action": 13.5,
+     "line_before": "So fair and chubby. He looks exactly like Julian did as a baby",
+     "line_after": "Investigate find the child's mother. No sterling blood will be left out in the world. Is that the baby's father?",
+     "is_dp_pick": false,
+     "strip": "review/frames/b424_opt2.png",
+     "strip_tiles": [
+      430.6,
+      431.1,
+      431.6,
+      432.1,
+      432.6,
+      433.1,
+      433.6,
+      434.1,
+      434.6,
+      435.1,
+      435.6
+     ]
+    }
+   ]
+  },
+  {
+   "boundary_s": 4550.267,
+   "dp_pick": 4550.267,
+   "before": [
+    {
+     "t": 4501.7,
+     "text": "Julian you're back. I made you coffee. I only wanted to help you relax"
+    },
+    {
+     "t": 4509.1,
+     "text": "Why do you always treat me like a stranger"
+    },
+    {
+     "t": 4512.3,
+     "text": "Get out don't make me use force. We brought him coffee and he looked at me like I was garbage"
+    },
+    {
+     "t": 4529.9,
+     "text": "Julian look at yourself"
+    },
+    {
+     "t": 4531.8,
+     "text": "Your condition is now so severe that you can't manage even basic social contact with a normal woman"
+    },
+    {
+     "t": 4542.5,
+     "text": "Helen that is none of your concern"
+    },
+    {
+     "t": 4547.3,
+     "text": "None of my concern"
+    }
+   ],
+   "after": [
+    {
+     "t": 4551.0,
+     "text": "The board cannot entrust a multi-billion dollar corporation to a man who may break down at any moment"
+    },
+    {
+     "t": 4558.3,
+     "text": "A lunatic who suffocates when a woman comes near him. You are no longer fit to manage the group alone"
+    },
+    {
+     "t": 4567.8,
+     "text": "Maggie help me investigate this"
+    },
+    {
+     "t": 4572.8,
+     "text": "Julian's aversion to women wasn't congenital. I checked his school records before age 15"
+    },
+    {
+     "t": 4582.0,
+     "text": "He was a normal boy then"
+    },
+    {
+     "t": 4583.9,
+     "text": "The physical reaction began suddenly after his biological mother died"
+    },
+    {
+     "t": 4588.7,
+     "text": "And helen entered the family"
+    },
+    {
+     "t": 4590.5,
+     "text": "My god helen arranged five years of closed-door psychological treatment for julian. She personally selected every therapist trace every one of those therapists"
+    }
+   ],
+   "options": [
+    {
+     "key": "opt1",
+     "t": 4550.267,
+     "in_action": false,
+     "since_action": 31.67,
+     "until_action": 15.83,
+     "line_before": "None of my concern",
+     "line_after": "The board cannot entrust a multi-billion dollar corporation to a man who may break down at any moment",
+     "is_dp_pick": true,
+     "strip": "review/frames/b4550_opt1.png",
+     "strip_tiles": [
+      4547.77,
+      4548.27,
+      4548.77,
+      4549.27,
+      4549.77,
+      4550.27,
+      4550.77,
+      4551.27,
+      4551.77,
+      4552.27,
+      4552.77
+     ]
+    },
+    {
+     "key": "opt2",
+     "t": 4572.067,
+     "in_action": true,
+     "since_action": 5.97,
+     "until_action": 0.23,
+     "line_before": "Maggie help me investigate this",
+     "line_after": "Julian's aversion to women wasn't congenital. I checked his school records before age 15",
+     "is_dp_pick": false,
+     "strip": "review/frames/b4550_opt2.png",
+     "strip_tiles": [
+      4569.57,
+      4570.07,
+      4570.57,
+      4571.07,
+      4571.57,
+      4572.07,
+      4572.57,
+      4573.07,
+      4573.57,
+      4574.07,
+      4574.57
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -40,6 +40,9 @@ export default defineConfig({
       // e2e server's own, and no quiet period (git just wrote the fixture files).
       WORKSPACE_ROOT: path.resolve(__dirname, "tests", "fixtures", "workspace"),
       STUDIO_LOCAL_MEDIA_DIR: ".uploads-e2e/local", STUDIO_WORK_DIR: ".uploads-e2e/work", STUDIO_IMPORT_QUIET_MS: "0",
+      // Segment a film (decision 2026-09-23): the fake pipeline runner stands in for python, so a run walks every
+      // stage over the fixture workspace without whisper, ffmpeg or a vision key (tests/e2e/segment.spec.ts).
+      STUDIO_FAKE_PIPELINE: "1",
     },
   },
 });

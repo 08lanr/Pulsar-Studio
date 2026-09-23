@@ -135,7 +135,9 @@ export type JobKind =
   | "cut_clips"
   | "parse_subtitles"
   | "transcribe_episode"
-  | "import_film";
+  | "import_film"
+  | "segment_film"
+  | "verify_boundaries";
 export type JobStatus = "queued" | "running" | "done" | "failed" | "cancelled";
 
 /** studio.film_assets.kind: the pipeline files that come with an imported film (migration 0015). */
@@ -378,6 +380,115 @@ export type FilmAsset = {
   source_ref: string | null;
   meta: Json;
   created_at: string;
+};
+
+// ---- studio.film_runs (decision 2026-09-23, "segment a film in Studio"; migration 0016) ----
+
+/**
+ * How a film is cut. `by_eye_2min` is the cut-only route (continuous ~2-minute
+ * episodes, boundaries judged by the vision pass); `source_episodes` keeps the
+ * source's own episode breaks (cards.py, `index/skips.json`); `narrated` is
+ * RESERVED for the high-quality route of the next phase — the column accepts
+ * it, both backends refuse to create a run with it.
+ */
+export type FilmRunMode = "by_eye_2min" | "source_episodes" | "narrated";
+
+/**
+ * Where a run is. Plan B2's stages in order, plus the terminal ones; the
+ * column is plain text so a later stage needs no migration — extend this
+ * union when one is added. A stage the worker cannot finish is `failed`
+ * with `error_text` (the script's refusal, verbatim).
+ */
+export type FilmRunStage =
+  | "queued"
+  | "intake"
+  | "watermark"
+  | "index"
+  | "cards"
+  | "plan"
+  | "vision"
+  | "review"
+  | "render"
+  | "qa"
+  | "film_meta"
+  | "handoff"
+  | "done"
+  | "failed"
+  | "cancelled";
+
+export const FILM_RUN_STAGES: readonly FilmRunStage[] = ["queued", "intake", "watermark", "index", "cards", "plan", "vision", "review", "render", "qa", "film_meta", "handoff", "done", "failed", "cancelled"];
+
+/**
+ * What a run was asked for (settings jsonb). Every key is optional; the
+ * worker reads the pipeline's defaults for a missing one (target 120 s in a
+ * 95–150 s band, 2 whisper threads, delogo on). `allow_dirty` lets a run
+ * proceed on a drama-remix working tree with uncommitted changes.
+ */
+export type FilmRunSettings = {
+  target_s?: number;
+  band?: [number, number];
+  threads?: number;
+  /** Index only up to this film time (a first proof); null or absent = the whole film. */
+  to_s?: number | null;
+  no_delogo?: boolean;
+  /** `x0,y0,x1,y1` fractions for watermark.py --region; absent = the detector's default. */
+  watermark_region?: string | null;
+  allow_dirty?: boolean;
+  /** How the vision pass runs: through the API (lib/llm) or as a Claude Code Workflow hand-off. */
+  vision?: "api" | "handoff";
+  [key: string]: Json | undefined;
+};
+
+/**
+ * One human decision recorded on a run (`decisions` jsonb, an array):
+ * `action` names it — `accept | move | rejudge | remove` for a boundary,
+ * `watermark | region | no_logo` at the watermark stage, `note` for anything
+ * else — `boundary_s` the boundary it concerns when one does, `to_s` the
+ * time it moved to, `why` the person's reason. `at` and `by` are stamped by
+ * the data layer.
+ */
+export type FilmRunDecision = {
+  at: string;
+  by: string;
+  action: string;
+  boundary_s: number | null;
+  to_s?: number | null;
+  why?: string | null;
+  data?: Json;
+};
+
+/** studio.film_runs — one segmenting run of one film (plan B1). Progress lives here, never in process memory. */
+export type FilmRun = {
+  id: string;
+  producer_id: string;
+  /** The title the run's episodes became through the import, once it did. */
+  title_id: string | null;
+  /** The source video as picked at intake (absolute path, forward slashes); the film folder is `<bucket>/<slug>` under WORKSPACE_ROOT. */
+  source_path: string;
+  bucket: string;
+  slug: string;
+  mode: FilmRunMode;
+  /** The film's dialogue language for whisper (`--lang`). */
+  lang: string;
+  settings: FilmRunSettings;
+  stage: FilmRunStage;
+  /** Progress inside the stage, e.g. `{t, of}` for a render, `{file}` for the index log line. */
+  stage_detail: Json;
+  /** The drama-remix commit the film's `cut/scripts/` were synced from. */
+  drama_remix_sha: string | null;
+  /** True when that working tree had uncommitted changes at sync time (the run needed `allow_dirty`). */
+  drama_remix_dirty: boolean;
+  /** The worker holding the run (`<host>:<pid>`), for ten minutes at a time; null when nobody does. */
+  lease_owner: string | null;
+  leased_until: string | null;
+  /** Bumped by every write except a lease renewal: the CAS token of setFilmRunStage. */
+  revision: number;
+  /** The refusal or error that failed the run, verbatim. */
+  error_text: string | null;
+  decisions: FilmRunDecision[];
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type AuditEvent = {

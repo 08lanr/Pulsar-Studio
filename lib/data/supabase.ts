@@ -35,6 +35,7 @@ import type {
   Clip,
   Episode,
   FilmAsset,
+  FilmRun,
   Job,
   Line,
   LineAlternative,
@@ -69,6 +70,7 @@ import { launchSettingsSchema, LaunchSettingsError, normalizeLaunchSettings, val
 import type { AccountRequest, InstantPageTemplate, LaunchPreset, PromoLaunch } from "@/lib/types";
 import { DataError, legacyCampaignRetired, conflict, invalid, notFound } from "./errors";
 import { episodeImportPatch, filmAssetRow, normalizeSourceRef, validateAdRules } from "./film-import";
+import { claimFields, decisionRow, filmRunRow, normalizeFilmRun, releaseFields, renewFields, stageFields } from "./film-runs";
 import type { DataLayer, ExportSnapshot, LaunchedCampaign } from "./index";
 import { mediaUrl } from "./storage";
 import {
@@ -226,6 +228,9 @@ async function loadPromoDetail(c: Db, campaign: PromoCampaign): Promise<PromoCam
 }
 
 const campaignById = (c: Db, id: string) => one<PromoCampaign>(promote(c).from("campaigns").select("*").eq("id", id).maybeSingle(), "promotion campaign", id);
+
+/** A film run under the caller's own client: RLS hides a foreign company's run, so it reads not found, never forbidden. */
+const filmRunById = (c: Db, id: string) => one<FilmRun>(studio(c).from("film_runs").select("*").eq("id", id).maybeSingle(), "film run", id);
 
 /** The producer's staff-assigned, connected TikTok ad account, or null (decision 2026-09-09). */
 async function launchAccountOf(c: Db, producerId: string): Promise<CompanyAccount | null> {
@@ -1382,9 +1387,112 @@ export const supabaseData: DataLayer = {
     await one<Job>(studio(dbFor(session)).from("jobs").update({ heartbeat_at: now() }).eq("id", jobId).select("*").maybeSingle(), "job", jobId);
   },
 
+  async latestJobByTarget(session, targetType, targetId, kind) {
+    requireSystemOrStaff(session); // the same door as the fixture: a job row is Pulsar's spend record
+    let q = studio(dbFor(session)).from("jobs").select("*").eq("target_type", targetType).eq("target_id", targetId);
+    if (kind !== undefined) q = q.eq("kind", kind);
+    const rows = await many<Job>(q.order("created_at", { ascending: false }).limit(1));
+    return rows[0] ?? null;
+  },
+
   async sumCostCents(titleId) {
     const rows = await many<Pick<Job, "cost_cents">>(studio(db()).from("jobs").select("cost_cents").eq("title_id", titleId));
     return rows.reduce((n, j) => n + (j.cost_cents ?? 0), 0);
+  },
+
+  // ---- film runs (decision 2026-09-23; migration 0016) ----
+  // Reads go through the session's own client (RLS: staff every run, a
+  // producer their own company's, so a foreign run is not found); writes are
+  // checked here (staff or the system) and then made as the service role,
+  // revision-conditionally, exactly as the fixture applies the same helpers.
+
+  async createFilmRun(session, input) {
+    requireSystemOrStaff(session);
+    const row = filmRunRow(input);
+    const c = dbFor(session);
+    await one<Producer>(core(c).from("producers").select("id").eq("id", row.producer_id).maybeSingle(), "producer", row.producer_id);
+    const { data, error } = await studio(createServiceSupabase())
+      .from("film_runs")
+      .insert({ ...row, created_by: isSystemSession(session) ? null : session.userId })
+      .select("*")
+      .single();
+    if (error) throw mapError(error);
+    return normalizeFilmRun(data as FilmRun);
+  },
+
+  async getFilmRun(session, runId) {
+    return normalizeFilmRun(await filmRunById(dbFor(session), runId));
+  },
+
+  async listFilmRuns(session, opts = {}) {
+    // A producer sees only their own company's rows under RLS; asking for another company reads empty, never forbidden (the fixture answers the same).
+    if (session.kind === "producer" && opts.producerId && opts.producerId !== session.producerId) return [];
+    let q = studio(dbFor(session)).from("film_runs").select("*");
+    if (opts.producerId) q = q.eq("producer_id", opts.producerId);
+    const rows = await many<FilmRun>(q.order("created_at", { ascending: false }));
+    return rows.map(normalizeFilmRun);
+  },
+
+  async claimFilmRun(session, runId, input) {
+    requireSystemOrStaff(session);
+    const run = await filmRunById(dbFor(session), runId);
+    const fields = claimFields(run, input);
+    if (!fields) return null;
+    // The row's revision is the CAS token: a write that landed since the read leaves this update matching nothing.
+    const { data, error } = await studio(createServiceSupabase()).from("film_runs").update(fields).eq("id", runId).eq("revision", run.revision).select("*").maybeSingle();
+    if (error) throw mapError(error);
+    return data ? normalizeFilmRun(data as FilmRun) : null;
+  },
+
+  async renewFilmRunLease(session, runId, input) {
+    requireSystemOrStaff(session);
+    const run = await filmRunById(dbFor(session), runId);
+    const fields = renewFields(run, input);
+    const { data, error } = await studio(createServiceSupabase()).from("film_runs").update(fields).eq("id", runId).eq("lease_owner", input.owner.trim()).select("*").maybeSingle();
+    if (error) throw mapError(error);
+    if (!data) throw conflict(`run ${runId} is no longer leased by ${input.owner}`);
+    return normalizeFilmRun(data as FilmRun);
+  },
+
+  async setFilmRunStage(session, runId, input) {
+    requireSystemOrStaff(session);
+    const run = await filmRunById(dbFor(session), runId);
+    const fields = stageFields(run, input);
+    const { data, error } = await studio(createServiceSupabase()).from("film_runs").update(fields).eq("id", runId).eq("revision", run.revision).select("*").maybeSingle();
+    if (error) throw mapError(error);
+    if (!data) throw conflict(`run ${runId} changed under this write (revision ${run.revision} moved); re-read it`);
+    const row = normalizeFilmRun(data as FilmRun);
+    await auditEvent(session, "set_film_run_stage", "studio.film_runs", row.id, row.title_id, row.producer_id, { stage: run.stage, revision: run.revision, error_text: run.error_text }, { stage: row.stage, revision: row.revision, error_text: row.error_text });
+    return row;
+  },
+
+  async appendFilmRunDecision(session, runId, decision) {
+    requireSystemOrStaff(session);
+    const run = await filmRunById(dbFor(session), runId);
+    const row = decisionRow(decision, isSystemSession(session) ? "system" : session.userId);
+    const decisions = [...(Array.isArray(run.decisions) ? run.decisions : []), row];
+    const { data, error } = await studio(createServiceSupabase())
+      .from("film_runs")
+      .update({ decisions, revision: run.revision + 1, updated_at: now() })
+      .eq("id", runId)
+      .eq("revision", run.revision)
+      .select("*")
+      .maybeSingle();
+    if (error) throw mapError(error);
+    if (!data) throw conflict(`run ${runId} changed under this write (revision ${run.revision} moved); re-read it`);
+    const out = normalizeFilmRun(data as FilmRun);
+    await auditEvent(session, "film_run_decision", "studio.film_runs", out.id, out.title_id, out.producer_id, null, row);
+    return out;
+  },
+
+  async releaseFilmRun(session, runId, input) {
+    requireSystemOrStaff(session);
+    const run = await filmRunById(dbFor(session), runId);
+    const fields = releaseFields(run, input);
+    const { data, error } = await studio(createServiceSupabase()).from("film_runs").update(fields).eq("id", runId).eq("revision", run.revision).select("*").maybeSingle();
+    if (error) throw mapError(error);
+    if (!data) throw conflict(`run ${runId} changed under this write (revision ${run.revision} moved); re-read it`);
+    return normalizeFilmRun(data as FilmRun);
   },
 
   // ---- partner portal ----

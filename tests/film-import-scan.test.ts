@@ -10,8 +10,9 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, utimesSync, writeFileSync 
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { DEFAULT_QUIET_MS, applyImportState, listProjects, nodeScanFs, scanFilm, scanWorkspace, titleFromFolder } from "@/lib/film-import/scan";
-import type { FilmScan, ScanFs } from "@/lib/film-import/types";
+import { parseDeliveredPlan } from "@/lib/film-import/manifest";
+import { DEFAULT_QUIET_MS, EMPTY_ARTIFACTS, applyImportState, choicesConsumed, listProjects, nodeScanFs, optionsApplied, pipelineStage, pipelineStageOf, planMatchesDelivered, scanFilm, scanWorkspace, titleFromFolder, type StageFacts } from "@/lib/film-import/scan";
+import type { FilmScan, PipelineArtifacts, PipelineStage, ScanFs } from "@/lib/film-import/types";
 
 const FIXTURE_ROOT = path.join(process.cwd(), "tests", "fixtures", "workspace");
 const REAL_ROOT = process.env.WORKSPACE_ROOT?.trim() || path.resolve(process.cwd(), "..", "Pulsar-Workspace", "mini-drama-system", "projects");
@@ -118,6 +119,125 @@ test("the fixture workspace: one film ready, one rendering, one not delivered", 
   assert.deepEqual(undelivered.reason, { code: "no_delivered" });
   assert.equal(undelivered.totals.count, 2, "the files are still listed");
   assert.equal(undelivered.delivered, null);
+
+  // The pipeline stage read from the artifacts (plan B1), beside the import state.
+  assert.deepEqual([ready.pipeline_stage, ready.pipeline_note], ["DELIVERED", null]);
+  assert.deepEqual(ready.pipeline, { ...EMPTY_ARTIFACTS, source_facts: true, whisper: true, scdet: true, motion: true, candidates: true, plan: true, delivered: true });
+  assert.deepEqual([rendering.pipeline_stage, rendering.pipeline_note], ["RENDERING", "eps/ep02.part.mp4 is being written"]);
+  assert.equal(rendering.pipeline.parts, true);
+  assert.deepEqual([undelivered.pipeline_stage, undelivered.pipeline_note], ["NOT_INDEXED", "no source/*.mp4; an index was started"], "index/source.json alone: the index was started, no candidates yet");
+});
+
+// ---- the pipeline stage (plan B1: read from the artifacts, so a restarted worker resumes from the last finished one) ----
+
+test("the pipeline stage walks the artifacts newest step first, without touching the READY rules", () =>
+  withRoot(async (root) => {
+    const cut = path.join(root, "film", "cut");
+    const stage = async (): Promise<[PipelineStage, string | null, FilmScan["state"]]> => {
+      const s = await scanFilm("film", { root, now: later });
+      const p = await pipelineStage("film", { root, now: later });
+      assert.equal(p.stage, s.pipeline_stage);
+      return [s.pipeline_stage, s.pipeline_note, s.state];
+    };
+    const write = (rel: string, text: string) => {
+      mkdirSync(path.dirname(path.join(root, "film", rel)), { recursive: true });
+      writeFileSync(path.join(root, "film", rel), text);
+    };
+    const ep = (name: string, at = T0) => {
+      mkdirSync(path.join(cut, "eps"), { recursive: true });
+      const p = path.join(cut, "eps", name);
+      writeFileSync(p, Buffer.alloc(EP_BYTES, 1));
+      utimesSync(p, new Date(at), new Date(at));
+    };
+
+    mkdirSync(cut, { recursive: true });
+    assert.deepEqual(await stage(), ["NO_SOURCE", "no source/*.mp4", "NOT_DELIVERED"], "an empty cut/ folder");
+    write("source/original.mp4", "x");
+    assert.deepEqual(await stage(), ["NOT_INDEXED", "index/candidates.json is missing", "NOT_DELIVERED"]);
+    write("cut/index/source.json", JSON.stringify({ source: "../source/original.mp4", fps: 30, width: 720, height: 1280, duration: 300 }));
+    write("cut/index/whisper.json", "{}");
+    assert.equal((await stage())[0], "NOT_INDEXED", "whisper done, candidates not yet");
+    write("cut/index/candidates.json", "{}");
+    assert.deepEqual(await stage(), ["INDEXED", null, "NOT_DELIVERED"]);
+    write("cut/review/options.json", JSON.stringify({ boundaries: [] }));
+    assert.deepEqual(await stage(), ["OPTIONS_READY", "review/options.json is not applied: a vision pass is due", "NOT_DELIVERED"]);
+    write("cut/review/options.json", JSON.stringify({ boundaries: [], applied: { label: "0-end", on: "2026-09-23" } }));
+    assert.deepEqual(await stage(), ["OPTIONS_READY", "review/options.json is applied but no choices.json followed", "NOT_DELIVERED"]);
+    write("cut/review/choices.json", JSON.stringify({ "100": 100, "200": 200 }));
+    assert.deepEqual(await stage(), ["JUDGED", "review/choices.json waits for pick_cuts.py --choices", "NOT_DELIVERED"]);
+    write("cut/cuts.json", plan(3));
+    assert.deepEqual(await stage(), ["PLANNED", "cut/cuts.json has no DELIVERED render yet", "NOT_DELIVERED"], "the plan carries both choices (100 and 200 are episode ends)");
+    write("cut/review/choices.json", JSON.stringify({ "100": 100, "150": 150 }));
+    assert.deepEqual(await stage(), ["JUDGED", "review/choices.json is not in cut/cuts.json yet", "NOT_DELIVERED"], "a choice the plan does not carry: pick_cuts.py --choices has not run on it");
+    write("cut/review/choices.json", JSON.stringify({ "100": 100, "200": 200 }));
+
+    // The render.
+    ep("ep01.mp4");
+    ep("ep02.part.mp4");
+    assert.deepEqual(await stage(), ["RENDERING", "eps/ep02.part.mp4 is being written", "NOT_DELIVERED"]);
+    rmSync(path.join(cut, "eps", "ep02.part.mp4"));
+    ep("ep02.mp4");
+    ep("ep03.mp4");
+    write("cut/review/cuts-0-300-DELIVERED.json", plan(3));
+    assert.deepEqual(await stage(), ["DELIVERED", null, "READY"]);
+    ep("ep03.mp4", later() - 1000);
+    const fresh = await scanFilm("film", { root, now: later });
+    assert.deepEqual([fresh.pipeline_stage, fresh.pipeline_note, fresh.state], ["RENDERING", "eps/ep03.mp4 was written inside the quiet period", "RENDERING"], "a write inside the quiet period is a render still going, for the stage and for READY alike");
+    ep("ep03.mp4");
+    rmSync(path.join(cut, "eps", "ep03.mp4"));
+    assert.deepEqual(await stage(), ["PLANNED", "the DELIVERED plan's episode files are not complete: render again", "NOT_DELIVERED"]);
+    ep("ep03.mp4");
+
+    // A QA re-pin: cuts.json moves on from the delivery, and declares the move.
+    const moved = JSON.parse(plan(3)) as { episodes: { end: number; start: number }[]; moves: { from: number; to: number }[] };
+    moved.episodes[0].end = 101;
+    moved.episodes[1].start = 101;
+    moved.moves = [{ from: 100, to: 101 }];
+    write("cut/cuts.json", JSON.stringify(moved));
+    assert.deepEqual(await stage(), ["PLANNED", "cut/cuts.json differs from the newest DELIVERED plan", "READY"], "READY is the import's answer about the delivered files; the stage says a re-render is due");
+    write("cut/review/cuts-0-300-DELIVERED.json", JSON.stringify(moved));
+    assert.deepEqual(await stage(), ["DELIVERED", null, "READY"], "the choice at 100 is consumed through the declared move");
+
+    // A broken small file is a warning, never a crash; the stage falls back to what the other artifacts say.
+    write("cut/review/choices.json", "{ not json");
+    const broken = await scanFilm("film", { root, now: later });
+    assert.ok(broken.warnings.some((w) => w.startsWith("review/choices.json:")), broken.warnings.join("; "));
+    assert.equal(broken.pipeline_stage, "DELIVERED");
+    assert.equal(broken.pipeline.choices, true, "the file is there, it just does not parse");
+  }));
+
+test("the pure stage rules: optionsApplied, choicesConsumed, planMatchesDelivered, pipelineStageOf", () => {
+  assert.equal(optionsApplied('{"boundaries": [], "applied": {"label": "0-end"}}'), true);
+  assert.equal(optionsApplied('{"boundaries": [{"applied_note": "x"}]}'), false, "only the stamp object counts");
+
+  const base = parseDeliveredPlan(JSON.parse(plan(3)));
+  assert.equal(choicesConsumed({ "100": 100, "200": 200 }, base), true);
+  assert.equal(choicesConsumed({ "100": 100.001, "300": 300 }, base), true, "the film's end and a 1 ms rounding");
+  assert.equal(choicesConsumed({ "150": 150 }, base), false);
+  assert.equal(choicesConsumed({ "100": 100 }, null), false, "no plan: nothing consumed");
+  const withMove = { ...base, moves: [{ from: 150, to: 152 }] };
+  assert.equal(choicesConsumed({ "150": 150 }, withMove), true, "a choice the plan moved on from is consumed through the move");
+
+  assert.equal(planMatchesDelivered(base, parseDeliveredPlan(JSON.parse(plan(3)))), true);
+  assert.equal(planMatchesDelivered(base, parseDeliveredPlan(JSON.parse(plan(2)))), false, "a different count");
+  const nudged = { ...base, episodes: base.episodes.map((e, i) => (i === 0 ? { ...e, end: e.end + 0.001 } : e)) };
+  assert.equal(planMatchesDelivered(nudged, base), true, "a millisecond of float formatting is the same plan");
+  const other = { ...base, episodes: base.episodes.map((e, i) => (i === 0 ? { ...e, end: e.end + 0.5 } : e)) };
+  assert.equal(planMatchesDelivered(other, base), false);
+  assert.equal(planMatchesDelivered({ ...base, skips: [[10, 12]] }, base), false, "a skip is part of the plan");
+
+  const facts = ({ artifacts, ...over }: Partial<Omit<StageFacts, "artifacts">> & { artifacts?: Partial<PipelineArtifacts> }) =>
+    pipelineStageOf({ plan: null, delivered: null, choices: null, part: null, recentWrite: null, ready: false, ...over, artifacts: { ...EMPTY_ARTIFACTS, ...artifacts } });
+  assert.equal(facts({}).stage, "NO_SOURCE");
+  assert.equal(facts({ artifacts: { watermark: true } }).stage, "NOT_INDEXED", "a watermark box means the film was started");
+  assert.equal(facts({ artifacts: { source: true, candidates: true } }).stage, "INDEXED");
+  assert.equal(facts({ artifacts: { candidates: true, options: true } }).stage, "OPTIONS_READY");
+  assert.equal(facts({ artifacts: { options: true }, part: "ep01.part.mp4" }).stage, "RENDERING", "a .part file outranks everything: something is writing");
+  assert.equal(facts({ artifacts: { options: true, options_applied: true, delivered: true }, delivered: base, ready: true }).stage, "DELIVERED", "an applied options file behind a complete delivery is history");
+  assert.equal(facts({ artifacts: { options: true, delivered: true }, delivered: base, ready: true }).stage, "OPTIONS_READY", "an UNAPPLIED options file in front of a delivery is a new pass waiting (a re-cut)");
+  assert.equal(facts({ delivered: base, ready: true, recentWrite: "ep02.mp4" }).stage, "RENDERING");
+  assert.equal(facts({ delivered: base, ready: false }).stage, "PLANNED");
+  assert.equal(facts({ plan: base, choices: { "150": 150 } }).stage, "JUDGED");
 });
 
 // ---- the READY rules ----------------------------------------------------------------------------------

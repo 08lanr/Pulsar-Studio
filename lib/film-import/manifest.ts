@@ -17,10 +17,12 @@ import { z } from "zod";
 import type {
   BoundaryNote,
   CandidatesIndex,
+  DeliveredEpisode,
   DeliveredPlan,
   FilmIndex,
   FilmMeta,
   MotionIndex,
+  PlanSkip,
   ScanFs,
   SourceFacts,
   VisionBoundary,
@@ -29,25 +31,38 @@ import type {
 
 // ---- the plan ------------------------------------------------------------------------------
 
-const EpisodeSchema = z.object({
-  n: z.number().int().positive(),
-  start: z.number().nonnegative(),
-  end: z.number().positive(),
-  dur: z.number().nonnegative(),
-  ends_after_line: z.string(),
-  next_opens_on: z.string(),
-});
+const EpisodeSchema = z
+  .object({
+    n: z.number().int().positive(),
+    start: z.number().nonnegative(),
+    end: z.number().positive(),
+    dur: z.number().nonnegative(),
+    play: z.number().nonnegative().nullish(),
+    ends_after_line: z.string(),
+    next_opens_on: z.string(),
+  })
+  .passthrough();
 
+const SkipSchema = z.tuple([z.number().nonnegative(), z.number().nonnegative()]);
+
+/**
+ * The plan as both modes write it: `target` and `band` are the ~2-minute
+ * mode's (a source-episodes plan from cards.py has no target and
+ * `band: null`); `skips` are the spans the renderer trims out (each a
+ * forward `[from, to]`, ascending, never overlapping).
+ */
 export const DeliveredPlanSchema = z
   .object({
     source_duration: z.number().positive(),
-    target: z.number().positive(),
+    target: z.number().positive().nullish(),
     fps: z.number().positive().nullish(),
-    band: z.tuple([z.number(), z.number()]),
+    band: z.tuple([z.number(), z.number()]).nullish(),
     pinned: z.number().int().nonnegative().nullish(),
     pin_from: z.string().nullish(),
     moves: z.array(z.object({ from: z.number(), to: z.number() }).passthrough()).nullish(),
     final_end_is_boundary: z.boolean().nullish(),
+    source_breaks: z.boolean().nullish(),
+    skips: z.array(SkipSchema).nullish(),
     episodes: z.array(EpisodeSchema).min(1),
   })
   .passthrough()
@@ -60,21 +75,52 @@ export const DeliveredPlanSchema = z
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["episodes", i, "start"], message: `episode ${ep.n} starts at ${ep.start}, the previous ends at ${prevEnd}` });
       }
     });
+    (plan.skips ?? []).forEach(([from, to], i) => {
+      if (to <= from) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["skips", i], message: `skip ${i + 1} ends at ${to}, before it starts at ${from}` });
+      const prev = i === 0 ? null : plan.skips![i - 1];
+      if (prev && from < prev[1]) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["skips", i], message: `skip ${i + 1} starts at ${from}, inside the previous one` });
+    });
   });
 
 export function parseDeliveredPlan(json: unknown): DeliveredPlan {
   const p = DeliveredPlanSchema.parse(json);
   return {
     source_duration: p.source_duration,
-    target: p.target,
+    target: p.target ?? null,
     fps: p.fps ?? null,
-    band: p.band,
+    band: p.band ?? null,
     pinned: p.pinned ?? null,
     pin_from: p.pin_from ?? null,
     moves: (p.moves ?? []).map((m) => ({ from: m.from, to: m.to })),
     final_end_is_boundary: p.final_end_is_boundary ?? null,
-    episodes: p.episodes.map((e) => ({ ...e })),
+    source_breaks: p.source_breaks ?? null,
+    skips: (p.skips ?? []).map(([from, to]) => [from, to] as [number, number]),
+    episodes: p.episodes.map((e) => ({ n: e.n, start: e.start, end: e.end, dur: e.dur, play: e.play ?? null, ends_after_line: e.ends_after_line, next_opens_on: e.next_opens_on })),
   };
+}
+
+/**
+ * The parts of an episode that play once the plan's skips are out, in
+ * order (`cut_episodes.py pieces_of`): the episode's span minus every skip
+ * that overlaps it. An episode with no skip inside is one piece.
+ */
+export function playedPieces(ep: Pick<DeliveredEpisode, "start" | "end">, skips: readonly PlanSkip[]): [number, number][] {
+  const out: [number, number][] = [];
+  let s = ep.start;
+  for (const [a, b] of [...skips].sort((x, y) => x[0] - y[0])) {
+    if (b <= s || a >= ep.end) continue;
+    if (a > s) out.push([s, a]);
+    s = Math.max(s, b);
+  }
+  if (s < ep.end) out.push([s, ep.end]);
+  return out;
+}
+
+/** Seconds of film inside `[start, end)` that the skips take out. */
+export function skippedWithin(start: number, end: number, skips: readonly PlanSkip[]): number {
+  let total = 0;
+  for (const [a, b] of skips) total += Math.max(0, Math.min(end, b) - Math.max(start, a));
+  return total;
 }
 
 /** `cuts-0-<end>-DELIVERED.json`, exactly (the pipeline's own name; `cut_episodes.py` writes `%.3f` with trailing zeros stripped). */

@@ -31,7 +31,6 @@
 // not a speaker named 他说). Every line is machine-written and unreviewed;
 // the studio is where a human checks them.
 
-import { spawn } from "node:child_process";
 import { createReadStream } from "node:fs";
 import path from "node:path";
 import { z } from "zod";
@@ -44,6 +43,7 @@ import { uploadImport } from "@/lib/data/storage";
 import { demoReplayActive } from "@/lib/data-source";
 import { vttTime } from "@/lib/export/time";
 import { ingestEpisodeFile, type IngestResult } from "@/lib/ingest";
+import { runProcess } from "@/lib/python";
 import type { Episode, JobKind } from "@/lib/types";
 
 export const ASR_JOB_KIND: Extract<JobKind, "transcribe_episode"> = "transcribe_episode";
@@ -100,29 +100,11 @@ const localWhisper: AsrProvider = {
     const python = process.env.STUDIO_ASR_PYTHON || process.env.STUDIO_ALIGN_PYTHON || "python";
     const script = path.join(process.cwd(), "scripts", "transcribe_episode.py");
     const job = JSON.stringify({ video: mediaAbs, model: whisperModel(), language: null });
-    const out = await new Promise<string>((resolve, reject) => {
-      const p = spawn(python, [script], { env: { ...process.env, PYTHONIOENCODING: "utf-8" } });
-      let stdout = "";
-      let stderr = "";
-      p.stdout.on("data", (d) => (stdout += String(d)));
-      p.stderr.on("data", (d) => (stderr += String(d)));
-      const timer = setTimeout(() => {
-        p.kill();
-        reject(new Error("transcription timed out after 8 minutes"));
-      }, ASR_TIMEOUT_MS);
-      p.on("error", (e) => {
-        clearTimeout(timer);
-        reject(new Error(`could not run ${python}: ${e.message}`));
-      });
-      p.on("close", (code) => {
-        clearTimeout(timer);
-        if (code === 0) resolve(stdout);
-        else reject(new Error(`transcription failed: ${stderr.slice(-400) || `exit ${code}`}`));
-      });
-      p.stdin.write(job, "utf-8");
-      p.stdin.end();
-    });
-    return TranscriptSchema.parse(JSON.parse(out));
+    // The shared runner (lib/python.ts): the JSON answer is the whole stdout; a timeout and a failure keep their messages.
+    const r = await runProcess(python, [script], { stdin: job, timeoutMs: ASR_TIMEOUT_MS, captureStdout: true, priority: "normal" }).done;
+    if (r.timedOut) throw new Error("transcription timed out after 8 minutes");
+    if (r.code !== 0) throw new Error(`transcription failed: ${r.stderrTail.slice(-400) || `exit ${r.code}`}`);
+    return TranscriptSchema.parse(JSON.parse(r.stdout));
   },
 };
 

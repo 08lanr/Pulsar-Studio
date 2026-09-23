@@ -39,7 +39,8 @@
     ".next-redesign-build/types/**/*.ts",
     ".next-build/types/**/*.ts",
     ".next-e2e/types/**/*.ts",
-    ".next-redesign-live/types/**/*.ts"
+    ".next-redesign-live/types/**/*.ts",
+    ".next-2c-smoke/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

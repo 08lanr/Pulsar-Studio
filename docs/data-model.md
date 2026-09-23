@@ -1028,6 +1028,22 @@ studio.film_assets                           -- the pipeline files that came wit
 studio.job_kind  + 'import_film'             -- cost 0, one running per title, idempotency key import:<producer_id>:<source_ref>:<delivered_sha>
 ```
 
+**The pipeline stage** (`lib/film-import/scan.ts`, decision 2026-09-23). Beside
+the import state, every scan carries `pipeline_stage` — where the film is in
+the pipeline, read from its artifacts alone, newest step first:
+`NO_SOURCE → NOT_INDEXED → INDEXED → OPTIONS_READY → JUDGED → PLANNED →
+RENDERING → DELIVERED` (`lib/film-import/types.ts` `PipelineStage` has the rule
+per stage; `pipeline_note` names the file that decided it; `pipeline` is the
+artifact checklist). The READY rules are untouched: READY answers "may the
+delivered files be imported", the stage answers "what does the worker do
+next" (a restarted segment worker resumes from the last finished artifact),
+and the two can disagree on purpose — a QA re-pin that moved `cut/cuts.json`
+on from the newest DELIVERED plan reads READY (the delivery is complete) and
+PLANNED (a re-render is due). A source-episodes plan (`cards.py --plan`)
+parses too: `target` and `band` may be null, `skips` are the trimmed card
+spans, and `plannedFrames` / `sliceTranscript` count and shift by the pieces
+that play (`playedPieces`, `skippedWithin`).
+
 **The local media tier** (`lib/data/storage.ts`). The one exception to "a
 stored value is a bucket path": a value `local/<title_id>/ws/<slug>/<file>`
 resolves on disk in BOTH modes, under `STUDIO_LOCAL_MEDIA_DIR` (default
@@ -1057,3 +1073,89 @@ original open), idempotent when the target exists with the same size; the
 source is stat'ed, never opened, unless that one fallback runs. `withSourceFile` (the cutter)
 reads a local-tier source in place instead of buffering a copy per run.
 Rendered ads and every upload still go to `studio-media`.
+
+## 9. Segmenting a film in Studio (migration `0016_film_runs.sql`, decision 2026-09-23)
+
+Studio orchestrates the drama-remix cut-only scripts as background jobs
+inside a film folder it created or claimed (`<WORKSPACE_ROOT>/<bucket>/<slug>`),
+running the film's own synced copy in `cut/scripts/`. One row per run is the
+progress record — never process memory, because the worker is a separate
+process and a restart resumes from the row plus the artifacts on disk
+(section 8, "the pipeline stage"). Mirrored by `lib/data/fixture.ts`
+(`createFilmRun`, `getFilmRun`, `listFilmRuns`, `claimFilmRun`,
+`renewFilmRunLease`, `setFilmRunStage`, `appendFilmRunDecision`,
+`releaseFilmRun`, `latestJobByTarget`) and validated by the one rule set in
+`lib/data/film-runs.ts` in both modes: the fixture applies it in memory, the
+Supabase layer applies it to the row it read and then writes
+revision-conditionally as the service role, so a stale revision is a
+`conflict` DataError in both.
+
+```
+studio.film_runs                             -- one segmenting run of one film (plan B1)
+  id uuid pk, producer_id uuid* references core.producers,
+  title_id uuid references core.titles on delete set null,   -- the title the episodes became through the import, once they did
+  source_path text*,                         -- the source video picked at intake (absolute, forward slashes)
+  bucket text*, slug text*,                  -- ^[a-z0-9]+([-_][a-z0-9]+)*$ each; the film folder is <bucket>/<slug>
+  mode text* in ('by_eye_2min','source_episodes','narrated'),
+                                             -- by_eye_2min: continuous ~2-minute episodes, boundaries judged by the vision pass;
+                                             --   source_episodes: the source's own breaks (cards.py, index/skips.json);
+                                             --   narrated: RESERVED for the next phase — the column accepts it, both backends
+                                             --   refuse to create a run with it (invalid)
+  lang text* default 'en',                   -- whisper's --lang, lowercased
+  settings jsonb* default '{}',              -- lib/types.ts FilmRunSettings: target_s, band [lo, hi], threads, to_s, no_delogo,
+                                             --   watermark_region "x0,y0,x1,y1", allow_dirty, vision 'api'|'handoff'; typed keys
+                                             --   validated, unknown keys kept
+  stage text* default 'queued',              -- plain text so a later stage needs no migration; lib/types.ts FilmRunStage is the list:
+                                             --   queued → intake → watermark → index → cards → plan → vision → review → render → qa
+                                             --   → film_meta → handoff → done | failed | cancelled
+  stage_detail jsonb* default '{}',          -- progress inside the stage ({t, of} for a render, {file} for the index log line)
+  drama_remix_sha text (^[0-9a-f]{40}$), drama_remix_dirty boolean* default false,
+                                             -- the drama-remix commit cut/scripts/ was synced from, and whether that working
+                                             --   tree had uncommitted changes (the run needed settings.allow_dirty)
+  lease_owner text, leased_until timestamptz,-- the worker holding the run (<host>:<pid>), ten minutes at a time (FILM_RUN_LEASE_MS)
+  revision int* default 1 (> 0),             -- the CAS token: bumped by every write except a lease renewal
+  error_text text,                           -- the script's refusal or the error that failed the run, verbatim
+  decisions jsonb* default '[]',             -- [{at, by, action, boundary_s, to_s?, why?, data?}]: every human decision on the run
+                                             --   (accept | move | rejudge | remove for a boundary; watermark | region | no_logo;
+                                             --   note), stamped by the data layer
+  created_by uuid,                           -- null for the system actor (no core.profiles row)
+  created_at, updated_at
+  -- indexes: (producer_id, created_at desc); (stage, updated_at desc) where stage not in (done, failed, cancelled);
+  --   (bucket, slug, created_at desc)
+  -- RLS: staff every run; a producer SELECTs their own company's (producer_id = my_producer_id()); authenticated has
+  --   SELECT only — every write is the data layer's, as the service role, after its staff-or-system check, so a
+  --   producer session writes nothing in either mode (forbidden) and a foreign run reads not_found, never forbidden.
+
+studio.job_kind  + 'segment_film'            -- cost 0, one row per stage the worker runs; target_type 'film_run', target_id the run
+                 + 'verify_boundaries'       -- one row per model call of the vision pass (reviewer or skeptic), its cost recorded,
+                                             --   title_id null (lib/jobs.ts RunJobSpec.title_id is string | null);
+                                             --   idempotency key verify_boundaries:<run>:<boundary_s>:<look|verify>:<options sha12>:<rule>:<attempt>
+```
+
+**Leases and claims.** `claimFilmRun(session, runId, {owner, revision, leaseMs?})`
+succeeds only when `revision` is still the row's and no OTHER owner holds a
+live lease (a lease is live while `leased_until` is in the future; the same
+owner may re-claim); it answers `null` when the race was lost, never a throw
+for that. `renewFilmRunLease` extends the lease without touching the
+revision (conflict when the owner does not hold it). `setFilmRunStage` is
+revision-conditional (conflict on a stale revision; with `owner` given, a
+foreign live lease is a conflict too; `error_text` kept as given, `null`
+clears it). `appendFilmRunDecision` stamps `at` and `by` and bumps the
+revision. `releaseFilmRun` clears the lease (conflict while another owner's
+lease is live; releasing a free run is allowed — a crash recovery).
+
+**Two files on disk, not tables** (`lib/locks.ts`; drama-remix
+`scripts/cut-only/README.md`, "Running under Pulsar Studio"), because a Studio
+job and a Claude Code session cannot see each other's process:
+`<film>/cut/.studio-run.json` `{run_id, stage, started_at, pid, owner: "pulsar-studio"}`
+says Studio is driving the folder, and `<mini-drama-system>/.heavy-lock.json`
+`{owner, what, pid, started_at}` is the machine's one heavy slot (a whisper
+index, a full render, a QA run). A lock is stale when its pid is not alive or
+its `started_at` is older than six hours; a stale lock is replaced and the
+replacement is reported, never deleted quietly; a release removes the file
+only while it still holds our own pid (and run). `cut/.studio-scripts.json`
+(`lib/segment/scripts-sync.ts`) records the sha, dirty flag and file list of
+the last sync of `cut/scripts/`, outside `scripts/` so `checks.py --strict`
+sees no drift. The data layer stays read-only against `WORKSPACE_ROOT`
+(`localPathOf` unchanged); results enter Studio only through the phase-1
+scanner and import.
