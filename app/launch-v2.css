@@ -53,9 +53,57 @@
 
 .launch-edit-region { border:0; padding:0; margin:0; min-width:0; }
 .launch-edit-region:disabled { opacity:.7; }
+/* The confirm dialog (rebuilt 2026-09-17). A decision surface, not a report:
+   a fixed header with the one consequence sentence, a body that scrolls, and a
+   footer that never leaves the viewport — the old 920px panel pushed its own
+   buttons below the fold. 600px is the reading width for label/value pairs;
+   everything inside sits on the 4px grid and uses tokens only, so the dark
+   theme needs no rule of its own. */
 .launch-confirm-backdrop { align-items:center; justify-content:center; padding:16px; }
-.launch-confirm-dialog { height:auto; max-height:90vh; border-radius:14px; border:1px solid var(--border); }
-.launch-confirm-dialog .rs-tool-row { display:flex; justify-content:flex-end; gap:12px; margin-top:24px; }
+.launch-confirm-dialog { display:flex; flex-direction:column; width:min(600px,100%); height:auto; max-height:min(90vh,760px); padding:0; overflow:hidden; border-radius:var(--radius-xl); border:1px solid var(--border); box-shadow:none; }
+/* Out-specifies `.launch-dialog > header`, which lays the drawer variant out as a flex row. */
+.launch-confirm-dialog > .launch-confirm-header { display:block; flex:none; padding:20px 24px 14px; border-bottom:1px solid var(--border); margin:0; }
+.launch-confirm-dialog > .launch-confirm-header h2 { margin:0; font-size:var(--t-h4); }
+.launch-confirm-lede { margin:6px 0 0; color:var(--text-muted); font-size:var(--t-small); line-height:var(--lh-body); }
+.launch-confirm-body { flex:1 1 auto; min-height:0; overflow-y:auto; padding:16px 24px 20px; }
+.launch-confirm-dialog .rs-tool-row.launch-confirm-footer { flex:none; display:flex; justify-content:flex-end; gap:12px; margin:0; padding:14px 24px; border-top:1px solid var(--border); background:var(--surface); }
+.launch-confirm-dialog .btn-approve { margin:0; }
+
+/* The facts: two columns of label over value, the label receding. The URL and
+   the landing page take the full width and truncate; the whole string stays in
+   title= rather than wrapping across three lines. */
+.launch-confirm-facts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 20px; margin:0; }
+.launch-confirm-facts > div { min-width:0; }
+.launch-confirm-fact-wide { grid-column:1 / -1; }
+.launch-confirm-facts dt { font-size:var(--t-label); font-weight:var(--w-strong); text-transform:uppercase; letter-spacing:var(--track-label); color:var(--text-faint); }
+.launch-confirm-facts dd { margin:2px 0 0; min-width:0; font-size:var(--t-body); overflow-wrap:anywhere; }
+.launch-confirm-url { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* The bill: three rows, right-aligned tabular numerals, the total at full
+   strength just above the buttons. A number is never buried in a sentence. */
+.launch-confirm-money { display:grid; gap:4px; margin:16px 0 0; padding:12px 14px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface-2); }
+.launch-confirm-money > div { display:flex; align-items:baseline; justify-content:space-between; gap:16px; }
+.launch-confirm-money dt { color:var(--text-muted); font-size:var(--t-small); }
+.launch-confirm-money dd { margin:0; font-size:var(--t-small); font-variant-numeric:tabular-nums; white-space:nowrap; }
+.launch-confirm-total { margin-top:4px; padding-top:8px; border-top:1px solid var(--border); }
+.launch-confirm-total dt, .launch-confirm-total dd { color:var(--text); font-size:var(--t-body); font-weight:var(--w-strong); }
+.launch-confirm-fineprint { margin:6px 0 0; color:var(--text-faint); font-size:var(--t-micro); line-height:var(--lh-body); }
+.launch-confirm-warnings { margin:16px 0 0; }
+.launch-confirm-warnings strong { display:block; margin-bottom:4px; }
+.launch-confirm-warnings ul { margin:0; padding-left:18px; display:grid; gap:2px; }
+
+/* The authorization note: one label, two lines of box, one short sentence. */
+.launch-confirm-note { display:grid; gap:6px; margin:16px 0 0; }
+.launch-confirm-note-head { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+.launch-confirm-note-head label { font-size:var(--t-small); font-weight:var(--w-medium); }
+.launch-confirm-note-head small { color:var(--text-faint); font-size:var(--t-micro); text-transform:uppercase; letter-spacing:var(--track-label); }
+.launch-confirm-note textarea { width:100%; resize:vertical; }
+.launch-confirm-note .hint { margin:0; }
+.launch-confirm-body > .note { margin-top:16px; }
+@media (max-width: 560px) {
+  .launch-confirm-facts { grid-template-columns:minmax(0,1fr); }
+  .launch-confirm-header, .launch-confirm-body, .launch-confirm-dialog .rs-tool-row.launch-confirm-footer { padding-left:16px; padding-right:16px; }
+}
 
 /* Clips desk and the content picker (docs/meta-organic-plan.md §5). Colours and
    spacing come from the tokens in globals.css; the action column is a fixed
@@ -113,14 +161,17 @@
 .launch-content-item > .btn { white-space: nowrap; }
 .launch-content-cell { display: grid; gap: 6px; min-width: 0; }
 
-.launch-confirm-rows { display:grid; gap:10px; margin:16px 0; }
-.launch-confirm-row { display:flex; flex-wrap:wrap; gap:8px 18px; border:1px solid var(--border); padding:12px; border-radius:8px; }
-.launch-confirm-row p { flex-basis:100%; margin:0; overflow-wrap:anywhere; }
-.launch-confirm-head { display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
-.launch-confirm-budget { font-variant-numeric:tabular-nums; white-space:nowrap; }
-.launch-confirm-ref { display:grid; gap:2px; margin-top:6px; }
-.launch-confirm-ref small { color:var(--text-muted); font-size:var(--t-micro, 11px); }
-.launch-confirm-note { display:grid; gap:8px; }
+/* One block per campaign: "Campaign 1 · Xinghai Pictures — $20.00", then its
+   ads, then one small reference line. A single Spark ad collapses to two lines. */
+.launch-confirm-rows { display:grid; gap:8px; margin:16px 0 0; }
+.launch-confirm-row { display:grid; gap:6px; border:1px solid var(--border); padding:10px 12px; border-radius:var(--radius); }
+.launch-confirm-row p { margin:0; min-width:0; overflow-wrap:anywhere; }
+.launch-confirm-head { display:flex; align-items:baseline; gap:4px 10px; font-size:var(--t-small); }
+.launch-confirm-head strong { font-size:var(--t-body); }
+.launch-confirm-account { min-width:0; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.launch-confirm-budget { margin-left:auto; font-size:var(--t-body); font-variant-numeric:tabular-nums; white-space:nowrap; }
+.launch-confirm-ref small { color:var(--text-faint); font-size:var(--t-micro); }
+.launch-confirm-ref a { color:var(--accent-text); }
 
 /* One ad, drawn once (docs/launch-ux-round-2.md §2.1): step 3, the preview
    table and the confirm dialog share this card, so they cannot disagree. The
@@ -150,6 +201,15 @@
 .ad-card-id { color: var(--text-faint); font-size: var(--t-micro); }
 .ad-card-compact .ad-card-media video, .ad-card-compact .ad-card-thumb { width: 40px; min-height: 70px; }
 .ad-card-compact .ad-card-caption { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* The line form: an ad with no picture and no words of its own is one row —
+   its position, its platform, and the caption beneath only when there is one.
+   The platform badge follows the name in reading order without moving in the
+   DOM, so the row reads "Ad 1 · TikTok". */
+.ad-card-line { align-items: baseline; gap: 8px; }
+.ad-card-line .ad-card-body { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; width: 100%; }
+.ad-card-line .ad-card-label { order: 1; }
+.ad-card-line .ad-card-badges { order: 2; }
+.ad-card-line .ad-card-headline, .ad-card-line .ad-card-caption, .ad-card-line .ad-card-link { order: 3; flex-basis: 100%; }
 
 .launch-content-item { align-items: flex-start; }
 .launch-content-item > .ad-card { flex: 1 1 260px; }
@@ -159,5 +219,6 @@
 .launch-flow .launch-content-cell { gap: 10px; }
 .launch-fix-first { display: grid; gap: 6px; }
 .launch-fix-first ul { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
-.launch-confirm-ads { flex-basis: 100%; display: grid; gap: 10px; min-width: 0; }
-@media (min-width: 720px) { .launch-confirm-ads { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); } }
+/* Inside a 600px dialog the ads read as a list, not as a wall of cards. */
+.launch-confirm-ads { display: grid; gap: 8px; min-width: 0; }
+.launch-confirm-ads .ad-card-label { font-size: var(--t-small); }

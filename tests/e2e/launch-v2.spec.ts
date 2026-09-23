@@ -86,12 +86,12 @@ test("staff authorization and confirmation keep a preview intact when launch fai
   await confirm.getByRole("button", { name: "Confirm launch", exact: true }).click();
   await expect(confirm.getByRole("alert")).toContainText(/authorization note/i);
   expect(posts).toBe(0);
-  await confirm.getByLabel(/Reason for launching on behalf of the producer/).fill("Approved support request");
+  await confirm.getByLabel(/Authorization note/).fill("Approved support request");
   await confirm.getByRole("button", { name: "Cancel" }).click();
   await expect(confirm).toBeHidden();
   expect(posts).toBe(0);
   await page.getByRole("button", { name: /Launch 1 campaign/ }).click();
-  await confirm.getByLabel(/Reason for launching on behalf of the producer/).fill("Approved support request");
+  await confirm.getByLabel(/Authorization note/).fill("Approved support request");
   await confirm.getByRole("button", { name: "Confirm launch", exact: true }).click();
   await expect(preview.getByRole("alert")).toContainText("Simulated launch rejection");
   await expect(preview.getByText(/1 campaign across 1 ad account/)).toBeVisible();
@@ -125,8 +125,13 @@ test("Clips handoff, TikTok monitor, and Meta post plus finished-file paused lau
   await page.route("**/api/producer/launch/*/launch", async route => { providerLaunchPosts++; await route.continue(); });
   await page.getByRole("button", { name: "Launch on TikTok", exact: true }).click();
   const primaryConfirm = page.getByRole("dialog", { name: "Confirm launch" });
-  await expect(primaryConfirm.getByText(/1 campaign across 1 ad account/)).toBeVisible();
-  await expect(primaryConfirm).toContainText("TEST-LAUNCH-V2-SPARK");
+  // Round 3: the facts grid names the account and the count (the e2e server is a
+  // sandbox, so the lede is the test-launch sentence); the Spark code is never printed.
+  await expect(primaryConfirm.locator(".launch-confirm-facts")).toContainText("Demo TikTok 1");
+  await expect(primaryConfirm.locator(".launch-confirm-facts")).toContainText("Campaigns");
+  await expect(primaryConfirm).not.toContainText("TEST-LAUNCH-V2-SPARK");
+  await expect(primaryConfirm.locator(".ad-card[data-content-id='TEST-LAUNCH-V2-SPARK']")).toHaveCount(1);
+  await expect(primaryConfirm.locator(".launch-confirm-money")).toContainText("Total billed");
   await expect(primaryConfirm).toContainText("https://example.com/watch");
   expect(providerLaunchPosts).toBe(0);
   mkdirSync("docs/demo/launch-v2", { recursive: true });
@@ -158,8 +163,10 @@ test("Clips handoff, TikTok monitor, and Meta post plus finished-file paused lau
   await page.getByRole("button", { name: "Details" }).first().click();
   await expect(page.locator(".lm-detail").first()).toContainText("7000000000000000001");
   // Round 2: the expanded row is the ads themselves, one card each.
-  await expect(page.locator(".lm-detail").first().locator(".ad-card")).toContainText("TEST-LAUNCH-V2-SPARK");
-  await expect(page.getByText("TEST-LAUNCH-V2-SPARK", { exact: true }).first()).toBeVisible();
+  // Round 3: the Spark code is never printed; it lives in the card's title/data attributes.
+  await expect(page.locator(".lm-detail").first().locator(".ad-card")).not.toContainText("TEST-LAUNCH-V2-SPARK");
+  await expect(page.locator(".lm-detail").first().locator(".ad-card[data-content-id='TEST-LAUNCH-V2-SPARK']")).toHaveAttribute("title", "TEST-LAUNCH-V2-SPARK");
+  await expect(page.getByText("TEST-LAUNCH-V2-SPARK", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Off", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Paused", { exact: true }).first()).toBeVisible();
   await page.getByRole("button", { name: "Resume campaign" }).first().click();
@@ -168,7 +175,11 @@ test("Clips handoff, TikTok monitor, and Meta post plus finished-file paused lau
   // Reducing a budget must not turn the edited amount into the approval ceiling.
   for (const dollars of [450, 500]) {
     await amountControl(page, "Change lifetime budget", dollars, "$500.00");
-    await expect(page.getByText(`Campaign lifetime budget (USD): $${dollars.toFixed(2)}`, { exact: false })).toBeVisible();
+    // Round 3: the detail row no longer prints the budget; the edit dialog carries the current amount.
+    const budget = await openControl(page, "Change lifetime budget");
+    await expect(budget.getByRole("spinbutton")).toHaveValue(String(dollars));
+    await budget.getByRole("button", { name: "Cancel" }).click();
+    await expect(budget).toBeHidden();
   }
   await page.evaluate(() => { (document.activeElement as HTMLElement | null)?.blur(); window.scrollTo(0, 0); });
   await page.screenshot({ path: `docs/demo/launch-v2/2026-09-16-${test.info().project.name}-monitor-final.png`, fullPage: true });
@@ -306,8 +317,9 @@ test("Multi-account plan assigns distinct Spark posts to every campaign and moni
   await page.getByRole("button", { name: "Preview campaigns" }).click();
   await expect(page.getByText(/4 campaigns across 2 ad accounts/)).toBeVisible();
   for (let i = 0; i < 4; i++) {
-    const row = page.locator(".gt-row").filter({ hasText: `TEST-MULTI-SPARK-${2 * i + 1}` });
-    await expect(row).toContainText(`TEST-MULTI-SPARK-${2 * i + 2}`);
+    // Round 3: a Spark ad is never named by its code; the code is the card's data-content-id.
+    const row = page.locator(".gt-row").filter({ has: page.locator(`[data-content-id='TEST-MULTI-SPARK-${2 * i + 1}']`) });
+    await expect(row.locator(`[data-content-id='TEST-MULTI-SPARK-${2 * i + 2}']`)).toHaveCount(1);
     await expect(row).toContainText(i < 2 ? "7000000000000000001" : "7000000000000000002");
   }
   await expect(page.getByRole("button", { name: /Launch 4 campaigns/ })).toBeEnabled();
@@ -357,9 +369,14 @@ test("Multi-account plan assigns distinct Spark posts to every campaign and moni
   // The provider's own campaign id is expanded detail, never the row's headline.
   await expect(page.locator(".lm-detail").first()).toContainText(externalCampaignId!);
   await expect(page.locator(".lm-detail").first()).toContainText("7000000000000000001");
-  await expect(page.locator(".lm-detail").first().getByText(/TEST-MULTI-SPARK-1/).first()).toBeVisible();
-  await expect(page.locator(".lm-detail").first().getByText(/TEST-MULTI-SPARK-2/).first()).toBeVisible();
-  await expect(page.getByText("Campaign lifetime budget (USD): $125.00", { exact: false })).toBeVisible();
+  // Round 3: the Spark codes are present on the cards but never printed as text.
+  await expect(page.locator(".lm-detail").first()).not.toContainText("TEST-MULTI-SPARK-1");
+  await expect(page.locator(".lm-detail").first().locator(".ad-card[data-content-id='TEST-MULTI-SPARK-1']")).toHaveCount(1);
+  await expect(page.locator(".lm-detail").first().locator(".ad-card[data-content-id='TEST-MULTI-SPARK-2']")).toHaveCount(1);
+  const budget = await openControl(page, "Change lifetime budget");
+  await expect(budget.getByRole("spinbutton")).toHaveValue("125");
+  await budget.getByRole("button", { name: "Cancel" }).click();
+  await expect(budget).toBeHidden();
   await expect(page.getByRole("button", { name: "Change daily budget" })).toHaveCount(0);
 });
 

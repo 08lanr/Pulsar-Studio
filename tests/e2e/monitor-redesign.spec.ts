@@ -172,7 +172,7 @@ test("the staff monitor names the launch, badges its ad sets, and turns a Meta r
   await row.getByRole("button", { name: "Details" }).click();
   const detail = card.locator(".lm-detail").first();
   await expect(detail.locator(".mr2-detail-links")).toContainText("rlapple01");
-  await expect(detail.locator(".mr2-detail-links")).toContainText("campid=rlapple01");
+  await expect(detail.locator(".mr2-detail-links a")).toHaveAttribute("href", /campid=rlapple01/);
   await expect(detail.locator(".mr2-detail-links")).toContainText("act_");
   await expect(detail.locator(".mr2-ads .ad-card")).toHaveCount(2);
   await expect(detail.locator(".mr2-group .mr2-badge")).toHaveText(["Facebook", "Instagram"]);

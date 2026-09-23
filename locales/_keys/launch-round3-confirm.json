@@ -1,0 +1,78 @@
+{
+  "lr3.createsIn": {
+    "en": "This creates {campaigns} on {provider} in the {account} ad account.",
+    "zh": "将在“{account}”的 {provider} 广告账户中创建 {campaigns}。"
+  },
+  "lr3.createsAcross": {
+    "en": "This creates {campaigns} on {provider} across {accounts}.",
+    "zh": "将在 {provider} 的 {accounts} 中创建 {campaigns}。"
+  },
+  "lr3.startsPausedOne": {
+    "en": "It starts paused and spends nothing until someone turns it on.",
+    "zh": "它以暂停状态创建，在有人开启前不会产生花费。"
+  },
+  "lr3.startsPausedMany": {
+    "en": "They start paused and spend nothing until someone turns them on.",
+    "zh": "它们以暂停状态创建，在有人开启前不会产生花费。"
+  },
+  "lr3.startsLiveOne": {
+    "en": "It is created enabled and can begin spending once {provider} approves it.",
+    "zh": "它以启用状态创建，通过 {provider} 审核后即可开始花费。"
+  },
+  "lr3.startsLiveMany": {
+    "en": "They are created enabled and can begin spending once {provider} approves them.",
+    "zh": "它们以启用状态创建，通过 {provider} 审核后即可开始花费。"
+  },
+  "lr3.factCampaigns": {
+    "en": "Campaigns",
+    "zh": "广告活动"
+  },
+  "lr3.factLandingPage": {
+    "en": "Landing page",
+    "zh": "落地页"
+  },
+  "lr3.campaignNumber": {
+    "en": "Campaign {n}",
+    "zh": "广告活动 {n}"
+  },
+  "lr3.adNumber": {
+    "en": "Ad {n}",
+    "zh": "广告 {n}"
+  },
+  "lr3.mediaBudget": {
+    "en": "Media budget",
+    "zh": "媒体预算"
+  },
+  "lr3.serviceFee": {
+    "en": "Pulsar service fee {pct}%",
+    "zh": "Pulsar 服务费 {pct}%"
+  },
+  "lr3.totalBilled": {
+    "en": "Total billed",
+    "zh": "账单总额"
+  },
+  "lr3.mediaOnly": {
+    "en": "The platform receives only the media budget.",
+    "zh": "平台只收到媒体预算。"
+  },
+  "lr3.checkFirst": {
+    "en": "Check these before you launch",
+    "zh": "投放前请先确认以下事项"
+  },
+  "lr3.noteLabel": {
+    "en": "Authorization note",
+    "zh": "授权说明"
+  },
+  "lr3.noteRequired": {
+    "en": "Required",
+    "zh": "必填"
+  },
+  "lr3.noteHelp": {
+    "en": "Who authorized this launch on the producer's behalf.",
+    "zh": "谁授权了这次代制片方的投放。"
+  },
+  "lr3.confirmBilled": {
+    "en": "Confirm launch · {total} billed",
+    "zh": "确认投放 · 账单 {total}"
+  }
+}

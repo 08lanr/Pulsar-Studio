@@ -1,0 +1,30 @@
+{
+  "mr3.perDay": {
+    "en": "{amount}/day",
+    "zh": "{amount}/天"
+  },
+  "mr3.lifetime": {
+    "en": "{amount} lifetime",
+    "zh": "{amount} 总预算"
+  },
+  "mr3.bidAmount": {
+    "en": "bid {amount}",
+    "zh": "出价 {amount}"
+  },
+  "mr3.endsAt": {
+    "en": "ends {when}",
+    "zh": "{when} 结束"
+  },
+  "mr3.ref.campid": {
+    "en": "campid",
+    "zh": "campid"
+  },
+  "mr3.ref.account": {
+    "en": "ad account",
+    "zh": "广告账户"
+  },
+  "mr3.ref.campaign": {
+    "en": "campaign",
+    "zh": "广告活动"
+  }
+}

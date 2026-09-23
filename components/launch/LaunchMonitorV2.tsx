@@ -12,13 +12,17 @@ import {
   adSetPlatforms, campaignPlatforms, explainProviderError, monitorState, needsFirstSweep,
   providerCampaignId, switchState, type AdPlatform, type MonitorState,
 } from "@/lib/launch/provider-errors";
-import type { LaunchCampaign, LaunchContent, LaunchControl, LaunchRun } from "@/lib/launch/types";
+import type { DeliverySnapshot, LaunchCampaign, LaunchContent, LaunchControl, LaunchRun } from "@/lib/launch/types";
 // app/monitor-round2.css is loaded by app/layout.tsx, immediately before polish.css.
 import "@/app/launch-monitor.css";
 
 const money = (cents: number | null | undefined) => usd(cents == null ? null : cents / 100);
 const message = (e: unknown) => e instanceof Error ? e.message : String(e);
 const date = (value: string | null | undefined) => value ? new Date(value).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—";
+/** "Sep 18, 7:38 PM" — an end time read at a glance, not a record of one. */
+const shortDate = (value: string) => new Date(value).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+/** The host alone: the campid printed beside it already says which campaign the link tags. */
+const linkHost = (url: string) => { try { return new URL(url).host; } catch { return url; } };
 const skippedOf = (c: LaunchCampaign): unknown[] => {
   const value = c.state.skipped ?? c.state.skipped_sparks;
   return Array.isArray(value) ? value : [];
@@ -53,6 +57,33 @@ function adsOf(content: LaunchContent[], platforms: AdPlatform[], provider: stri
     const on = platforms.length ? platforms : (["facebook"] as AdPlatform[]);
     return { ...base, platform: on[0], platforms: on };
   });
+}
+
+type AdStatus = NonNullable<DeliverySnapshot["ads"]>[number];
+/**
+ * The provider's own word for one ad's review, tinted the way the campaign's
+ * state word is. Unknown vocabulary stays neutral rather than guessing a
+ * verdict — a grey "limited" is honest, a green one is not.
+ */
+const adStatusTone = (status: string) => {
+  const word = status.toLowerCase();
+  if (/reject|disapprove|denied|fail/.test(word)) return "error";
+  if (/review|pending|process|prepar/.test(word)) return "review";
+  if (/approve|active|deliver/.test(word)) return "live";
+  return "neutral";
+};
+const adStatusWord = (status: string) => status.replaceAll("_", " ").toLowerCase();
+/**
+ * Which provider ad belongs to which card, so an ad is described once instead
+ * of twice. The content reference is the real join (a Spark code, a post id);
+ * position is the fallback when the sweep recorded none. Anything else returns
+ * null and the ads keep their own separate status strip.
+ */
+function pairAds(cards: { id: string }[], ads: AdStatus[]): AdStatus[] | null {
+  if (!cards.length || cards.length !== ads.length) return null;
+  const byValue = new Map(ads.filter((ad) => ad.content_value).map((ad) => [ad.content_value!, ad]));
+  if (byValue.size === ads.length && cards.every((card) => byValue.has(card.id))) return cards.map((card) => byValue.get(card.id)!);
+  return ads;
 }
 
 type EditKind = "budget" | "daily_budget" | "bid" | "schedule" | "end";
@@ -295,7 +326,6 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
             const switchKnown = active !== null;
             const canControl = capabilities.can_launch && c.status === "done" && !ended(c);
             const canEnd = capabilities.can_launch && run.status !== "draft" && !ended(c);
-            const ceiling = splitBudget(run.draft.total_budget_cents, run.draft.account_ids.length * run.draft.campaigns_per_account)[c.index - 1];
             const campaignId = providerCampaignId(c);
             const platforms = campaignPlatforms(run.draft, c);
             const groupPlatform = adSetPlatforms(c);
@@ -311,6 +341,15 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
             // nothing to switch, so the pill is not drawn at all.
             const showSwitch = !!campaignId && !ended(c) && state !== "waiting";
             const cards = adsOf(c.content, platforms, run.draft.provider);
+            // The budget lives in the "Change budget" dialog, not in the detail
+            // row: printing the campaign total, its ceiling and its pacing said
+            // the same money three times. The ad set still shows its own share,
+            // because that is the amount the group out there is running on.
+            const groups = c.snapshot?.groups ?? [];
+            const groupsDaily = run.draft.provider === "meta"
+              ? c.daily_budget_cents != null
+              : run.draft.tiktok_settings.budget_mode === "BUDGET_MODE_DAY";
+            const adStatuses = pairAds(cards, c.snapshot?.ads ?? []);
             return <Fragment key={c.id}>
               <tr className={`lm-campaign ${expanded[c.id] ? "is-expanded" : ""}`} data-campaign-id={c.id}>
                 <td className="lm-state-cell">
@@ -338,30 +377,49 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
               </div></td></tr>}
               {controlError && !ended(c) && state !== "waiting" && <tr className="lm-error-row"><td colSpan={9}>{failure(run, controlError, `campaign-${c.index}`)}</td></tr>}
               {expanded[c.id] && <tr className="lm-detail-row"><td colSpan={9}><div className="lm-detail" id={`campaign-details-${c.id}`}>
-                <div className="lm-detail-facts"><span>{tt("lv2.campaignBudget")}: <strong>{money(c.budget_cents)}</strong></span><span>{tt("monitorV2.approvedCeiling")}: {money(ceiling)}</span><span>{tt("lv2.campaignDaily")}: {money(c.daily_budget_cents)}</span><span>{tt("lv2.lastChecked")}: {date(c.snapshot?.checked_at)}</span></div>
-                {c.snapshot?.groups?.map((g, i) => {
+                {groups.length > 0 && <div className="lm-groups">{groups.map((g, i) => {
                   // The driver names its ad set's platform; older rows are read back from what it recorded.
                   const platform = g.platform ?? groupPlatform[g.id] ?? (platforms.length === 1 ? platforms[0] : undefined);
                   const groupOn = switchState(g.status);
-                  return <div className="lm-group mr2-group" key={g.id}><div>
-                    <strong>{tt(run.draft.provider === "meta" ? "mr2.adSet" : "lv2.group")} {i + 1}</strong>
-                    {platform && <span className={`mr2-badge ad-card-badge ad-card-badge-${platform}`}>{PLATFORM_LABEL[platform]}</span>}
-                    <span>{groupOn === true ? tt("monitorV2.enabled") : groupOn === false ? tt("monitorV2.paused") : tt("mr2.state.notChecked")}</span>
-                    <span>{tt(run.draft.provider === "tiktok" && run.draft.tiktok_settings.budget_mode === "BUDGET_MODE_DAY" ? "monitorV2.groupDaily" : "monitorV2.groupLifetime")} {money(g.budget_cents)}</span>
-                    <span>{tt("lv2.bid")} {money(g.bid_cents)}</span>
-                    {g.end_time && <span>{tt("mr2.endsAt")} {date(g.end_time)}</span>}
-                  </div>{canControl && run.draft.provider === "tiktok" && groupOn !== null
-                    ? <button className="lm-row-button" disabled={!!busy} onClick={() => void control(run, c, { action: "group", group_id: g.id, enabled: groupOn === false })}>{tt(groupOn === true ? "monitorV2.pauseGroup" : "monitorV2.resumeGroup")}</button>
-                    : null}</div>;
-                })}
+                  return <div className="lm-group mr2-group" key={g.id}>
+                    <div className="lm-group-main">
+                      <strong className="lm-group-name">{tt(run.draft.provider === "meta" ? "mr2.adSet" : "lv2.group")} {i + 1}</strong>
+                      {platform && <span className={`mr2-badge ad-card-badge ad-card-badge-${platform}`}>{PLATFORM_LABEL[platform]}</span>}
+                      <span>{groupOn === true ? tt("monitorV2.enabled") : groupOn === false ? tt("monitorV2.paused") : tt("mr2.state.notChecked")}</span>
+                      {g.budget_cents != null && <span className="lm-group-money">{tt(groupsDaily ? "mr3.perDay" : "mr3.lifetime", { amount: money(g.budget_cents) })}</span>}
+                      {g.bid_cents != null && <span className="lm-group-money">{tt("mr3.bidAmount", { amount: money(g.bid_cents) })}</span>}
+                      {g.end_time && <span>{tt("mr3.endsAt", { when: shortDate(g.end_time) })}</span>}
+                    </div>
+                    <div className="lm-group-action">{canControl && run.draft.provider === "tiktok" && groupOn !== null
+                      ? <button className="lm-row-button" disabled={!!busy} onClick={() => void control(run, c, { action: "group", group_id: g.id, enabled: groupOn === false })}>{tt(groupOn === true ? "monitorV2.pauseGroup" : "monitorV2.resumeGroup")}</button>
+                      : null}</div>
+                  </div>;
+                })}</div>}
+                {/* One row per ad: the same card every other screen draws, with
+                    the provider's word for its review beside it. The Spark code
+                    is the card's `title=` and `data-content-id`, never its text. */}
+                <div className="mr2-ads" aria-label={tt("mr2.ads")}>{cards.length
+                  ? cards.map(({ key, ...card }, i) => {
+                    const ad = adStatuses?.[i];
+                    // An ad with no picture of its own is one line named by its
+                    // position ("Ad 1"), the same way the confirm dialog draws it.
+                    const pictured = Boolean(card.thumbnail_url || card.media_url);
+                    return <div className="lm-ad-row" key={key}>
+                      <AdCard {...card} line={!pictured} fallbackName={pictured ? undefined : tt("lr3.adNumber", { n: i + 1 })} />
+                      {ad && <span className={`lm-ad-state lm-ad-state-${adStatusTone(ad.status)}`} title={`${ad.id}${ad.note ? ` · ${ad.note}` : ""}`}>{adStatusWord(ad.status)}</span>}
+                    </div>;
+                  })
+                  : <p>{tt("mr2.noAds")}</p>}</div>
+                {/* Only when the sweep's ads cannot be lined up with the cards
+                    does the old strip come back, so nothing goes unsaid. */}
+                {!adStatuses && c.snapshot?.ads && c.snapshot.ads.length > 0 && <div className="lm-ad-statuses">{c.snapshot.ads.map((ad, i) => <span key={ad.id} title={`${ad.id}${ad.note ? ` · ${ad.note}` : ""}`}><strong>{tt("monitorV2.ad")} {i + 1}</strong><span>{adStatusWord(ad.status)}</span></span>)}</div>}
+                {/* The references a person only needs when they go looking. */}
                 <div className="mr2-detail-links">
-                  {c.campid && <span>{tt("mr2.campid")}: <code>{c.campid}</code></span>}
-                  {c.tracking_url && <span>{tt("mr2.trackingLink")}: <a href={c.tracking_url} target="_blank" rel="noreferrer">{c.tracking_url}</a></span>}
-                  <span>{tt("monitorV2.account")}: <button className="lm-copy-id" title={tt("monitorTable.copyAccountId")} aria-label={tt("monitorTable.copyAccountIdValue", { id: c.advertiser_id })} onClick={() => void copyId(c.advertiser_id)}>{c.advertiser_id}{copied === c.advertiser_id ? <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m3 8 3.2 3.2L13 4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg> : <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="5" y="4" width="8" height="9" rx="1" stroke="currentColor" strokeWidth="1.3" /><path d="M3 11H2V3a1 1 0 0 1 1-1h7v1" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></svg>}</button></span>
-                  {campaignId && <span title={tt("monitorTable.platformCampaignId")}>{tt("monitorTable.id")} {campaignId}</span>}
+                  {c.campid && <span>{tt("mr3.ref.campid")} <code>{c.campid}</code></span>}
+                  {c.tracking_url && <span><a href={c.tracking_url} target="_blank" rel="noreferrer" title={c.tracking_url} aria-label={tt("mr2.trackingLink")}>{linkHost(c.tracking_url)}</a></span>}
+                  <span>{tt("mr3.ref.account")} <button className="lm-copy-id" title={tt("monitorTable.copyAccountId")} aria-label={tt("monitorTable.copyAccountIdValue", { id: c.advertiser_id })} onClick={() => void copyId(c.advertiser_id)}>{c.advertiser_id}{copied === c.advertiser_id ? <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m3 8 3.2 3.2L13 4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg> : <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="5" y="4" width="8" height="9" rx="1" stroke="currentColor" strokeWidth="1.3" /><path d="M3 11H2V3a1 1 0 0 1 1-1h7v1" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></svg>}</button></span>
+                  {campaignId && <span title={tt("monitorTable.platformCampaignId")}>{tt("mr3.ref.campaign")} <span className="lm-ref-id">{campaignId}</span></span>}
                 </div>
-                <div className="mr2-ads" aria-label={tt("mr2.ads")}>{cards.length ? cards.map(({ key, ...card }) => <AdCard key={key} {...card} />) : <p>{tt("mr2.noAds")}</p>}</div>
-                {c.snapshot?.ads && c.snapshot.ads.length > 0 && <div className="lm-ad-statuses">{c.snapshot.ads.map((ad, i) => <span key={ad.id} title={`${ad.id}${ad.note ? ` · ${ad.note}` : ""}`}><strong>{tt("monitorV2.ad")} {i + 1}</strong><span>{ad.status.replaceAll("_", " ").toLowerCase()}</span></span>)}</div>}
                 {skippedOf(c).map((item, i) => <p className="note note-warn" key={i}>{typeof item === "string" ? item : JSON.stringify(item)}</p>)}
               </div></td></tr>}
               {menu === c.id && createPortal(<div data-monitor-menu className="lm-menu-list" style={{ top: menuPosition.top, left: menuPosition.left }}>{canControl && <><button onClick={() => openEdit(run, c, "budget")}>{tt("lv2.changeBudget")}</button>{c.daily_budget_cents != null && <button onClick={() => openEdit(run, c, "daily_budget")}>{tt("lv2.changeDaily")}</button>}<button onClick={() => openEdit(run, c, "bid")}>{tt("lv2.changeBid")}</button><button onClick={() => openEdit(run, c, "schedule")}>{tt("lv2.endDate")}</button>{run.draft.provider === "tiktok" && <button disabled={!!busy} onClick={() => void control(run, c, { action: "duplicate" })}>{tt("lv2.duplicate")}</button>}</>}{canEnd && <button className="lm-danger" onClick={() => openEdit(run, c, "end")}>{tt("monitorV2.endCampaign")}</button>}</div>, document.body)}

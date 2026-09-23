@@ -53,10 +53,12 @@ test("staff preview locks the selected company and draft until confirmation matc
 
   await page.getByRole("button", { name: /Launch 1 campaign/ }).click();
   const confirm = page.getByRole("dialog", { name: "Confirm launch" });
-  await confirm.getByLabel(/Reason for launching on behalf of the producer/).fill("Regression test approval note");
+  await confirm.getByLabel(/Authorization note/).fill("Regression test approval note");
   await expect(confirm).toContainText(run!.draft.name);
   await expect(confirm).toContainText(run!.draft.destination_url);
-  await expect(confirm).toContainText("1 campaign across 1 ad account");
+  // Round 3: the dialog restates the request as a sentence and a facts grid, not the preview's scale line.
+  await expect(confirm.locator(".launch-confirm-facts")).toContainText("Campaigns");
+  await expect(confirm.locator(".launch-confirm-rows")).toContainText("Campaign 1");
   await expect(confirm).toContainText("$500.00");
   await confirm.getByRole("button", { name: "Cancel" }).click();
   expect(launchPosts).toBe(0);

@@ -158,5 +158,33 @@
   "lr2.issue.scheduleEnded": {
     "en": "The end time has already passed, or will within minutes. Move it forward.",
     "zh": "结束时间已过或即将到期，请向后调整。"
+  },
+  "lr2.reset": {
+    "en": "Start over",
+    "zh": "重新开始"
+  },
+  "lr2.resetConfirm": {
+    "en": "Start a new launch? The draft you are on stays saved and can be reopened from Monitor.",
+    "zh": "要开始新的投放吗？当前草稿会保留，可在投放监控中重新打开。"
+  },
+  "lr2.saving": {
+    "en": "Saving…",
+    "zh": "保存中…"
+  },
+  "lr2.savedAt": {
+    "en": "Saved {time}",
+    "zh": "已保存 {time}"
+  },
+  "lr2.unsaved": {
+    "en": "Unsaved changes",
+    "zh": "有未保存的更改"
+  },
+  "lr2.saveFailed": {
+    "en": "Could not save the draft. Your edits are still on this page.",
+    "zh": "草稿未能保存，你的编辑仍在此页面上。"
+  },
+  "lr2.resumed": {
+    "en": "Continuing your saved draft.",
+    "zh": "已继续你保存的草稿。"
   }
 }

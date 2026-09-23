@@ -19,6 +19,16 @@ import { feeLineVars } from "@/lib/promote/fee";
 import type { MetaPagePost, MetaPagePostList } from "@/lib/launch/clip-posts";
 import type { LaunchContent, LaunchDraft, LaunchPlan, LaunchProvider, LaunchRun, LaunchWorkspace, MetaPlatform } from "@/lib/launch/types";
 
+// Which draft this browser was last editing, per company. A convenience, so it
+// lives in localStorage behind try/catch and the page works without it.
+const draftKey = (scope: string) => `studio.launch.draft:${scope}`;
+function rememberedDraft(scope: string): string | null {
+  try { return window.localStorage.getItem(draftKey(scope)); } catch { return null; }
+}
+function rememberDraft(scope: string, id: string | null): void {
+  try { if (id) window.localStorage.setItem(draftKey(scope), id); else window.localStorage.removeItem(draftKey(scope)); } catch { /* private window or blocked storage */ }
+}
+
 /** The link an ad will carry once the tag is on it; shown under the campid field. */
 function campidLink(destination: string, campid: string): string {
   try { const url = new URL(destination); url.searchParams.set("campid", campid); return url.toString(); }
@@ -75,6 +85,15 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
   const [postMeta, setPostMeta] = useState<Record<string, MetaPagePost>>({});
   const mergePostMeta = useCallback((posts: Record<string, MetaPagePost>) => setPostMeta(current => ({ ...current, ...posts })), []);
   const namedOnce = useRef(false);
+  // Quiet autosave: the draft as last written to the server, the draft as it
+  // was when the page loaded (so an untouched page never creates a run), the
+  // save in flight, and whether Reset just asked us not to resume an old draft.
+  const lastSaved = useRef<string>("");
+  const baseline = useRef<string | null>(null);
+  const inFlight = useRef<Promise<void> | null>(null);
+  const skipResume = useRef(false);
+  const autosaveRef = useRef<(keepalive?: boolean) => Promise<void>>(async () => {});
+  const [saveState, setSaveState] = useState<{ kind: "idle" | "saving" | "saved" | "unsaved" | "failed"; at?: string }>({ kind: "idle" });
 
   const workspaceUrl = `${base}/workspace${staff && producerId ? `?producer_id=${encodeURIComponent(producerId)}` : ""}`;
   const reload = useCallback(async () => {
@@ -84,7 +103,12 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
       if (request !== workspaceRequest.current) return;
       setWorkspace(w.workspace);
       if (w.workspace.producers?.length) setProducers(w.workspace.producers);
-      if (!runId && !run) setDraft((d) => ({ ...d, destination_url: d.destination_url || w.workspace.default_destination_url }));
+      if (!runId && !run) {
+        setDraft((d) => ({ ...d, destination_url: d.destination_url || w.workspace.default_destination_url }));
+        // The default destination is part of an untouched page, not an edit: carry
+        // the baseline forward so a name typed before this arrived still counts.
+        if (baseline.current) { const b = JSON.parse(baseline.current) as LaunchDraft; baseline.current = JSON.stringify({ ...b, destination_url: b.destination_url || w.workspace.default_destination_url }); }
+      }
     } catch (e) { if (request === workspaceRequest.current) throw e; }
   }, [workspaceUrl, runId, run]);
   useEffect(() => {
@@ -101,6 +125,9 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
         if (!active) return;
         setRun(r.run);
         setDraft(r.run.draft);
+        lastSaved.current = JSON.stringify(r.run.draft); baseline.current = lastSaved.current;
+        setSaveState(r.run.status === "draft" ? { kind: "saved", at: r.run.updated_at } : { kind: "idle" });
+        if (r.run.status === "draft") rememberDraft(staff ? r.run.producer_id : "me", r.run.id);
         setBusinessId("");
         setCodesRaw(r.run.draft.content.filter((x) => x.kind === "spark").map((x) => x.value).join("\n"));
         setProducerId(r.run.producer_id);
@@ -108,7 +135,7 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
       })
       .catch((e) => { if (active) { setError(errorText(e)); setRunLoadFailed(true); setLoadedRunId(runId); } });
     return () => { active = false; };
-  }, [base, runId]);
+  }, [base, runId, staff]);
 
   const metaPostsUrl = staff ? "/api/promote/launch/meta-posts" : "/api/producer/launch/meta-posts";
   const previewAccount = draft.account_ids[0] ?? "";
@@ -163,6 +190,8 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
   async function save(preview = false) {
     setBusy(true); setError("");
     try {
+      // Never race a quiet autosave: it may be carrying a newer revision.
+      if (inFlight.current) await inFlight.current;
       const result = run
         ? await call<{ run: LaunchRun }>(`${base}/${run.id}`, "PUT", { draft, revision: run.revision })
         : await call<{ run: LaunchRun }>(base, "POST", { draft, ...(staff && producerId ? { producer_id: producerId } : {}) });
@@ -236,6 +265,80 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
   const issues = useMemo(() => draft.provider === "meta" ? metaDraftIssues(draft, connections) : [], [draft, connections]);
   const campidPreview = draft.campid_start?.trim() ? campidSeries(draft.campid_start, Math.min(Math.max(campaigns, 1), 3)) : [];
   const posted = !!run && run.status !== "draft";
+
+  // ---- autosave, resume and reset ------------------------------------------
+  // The draft is written to the server a moment after each edit and once more
+  // when the page is left, without the busy lock the explicit Save uses. A
+  // return to the bare Launch page continues the newest saved draft; Start
+  // over begins a new one and leaves the old draft where it is.
+  const draftJson = JSON.stringify(draft);
+  const editableDraft = canEdit && !posted && (!staff || !!producerId);
+  const autosave = useCallback(async (keepalive = false) => {
+    if (!editableDraft || busy || confirmOpen || baseline.current === null) return;
+    // Leaving the page may update the draft it was on; it never creates one.
+    // A first write only ever comes from the timer, after a real edit.
+    if (keepalive && !run) return;
+    if (inFlight.current) await inFlight.current;
+    const snapshot = JSON.stringify(draft);
+    if (snapshot === lastSaved.current || snapshot === baseline.current) return;
+    setSaveState({ kind: "saving" });
+    const work = (async () => {
+      try {
+        const url = run ? `${base}/${run.id}` : base;
+        const body = run ? { draft, revision: run.revision } : { draft, ...(staff && producerId ? { producer_id: producerId } : {}) };
+        const response = await fetch(url, { method: run ? "PUT" : "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), keepalive });
+        const json = await response.json().catch(() => ({})) as { run?: LaunchRun; error?: string };
+        if (!response.ok || !json.run) throw new Error(json.error || `HTTP ${response.status}`);
+        lastSaved.current = snapshot;
+        setRun(json.run);
+        setSaveState({ kind: "saved", at: json.run.updated_at });
+        rememberDraft(staff ? producerId : "me", json.run.id);
+        if (!run) router.replace(`${pageBase}/${json.run.id}`);
+      } catch (e) { setSaveState({ kind: "failed" }); setError(errorText(e)); }
+    })();
+    inFlight.current = work; await work; inFlight.current = null;
+  }, [editableDraft, busy, confirmOpen, draft, run, base, staff, producerId, router, pageBase]);
+  autosaveRef.current = autosave;
+  useEffect(() => {
+    // The first draft this page ever renders is its baseline, taken before the
+    // workspace arrives: whatever the person types after that counts as an edit.
+    if (baseline.current === null) { baseline.current = draftJson; return; }
+    if (!editableDraft) return;
+    if (draftJson === lastSaved.current || draftJson === baseline.current) return;
+    setSaveState((s) => (s.kind === "saving" ? s : { kind: "unsaved" }));
+    const timer = setTimeout(() => { void autosaveRef.current(); }, 1200);
+    return () => clearTimeout(timer);
+  }, [draftJson, editableDraft]);
+  useEffect(() => {
+    // Leaving the page, by tab close or by an in-app link: flush what the timer
+    // has not written yet. keepalive lets the request outlive the page.
+    const flush = () => { void autosaveRef.current(true); };
+    const hidden = () => { if (document.visibilityState === "hidden") flush(); };
+    window.addEventListener("pagehide", flush); document.addEventListener("visibilitychange", hidden);
+    return () => { window.removeEventListener("pagehide", flush); document.removeEventListener("visibilitychange", hidden); flush(); };
+  }, []);
+  useEffect(() => {
+    // The bare Launch page continues the draft this browser was last editing,
+    // as long as it is still a draft. Per browser, not per company: a colleague
+    // opening Launch is not dropped into someone else's half-built launch.
+    if (runId || run || !workspace || skipResume.current || (staff && !producerId)) return;
+    const remembered = rememberedDraft(staff ? producerId : "me");
+    const still = remembered ? workspace.runs.find((r) => r.id === remembered && r.status === "draft") : undefined;
+    if (still) router.replace(`${pageBase}/${still.id}`);
+  }, [runId, run, workspace, staff, producerId, router, pageBase]);
+  const startOver = () => {
+    if (!window.confirm(tt("lr2.resetConfirm"))) return;
+    skipResume.current = true; lastSaved.current = ""; baseline.current = null;
+    rememberDraft(staff ? producerId : "me", null);
+    setRun(null); setPlan(null); setError(""); setCodesRaw(""); setBusinessId("");
+    setDraft((d) => ({ ...defaultLaunchDraft(d.provider), destination_url: workspace?.default_destination_url ?? "" }));
+    setSaveState({ kind: "idle" });
+    router.replace(pageBase);
+  };
+  const saveWord = saveState.kind === "saving" ? tt("lr2.saving")
+    : saveState.kind === "saved" && saveState.at ? tt("lr2.savedAt", { time: new Date(saveState.at).toLocaleTimeString(locale === "zh" ? "zh-CN" : "en-US", { hour: "numeric", minute: "2-digit" }) })
+    : saveState.kind === "unsaved" ? tt("lr2.unsaved")
+    : saveState.kind === "failed" ? tt("lr2.saveFailed") : "";
   /** One ad, resolved from the clip library or the Page listing, never from a new draft field. */
   const cardFor = useCallback((item: LaunchContent, compact = false): AdCardProps => {
     const asset = item.kind === "video" ? workspace?.library.find((x) => x.id === item.value) : undefined;
@@ -268,7 +371,10 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
     <Link className="btn btn-outline" href={pageBase}>{tt("lv2.launch.title")}</Link>
   </div>;
   return <div className="launch-flow">
-    <div className="page-head"><div><h1>{tt("lv2.launch.title")}</h1><p className="page-sub">{tt("lv2.launch.sub")}</p></div><div className="rs-tool-row"><Link className="btn btn-outline" href={staff ? "/promote/monitor" : "/producer/monitor"}>{tt("lv2.monitor.title")}</Link></div></div>
+    <div className="page-head"><div><h1>{tt("lv2.launch.title")}</h1><p className="page-sub">{tt("lv2.launch.sub")}</p></div><div className="rs-tool-row">
+      {saveWord && <span className="hint launch-save-state" role="status" data-save-state={saveState.kind}>{saveWord}</span>}
+      {!posted && <button type="button" className="btn btn-outline" disabled={busy} onClick={startOver}>{tt("lr2.reset")}</button>}
+      <Link className="btn btn-outline" href={staff ? "/promote/monitor" : "/producer/monitor"}>{tt("lv2.monitor.title")}</Link></div></div>
     {staff && <div className="rs-panel"><label>{tt("lv2.producerId")} <select className="select" value={producerId} onChange={(e) => { setWorkspace(null); setRun(null); setError(""); setBusinessId(""); setDraft((d) => ({ ...d, account_ids: [], content: [] })); setCodesRaw(""); setPlan(null); setProducerId(e.target.value); }} disabled={!!runId || busy}><option value="">{tt("lv2.choose")}</option>{producers.map((p) => <option key={p.id} value={p.id}>{p.name_en || p.name_zh}</option>)}</select></label>{run && <p className="hint">{tt("lv2.onBehalf")}: {producerName(run.producer_id)}</p>}</div>}
     {posted ? <section className="rs-panel"><h2>{run.draft.name}</h2><p>{tt("lv2.status")}: {run.status} · {tt("lv2.round")} {run.round} · {tt("lv2.signedBy")} {run.approved_by ?? "—"} · {run.approved_at ? new Date(run.approved_at).toLocaleString() : "—"}</p><p>{tt("lv2.budget")}: {money(run.draft.total_budget_cents)} · {tt("lv2.campaigns")}: {run.campaigns.length}</p><div className="rs-tool-row"><Link className="btn btn-primary" href={`${staff ? "/promote/monitor" : "/producer/monitor"}?run=${run.id}`}>{tt("lv2.monitor.open")}</Link><button className="btn btn-outline" disabled={busy} onClick={() => void newRound()}>{tt("lv2.round.new")}</button></div>{error && <p className="note note-warn" role="alert" tabIndex={-1} ref={errorBox}>{error}</p>}</section> : <>
       <fieldset className="launch-edit-region" disabled={busy}><section className="rs-panel"><h2>1. {tt("lv2.provider")}</h2><div className="seg"><button className={`seg-btn${draft.provider === "tiktok" ? " on" : ""}`} onClick={() => setProvider("tiktok")} disabled={!!run}>TikTok</button><button className={`seg-btn${draft.provider === "meta" ? " on" : ""}`} onClick={() => setProvider("meta")} disabled={!!run}>Meta · Facebook / Instagram</button></div></section>

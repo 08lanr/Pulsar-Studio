@@ -6,6 +6,15 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-09-17 · Launch round 3: the confirm dialog restates one request, and the monitor row stops repeating the money
+
+Ruobin, on the round-2 screens: "this UI is completely garbage" (the confirm dialog) and, on the monitor's expanded row, "we dont need campaign lifetime budget, daily pacing, campaign ceiling, we dont need the spark code". Rebuilt by two Opus builders against the NN/G and Smashing Magazine guidance for consequential confirmations: restate the specific request and its consequence, put the facts in a scannable grid, make the button say what it commits to, and keep machine references out of headline content.
+
+- **The confirm dialog** (`components/launch/LaunchConfirmDialog.tsx`, 600px, sticky header and footer, scrolling body) is: the title; one sentence naming the campaign count, the provider and the ad account and saying the campaigns start paused (a sandbox run keeps the test-launch sentence); a two-column facts grid (launch name, platform, ad accounts, campaigns, destination, landing page); one block per campaign with the account name, its budget and its ads; the bill as three right-aligned numbers (media budget, service fee, total billed); the staff authorization note; Cancel and the gold primary. The primary reads "Confirm launch · $X billed" in production; its accessible name stays exactly "Confirm launch".
+- **A Spark code is never printed.** `AdCard` no longer names an ad by its code; an ad with no picture and no words is one line named by its position ("Ad 1 · TikTok", the new `line` and `fallbackName` props), on the dialog and on the monitor alike. The code stays in `title=` and `data-content-id`, which is what the browser tests now check.
+- **The monitor's expanded row** drops the campaign lifetime budget, the approved ceiling, the daily pacing and the per-row "last checked" (the footer has it). What remains is one row per ad group (state, budget as "$20.00/day" or "$20.00 lifetime", bid, end), one row per ad with the provider's review word as a pill, and one label-size references line (campid, tracking link shown by its host, ad account with copy, provider campaign id). The budget is still edited through "Change budget", whose ceiling line is unchanged.
+- New strings live in `locales/_keys/launch-round3-confirm.json` and `launch-round3-monitor.json`.
+
 ## 2026-09-17 · Pre-launch review: what a first real launch on either provider would have hit
 
 Ruobin asked for one last pass over the administrative and producer sides before Meta business verification lands, so that ads go out on TikTok and Meta the day it does. The live database is fully migrated (read-only probes found every 0010–0014 object: launch runs, connections, clip posts with their lease columns, Instant Page templates, presets, the transcription enum values); the gaps were in the code paths a live launch takes and in what the monitor said afterwards.

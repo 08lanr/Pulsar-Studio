@@ -38,6 +38,15 @@
       "port": 3200
     },
     {
+      "name": "studio-live-3203",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "cd /d C:\\Users\\ruobi\\Github\\Pulsar-Studio&& npm run dev:live"
+      ],
+      "port": 3203
+    },
+    {
       "name": "studio-prod",
       "runtimeExecutable": "npm",
       "runtimeArgs": [

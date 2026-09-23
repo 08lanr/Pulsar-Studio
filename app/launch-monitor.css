@@ -71,11 +71,29 @@ button.lm-state-toggle { cursor:pointer; }
 .lm-menu-list button:hover, .lm-menu-list button:focus-visible { background:var(--surface-2); }
 .lm-menu-list .lm-danger { color:var(--error); border-top:1px solid var(--border); }
 .lm-table .lm-detail-row > td { padding:0; }
-.lm-detail { padding:12px 14px 12px 106px; background:var(--surface-2); color:var(--text-muted); font-size:11px; }
-.lm-detail-facts { display:flex; flex-wrap:wrap; gap:6px 18px; margin-bottom:10px; }
-.lm-group { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 0; border-top:1px solid var(--border-light); }
-.lm-group > div { display:flex; align-items:center; flex-wrap:wrap; gap:6px 14px; }
-.lm-ad-statuses { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }
+/* The expanded row is one calm --surface-2 panel, never a second card: the ad
+   groups, then the ads, then the references in label-size text. The campaign's
+   budget, its ceiling and its pacing are not here — they are the "Change
+   budget" dialog's, and they said the same money three times. */
+.lm-detail { display:grid; gap:10px; padding:12px 14px 12px 106px; background:var(--surface-2); color:var(--text-muted); font-size:11px; }
+.lm-detail > .note { margin:0; }
+/* One row per ad group, with a fixed action column its button never wraps in. */
+.lm-groups { display:grid; }
+.lm-group { display:grid; grid-template-columns:minmax(0,1fr) 116px; align-items:center; gap:4px 12px; padding:7px 0; }
+.lm-group + .lm-group { border-top:1px solid var(--border-light); }
+.lm-group-main { display:flex; align-items:center; flex-wrap:wrap; gap:4px 14px; min-width:0; }
+.lm-group-name { color:var(--text); font-weight:600; }
+.lm-group-money { font-variant-numeric:tabular-nums; }
+.lm-group-action { display:flex; justify-content:flex-end; }
+/* One ad, described once: the shared card and the provider's word for its
+   review, tinted the way the campaign's own state word is. */
+.lm-ad-row { display:flex; align-items:center; gap:10px; min-width:0; }
+.lm-ad-state { flex:none; padding:1px 8px; border:1px solid var(--border); border-radius:999px; background:var(--surface); color:var(--text-muted); font-size:10px; line-height:16px; white-space:nowrap; }
+.lm-ad-state-live { color:var(--success); border-color:color-mix(in srgb,var(--success) 45%,transparent); background:color-mix(in srgb,var(--success) 8%,transparent); }
+.lm-ad-state-review { color:var(--warning); border-color:color-mix(in srgb,var(--warning) 45%,transparent); background:color-mix(in srgb,var(--warning) 8%,transparent); }
+.lm-ad-state-error { color:var(--error); border-color:color-mix(in srgb,var(--error) 45%,transparent); background:color-mix(in srgb,var(--error) 8%,transparent); }
+/* Kept only for a sweep whose ads cannot be lined up with the cards. */
+.lm-ad-statuses { display:flex; flex-wrap:wrap; gap:6px; margin:0; }
 .lm-ad-statuses > span { display:flex; gap:7px; padding:3px 8px; border:1px solid var(--border); border-radius:4px; }
 .lm-ad-statuses strong { font-weight:500; color:var(--text); }
 .lm-authorization { margin-top:9px; }

@@ -25,17 +25,21 @@
 .mr2-failure .mr2-said span { color:var(--text-faint); }
 .lm .lm-run-error { margin:8px 14px; }
 
-/* ---- expanded row: groups, campid, tracking link, ads ---- */
-.mr2-group > div { align-items:baseline; }
-.mr2-detail-links { display:flex; flex-wrap:wrap; align-items:center; gap:6px 18px; margin:10px 0 0; padding-top:9px; border-top:1px solid var(--border-light); font-size:10.5px; }
-.mr2-detail-links code { font-size:10.5px; }
+/* ---- expanded row: ad groups, ads, references ---- */
+/* The references sit last, in label-size text: nothing here leads with an id,
+   and the tracking link shows its host because the campid beside it already
+   says which campaign the link tags. The full URL stays in title=. */
+.mr2-detail-links { display:flex; flex-wrap:wrap; align-items:center; gap:5px 16px; margin:0; padding-top:9px; border-top:1px solid var(--border-light); color:var(--text-faint); font-size:10.5px; }
+.mr2-detail-links code, .mr2-detail-links .lm-ref-id { font-size:10.5px; font-variant-numeric:tabular-nums; color:var(--text-muted); }
 .mr2-detail-links a { color:var(--accent-text); overflow-wrap:anywhere; }
-/* The shared AdCard keeps its own look; the monitor only says how many fit on
-   a row, and lets the empty frame stay a frame — a launch row has no rendered
+.mr2-detail-links > span + span { position:relative; }
+.mr2-detail-links > span + span::before { content:'·'; position:absolute; left:-10px; }
+/* The shared AdCard keeps its own look; the monitor only gives each ad its own
+   row, and lets an empty frame stay a frame — a launch row has no rendered
    preview to show, so the placeholder words would only spill over the card. */
-.mr2-ads { display:flex; flex-wrap:wrap; gap:8px 14px; margin:10px 0 0; }
+.mr2-ads { display:grid; gap:8px; margin:0; }
 .mr2-ads > p { margin:0; color:var(--text-faint); }
-.mr2-ads > .ad-card { width:min(280px,100%); }
+.mr2-ads .ad-card { max-width:min(360px,100%); }
 .mr2-ads .ad-card-thumb-empty { font-size:0; }
 
 /* ---- "Checking now" while the first sweep runs ---- */

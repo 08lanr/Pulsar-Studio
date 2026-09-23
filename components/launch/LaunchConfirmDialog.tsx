@@ -1,13 +1,36 @@
 "use client";
 
+// The last screen before real money moves (docs/launch-ux-round-2.md §1.6/§2.4,
+// rebuilt 2026-09-17 after "this UI is completely garbage").
+//
+// A confirmation is not a summary of everything we know; it restates the one
+// request with its one consequence, in the order a person decides in:
+//   title → what this does → the facts, scannable → the ads → the money → act.
+// So: one sentence naming the account, the provider and the campaign count and
+// saying that nothing spends yet; a two-column fact grid; the ads grouped under
+// their campaign; the bill as three right-aligned numbers instead of a sentence;
+// then a footer that stays put, so the buttons are never below the fold.
+//
+// Nothing a person does not decide with is allowed to be headline content: the
+// Spark code, the advertiser id and the tracking query string live in `title=`,
+// `data-content-id` and a link labelled by its host. The dialog prints no raw
+// provider reference at all.
+
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "@/components/locale";
 import { usd } from "@/components/tiktok/api";
-import { planSummary } from "./plan-summary";
+import { planScale } from "./plan-summary";
 import AdCard, { type AdCardProps } from "./AdCard";
-import { feeLineVars } from "@/lib/promote/fee";
+import { billedTotalUsd, feeLineVars, serviceFeeUsd } from "@/lib/promote/fee";
 import type { LaunchContent, LaunchPlan, LaunchProvider, LaunchRun, MetaPlatform } from "@/lib/launch/types";
+
+const PROVIDER_WORD: Record<LaunchProvider, string> = { tiktok: "TikTok", meta: "Meta" };
+
+/** A tracking link is read by where it goes, never by its query string. */
+function linkWord(url: string): string {
+  try { return new URL(url).host; } catch { return url; }
+}
 
 export default function LaunchConfirmDialog({ name, plan, destination, startPaused, provider, mode, accountNames, cards, pageDesign, staff, note, onNoteChange, error, onClose, onConfirm }: {
   name: string; plan: LaunchPlan; destination: string; startPaused: boolean;
@@ -30,7 +53,7 @@ export default function LaunchConfirmDialog({ name, plan, destination, startPaus
     const keydown = (event: KeyboardEvent) => {
       if (event.key === "Escape") { event.preventDefault(); onClose(); }
       if (event.key !== "Tab" || !panel.current) return;
-      const controls = Array.from(panel.current.querySelectorAll<HTMLElement>("button:not(:disabled), textarea:not(:disabled), input:not(:disabled)"));
+      const controls = Array.from(panel.current.querySelectorAll<HTMLElement>("button:not(:disabled), textarea:not(:disabled), input:not(:disabled), a[href]"));
       const first = controls[0], last = controls[controls.length - 1];
       if (event.shiftKey && (document.activeElement === first || document.activeElement === panel.current)) { event.preventDefault(); last?.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
@@ -38,39 +61,95 @@ export default function LaunchConfirmDialog({ name, plan, destination, startPaus
     document.addEventListener("keydown", keydown);
     return () => { document.removeEventListener("keydown", keydown); previous?.focus(); };
   }, [onClose]);
+
+  const providerWord = PROVIDER_WORD[provider];
+  const scale = planScale(tt, plan.campaign_count, plan.account_count);
+  const one = plan.campaign_count === 1;
+  // The accounts are named, in the order the plan uses them, never as `act_…`.
+  const accounts: string[] = [];
+  for (const row of plan.rows) {
+    const label = accountNames[row.connection_id] ?? tt("lv2.account");
+    if (!accounts.includes(label)) accounts.push(label);
+  }
+  // What this does, in one sentence. A test run keeps the existing wording,
+  // because the only consequence worth stating there is that there is none.
+  const creates = mode === "production"
+    ? (accounts.length === 1
+      ? tt("lr3.createsIn", { campaigns: scale.campaigns, provider: providerWord, account: accounts[0] })
+      : tt("lr3.createsAcross", { campaigns: scale.campaigns, provider: providerWord, accounts: scale.accounts }))
+    : tt("launchFeedback.testCreation", { provider: providerWord });
+  const outcome = startPaused
+    ? tt(one ? "lr3.startsPausedOne" : "lr3.startsPausedMany")
+    : tt(one ? "lr3.startsLiveOne" : "lr3.startsLiveMany", { provider: providerWord });
+
+  const budgetUsd = plan.total_budget_cents / 100;
+  const billed = usd(billedTotalUsd(budgetUsd));
+  // The button says what pressing it commits to; its accessible name stays the
+  // two words every habit — and every spec file — locates this action by.
+  const confirmWord = tt("launchFeedback.confirm");
+  const confirmLabel = mode === "production" ? tt("lr3.confirmBilled", { total: billed }) : confirmWord;
+
   return createPortal(<div className="launch-dialog-backdrop launch-confirm-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <div className="launch-dialog launch-confirm-dialog" style={{ width: "min(920px, 100%)", maxWidth: 920 }} ref={panel} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="launch-confirm-title" aria-describedby="launch-confirm-summary">
-      <h2 id="launch-confirm-title">{tt("launchFeedback.confirm")}</h2>
-      <p className="note">{tt(mode === "production" ? "launchFeedback.realCreation" : "launchFeedback.testCreation", { provider: provider === "tiktok" ? "TikTok" : "Meta" })}</p>
-      <p id="launch-confirm-summary">{name}: {planSummary(tt, plan, (cents) => usd(cents / 100))}</p>
-      <p>{tt("lv2.destination")}: {destination}</p>
-      {pageDesign && <p className="note">{tt("salesLaunch.sales")}: {pageDesign.name} · {tt("tipTemplates.button")}: {pageDesign.button_text} · {tt(`tipTemplates.background.${pageDesign.background}`)}{pageDesign.hand_cursor ? ` · ${tt("tipTemplates.handCursor")}` : ""}</p>}
-      {/* A preview of the ads, not a list of references: the account and the
-          money, then one card per ad, then one small line with the campid and
-          its tracking link. No raw provider id appears anywhere here. */}
-      <div className="launch-confirm-rows">{plan.rows.map(row => {
-        const ads: { item: LaunchContent; platform?: MetaPlatform }[] = row.ad_sets?.length
-          ? row.ad_sets.flatMap(set => set.content.map(item => ({ item, platform: set.platform })))
-          : row.content.map(item => ({ item }));
-        return <article className="launch-confirm-row" key={row.index}>
-          <p className="launch-confirm-head"><strong>{accountNames[row.connection_id] ?? tt("lv2.account")}</strong><span className="launch-confirm-budget">{usd(row.budget_cents / 100)}</span></p>
-          <div className="launch-confirm-ads">{ads.map(({ item, platform }, index) => {
-            const card = cards?.[`${item.kind}:${item.value}`] ?? {
-              platform: item.kind === "instagram_post" ? "instagram" as const : item.kind === "spark" ? "tiktok" as const : "facebook" as const,
-              kind: item.kind, label: item.label || item.value, caption: item.text ?? null, headline: item.headline ?? null,
-              thumbnail_url: null, media_url: null, id: item.value,
-            };
-            return <AdCard key={`${platform ?? ""}:${item.kind}:${item.value}:${index}`} {...card} compact {...(platform ? { platform, platforms: undefined } : {})} />;
-          })}</div>
-          <p className="launch-confirm-ref">{row.campid && <small>{tt("mr2.campid")}: {row.campid}{row.tracking_url ? ` · ${row.tracking_url}` : ""}</small>}</p>
-        </article>;
-      })}</div>
-      {plan.warnings.length > 0 && <ul>{plan.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>}
-      <p className="note">{tt("lv2.feeLine", feeLineVars(plan.total_budget_cents / 100))}</p>
-      <p className="note">{tt(startPaused ? "launchFeedback.pausedConfirmation" : "launchFeedback.liveConfirmation")}</p>
-      {staff && <label className="tk-field launch-confirm-note">{tt("lv2.onBehalfNote")}<textarea className="input" required aria-describedby="launch-authorization-help" value={note} onChange={event => onNoteChange(event.target.value)} /><span className="hint" id="launch-authorization-help">{tt("launchFeedback.noteHelp")}</span></label>}
-      {error && <p className="note note-warn" role="alert" tabIndex={-1} ref={errorBox}>{error}</p>}
-      <div className="rs-tool-row"><button type="button" className="btn btn-outline" onClick={onClose}>{tt("common.cancel")}</button><button type="button" className="btn btn-approve" onClick={onConfirm}>{tt("launchFeedback.confirm")}</button></div>
+    <div className="launch-dialog launch-confirm-dialog" ref={panel} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="launch-confirm-title" aria-describedby="launch-confirm-summary">
+      <header className="launch-confirm-header">
+        <h2 id="launch-confirm-title">{confirmWord}</h2>
+        <p id="launch-confirm-summary" className="launch-confirm-lede">{creates} {outcome}</p>
+      </header>
+      <div className="launch-confirm-body">
+        <dl className="launch-confirm-facts">
+          <div><dt>{tt("lv2.name")}</dt><dd>{name}</dd></div>
+          <div><dt>{tt("lv2.provider")}</dt><dd>{providerWord}</dd></div>
+          <div><dt>{tt("lv2.accounts")}</dt><dd>{accounts.join(" · ")}</dd></div>
+          <div><dt>{tt("lr3.factCampaigns")}</dt><dd>{plan.campaign_count}</dd></div>
+          <div className="launch-confirm-fact-wide"><dt>{tt("lv2.destination")}</dt><dd><span className="launch-confirm-url" title={destination}>{destination}</span></dd></div>
+          {pageDesign && <div className="launch-confirm-fact-wide"><dt>{tt("lr3.factLandingPage")}</dt><dd title={pageDesign.name}>{tt("salesLaunch.sales")} · {pageDesign.button_text} · {tt(`tipTemplates.background.${pageDesign.background}`)}{pageDesign.hand_cursor ? ` · ${tt("tipTemplates.handCursor")}` : ""}</dd></div>}
+        </dl>
+        {/* One block per campaign: which account, how much, then the ads. An ad
+            with no picture and no words of its own is a line, not an empty frame. */}
+        <div className="launch-confirm-rows">{plan.rows.map(row => {
+          const ads: { item: LaunchContent; platform?: MetaPlatform }[] = row.ad_sets?.length
+            ? row.ad_sets.flatMap(set => set.content.map(item => ({ item, platform: set.platform })))
+            : row.content.map(item => ({ item }));
+          return <article className="launch-confirm-row" key={row.index}>
+            <p className="launch-confirm-head">
+              <strong>{tt("lr3.campaignNumber", { n: row.index })}</strong>
+              <span className="launch-confirm-account">{accountNames[row.connection_id] ?? tt("lv2.account")}</span>
+              <span className="launch-confirm-budget">{usd(row.budget_cents / 100)}</span>
+            </p>
+            <div className="launch-confirm-ads">{ads.map(({ item, platform }, index) => {
+              const card = cards?.[`${item.kind}:${item.value}`] ?? {
+                platform: item.kind === "instagram_post" ? "instagram" as const : item.kind === "spark" ? "tiktok" as const : "facebook" as const,
+                // Never `item.value`: that is the Spark code, and naming an ad by it is what made this dialog unreadable.
+                kind: item.kind, label: item.label ?? "", caption: item.text ?? null, headline: item.headline ?? null,
+                thumbnail_url: null, media_url: null, id: item.value,
+              };
+              const pictured = Boolean(card.thumbnail_url || card.media_url);
+              return <AdCard key={`${platform ?? ""}:${item.kind}:${item.value}:${index}`} {...card} compact
+                line={!pictured} fallbackName={pictured ? undefined : tt("lr3.adNumber", { n: index + 1 })}
+                {...(platform ? { platform, platforms: undefined } : {})} />;
+            })}</div>
+            {row.campid && <p className="launch-confirm-ref"><small>{tt("mr2.campid")} {row.campid}{row.tracking_url ? <> · <a href={row.tracking_url} target="_blank" rel="noreferrer" title={row.tracking_url}>{linkWord(row.tracking_url)}</a></> : null}</small></p>}
+          </article>;
+        })}</div>
+        {plan.warnings.length > 0 && <div className="note note-warn launch-confirm-warnings"><strong>{tt("lr3.checkFirst")}</strong><ul>{plan.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul></div>}
+        {/* The bill, as three numbers a person can add up, not as a sentence. */}
+        <dl className="launch-confirm-money">
+          <div><dt>{tt("lr3.mediaBudget")}</dt><dd>{usd(budgetUsd)}</dd></div>
+          <div><dt>{tt("lr3.serviceFee", { pct: feeLineVars(budgetUsd).pct })}</dt><dd>{usd(serviceFeeUsd(budgetUsd))}</dd></div>
+          <div className="launch-confirm-total"><dt>{tt("lr3.totalBilled")}</dt><dd>{billed}</dd></div>
+        </dl>
+        <p className="launch-confirm-fineprint">{tt("lr3.mediaOnly")}</p>
+        {staff && <div className="launch-confirm-note">
+          <div className="launch-confirm-note-head"><label htmlFor="launch-authorization">{tt("lr3.noteLabel")}</label><small>{tt("lr3.noteRequired")}</small></div>
+          <textarea id="launch-authorization" className="input" rows={2} required aria-describedby="launch-authorization-help" value={note} onChange={event => onNoteChange(event.target.value)} />
+          <p className="hint" id="launch-authorization-help">{tt("lr3.noteHelp")}</p>
+        </div>}
+        {error && <p className="note note-warn" role="alert" tabIndex={-1} ref={errorBox}>{error}</p>}
+      </div>
+      <div className="rs-tool-row launch-confirm-footer">
+        <button type="button" className="btn btn-outline" onClick={onClose}>{tt("common.cancel")}</button>
+        <button type="button" className="btn btn-approve" aria-label={confirmWord} onClick={onConfirm}>{confirmLabel}</button>
+      </div>
     </div>
   </div>, document.body);
 }
