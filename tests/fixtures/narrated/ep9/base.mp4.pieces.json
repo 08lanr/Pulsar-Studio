@@ -1,0 +1,117 @@
+{
+ "episode": 9,
+ "fps": 25,
+ "duration": 230.24,
+ "pieces": [
+  {
+   "id": "P1",
+   "src_in": 567.56,
+   "src_out": 575.52,
+   "mode": "bridge",
+   "note": "into the lounge (green sofas, billiard table); Qin: 'please sit' (muted); she stays standing, he sits",
+   "out_in": 0.0,
+   "out_out": 7.96,
+   "frames": 199
+  },
+  {
+   "id": "P2",
+   "src_in": 575.52,
+   "src_out": 674.8,
+   "mode": "kept",
+   "note": "the lounge talk: 'the file was stolen, why not chase them?' 'nothing important is kept here' 'how cunning'; 'why are YOU here?' - the contract, the money, 'I can make you city master'; 'show me your sincerity' 'the formula again?'; 'wait - I know what you want'; 'tonight at ten, the dance hall; everything's ready but the east wind' 'I'll bring you the east wind'",
+   "out_in": 7.96,
+   "out_out": 107.24,
+   "frames": 2482
+  },
+  {
+   "id": "P3",
+   "src_in": 674.8,
+   "src_out": 684.0,
+   "mode": "bridge",
+   "note": "the lounge from the doorway; the post office at night",
+   "out_in": 107.24,
+   "out_out": 116.44,
+   "frames": 230
+  },
+  {
+   "id": "P4",
+   "src_in": 684.0,
+   "src_out": 699.0,
+   "mode": "kept",
+   "note": "her thought behind the pillar (quests are scripted; last time I got the formula right here; so all I need to...); the postman on his bicycle: 'stop!' 'what are you doing?' - gun out: 'I'm robbing you of a letter!'",
+   "out_in": 116.44,
+   "out_out": 131.44,
+   "frames": 375
+  },
+  {
+   "id": "P5",
+   "src_in": 699.0,
+   "src_out": 705.04,
+   "mode": "bridge",
+   "note": "the dance hall, dark red carpet, dancers (a background 'come on' muted)",
+   "out_in": 131.44,
+   "out_out": 137.48,
+   "frames": 151
+  },
+  {
+   "id": "P6",
+   "src_in": 705.04,
+   "src_out": 711.0,
+   "mode": "kept",
+   "note": "'Governor Qin, will you dance with me?' - a hand on a shoulder: 'Sorry'",
+   "out_in": 137.48,
+   "out_out": 143.44,
+   "frames": 149
+  },
+  {
+   "id": "P7",
+   "src_in": 711.0,
+   "src_out": 729.0,
+   "mode": "bridge",
+   "note": "the dance floor from above; Qin sits down across from her at a small table with a paper cone of snacks and the envelope; they eat and wait",
+   "out_in": 143.44,
+   "out_out": 161.44,
+   "frames": 450
+  },
+  {
+   "id": "P8",
+   "src_in": 729.0,
+   "src_out": 772.12,
+   "mode": "kept",
+   "note": "'looks like I brought the wrong sincerity' 'Miss Anna'; the envelope: the munitions formula, taken before Sun Jiaying got it; 'satisfied?'; 'we agreed: sincerity for a signed contract'; 'Qin doesn't haggle'; 'then I'm sorry'",
+   "out_in": 161.44,
+   "out_out": 204.56,
+   "frames": 1078
+  },
+  {
+   "id": "P9",
+   "src_in": 772.12,
+   "src_out": 779.4,
+   "mode": "bridge",
+   "note": "the silence: she looks down, Qin in profile, dancers through the curtain",
+   "out_in": 204.56,
+   "out_out": 211.84,
+   "frames": 182
+  },
+  {
+   "id": "P10",
+   "src_in": 779.4,
+   "src_out": 783.92,
+   "mode": "kept",
+   "note": "'Governor, have you decided?'",
+   "out_in": 211.84,
+   "out_out": 216.36,
+   "frames": 113
+  },
+  {
+   "id": "P11",
+   "src_in": 791.32,
+   "src_out": 805.2,
+   "mode": "kept",
+   "note": "'Governor, then I'll be going.' She rises; soldiers march in and salute; 'Take her away.' (cliffhanger; ep10 opens on 'Qin Xiaoyi, you went back on your word')",
+   "out_in": 216.36,
+   "out_out": 230.24,
+   "frames": 347
+  }
+ ]
+}

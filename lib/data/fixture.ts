@@ -53,6 +53,7 @@ import type {
   Episode,
   FilmAsset,
   FilmRun,
+  FilmRunEpisode,
   Job,
   Json,
   Line,
@@ -77,7 +78,24 @@ import type {
 } from "@/lib/types";
 import { withHistoricalPromoSeed, legacyCampaignRetired, conflict, forbidden, frozen, invalid, notFound } from "./errors";
 import { episodeImportPatch, filmAssetRow, normalizeSourceRef, validateAdRules } from "./film-import";
-import { claimFields, decisionRow, filmRunRow, filmRunStageAudited, normalizeFilmRun, releaseFields, renewFields, stageFields } from "./film-runs";
+import {
+  claimFields,
+  decisionRow,
+  episodeClaimFields,
+  episodeReleaseFields,
+  episodeRenewFields,
+  episodeStageFields,
+  filmRunRow,
+  filmRunStageAudited,
+  heldNumbersConflict,
+  normalizeFilmRun,
+  normalizeRunEpisode,
+  releaseFields,
+  renewFields,
+  runEpisodeAudited,
+  runEpisodeRows,
+  stageFields,
+} from "./film-runs";
 import { normalizePlatformSnapshot, platformLinkRow, platformSnapshotRow, PLATFORM_SNAPSHOTS_KEEP, PLATFORMS } from "@/lib/crazydramas/types";
 import type {
   ApproveOptions,
@@ -154,6 +172,8 @@ function store(): Store {
   s.db.film_runs ??= [];
   // The platform tables (migration 0017) live beside the seed's shape: persisted and merged like every other table, defaulted here.
   platformTables(s.db);
+  // So do the narrated episodes (migration 0018).
+  episodeTable(s.db);
   // Rows seeded or saved before the workspace import (migration 0015) lack its columns; a reader sees one shape.
   for (const t of s.db.titles) {
     t.source_ref ??= null;
@@ -415,11 +435,14 @@ function schedulePersist(): void {
 function companyRows(db: FixtureDb, producers: Set<string>): (row: Record<string, unknown>, table: string) => boolean {
   const titles = new Set(db.titles.filter((t) => producers.has(t.producer_id)).map((t) => t.id));
   const campaigns = new Set(db.promo_campaigns.filter((c) => producers.has(c.producer_id) || titles.has(c.title_id)).map((c) => c.id));
+  // A narrated episode row (migration 0018) belongs to its run's company.
+  const runs = new Set((db.film_runs ?? []).filter((r) => producers.has(r.producer_id)).map((r) => r.id));
   return (row, table) =>
     (table === "producers" && typeof row.id === "string" && producers.has(row.id)) ||
     (typeof row.producer_id === "string" && producers.has(row.producer_id)) ||
     (typeof row.title_id === "string" && titles.has(row.title_id)) ||
-    (typeof row.campaign_id === "string" && campaigns.has(row.campaign_id));
+    (typeof row.campaign_id === "string" && campaigns.has(row.campaign_id)) ||
+    (table === "film_run_episodes" && typeof row.run_id === "string" && runs.has(row.run_id));
 }
 
 /**
@@ -436,6 +459,8 @@ function mergeOtherCompanies(fresh: FixtureDb, old: FixtureDb): FixtureDb {
   if (!carried.size) return fresh;
   const carriedNames = new Set(old.producers.filter((p) => carried.has(p.id)).map((p) => (p.name_en ?? p.name_zh).trim().toLowerCase()));
   const replaced = new Set(fresh.producers.filter((p) => p.id !== FIXTURE_PRODUCER_ID && (carried.has(p.id) || carriedNames.has((p.name_en ?? p.name_zh).trim().toLowerCase()))).map((p) => p.id));
+  // Tables that live beside the seed's shape are merged too: default them on the fresh store first.
+  episodeTable(fresh);
   const dropFresh = companyRows(fresh, replaced);
   const keepOld = companyRows(old, carried);
   const out = fresh as unknown as Record<string, unknown>;
@@ -639,6 +664,24 @@ function canReadSnapshot(db: FixtureDb, session: Session, row: PlatformSnapshot)
   if (!row.title_id) return false;
   const title = db.titles.find((t) => t.id === row.title_id);
   return !!title && canReadTitle(session, title.producer_id);
+}
+
+/** studio.film_run_episodes (migration 0018) lives beside the seed's shape, like the platform tables: defaulted on every store. */
+type EpisodeTable = { film_run_episodes: FilmRunEpisode[] };
+
+function episodeTable(db: FixtureDb): EpisodeTable {
+  const ext = db as unknown as Partial<EpisodeTable>;
+  ext.film_run_episodes ??= [];
+  return ext as EpisodeTable;
+}
+
+/** A narrated episode the session may read: staff and the system only (0018's RLS is staff-only); anything else reads not found. */
+function readableRunEpisode(db: FixtureDb, session: Session, episodeId: string): FilmRunEpisode {
+  requireMemberSession(session);
+  const ep = episodeTable(db).film_run_episodes.find((e) => e.id === episodeId);
+  if (!ep || !(isSystemSession(session) || session.kind === "staff")) throw notFound("episode", episodeId);
+  ep.stage_detail ??= {};
+  return ep;
 }
 
 /** A film run the session may read: staff and the system see every run, a producer their own company's; a foreign run is not found (never forbidden), as RLS answers. */
@@ -2529,6 +2572,74 @@ export const fixtureData: DataLayer = {
     const run = readableFilmRun(s.db, session, runId);
     Object.assign(run, releaseFields(run, input));
     return clone(run);
+  },
+
+  // ---- narrated episodes (decision 2026-09-23 "Narrated mode in Studio"; migration 0018) ----
+
+  async createRunEpisodes(session, runId, input) {
+    const s = store();
+    requireSystemOrStaff(session);
+    const run = readableFilmRun(s.db, session, runId);
+    const rows = runEpisodeRows(run, input);
+    const table = episodeTable(s.db).film_run_episodes;
+    if (table.some((e) => e.run_id === run.id)) throw conflict(`run ${run.id} already has its episode rows: a plan is written once`);
+    const others = table.filter((e) => e.series_key === rows[0].series_key && e.run_id !== run.id);
+    const held = heldNumbersConflict(rows.map((r) => r.n), others, (id) => s.db.film_runs.find((r) => r.id === id)?.stage ?? null);
+    if (held) throw conflict(held);
+    const out = rows.map((r) => ({ id: randomUUID(), ...r }) as FilmRunEpisode);
+    table.push(...out);
+    audit(s, session, "create_run_episodes", "studio.film_run_episodes", run.id, run.title_id, null, { run_id: run.id, series_key: rows[0].series_key, episodes: out.map((e) => ({ n: e.n, src_in: e.src_in, src_out: e.src_out })) } as unknown as Json);
+    return clone(out.map(normalizeRunEpisode));
+  },
+
+  async listRunEpisodes(session, runId) {
+    const s = store();
+    readableFilmRun(s.db, session, runId); // a foreign run is not found
+    if (!(isSystemSession(session) || session.kind === "staff")) return []; // staff only, as 0018's RLS: a producer reads no rows
+    const rows = episodeTable(s.db).film_run_episodes.filter((e) => e.run_id === runId).sort((a, b) => a.n - b.n);
+    return clone(rows.map(normalizeRunEpisode));
+  },
+
+  async getRunEpisode(session, episodeId) {
+    return clone(normalizeRunEpisode(readableRunEpisode(store().db, session, episodeId)));
+  },
+
+  async claimRunEpisode(session, episodeId, input) {
+    const s = store();
+    requireSystemOrStaff(session);
+    const ep = readableRunEpisode(s.db, session, episodeId);
+    const fields = episodeClaimFields(ep, input);
+    if (!fields) return null;
+    Object.assign(ep, fields);
+    return clone(normalizeRunEpisode(ep));
+  },
+
+  async renewRunEpisodeLease(session, episodeId, input) {
+    const s = store();
+    requireSystemOrStaff(session);
+    const ep = readableRunEpisode(s.db, session, episodeId);
+    Object.assign(ep, episodeRenewFields(ep, input));
+    return clone(normalizeRunEpisode(ep));
+  },
+
+  async setRunEpisodeStage(session, episodeId, input) {
+    const s = store();
+    requireSystemOrStaff(session);
+    const ep = readableRunEpisode(s.db, session, episodeId);
+    const was = { words_stage: ep.words_stage, picture_stage: ep.picture_stage, stage: ep.stage, error_text: ep.error_text, variant: ep.variant, approved_at: ep.approved_at, revision: ep.revision };
+    Object.assign(ep, episodeStageFields(ep, input, isSystemSession(session) ? "system" : session.userId));
+    if (runEpisodeAudited(was, ep)) {
+      audit(s, session, "set_run_episode_stage", "studio.film_run_episodes", ep.id, null, was as Json, { n: ep.n, words_stage: ep.words_stage, picture_stage: ep.picture_stage, stage: ep.stage, error_text: ep.error_text, variant: ep.variant, approved_at: ep.approved_at, revision: ep.revision });
+    }
+    return clone(normalizeRunEpisode(ep));
+  },
+
+  async releaseRunEpisode(session, episodeId, input) {
+    const s = store();
+    requireSystemOrStaff(session);
+    const ep = readableRunEpisode(s.db, session, episodeId);
+    Object.assign(ep, episodeReleaseFields(ep, input));
+    return clone(normalizeRunEpisode(ep));
   },
 
   // ---- platform links and snapshots (decision 2026-09-23; migration 0017) ----

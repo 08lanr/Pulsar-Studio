@@ -458,6 +458,6 @@ test("the real workspace scans without a crash and names every folder", async (t
   for (const ref of ["low-quality/the-cold-ceo", "low-quality/she-returned-with-her-son"]) {
     if (by[ref]) assert.ok(["NOT_DELIVERED", "RENDERING", "READY"].includes(by[ref].state), `${ref}: ${by[ref].state}`);
   }
-  if (by["love-between-lines"]) assert.deepEqual([by["love-between-lines"].state, by["love-between-lines"].reason], ["NO_MANIFEST", { code: "no_cut_dir" }]);
-  for (const ref of ["lbl-e02", "lbl-e03", "lbl-e04"]) if (by[ref]) assert.equal(by[ref].state, "NO_MANIFEST");
+  // The narrated (skip-through) projects: not delivered through Studio, so the reason names the narrated manifest they lack.
+  for (const ref of ["love-between-lines", "lbl-e02", "lbl-e03", "lbl-e04"]) if (by[ref]) assert.deepEqual([by[ref].state, by[ref].reason], ["NO_MANIFEST", { code: "no_narrated_manifest", file: "DELIVERED-narrated.json" }], ref);
 });

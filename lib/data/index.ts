@@ -34,8 +34,13 @@ import type {
   FilmAsset,
   FilmAssetKind,
   FilmAssetOrigin,
+  EpisodeGateCounts,
+  EpisodePictureStage,
+  EpisodeStage,
+  EpisodeWordsStage,
   FilmRun,
   FilmRunDecision,
+  FilmRunEpisode,
   FilmRunMode,
   FilmRunSettings,
   FilmRunStage,
@@ -211,7 +216,7 @@ export type NewFilmRun = {
   /** The workspace bucket (`low-quality`) and the film folder (`she-returned-with-her-son`): the film is `<bucket>/<slug>`. */
   bucket: string;
   slug: string;
-  /** `narrated` is reserved for the next phase: both backends refuse it (`invalid`). */
+  /** `narrated` only in the `high-quality` bucket (amendment 4): both backends refuse it elsewhere (`invalid`). */
   mode: FilmRunMode;
   /** Whisper's `--lang`; `en` when absent. */
   lang?: string | null;
@@ -248,6 +253,49 @@ export type FilmRunStageInput = {
 export type NewFilmRunDecision = Omit<FilmRunDecision, "at" | "by"> & { by?: string };
 
 export { FILM_RUN_LEASE_MS } from "./film-runs";
+
+// ---- narrated episodes (decision 2026-09-23, "Narrated mode in Studio"; migration 0018) ----------------
+
+/** One episode of an approved plan: its season number, its source window, its card. */
+export type NewRunEpisode = {
+  n: number;
+  src_in: number;
+  src_out: number;
+  /** `EPISODE N` when absent. */
+  title?: string | null;
+  subtitle?: string | null;
+  /** What the plan knew of it (the hook, the story paragraph the prep brief is filled with). */
+  stage_detail?: Json;
+};
+
+/** The approved episode plan of a narrated run; `source_duration_s` (when known) bounds every window. */
+export type CreateRunEpisodesInput = {
+  series_key: string;
+  episodes: NewRunEpisode[];
+  source_duration_s?: number | null;
+};
+
+/** An episode write, revision-conditional; `owner` (the lease holder) makes a foreign live lease a conflict too. Absent fields are left alone. */
+export type RunEpisodeStageInput = {
+  revision: number;
+  owner?: string;
+  words_stage?: EpisodeWordsStage;
+  picture_stage?: EpisodePictureStage;
+  stage?: EpisodeStage;
+  stage_detail?: Json;
+  error_text?: string | null;
+  variant?: string | null;
+  gate?: EpisodeGateCounts | null;
+  body_sha256?: string | null;
+  shipped_sha256?: string | null;
+  title?: string;
+  subtitle?: string | null;
+  /** true stamps approved_by (the session, or `approved_by`) and approved_at; false clears both (a send-back after the final watch). */
+  approved?: boolean;
+  approved_by?: string;
+};
+
+export { RUN_EPISODE_LEASE_MS } from "./film-runs";
 
 // ---- platform links and snapshots (decision 2026-09-23, "the crazydramas connection"; migration 0017) ----
 
@@ -793,7 +841,7 @@ export interface DataLayer {
   // and the system read and write every run; a producer session reads its own
   // company's runs (RLS) and writes nothing. Refusals are the same in both
   // backends: a foreign run is not_found, a producer write is forbidden, a
-  // stale revision is conflict, `narrated` is invalid.
+  // stale revision is conflict, `narrated` outside the high-quality bucket is invalid.
   /** Staff or the system: the row intake writes. `stage` defaults to `queued`, `settings` to `{}`, `lang` to `en`. */
   createFilmRun(session: Session, input: NewFilmRun): Promise<FilmRun>;
   getFilmRun(session: Session, runId: string): Promise<FilmRun>;
@@ -820,6 +868,24 @@ export interface DataLayer {
   appendFilmRunDecision(session: Session, runId: string, decision: NewFilmRunDecision): Promise<FilmRun>;
   /** The lease holder (or anyone once it expired) gives the run back: lease cleared, revision bumped. Conflict when another live lease holds it. */
   releaseFilmRun(session: Session, runId: string, input: { owner: string }): Promise<FilmRun>;
+
+  // narrated episodes (decision 2026-09-23 "Narrated mode in Studio"; migration 0018). Staff only
+  // in both backends: staff and the system read and write; a producer session reads no rows (its own
+  // run's list is empty, one episode is not_found, as RLS answers) and writes nothing (forbidden); a
+  // foreign run is not_found. The same refusals in both: a run that
+  // is not narrated, or already has episode rows, is invalid / conflict; a number another live run
+  // of the season holds is conflict; a stale revision or a foreign live lease is conflict.
+  /** Staff or the system: the approved plan's rows, all at once (born `lanes` / words `prep` / picture `waiting`, revision 1). */
+  createRunEpisodes(session: Session, runId: string, input: CreateRunEpisodesInput): Promise<FilmRunEpisode[]>;
+  /** A run's episodes by number; [] for a run with none. */
+  listRunEpisodes(session: Session, runId: string): Promise<FilmRunEpisode[]>;
+  getRunEpisode(session: Session, episodeId: string): Promise<FilmRunEpisode>;
+  /** A lane takes the episode: a CAS on `revision` plus a ten-minute lease; null when the race was lost. */
+  claimRunEpisode(session: Session, episodeId: string, input: ClaimFilmRunInput): Promise<FilmRunEpisode | null>;
+  renewRunEpisodeLease(session: Session, episodeId: string, input: { owner: string; leaseMs?: number }): Promise<FilmRunEpisode>;
+  /** Move a lane, the joined stage or the build facts, revision-conditionally (audited when a stage, the refusal, the variant or the approval moved). */
+  setRunEpisodeStage(session: Session, episodeId: string, input: RunEpisodeStageInput): Promise<FilmRunEpisode>;
+  releaseRunEpisode(session: Session, episodeId: string, input: { owner: string }): Promise<FilmRunEpisode>;
 
   // platform links and snapshots (decision 2026-09-23, "the crazydramas
   // connection"; migration 0017). Public facts read back from a consumer

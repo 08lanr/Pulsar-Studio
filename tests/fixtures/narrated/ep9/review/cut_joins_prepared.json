@@ -1,0 +1,32 @@
+[
+ {
+  "key": "ep9-783.92-791.32",
+  "ep": "ep9",
+  "id": "783.92-791.32",
+  "at_shipped": "3:42.4",
+  "skipped_seconds": 7.4,
+  "pieces": "P10->P11",
+  "words": [
+   {
+    "at": 209.7,
+    "side": "before",
+    "kind": "NARRATOR",
+    "text": "My heart is pounding, but I keep my face still, look away from him, and wait for his answer."
+   },
+   {
+    "at": 218.8,
+    "side": "before",
+    "kind": "caption",
+    "text": "Governor Qin, have you made up your mind?"
+   },
+   {
+    "at": 223.2,
+    "side": "after",
+    "kind": "caption",
+    "text": "Governor Qin, I'll be going, then."
+   }
+  ],
+  "words_fp": "0587555a867c",
+  "sheet": "ep9/review/joins/J1.jpg"
+ }
+]

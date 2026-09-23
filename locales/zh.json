@@ -3974,5 +3974,6 @@
   "seg.review.guardRule.card": "落在片源的过场卡上",
   "seg.review.guardRule.illegal": "不是合法切点",
   "seg.review.guardRule.bury": "会把过场卡埋进这一集里（规则 7）",
-  "seg.review.guardRule.check": "审看者的回答两次没有通过检查"
+  "seg.review.guardRule.check": "审看者的回答两次没有通过检查",
+  "fi.reason.no_narrated_manifest": "叙述式项目还没有 DELIVERED-narrated.json（Studio 在分集全部通过后写入）"
 }

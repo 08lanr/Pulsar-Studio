@@ -7,8 +7,10 @@
 // `source/` is a project; anything else at depth one is a bucket
 // (`low-quality/`) whose children are looked at the same way. A narrated
 // project (`love-between-lines/`, no `cut/`) is reported as NO_MANIFEST with
-// the reason, never skipped, never crashed on. Junctions are followed once:
-// two paths with one realpath are one film.
+// the reason, never skipped, never crashed on — unless it carries Studio's
+// `DELIVERED-narrated.json` (decision 2026-09-23 "Narrated mode in Studio",
+// spec N7), which the narrated branch at the end of this file reads instead.
+// Junctions are followed once: two paths with one realpath are one film.
 //
 // The one rule that keeps a running render safe: nothing here opens
 // `cut/eps/*.mp4`. The scanner lists the folder and stats the files; when a
@@ -22,7 +24,7 @@ import fs from "node:fs";
 import { promises as fsp } from "node:fs";
 import path from "node:path";
 import { isPartialFile, parseWorkspaceEpisodeFile } from "@/lib/ingest/episode-number";
-import { listPosters, parseDeliveredPlan, parseFilmMeta, parseSourceFacts, pickNewestDelivered, sha256Hex, toSourceRef } from "./manifest";
+import { listPosters, NARRATED_MANIFEST_FILE, narratedManifestProblems, parseDeliveredPlan, parseFilmMeta, parseNarratedManifest, parseSourceFacts, pickNewestDelivered, sha256Hex, toSourceRef, type NarratedManifest } from "./manifest";
 import type { DeliveredPlan, FilmMeta, FilmScan, PipelineArtifacts, PipelineStage, ScanDirent, ScanFs, ScanReason, ScanStat, ScannedEpisode, ScannedVideo } from "./types";
 
 /** No write in `eps/` may be younger than this for a film to be READY (spec §3.3). */
@@ -100,6 +102,21 @@ const foldFor = (opts: ScanOptions) => ((opts.caseInsensitive ?? process.platfor
 
 async function isDir(sfs: ScanFs, p: string): Promise<boolean> {
   return (await sfs.stat(p))?.is_directory === true;
+}
+
+/** Studio's record of a scripts sync at a film root (lib/segment/scripts-sync.ts SYNC_RECORD_FILE; its `route` names the pipeline). */
+const SCRIPTS_RECORD_FILE = ".studio-scripts.json";
+
+/** A narrated (skip-through) project: the skip-through route's `scripts/build_ep.sh`, or Studio's sync record of that route at the root. */
+async function isSkipThroughProject(sfs: ScanFs, abs: string): Promise<boolean> {
+  if (await sfs.stat(path.join(abs, "scripts", "build_ep.sh"))) return true;
+  if (!(await sfs.stat(path.join(abs, SCRIPTS_RECORD_FILE)))) return false;
+  try {
+    const rec = JSON.parse(stripBom(await sfs.readFile(path.join(abs, SCRIPTS_RECORD_FILE)))) as { route?: unknown };
+    return rec.route === "skip-through";
+  } catch {
+    return false;
+  }
 }
 
 /** A project folder has the pipeline's `cut/` (a cut-only film) or a `source/` (any film, narrated ones included). */
@@ -378,7 +395,17 @@ export async function scanFilm(sourceRef: string, opts: ScanOptions): Promise<Fi
     return { ...scan, state, reason, pipeline_stage: staged.stage, pipeline_note: staged.note, pipeline: { ...artifacts } };
   };
 
-  if (!(await isDir(sfs, cutDir))) return done("NO_MANIFEST", { code: "no_cut_dir" });
+  if (!(await isDir(sfs, cutDir))) {
+    // A narrated project Studio delivered: its manifest decides (spec N7).
+    if (await sfs.stat(path.join(abs, NARRATED_MANIFEST_FILE))) return scanNarrated(sourceRef, scan, opts);
+    // A skip-through project (its scripts/build_ep.sh, or Studio's sync record of the skip-through route) that has no
+    // delivery yet: say what a narrated delivery lacks, not the cut-only index's missing file.
+    if (await isSkipThroughProject(sfs, abs)) {
+      const staged = done("NO_MANIFEST", { code: "no_narrated_manifest", file: NARRATED_MANIFEST_FILE });
+      return { ...staged, pipeline_note: `a narrated (skip-through) project with no ${NARRATED_MANIFEST_FILE}: Studio writes it when a narrated run's episodes have shipped` };
+    }
+    return done("NO_MANIFEST", { code: "no_cut_dir" });
+  }
 
   // The pipeline's artifacts: presence only, plus the three small files the stage turns on.
   const present = async (rel: string) => !!(await sfs.stat(path.join(cutDir, ...rel.split("/"))));
@@ -542,3 +569,135 @@ export async function pipelineStage(sourceRef: string, opts: ScanOptions): Promi
 }
 
 export { toSourceRef };
+
+// ---- a narrated delivery (decision 2026-09-23 "Narrated mode in Studio"; narrated spec N7) ----------------------------
+
+/** What the scanner read from a narrated delivery, beside the FilmScan (the import reads it through `narratedOf`). */
+export type NarratedScanFacts = {
+  manifest: NarratedManifest | null;
+  /** Everything that keeps the delivery from READY, in words (empty when READY). */
+  problems: string[];
+  /** The episode numbers the manifest lists, first to last. */
+  first_n: number | null;
+  last_n: number | null;
+};
+
+export type FilmScanWithNarrated = FilmScan & { narrated?: NarratedScanFacts };
+
+/** The narrated facts of a scan, or null for a cut-only film. */
+export function narratedOf(scan: FilmScan): NarratedScanFacts | null {
+  return (scan as FilmScanWithNarrated).narrated ?? null;
+}
+
+/** SHA-256 of a file, cached by path, size and mtime: a delivery is polled every thirty seconds and its files do not change between polls. */
+const hashCache = new Map<string, string>();
+
+async function cachedSha256(sfs: ScanFs, file: string, st: ScanStat): Promise<string> {
+  const key = `${file}|${st.size}|${st.mtime_ms}`;
+  const hit = hashCache.get(key);
+  if (hit) return hit;
+  const sha = sha256Hex(await sfs.readBytes(file));
+  hashCache.set(key, sha);
+  return sha;
+}
+
+/**
+ * READY when (N7, without the licence gate — amendment 5): the manifest
+ * parses; every file exists with its recorded size and SHA-256, inside this
+ * project (a junctioned episode of another project is never claimed); no
+ * `.part` beside a shipped file and no write in the quiet period; numbers
+ * run on from the first; every gate FAIL is 0; no unwaived contradiction or
+ * lost join; every episode approved.
+ */
+async function scanNarrated(sourceRef: string, base: FilmScan, opts: ScanOptions): Promise<FilmScan> {
+  const sfs = opts.fs ?? nodeScanFs;
+  const now = opts.now ?? Date.now;
+  const quietMs = opts.quietMs ?? DEFAULT_QUIET_MS;
+  const abs = path.join(opts.root, ...sourceRef.split("/"));
+  const folder = base.folder;
+  const fold = foldFor(opts);
+  const facts: NarratedScanFacts = { manifest: null, problems: [], first_n: null, last_n: null };
+  const out = (state: FilmScan["state"], reason: ScanReason | null, stage: PipelineStage, note: string | null): FilmScanWithNarrated => ({
+    ...base,
+    state,
+    reason,
+    pipeline_stage: stage,
+    pipeline_note: note,
+    pipeline: { ...base.pipeline, delivered: state === "READY" },
+    narrated: facts,
+  });
+
+  // The narrated film-meta sits at the project root (Studio's film_meta stage).
+  const metaFile = path.join(abs, "film-meta.json");
+  if (await sfs.stat(metaFile)) {
+    try {
+      const raw = JSON.parse(stripBom(await sfs.readFile(metaFile))) as { display_title_en?: unknown; language?: unknown };
+      if (typeof raw.display_title_en === "string" && raw.display_title_en.trim()) base = { ...base, display_title: raw.display_title_en.trim() };
+      if (typeof raw.language === "string") base = { ...base, language: raw.language };
+    } catch (e) {
+      base.warnings.push(`film-meta.json: ${firstLine(e)}`);
+    }
+  }
+
+  let m: NarratedManifest;
+  try {
+    m = parseNarratedManifest(JSON.parse(stripBom(await sfs.readFile(path.join(abs, NARRATED_MANIFEST_FILE)))));
+  } catch (e) {
+    facts.problems.push(`${NARRATED_MANIFEST_FILE}: ${firstLine(e)}`);
+    return out("NO_MANIFEST", { code: "bad_delivered", file: NARRATED_MANIFEST_FILE, detail: firstLine(e) }, "PLANNED", `${NARRATED_MANIFEST_FILE} does not parse`);
+  }
+  facts.manifest = m;
+  facts.first_n = m.episodes[0].n;
+  facts.last_n = m.episodes[m.episodes.length - 1].n;
+  base = { ...base, language: base.language ?? m.lang };
+
+  const projectReal = fold(await sfs.realpath(abs));
+  const episodes: ScannedEpisode[] = [];
+  let newest: { name: string; mtime_ms: number } | null = null;
+  const absent: number[] = [];
+  for (const e of m.episodes) {
+    const file = path.join(abs, ...e.file.split("/"));
+    const st = await sfs.stat(file);
+    if (!st || st.is_directory) {
+      absent.push(e.n);
+      facts.problems.push(`ep${e.n}: ${e.file} is not there`);
+      continue;
+    }
+    let real: string;
+    try {
+      real = fold(await sfs.realpath(file));
+    } catch {
+      real = fold(path.resolve(file));
+    }
+    if (!real.startsWith(projectReal + fold(path.sep)) && real !== projectReal) {
+      facts.problems.push(`ep${e.n}: ${e.file} resolves outside this project (a junction to another project's episode)`);
+      continue;
+    }
+    // A render still writing beside it.
+    for (const d of await sfs.readdir(path.dirname(file))) {
+      if (d.kind === "file" && isPartialFile(d.name)) return out("RENDERING", { code: "part_file", file: `${path.posix.dirname(e.file)}/${d.name}` }, "RENDERING", `${d.name} is being written`);
+    }
+    if (!newest || st.mtime_ms > newest.mtime_ms) newest = { name: e.file, mtime_ms: st.mtime_ms };
+    if (st.size >= PLACEHOLDER_MIN_BYTES && st.blocks === 0) return out("NOT_DELIVERED", { code: "placeholder", file: e.file }, "PLANNED", `${e.file} is a cloud placeholder`);
+    if (st.size !== e.bytes) {
+      facts.problems.push(`ep${e.n}: ${e.file} is ${st.size} bytes, the manifest says ${e.bytes}`);
+      continue;
+    }
+    episodes.push({ n: e.n, file: `${sourceRef}/${e.file}`, name: path.posix.basename(e.file), bytes: st.size, mtime_ms: st.mtime_ms });
+  }
+  base = { ...base, episodes, totals: { count: episodes.length, bytes: episodes.reduce((s, x) => s + x.bytes, 0) } };
+  if (quietMs > 0 && newest && now() - newest.mtime_ms < quietMs) {
+    return out("RENDERING", { code: "recent_write", file: newest.name, seconds_ago: Math.max(0, Math.round((now() - newest.mtime_ms) / 1000)) }, "RENDERING", `${newest.name} was written inside the quiet period`);
+  }
+  // Hash only what passed the cheap checks, once per file version.
+  for (const e of m.episodes) {
+    if (!episodes.some((x) => x.n === e.n)) continue;
+    const file = path.join(abs, ...e.file.split("/"));
+    const st = await sfs.stat(file);
+    if (st && (await cachedSha256(sfs, file, st)) !== e.sha256) facts.problems.push(`ep${e.n}: ${e.file}'s SHA-256 is not the manifest's (the file changed after the delivery was written)`);
+  }
+  facts.problems.push(...narratedManifestProblems(m, { source_ref: sourceRef, folder }));
+  if (absent.length) return out("NOT_DELIVERED", { code: "episode_gap", missing: absent, duplicates: [] }, "PLANNED", facts.problems[0] ?? null);
+  if (facts.problems.length) return out("NOT_DELIVERED", { code: "bad_delivered", file: NARRATED_MANIFEST_FILE, detail: facts.problems.join("; ").slice(0, 2000) }, "PLANNED", facts.problems[0]);
+  return out("READY", null, "DELIVERED", null);
+}

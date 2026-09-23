@@ -8,6 +8,15 @@
 // scripts resolve index/, review/ and eps/ against the cut/ folder) and the
 // run row remembers `drama_remix_sha` + `drama_remix_dirty`.
 //
+// The narrated route (decision 2026-09-23 "Narrated mode in Studio"; narrated
+// spec N1 intake) syncs `<drama-remix>/scripts/skip-through/*` the same way
+// into `<film>/scripts/` — the skip-through scripts find their project root
+// from their own location, so the copy sits at the film root, not in a cut/
+// folder — with the record at `<film>/.studio-scripts.json`. That folder has
+// no `.route` file yet (checks.py reads a missing one as skip-through), and
+// its record carries a SHA-256 per file: the prep brief Studio fills is READ
+// from the synced PREP-BRIEF.md, and the brief's sha names the text it came from.
+//
 // A dirty working tree (`git status --porcelain` lists anything) is refused
 // unless the run's settings say `allow_dirty`: a session edited a script and
 // did not commit, and a build from a copy no commit describes cannot be
@@ -16,11 +25,18 @@
 // there as drift.
 
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { dramaRemixRoot } from "@/lib/python";
 
 export const CUT_ONLY_SCRIPTS = path.join("scripts", "cut-only");
+export const SKIP_THROUGH_SCRIPTS = path.join("scripts", "skip-through");
+
+/** Which of the pipeline's routes a copy is: the folder it is synced from. */
+export type ScriptsRoute = "cut-only" | "skip-through";
+
+const ROUTE_DIR: Record<ScriptsRoute, string> = { "cut-only": CUT_ONLY_SCRIPTS, "skip-through": SKIP_THROUGH_SCRIPTS };
 export const SYNC_RECORD_FILE = ".studio-scripts.json";
 
 // The checkout is named by lib/python.ts's `dramaRemixRoot()` (DRAMA_REMIX_ROOT, else beside WORKSPACE_ROOT's parent, else the sibling checkout); this module checks it is a git checkout with the scripts.
@@ -43,6 +59,10 @@ export type SyncRecord = {
   /** The files copied, sorted. */
   files: string[];
   source: string;
+  /** The route the copy was synced from; absent on a record written before the narrated route (cut-only). */
+  route?: ScriptsRoute;
+  /** SHA-256 of every file copied, by its relative path (the skip-through sync records it; the prep brief's sha comes from it). */
+  file_sha256?: Record<string, string>;
 };
 
 export class ScriptsSyncError extends Error {
@@ -104,13 +124,16 @@ export type SyncOptions = {
   /** The repo state, when the caller already read it (a test, or one read per run). */
   state?: RepoState;
   now?: () => number;
+  /** Which route to copy; default cut-only. */
+  route?: ScriptsRoute;
 };
 
 export type SyncResult = SyncRecord & { scripts_dir: string; record_file: string };
 
 /**
- * Copy the canonical cut-only scripts into `<filmCutDir>/scripts/` and write
- * `<filmCutDir>/.studio-scripts.json`. Refuses a dirty checkout unless
+ * Copy the canonical scripts of the route (cut-only by default) into
+ * `<filmCutDir>/scripts/` and write `<filmCutDir>/.studio-scripts.json`;
+ * for the skip-through route `filmCutDir` is the film root itself. Refuses a dirty checkout unless
  * `allowDirty` (ScriptsSyncError `dirty`, its `state` naming the paths), a
  * missing checkout (`no_repo`) and a checkout without the scripts
  * (`no_scripts`). Each file lands under a temp name and is renamed into
@@ -119,7 +142,8 @@ export type SyncResult = SyncRecord & { scripts_dir: string; record_file: string
 export function syncScripts(filmCutDir: string, opts: SyncOptions = {}): SyncResult {
   const root = opts.root ?? dramaRemixRoot();
   if (!statSync(root, { throwIfNoEntry: false })?.isDirectory()) throw new ScriptsSyncError("no_repo", `no drama-remix checkout at ${root}: set DRAMA_REMIX_ROOT (or WORKSPACE_ROOT beside a drama-remix folder)`);
-  const sourceDir = path.join(root, CUT_ONLY_SCRIPTS);
+  const route: ScriptsRoute = opts.route ?? "cut-only";
+  const sourceDir = path.join(root, ROUTE_DIR[route]);
   if (!statSync(sourceDir, { throwIfNoEntry: false })?.isDirectory()) throw new ScriptsSyncError("no_scripts", `${sourceDir} is not there: not a drama-remix checkout`);
   const state = opts.state ?? dramaRemixState(root);
   if (state.dirty && !opts.allowDirty) {
@@ -130,18 +154,27 @@ export function syncScripts(filmCutDir: string, opts: SyncOptions = {}): SyncRes
     );
   }
   const files = listSyncFiles(sourceDir);
-  if (!files.includes(".route")) throw new ScriptsSyncError("no_scripts", `${sourceDir} has no .route file; checks.py would compare the film against the wrong route`);
+  // checks.py reads a missing .route as skip-through: only a cut-only copy must carry it.
+  if (route === "cut-only" && !files.includes(".route")) throw new ScriptsSyncError("no_scripts", `${sourceDir} has no .route file; checks.py would compare the film against the wrong route`);
+  if (!files.length) throw new ScriptsSyncError("no_scripts", `${sourceDir} is empty`);
   const scriptsDir = path.join(filmCutDir, "scripts");
   mkdirSync(scriptsDir, { recursive: true });
+  const hashes: Record<string, string> = {};
   for (const rel of files) {
+    const src = path.join(sourceDir, ...rel.split("/"));
     const dst = path.join(scriptsDir, ...rel.split("/"));
     mkdirSync(path.dirname(dst), { recursive: true });
     const tmp = `${dst}.${process.pid}.tmp`;
-    copyFileSync(path.join(sourceDir, ...rel.split("/")), tmp);
+    copyFileSync(src, tmp);
     renameSync(tmp, dst);
+    if (route === "skip-through") hashes[rel] = createHash("sha256").update(readFileSync(dst)).digest("hex");
   }
   const now = opts.now ?? Date.now;
   const record: SyncRecord = { sha: state.sha, dirty: state.dirty, dirty_paths: state.dirty_paths, synced_at: new Date(now()).toISOString(), files, source: sourceDir.replace(/\\/g, "/") };
+  if (route === "skip-through") {
+    record.route = route;
+    record.file_sha256 = hashes;
+  }
   const recordFile = path.join(filmCutDir, SYNC_RECORD_FILE);
   const tmp = `${recordFile}.${process.pid}.tmp`;
   writeFileSync(tmp, JSON.stringify(record, null, 1) + "\n", "utf8");
@@ -164,4 +197,9 @@ export function readSyncRecord(filmCutDir: string): SyncRecord | null {
 export function removeSyncedScripts(filmCutDir: string): void {
   rmSync(path.join(filmCutDir, "scripts"), { recursive: true, force: true });
   rmSync(path.join(filmCutDir, SYNC_RECORD_FILE), { force: true });
+}
+
+/** The narrated route's sync: `<drama-remix>/scripts/skip-through/*` into `<film>/scripts/`, the record at `<film>/.studio-scripts.json`. */
+export function syncSkipThrough(filmDir: string, opts: Omit<SyncOptions, "route"> = {}): SyncResult {
+  return syncScripts(filmDir, { ...opts, route: "skip-through" });
 }

@@ -137,7 +137,20 @@ export type JobKind =
   | "transcribe_episode"
   | "import_film"
   | "segment_film"
-  | "verify_boundaries";
+  | "verify_boundaries"
+  // The narrated route (decision 2026-09-23 "Narrated mode in Studio"; migration 0018). The three
+  // picture checks are one row per API call (lib/segment/workflow-shim.ts names them after the
+  // drama-remix Workflow each call stands in for); `tts_line` is one row per new tts_ledger.json
+  // row (cost = chars × ELEVENLABS_CENTS_PER_1K_CHARS / 1000); `jev_check` one row per Jev-calling
+  // script run (cost null, "unmetered", until jev.py logs usage); `claude_session` one row per
+  // headless Claude Code writing session Studio launched (cost null: it runs on the subscription
+  // login, never the API key — lib/claude-session.ts strips ANTHROPIC_API_KEY from its env).
+  | "sheet_read"
+  | "frame_verify"
+  | "cut_verify"
+  | "tts_line"
+  | "jev_check"
+  | "claude_session";
 export type JobStatus = "queued" | "running" | "done" | "failed" | "cancelled";
 
 /** studio.film_assets.kind: the pipeline files that come with an imported film (migration 0015). */
@@ -150,7 +163,15 @@ export type FilmAssetKind =
   | "delivered_plan"
   | "vision_notes"
   | "film_meta"
-  | "poster";
+  | "poster"
+  // A narrated (skip-through) delivery (migration 0018; narrated spec N3/N7): the shipped .srt/.ass,
+  // narration.json with its manifest, the gate report (.gate.md/.json, USER-REVIEW.md), the script
+  // read (SCRIPT-<src>.md, glossary.json) and DELIVERED-narrated.json itself.
+  | "narrated_captions"
+  | "narration"
+  | "gate_report"
+  | "script_doc"
+  | "delivery_manifest";
 /** Where a film asset came from: linked from the workspace, or made by Studio. */
 export type FilmAssetOrigin = "workspace" | "studio";
 
@@ -388,8 +409,10 @@ export type FilmAsset = {
  * How a film is cut. `by_eye_2min` is the cut-only route (continuous ~2-minute
  * episodes, boundaries judged by the vision pass); `source_episodes` keeps the
  * source's own episode breaks (cards.py, `index/skips.json`); `narrated` is
- * RESERVED for the high-quality route of the next phase — the column accepts
- * it, both backends refuse to create a run with it.
+ * the high-quality skip-through route (decision 2026-09-23 "Narrated mode in
+ * Studio"): one run per source episode under `high-quality/<slug>`, its
+ * episodes rows of `studio.film_run_episodes` (migration 0018). Both
+ * backends refuse a narrated run in any other bucket.
  */
 export type FilmRunMode = "by_eye_2min" | "source_episodes" | "narrated";
 
@@ -410,13 +433,21 @@ export type FilmRunStage =
   | "review"
   | "render"
   | "qa"
+  // The narrated route's run-level stages (narrated spec N1): the minute-sheet vision log, build_script.py,
+  // the script read (a writing session, approved by a person), the episode plan (approved), then the
+  // per-episode lanes on studio.film_run_episodes until every episode is shipped or dropped.
+  | "sheets"
+  | "script_raw"
+  | "script"
+  | "episodes"
+  | "episode_work"
   | "film_meta"
   | "handoff"
   | "done"
   | "failed"
   | "cancelled";
 
-export const FILM_RUN_STAGES: readonly FilmRunStage[] = ["queued", "intake", "watermark", "index", "cards", "plan", "vision", "review", "render", "qa", "film_meta", "handoff", "done", "failed", "cancelled"];
+export const FILM_RUN_STAGES: readonly FilmRunStage[] = ["queued", "intake", "watermark", "index", "cards", "plan", "vision", "review", "render", "qa", "sheets", "script_raw", "script", "episodes", "episode_work", "film_meta", "handoff", "done", "failed", "cancelled"];
 
 /**
  * What a run was asked for (settings jsonb). Every key is optional; the
@@ -440,7 +471,69 @@ export type FilmRunSettings = {
   claim_existing?: boolean;
   /** Cut the rest of a delivered film (a first proof) under its pinned episodes; without it a delivered, ready or imported film is refused at intake. */
   extend?: boolean;
+
+  // ---- the narrated route (narrated spec N2; lib/segment/settings.ts validates and fills the defaults) ----
+  /** The picture readers' model (one per pass; the stamp `fv-2+api:<model>` names it); absent = the frame judge's default. */
+  reader_model?: string | null;
+  /** Who writes the script read and the episode prep: `session` (Studio launches a headless Claude Code session, the default) or `handoff` (a person runs it in Claude Code; "Run it yourself"). */
+  creative?: "session" | "handoff";
+  /** The Claude Code session's model for the writing steps; absent = `claude-opus-5-5` (Ruobin asked for Opus on the script read). */
+  writer_model?: string | null;
+  /** Turn cap of one writing session (the prep agents ran 143–261 turns); absent = 400. */
+  session_max_turns?: number;
+  /** The narrator's name (the heroine telling the story afterwards: "Hu Xiu"); the script check asks frame_premise.txt to name her. */
+  narrator?: string | null;
+  /** Cast, place and era for the minute-sheet readers; written to `<film>/sheet_premise.txt` at intake. */
+  sheet_premise?: string | null;
+  /** The ElevenLabs voice id (never a key); absent = the voice of the last prior project's narration manifest. */
+  voice_id?: string | null;
+  /** Always passed as ELEVEN_MODEL (the script's own default is eleven_multilingual_v2); absent = `eleven_v3`. */
+  tts_model?: string;
+  /** Characters the whole run may bill; absent = 20,000. */
+  tts_char_budget?: number;
+  /** Characters one episode renders before the voice stage asks a person; absent = 3,000. */
+  tts_episode_soft_cap?: number;
+  /** The season this source continues: numbering, prior episodes (junctioned in), the title the import updates. */
+  season?: NarratedSeason;
+  /** The source episode's label in the briefs (`S01E05`); absent = read from the source file name. */
+  source_label?: string | null;
+  /** Episode body length band in seconds; absent = [165, 260] (2:45–4:20). */
+  episode_target?: [number, number];
+  /** The caption and lyric scan bounds passed to index_chain.sh as T0/T1; absent = 0 to the source's length. */
+  scan?: { t0: number; t1: number | null };
+  /** The title card's source shot, chosen at film_meta; null = the project source's own shot. */
+  intro?: { src: string; ss: number; t: number } | null;
+  /** `required` makes the reframe glance block the picture lane; absent = `optional`. */
+  reframe_review?: "optional" | "required";
+  /** Always null: Studio never writes deliver_to.txt, so build_ep.sh copies nothing to OneDrive. */
+  deliver_to?: null;
+  /** Per-source overrides of the prep brief's story-specific parts (PREP-BRIEF.md: "a new source needs its own NAMES section and its own worked example"). */
+  brief?: NarratedBriefOverrides;
   [key: string]: Json | undefined;
+};
+
+/** `settings.season` of a narrated run (narrated spec N2): continuous numbering across source episodes. */
+export type NarratedSeason = {
+  /** One season, one key (`love-between-lines`): episode numbers are unique per key across live runs. */
+  series_key: string;
+  /** This source's first episode number (S01E05 after ep1–35 → 36). */
+  first_episode_n: number;
+  /** Earlier projects' folders (under WORKSPACE_ROOT) whose epK are junctioned in, read-only, for ledger_check and continuity. */
+  prior_projects: string[];
+  /** The series' name in the prep brief's header ("Love Between Lines"). */
+  series_title?: string | null;
+  /** The source_ref of an existing Studio title the import adds episodes to (N7 `title_source_ref`); null = a new title. */
+  title_source_ref?: string | null;
+};
+
+/** Replacements for the story-specific parts of the prep brief; null or absent keeps the committed text. */
+export type NarratedBriefOverrides = {
+  /** The whole NAMES section (the bullets after "NAMES:"). */
+  names?: string | null;
+  /** READ FIRST item 5, the worked example from a previous source. */
+  worked_example?: string | null;
+  /** `{SCRIPTS}`: the script read(s) the agent treats as ground truth; absent = this source's SCRIPT-<src>.md. */
+  scripts?: string | null;
 };
 
 /**
@@ -449,7 +542,8 @@ export type FilmRunSettings = {
  * `watermark | region | no_logo` at the watermark stage, `note` for anything
  * else — `boundary_s` the boundary it concerns when one does, `to_s` the
  * time it moved to, `why` the person's reason. `at` and `by` are stamped by
- * the data layer.
+ * the data layer. A narrated run's per-episode decision names its episode
+ * in `ep` (the season number, `film_run_episodes.n`).
  */
 export type FilmRunDecision = {
   at: string;
@@ -459,6 +553,8 @@ export type FilmRunDecision = {
   to_s?: number | null;
   why?: string | null;
   data?: Json;
+  /** The episode a narrated decision is about (its season number); absent or null for a run-level one. */
+  ep?: number | null;
 };
 
 /** studio.film_runs — one segmenting run of one film (plan B1). Progress lives here, never in process memory. */
@@ -491,6 +587,74 @@ export type FilmRun = {
   error_text: string | null;
   decisions: FilmRunDecision[];
   created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+// ---- studio.film_run_episodes (decision 2026-09-23, "Narrated mode in Studio"; migration 0018) ----
+
+/**
+ * The words lane of a narrated episode (narrated spec N1, E1–E6): the prep
+ * writing session, the person's prep review (the decide list and the
+ * transcript read — the approval that allows any voice or GPU spend), the
+ * paid voice, the frame check of every narration line, the join check of
+ * every skip, then ready for the build.
+ */
+export type EpisodeWordsStage = "prep" | "prep_review" | "voice" | "frames" | "joins" | "ready";
+export const EPISODE_WORDS_STAGES: readonly EpisodeWordsStage[] = ["prep", "prep_review", "voice", "frames", "joins", "ready"];
+
+/**
+ * The picture lane (E3, E3b): waiting for the prep approval, the GPU chain
+ * under the heavy lock, the optional reframe glance, ready — or stale when a
+ * later cue fix made the cleaned picture older than its cues (stale_check).
+ */
+export type EpisodePictureStage = "waiting" | "picture" | "reframe_glance" | "ready" | "stale";
+export const EPISODE_PICTURE_STAGES: readonly EpisodePictureStage[] = ["waiting", "picture", "reframe_glance", "ready", "stale"];
+
+/** The joined view: both lanes running, the build (E7), the person's final watch (E8), shipped, or dropped from the season. */
+export type EpisodeStage = "lanes" | "build" | "ep_review" | "shipped" | "dropped";
+export const EPISODE_STAGES: readonly EpisodeStage[] = ["lanes", "build", "ep_review", "shipped", "dropped"];
+
+/** gate.py's counts, read from `variants/vK/epN.mp4.gate.json`. */
+export type EpisodeGateCounts = { PASS: number; WARN: number; FAIL: number };
+
+/**
+ * studio.film_run_episodes — one episode of a narrated run (narrated spec N3).
+ * Its own lease and CAS revision, so one worker can hold the picture lane of
+ * ep9 and the words lane of ep11 at once. Staff only (RLS).
+ */
+export type FilmRunEpisode = {
+  id: string;
+  run_id: string;
+  /** The run's `settings.season.series_key`, copied at creation: `n` is unique per key across live runs. */
+  series_key: string;
+  /** The season number (continuous across source episodes). */
+  n: number;
+  /** The episode's window in the source, seconds (the plan the script session proposed and a person approved). */
+  src_in: number;
+  src_out: number;
+  /** `EPISODE N` by default; the card shows `subtitle`. */
+  title: string;
+  subtitle: string | null;
+  words_stage: EpisodeWordsStage;
+  picture_stage: EpisodePictureStage;
+  stage: EpisodeStage;
+  /** The newest built variant (`v3`); null before the first build. */
+  variant: string | null;
+  gate: EpisodeGateCounts | null;
+  /** SHA-256 of the gated body (`variants/vK/body.mp4`) and of the shipped file (`variants/vK/epN.mp4`, the title card on). */
+  body_sha256: string | null;
+  shipped_sha256: string | null;
+  /** What the lanes found or wait for (documented in docs/segment-a-film.md, "Narrated mode"). */
+  stage_detail: Json;
+  error_text: string | null;
+  /** The final watch (E8): who approved the shipped file, and when. */
+  approved_by: string | null;
+  approved_at: string | null;
+  lease_owner: string | null;
+  leased_until: string | null;
+  /** Bumped by every write except a lease renewal. */
+  revision: number;
   created_at: string;
   updated_at: string;
 };

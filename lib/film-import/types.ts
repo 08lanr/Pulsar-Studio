@@ -255,6 +255,8 @@ export type FilmScanState = "READY" | "RENDERING" | "NOT_DELIVERED" | "NO_MANIFE
 export type ScanReason =
   /** The folder has no `cut/` (a narrated project, or one that never started). */
   | { code: "no_cut_dir" }
+  /** A narrated (skip-through) project with no `DELIVERED-narrated.json`: Studio has not delivered it (a session's project never is). */
+  | { code: "no_narrated_manifest"; file: string }
   /** No `review/cuts-0-*-DELIVERED.json`. */
   | { code: "no_delivered" }
   /** The newest plan file does not parse. */

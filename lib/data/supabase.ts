@@ -36,6 +36,8 @@ import type {
   Episode,
   FilmAsset,
   FilmRun,
+  FilmRunEpisode,
+  FilmRunStage,
   Job,
   Line,
   LineAlternative,
@@ -73,7 +75,24 @@ import { launchSettingsSchema, LaunchSettingsError, normalizeLaunchSettings, val
 import type { AccountRequest, InstantPageTemplate, LaunchPreset, PromoLaunch } from "@/lib/types";
 import { DataError, legacyCampaignRetired, conflict, invalid, notFound } from "./errors";
 import { episodeImportPatch, filmAssetRow, normalizeSourceRef, validateAdRules } from "./film-import";
-import { claimFields, decisionRow, filmRunRow, filmRunStageAudited, normalizeFilmRun, releaseFields, renewFields, stageFields } from "./film-runs";
+import {
+  claimFields,
+  decisionRow,
+  episodeClaimFields,
+  episodeReleaseFields,
+  episodeRenewFields,
+  episodeStageFields,
+  filmRunRow,
+  filmRunStageAudited,
+  heldNumbersConflict,
+  normalizeFilmRun,
+  normalizeRunEpisode,
+  releaseFields,
+  renewFields,
+  runEpisodeAudited,
+  runEpisodeRows,
+  stageFields,
+} from "./film-runs";
 import { normalizePlatformSnapshot, platformLinkRow, platformSnapshotRow, PLATFORM_SNAPSHOTS_KEEP, PLATFORMS } from "@/lib/crazydramas/types";
 import type { DataLayer, ExportSnapshot, LaunchedCampaign } from "./index";
 import { mediaUrl } from "./storage";
@@ -235,6 +254,9 @@ const campaignById = (c: Db, id: string) => one<PromoCampaign>(promote(c).from("
 
 /** A film run under the caller's own client: RLS hides a foreign company's run, so it reads not found, never forbidden. */
 const filmRunById = (c: Db, id: string) => one<FilmRun>(studio(c).from("film_runs").select("*").eq("id", id).maybeSingle(), "film run", id);
+
+/** A narrated episode under the caller's own client: 0018's RLS is staff-only, so anyone else reads not found. */
+const runEpisodeById = async (c: Db, id: string) => normalizeRunEpisode(await one<FilmRunEpisode>(studio(c).from("film_run_episodes").select("*").eq("id", id).maybeSingle(), "episode", id));
 
 /** The producer's staff-assigned, connected TikTok ad account, or null (decision 2026-09-09). */
 async function launchAccountOf(c: Db, producerId: string): Promise<CompanyAccount | null> {
@@ -1506,6 +1528,105 @@ export const supabaseData: DataLayer = {
     if (error) throw mapError(error);
     if (!data) throw conflict(`run ${runId} changed under this write (revision ${run.revision} moved); re-read it`);
     return normalizeFilmRun(data as FilmRun);
+  },
+
+  // ---- narrated episodes (decision 2026-09-23 "Narrated mode in Studio"; migration 0018) ----
+  // Reads through the session's own client (RLS: staff only); writes checked here (staff or the
+  // system) and made as the service role, revision-conditionally, with the same pure rules as the
+  // fixture. The held-number rule is checked here first so both backends refuse in the same words;
+  // 0018's trigger (studio.guard_run_episode_number) is the backstop against a race.
+
+  async createRunEpisodes(session, runId, input) {
+    requireSystemOrStaff(session);
+    const run = await filmRunById(dbFor(session), runId);
+    const rows = runEpisodeRows(run, input);
+    const svc = createServiceSupabase();
+    const mine = await many<Pick<FilmRunEpisode, "id">>(studio(svc).from("film_run_episodes").select("id").eq("run_id", run.id).limit(1));
+    if (mine.length) throw conflict(`run ${run.id} already has its episode rows: a plan is written once`);
+    const others = await many<Pick<FilmRunEpisode, "run_id" | "n" | "stage">>(
+      studio(svc).from("film_run_episodes").select("run_id, n, stage").eq("series_key", rows[0].series_key).neq("run_id", run.id).in("n", rows.map((r) => r.n))
+    );
+    const runIds = [...new Set(others.map((o) => o.run_id))];
+    const stages = runIds.length ? await many<Pick<FilmRun, "id" | "stage">>(studio(svc).from("film_runs").select("id, stage").in("id", runIds)) : [];
+    const stageById = new Map(stages.map((r) => [r.id, r.stage as FilmRunStage]));
+    const held = heldNumbersConflict(rows.map((r) => r.n), others.map((o) => ({ ...o, n: Number(o.n) })), (id) => stageById.get(id) ?? null);
+    if (held) throw conflict(held);
+    const { data, error } = await studio(svc).from("film_run_episodes").insert(rows).select("*");
+    if (error) throw mapError(error);
+    const out = ((data ?? []) as FilmRunEpisode[]).map(normalizeRunEpisode).sort((a, b) => a.n - b.n);
+    await auditEvent(session, "create_run_episodes", "studio.film_run_episodes", run.id, run.title_id, run.producer_id, null, { run_id: run.id, series_key: rows[0].series_key, episodes: out.map((e) => ({ n: e.n, src_in: e.src_in, src_out: e.src_out })) });
+    return out;
+  },
+
+  async listRunEpisodes(session, runId) {
+    const c = dbFor(session);
+    await filmRunById(c, runId); // a foreign run is not found
+    // RLS is staff-only: a producer's own run lists no rows, as the fixture answers.
+    const rows = await many<FilmRunEpisode>(studio(c).from("film_run_episodes").select("*").eq("run_id", runId).order("n", { ascending: true }));
+    return rows.map(normalizeRunEpisode);
+  },
+
+  async getRunEpisode(session, episodeId) {
+    return runEpisodeById(dbFor(session), episodeId);
+  },
+
+  async claimRunEpisode(session, episodeId, input) {
+    requireSystemOrStaff(session);
+    const ep = await runEpisodeById(dbFor(session), episodeId);
+    const fields = episodeClaimFields(ep, input);
+    if (!fields) return null;
+    const { data, error } = await studio(createServiceSupabase()).from("film_run_episodes").update(fields).eq("id", episodeId).eq("revision", ep.revision).select("*").maybeSingle();
+    if (error) throw mapError(error);
+    return data ? normalizeRunEpisode(data as FilmRunEpisode) : null;
+  },
+
+  async renewRunEpisodeLease(session, episodeId, input) {
+    requireSystemOrStaff(session);
+    const ep = await runEpisodeById(dbFor(session), episodeId);
+    const fields = episodeRenewFields(ep, input);
+    const { data, error } = await studio(createServiceSupabase()).from("film_run_episodes").update(fields).eq("id", episodeId).eq("lease_owner", input.owner.trim()).select("*").maybeSingle();
+    if (error) throw mapError(error);
+    if (!data) throw conflict(`episode ${ep.n} is no longer leased by ${input.owner}`);
+    return normalizeRunEpisode(data as FilmRunEpisode);
+  },
+
+  async setRunEpisodeStage(session, episodeId, input) {
+    requireSystemOrStaff(session);
+    const ep = await runEpisodeById(dbFor(session), episodeId);
+    const fields = episodeStageFields(ep, input, isSystemSession(session) ? "system" : session.userId);
+    const { data, error } = await studio(createServiceSupabase()).from("film_run_episodes").update(fields).eq("id", episodeId).eq("revision", ep.revision).select("*").maybeSingle();
+    if (error) throw mapError(error);
+    if (!data) throw conflict(`episode ${ep.n} changed under this write (revision ${ep.revision} moved); re-read it`);
+    const row = normalizeRunEpisode(data as FilmRunEpisode);
+    if (runEpisodeAudited(ep, row)) {
+      await auditEvent(
+        session,
+        "set_run_episode_stage",
+        "studio.film_run_episodes",
+        row.id,
+        null,
+        null,
+        { words_stage: ep.words_stage, picture_stage: ep.picture_stage, stage: ep.stage, error_text: ep.error_text, variant: ep.variant, approved_at: ep.approved_at, revision: ep.revision },
+        { n: row.n, words_stage: row.words_stage, picture_stage: row.picture_stage, stage: row.stage, error_text: row.error_text, variant: row.variant, approved_at: row.approved_at, revision: row.revision }
+      );
+    }
+    return row;
+  },
+
+  async releaseRunEpisode(session, episodeId, input) {
+    requireSystemOrStaff(session);
+    // The release is gated on the lease's owner, not on a revision the caller holds (the fixture reads and writes the row
+    // in one step): a write that moved the revision between this read and the update (the episode's other lane) is
+    // re-read and the release tried again, so both backends refuse only a lease held by someone else.
+    let ep = await runEpisodeById(dbFor(session), episodeId);
+    for (let attempt = 0; ; attempt++) {
+      const fields = episodeReleaseFields(ep, input);
+      const { data, error } = await studio(createServiceSupabase()).from("film_run_episodes").update(fields).eq("id", episodeId).eq("revision", ep.revision).select("*").maybeSingle();
+      if (error) throw mapError(error);
+      if (data) return normalizeRunEpisode(data as FilmRunEpisode);
+      if (attempt >= 4) throw conflict(`episode ${ep.n} kept changing under the release (revision ${ep.revision} moved); re-read it`);
+      ep = await runEpisodeById(dbFor(session), episodeId);
+    }
   },
 
   // ---- platform links and snapshots (decision 2026-09-23; migration 0017) ----

@@ -3974,5 +3974,6 @@
   "seg.review.guardRule.card": "Inside the source's card",
   "seg.review.guardRule.illegal": "Not a legal cut",
   "seg.review.guardRule.bury": "Would bury the card inside the episode (rule 7)",
-  "seg.review.guardRule.check": "The reviewer's answer failed its check twice"
+  "seg.review.guardRule.check": "The reviewer's answer failed its check twice",
+  "fi.reason.no_narrated_manifest": "A narrated project with no DELIVERED-narrated.json yet (Studio writes it once the run's episodes have shipped)"
 }

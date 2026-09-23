@@ -1,0 +1,36 @@
+{
+ "ep": "ep9",
+ "narration": "narration.json",
+ "lines": [
+  {
+   "id": "N1",
+   "text": "Governor Qin takes me into his lounge, so I ask my questions before he can ask his.",
+   "text_hash": "fed695306775",
+   "window_shipped": [
+    6.24,
+    11.71
+   ],
+   "src_span": [
+    567.76,
+    573.23
+   ],
+   "sheet": "ep9/review/frames/N1.jpg",
+   "note": "tiles stamped UNDER LINE play while the line is spoken; the others are the seconds just before, so the viewer's reference points are included"
+  },
+  {
+   "id": "N2",
+   "text": "What Qin is still missing is the formula, and I've just promised to bring it to him. I don't have it yet, and I have until ten.",
+   "text_hash": "a34d3ed0526f",
+   "window_shipped": [
+    112.4,
+    120.99
+   ],
+   "src_span": [
+    673.92,
+    682.51
+   ],
+   "sheet": "ep9/review/frames/N2.jpg",
+   "note": "tiles stamped UNDER LINE play while the line is spoken; the others are the seconds just before, so the viewer's reference points are included"
+  }
+ ]
+}

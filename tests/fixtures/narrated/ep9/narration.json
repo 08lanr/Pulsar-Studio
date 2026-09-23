@@ -1,0 +1,67 @@
+{
+ "version": "draft 2026-09-22: third S01E02 episode",
+ "narrator": "Hu Xiu telling the story afterwards (ElevenLabs Jessica), first person",
+ "cps_calibration": 14.7,
+ "notes": "windows are base times of ep9/base.mp4; placed by place_narration.py from anchors.json",
+ "silent_ok": [],
+ "unmute": [],
+ "previously": "Ep1: dumped at her engagement banquet. Ep2-5: in the Rong City VR game as Sun Jiaying she was framed, shielded by Governor Qin from police chief Ning, chose to trust Qin - and at the tunnel he shot her. Ep6: Qin was never an NPC but a faction head who took her formula and won with it; she vowed to make the ones who crossed her pay. Ep7: she came back as Anna, Faction M's financial adviser - openly there to help Qin become city master and get his signature on the contract, secretly working for Chief Ning, who gave her evidence (a medal) to frame Qin and warned her Qin must never find out. Ep8: two thieves from another faction were already in Qin's office; after a scuffle Qin found her outside it. His soldiers reported one file missing and nothing added - she had kept Ning's medal in her bag, because anything hidden in an office about to be searched would point straight at her. Qin said she'd had a lucky escape and invited Miss Anna into his lounge.",
+ "lines": [
+  {
+   "id": "N1",
+   "window": [
+    0.2,
+    5.67
+   ],
+   "text": "Governor Qin takes me into his lounge, so I ask my questions before he can ask his."
+  },
+  {
+   "id": "N2",
+   "window": [
+    106.36,
+    114.95
+   ],
+   "text": "What Qin is still missing is the formula, and I've just promised to bring it to him. I don't have it yet, and I have until ten."
+  },
+  {
+   "id": "N3",
+   "window": [
+    130.49,
+    136.68
+   ],
+   "text": "At ten o'clock, I walk into the dance hall to bring Qin his proof, in a stolen letter."
+  },
+  {
+   "id": "N4",
+   "window": [
+    143.15,
+    148.94
+   ],
+   "text": "Qin takes his time sitting down with me, even though he's the one who asked me for the formula tonight."
+  },
+  {
+   "id": "N5",
+   "window": [
+    150.94,
+    156.81
+   ],
+   "text": "I'm in no hurry either. He isn't getting this formula until his name is on that contract."
+  },
+  {
+   "id": "N5b",
+   "window": [
+    167.0,
+    171.99
+   ],
+   "text": "Last round, I trusted Qin first, and he shot me and won with the same formula."
+  },
+  {
+   "id": "N6",
+   "window": [
+    203.61,
+    210.12
+   ],
+   "text": "My heart is pounding, but I keep my face still, look away from him, and wait for his answer."
+  }
+ ]
+}

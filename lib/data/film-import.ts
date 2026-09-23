@@ -10,7 +10,8 @@ import type { AdExclusion, AdRules, Episode, FilmAsset, FilmAssetKind, FilmAsset
 import { invalid } from "./errors";
 import type { EpisodeImportInput, NewFilmAsset } from "./index";
 
-export const FILM_ASSET_KINDS: readonly FilmAssetKind[] = ["transcript", "shots", "motion", "candidates", "source_facts", "delivered_plan", "vision_notes", "film_meta", "poster"];
+/** Every kind migration 0015 and 0018 allow (0018 adds the narrated delivery's five); the fixture refuses the rest as the SQL check does. */
+export const FILM_ASSET_KINDS: readonly FilmAssetKind[] = ["transcript", "shots", "motion", "candidates", "source_facts", "delivered_plan", "vision_notes", "film_meta", "poster", "narrated_captions", "narration", "gate_report", "script_doc", "delivery_manifest"];
 export const FILM_ASSET_ORIGINS: readonly FilmAssetOrigin[] = ["workspace", "studio"];
 export const SHA256_HEX = /^[0-9a-f]{64}$/;
 

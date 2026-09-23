@@ -599,3 +599,94 @@ export async function loadFilmIndex(fs: ScanFs, root: string, sourceRef: string)
     problems,
   };
 }
+
+// ---- a narrated delivery: DELIVERED-narrated.json (decision 2026-09-23 "Narrated mode in Studio"; narrated spec N7) ----
+//
+// A narrated (skip-through) project has no cut/ and no DELIVERED plan: its
+// delivery is `<film>/DELIVERED-narrated.json`, written by Studio's hand-off
+// stage from the gated files (values read, hashes computed once and stored).
+// Episodes are numbered from the season's first `n`, not from 1 — the
+// DeliveredPlanSchema "from ep 1" rule is the cut-only plan's alone — and
+// each names the project it belongs to, so a scan of a project whose earlier
+// episodes are junctions to another project never claims them.
+
+export const NARRATED_MANIFEST_FILE = "DELIVERED-narrated.json";
+
+const Sha256 = z.string().regex(/^[0-9a-f]{64}$/, "a SHA-256 is 64 hex characters");
+const Count = z.number().int().nonnegative();
+
+export const NarratedEpisodeSchema = z
+  .object({
+    n: z.number().int().positive(),
+    project: z.string().min(1),
+    variant: z.string().regex(/^v\d+$/),
+    /** `epN/variants/vK/epN.mp4`, relative to the project. */
+    file: z.string().min(1),
+    sha256: Sha256,
+    bytes: Count,
+    duration_s: z.number().positive().nullish(),
+    frames: Count.nullish(),
+    title: z.string().min(1),
+    subtitle: z.string().nullish(),
+    srt: z.string().nullish(),
+    ass: z.string().nullish(),
+    gate: z.object({ PASS: Count, WARN: Count, FAIL: Count, file: z.string().nullish() }).passthrough(),
+    user_review: z.string().nullish(),
+    pieces: z.array(z.object({ id: z.union([z.string(), z.number()]), src_in: z.number(), src_out: z.number(), mode: z.string() }).passthrough()).default([]),
+    narration: z.object({ file: z.string(), sha256: Sha256.nullish(), lines: Count, chars: Count, voice: z.string().nullish(), model: z.string().nullish() }).passthrough().nullish(),
+    frame_check: z.object({ lines: Count, contradicted_unwaived: Count }).passthrough(),
+    cut_joins: z.object({ joins: Count, lost_unwaived: Count }).passthrough(),
+    approved_by: z.string().nullish(),
+    approved_at: z.string().nullish(),
+  })
+  .passthrough();
+
+export const NarratedManifestSchema = z
+  .object({
+    route: z.literal("skip-through"),
+    version: z.literal(1),
+    series_key: z.string().regex(/^[a-z0-9]+(?:[-_][a-z0-9]+)*$/),
+    /** An existing Studio title to add these episodes to (its source ref), else null. */
+    title_source_ref: z.string().nullish(),
+    source: z.object({ file: z.string().min(1), sha256: Sha256.nullish(), duration_s: z.number().positive().nullish() }).passthrough(),
+    lang: z.string().min(2),
+    caption_lang: z.string().min(2),
+    /** The rendered intro card's own container duration (6.04 s), read, never re-derived. */
+    intro_s: z.number().nonnegative().nullish(),
+    drama_remix_sha: z.string().regex(/^[0-9a-f]{40}$/).nullish(),
+    episodes: z.array(NarratedEpisodeSchema).min(1),
+  })
+  .passthrough()
+  .superRefine((m, ctx) => {
+    const first = m.episodes[0]?.n ?? 1;
+    m.episodes.forEach((e, i) => {
+      if (e.n !== first + i) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["episodes", i, "n"], message: `episode numbers run on from ${first}: the ${i + 1}th is ${e.n}` });
+    });
+  });
+
+export type NarratedManifest = z.infer<typeof NarratedManifestSchema>;
+export type NarratedManifestEpisode = z.infer<typeof NarratedEpisodeSchema>;
+
+export function parseNarratedManifest(json: unknown): NarratedManifest {
+  return NarratedManifestSchema.parse(json);
+}
+
+/**
+ * What stands between a parsed narrated manifest and READY, from its own
+ * facts (the file checks are the scanner's): a gate FAIL, an unwaived
+ * contradiction or lost join, an episode no one approved, an episode of
+ * another project. No licence check: rights are settled (amendment 5).
+ * Pure; empty = the manifest's own facts hold.
+ */
+export function narratedManifestProblems(m: NarratedManifest, project: { source_ref: string; folder: string }): string[] {
+  const out: string[] = [];
+  for (const e of m.episodes) {
+    if (e.project !== project.source_ref && e.project !== project.folder) out.push(`ep${e.n} belongs to ${e.project}, not ${project.source_ref}`);
+    if (e.gate.FAIL !== 0) out.push(`ep${e.n}'s gate has FAIL ${e.gate.FAIL}`);
+    if (e.frame_check.contradicted_unwaived !== 0) out.push(`ep${e.n} has ${e.frame_check.contradicted_unwaived} unwaived contradicted line(s)`);
+    if (e.cut_joins.lost_unwaived !== 0) out.push(`ep${e.n} has ${e.cut_joins.lost_unwaived} unwaived lost join(s)`);
+    if (!e.approved_at) out.push(`ep${e.n} has no approval (the final watch)`);
+    if (/(^|[\\/])\.\.([\\/]|$)/.test(e.file) || path.isAbsolute(e.file)) out.push(`ep${e.n}'s file ${e.file} is not inside the project`);
+  }
+  return out;
+}

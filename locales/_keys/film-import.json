@@ -31,6 +31,7 @@
   "fi.state.IMPORTED": { "zh": "已导入", "en": "Imported" },
   "fi.state.K_CHANGED": { "zh": "有更新", "en": "Changed" },
   "fi.reason.no_cut_dir": { "zh": "没有 cut/ 目录（叙述式项目或尚未开始切片）", "en": "No cut/ folder (a narrated project, or cutting has not started)" },
+  "fi.reason.no_narrated_manifest": { "zh": "叙述式项目还没有 DELIVERED-narrated.json（Studio 在分集全部通过后写入）", "en": "A narrated project with no DELIVERED-narrated.json yet (Studio writes it once the run's episodes have shipped)" },
   "fi.reason.no_delivered": { "zh": "还没有交付的分集方案", "en": "No delivered plan yet" },
   "fi.reason.bad_delivered": { "zh": "交付方案无法读取：{file}（{detail}）", "en": "The delivered plan does not parse: {file} ({detail})" },
   "fi.reason.part_file": { "zh": "正在渲染：{file}", "en": "Rendering now: {file}" },
