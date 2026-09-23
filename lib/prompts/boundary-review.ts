@@ -28,6 +28,16 @@
 // refuses a pick the model's own options_seen contradicts, and the reading
 // block names the dense strip's cut tile from that strip's own layout.
 //
+// Its second round (by-eye-v4) found the model choosing a LATER option
+// after the card when its own options_seen marked an earlier one as the
+// first frame after it (2324.933, twice), and refusing with confidence 0
+// on a why of "placeholder" and two of seven options_seen entries
+// (2785.5). So selfContradiction also names the earlier option that is
+// rule 7's target, and a refusal must still cover every option and name
+// the image it could not read (refusalProblem): every strip is rendered
+// and attached before the call, so a blank refusal is a repair, not an
+// answer.
+//
 // Schemas use .nullable(), never .optional(): lib/llm.ts emits strict JSON
 // schema where every key is required.
 
@@ -36,7 +46,7 @@ import type { LlmProvider, LlmSystemBlock } from "@/lib/llm";
 import { asLlmImage, cutIndexOf, cutTileOf, inCardSpan, type CardSpan, type OptionsBoundary, type StripImage, type StripLayout } from "@/lib/segment/strips";
 
 /** Bumped when the rules, the prompt text or a schema changes; part of every verify_boundaries idempotency key. */
-export const BOUNDARY_RULE_VERSION = "by-eye-v3";
+export const BOUNDARY_RULE_VERSION = "by-eye-v4";
 
 /** The standing decisions: 1-6 verbatim from pick_by_eye.workflow.js, 7-8 from the second pass. Not preferences. */
 export const BOUNDARY_RULES = [
@@ -144,14 +154,22 @@ export function namesAction(entry: Pick<OptionSeen, "physical_action_across_cut"
   return text !== "" && !/^(none|null|no|n\/a|-|nothing)$/i.test(text);
 }
 
+/** An option the reviewer may choose (in range, not on a card), with its time: what selfContradiction ranks "earlier" by. */
+export type ChoosableOption = { key: string; t: number };
+
 /**
  * What the reviewer's own options_seen entry for its chosen option says
  * against the choice, or null: the calibration had the model flag a caption
  * across the cut (2429, 1325.967, 3866.967, 115.367) or a card on the cut
  * tile and choose that option anyway, and one of those was a real rule-8
- * split. A deterministic check catches exactly that.
+ * split. A deterministic check catches exactly that. With the choosable
+ * options given, a chosen option marked `before_cut` while an EARLIER
+ * choosable option is marked the same, clean of captions and actions, is
+ * refused too: rule 7's target is the FIRST frame after the card, and the
+ * later one buries it (2324.933 chose opt6 two seconds after the card over
+ * opt5, both marked before_cut in its own entries).
  */
-export function selfContradiction(out: Pick<BoundaryPick, "options_seen" | "chosen_key">): string | null {
+export function selfContradiction(out: Pick<BoundaryPick, "options_seen" | "chosen_key">, choosable?: ChoosableOption[]): string | null {
   const own = out.options_seen.find((s) => s.key === out.chosen_key);
   if (!own) return null;
   const close = "; choose another option or refuse with confidence 0";
@@ -159,6 +177,36 @@ export function selfContradiction(out: Pick<BoundaryPick, "options_seen" | "chos
   if (own.card_or_flare === "across_cut") return `your own options_seen says ${own.key} still shows the card, flare or fade on its cut tile, so the next episode would open on it (rule 7)${close}`;
   if (own.card_or_flare === "after_cut") return `your own options_seen says ${own.key} shows the card after its cut, so the cut comes before the source's break and buries the card (rule 7)${close}`;
   if (namesAction(own)) return `your own options_seen says ${own.key} cuts inside a physical action (${own.physical_action_across_cut!.trim()}; rule 2)${close}`;
+  if (own.card_or_flare === "before_cut") {
+    const timeOf = (key: string) => choosable?.find((c) => c.key === key)?.t;
+    const ownT = timeOf(own.key);
+    const ownIndex = out.options_seen.indexOf(own);
+    const earlier = (s: OptionSeen) => {
+      if (!choosable) return out.options_seen.indexOf(s) < ownIndex;
+      const t = timeOf(s.key);
+      return t !== undefined && ownT !== undefined && t < ownT - 1e-9;
+    };
+    const first = out.options_seen.find((s) => s.key !== own.key && s.card_or_flare === "before_cut" && !s.caption_across_cut && !namesAction(s) && earlier(s));
+    if (first) return `your own options_seen says ${first.key} is also after the card and earlier; rule 7's target is the FIRST frame after the card; choose it or explain with confidence 0`;
+  }
+  return null;
+}
+
+const PLACEHOLDER_WHY = /^(placeholder|n\/?a|none|null|tbd|todo|refused?|no|-+|\.+)$/i;
+
+/**
+ * Why a refusal (confidence 0) is not yet an answer, or null: the
+ * calibration recorded a why of "placeholder" as a refusal and handed it
+ * to a person. Studio renders and attaches every strip before the call,
+ * so a refusal must name the image that is missing or unreadable, in at
+ * least 20 characters of real content.
+ */
+export function refusalProblem(why: string): string | null {
+  const text = why.trim();
+  const names = /\b(image|strip|opt\d+|tile|unreadable|missing|blank|corrupt|garbled)/i.test(text);
+  if (text.length < 20 || PLACEHOLDER_WHY.test(text) || !names) {
+    return 'confidence 0 is a refusal to judge: every option strip was rendered and attached to this call before it was made, so why must say which image is missing or unreadable and what is wrong with it (at least 20 characters naming the image, e.g. "image 3 (opt3) shows no tiles"), or else judge the strips and choose an option';
+  }
   return null;
 }
 
@@ -264,7 +312,8 @@ export function buildBoundaryReview(input: BoundaryReviewInput) {
         `Every episode must be ${input.band[0]}-${input.band[1]} s long. The boundary facts below name the planner's neighbouring boundaries and the range this cut must lie in; an option outside that range, or inside the source's own card, is marked and cannot be chosen.`,
         "",
         "First fill options_seen: one entry per option, from that option's own image only, before you choose.",
-        "Your choice must agree with your own entry for it: an option whose entry shows the same caption on both sides of the cut, the card on or after its cut tile, or a physical action across the cut cannot be chosen.",
+        "Your choice must agree with your own entry for it: an option whose entry shows the same caption on both sides of the cut, the card on or after its cut tile, or a physical action across the cut cannot be chosen. When more than one option's entry says the card ends before its cut (before_cut), rule 7's target is the EARLIEST of them: the first frame after the card; a later one buries the card inside the episode.",
+        "A refusal (confidence 0) is for a strip that is missing or unreadable, and its why names that image and what is wrong with it; every strip was rendered and attached before this call, so a refusal with no such image is not an answer.",
         "Judge the options as PAIRS: what the episode ends on, and what the next one opens on. In ends_on and",
         "opens_on describe what you SEE in the frames, physically and concretely - not what the dialogue says.",
         "Set payoff_in_episode true only if the nearest physical payoff completes inside this episode.",
@@ -291,6 +340,9 @@ export function buildBoundaryReview(input: BoundaryReviewInput) {
     `Choose one of ${keys.join(", ")}.`,
   ].join("\n");
   const range = input.range;
+  const choosable: ChoosableOption[] = boundary.options
+    .filter((o) => !(range && (o.t < range.lo - 1e-9 || o.t > range.hi + 1e-9)) && !(input.card_spans && inCardSpan(o.t, input.card_spans)))
+    .map((o) => ({ key: o.key, t: o.t }));
   return {
     name: "verify_boundaries_look",
     description: "Record what each option's strip shows, then which option ends this episode, what the viewer sees on either side of the cut, and why.",
@@ -306,19 +358,20 @@ export function buildBoundaryReview(input: BoundaryReviewInput) {
     prompt_version: BOUNDARY_RULE_VERSION,
     check: (out: BoundaryPick) => {
       if (out.confidence < 0 || out.confidence > 1) return "confidence is a number from 0 to 1";
-      if (out.confidence === 0) return null; // a refusal chooses nothing; apply_vision never applies it
       const seen = out.options_seen.map((s) => s.key);
       const missing = keys.filter((k) => !seen.includes(k));
       const unknown = seen.filter((k) => !keys.includes(k));
       const dup = seen.filter((k, i) => seen.indexOf(k) !== i);
       if (missing.length || unknown.length || dup.length) return `options_seen must have exactly one entry per option (${keys.join(", ")}): missing ${JSON.stringify(missing)}, unknown ${JSON.stringify(unknown)}, repeated ${JSON.stringify(dup)}`;
+      // A refusal chooses nothing and apply_vision never applies it, but it must still be a real one: every strip was attached.
+      if (out.confidence === 0) return refusalProblem(out.why);
       const o = boundary.options.find((x) => x.key === out.chosen_key);
       if (!o) return `chosen_key ${JSON.stringify(out.chosen_key)} is not one of ${keys.join(", ")}`;
       if (Math.abs(out.chosen_t - o.t) > 0.0005) return `chosen_t must be exactly ${o.t} for ${o.key} (copied from the option list), not ${out.chosen_t}`;
       if (range && (o.t < range.lo - 1e-9 || o.t > range.hi + 1e-9)) return `${o.key} at ${o.t}s is outside the allowed range ${range.lo}-${range.hi}s (an episode would leave the ${input.band[0]}-${input.band[1]} s band); choose an option inside it, or refuse with confidence 0 and say why`;
       const card = input.card_spans ? inCardSpan(o.t, input.card_spans) : null;
       if (card) return `${o.key} at ${o.t}s is inside the source's own card ${card.from_s}-${card.to_s}s: the next episode would open on the card (rule 7); choose the first frame after it or another option, or refuse with confidence 0 and say why`;
-      return selfContradiction(out);
+      return selfContradiction(out, choosable);
     },
   };
 }

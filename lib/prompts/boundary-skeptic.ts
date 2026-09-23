@@ -17,18 +17,43 @@
 // or a legal cut inside one of its images, inside the allowed range), the
 // verdict records what the chosen strip shows before the verdict, and
 // lib/segment/vision.ts guards every override and tie-breaks it blind.
+//
+// The second calibration (phase 2.1, round two) had the skeptic see a rule
+// break and waive it ("would normally trip rule 8 - but..."), cite another
+// option's strip for a fault on the chosen cut, and cite an END tile under
+// the card as a rule-7 fault when that tile is exactly rule 7's target. So
+// the verdict now records, before `agree`, what the chosen cut's own images
+// show for rules 8, 7 and 2 (verdictContradiction ties the verdict to it),
+// names the rule a fault breaks (`fault_rule`), and citationProblem checks
+// that the cited image shows the CHOSEN cut and that the cited tile can
+// carry the claimed rule (faultRuleProblem: rule 7 at or after the cut,
+// rule 8 on the last tile before the cut or the cut tile, rules 2 and 4
+// within 1.5 s of it).
 
 import { z } from "zod";
 import type { LlmProvider, LlmSystemBlock } from "@/lib/llm";
 import type { CutCandidate } from "@/lib/film-import/types";
-import { SEEN_TOLERANCE_S, asLlmImage, inCardSpan, isListedTime, type CardSpan, type OptionsBoundary, type StripImage, type StripLayout } from "@/lib/segment/strips";
-import { BOUNDARY_RULES, BOUNDARY_RULE_VERSION, filmNotesBlock, rangeLine, renderOptions, stripFacts, stripHowTo, type BoundaryPick, type BoundaryRange } from "./boundary-review";
+import { SEEN_TOLERANCE_S, asLlmImage, cutIndexOf, inCardSpan, isListedTime, type CardSpan, type OptionsBoundary, type StripImage, type StripLayout } from "@/lib/segment/strips";
+import { BOUNDARY_RULES, BOUNDARY_RULE_VERSION, filmNotesBlock, namesAction, rangeLine, renderOptions, stripFacts, stripHowTo, type BoundaryPick, type BoundaryRange } from "./boundary-review";
+
+/** The standing decisions a cited fault can break, by number (rule 1 is the format, never a fault of one cut). */
+export const FAULT_RULES = ["2", "3", "4", "5", "6", "7", "8"] as const;
+export const FaultRuleSchema = z.enum(FAULT_RULES);
+export type FaultRule = z.infer<typeof FaultRuleSchema>;
+
+const CardOrFlareSchema = z.enum(["none", "before_cut", "across_cut", "after_cut"]);
 
 export const BoundaryVerdictSchema = z.object({
   chosen_strip_shows: z.string().describe("what the chosen option's own image shows: the tiles before the cut, then the cut tile and after - written before the verdict"),
+  chosen_caption_across_cut: z.boolean().describe("true only when the SAME burned-in subtitle line (the same words) shows on the last tile before the chosen cut AND on its cut tile (rule 8), read off the chosen option's own strip or the dense strip; one line ending before the cut and a different line starting after it is false"),
+  chosen_card_or_flare: CardOrFlareSchema.describe(
+    "where a flare, light leak, fade to black or TO BE CONTINUED card appears in the chosen cut's own images, if at all (rule 7): none; before_cut = the card ends before the cut and the cut tile is the next shot (what rule 7 asks for); across_cut = the cut tile still shows the card, flare or fade (the next episode would open on it); after_cut = the card shows on tiles after the cut (the cut comes before the source's break)"
+  ),
+  chosen_action_across_cut: z.string().nullable().describe("a punch, slap, push, grab, throw, fall, collision or something flying that is in progress on the chosen cut's cut tile; null when none"),
   agree: z.boolean(),
-  fault: z.string().nullable().describe("the specific rule broken, or null"),
-  fault_image: z.number().int().nullable().describe("the image number (1-based, as listed) where the fault shows; null when you agree"),
+  fault: z.string().nullable().describe("the specific rule broken, in words, or null"),
+  fault_rule: FaultRuleSchema.nullable().describe("the standing decision the cited tile breaks: 2 (inside a physical action), 3 (the payoff lands in the next episode), 4 (no aftermath after an impact), 5 (no open question, or a cold viewer cannot tell who is on screen), 6 (the tension had already resolved), 7 (the card, flare or fade on the cut tile), 8 (the same caption on both sides of the cut); null when you agree"),
+  fault_image: z.number().int().nullable().describe("the image number (1-based, as listed) where the fault shows: the chosen option's own strip or the dense strip; null when you agree"),
   fault_tile_t: z.number().nullable().describe("the tile time in that image where the fault shows, copied from its tile list; null when you agree"),
   fault_tile_shows: z.string().nullable().describe("what is in that tile; null when you agree"),
   better_key: z.string().nullable().describe("a strictly better listed option's key, or null"),
@@ -77,13 +102,93 @@ export function fixRule(range: Pick<BoundaryRange, "lo" | "hi">): string {
   return `A fix must be a time you have looked at: a listed option (better_key and its exact t) or a legal cut inside one of the attached images, and it must keep this cut between ${range.lo}s and ${range.hi}s. If the only fix is a time you have not seen, give no fix - the boundary then goes to a person.`;
 }
 
-/** Where the skeptic's cited tile is: null when it is a tile of the cited image, else what is wrong (the repair message). */
-export function citationProblem(out: Pick<BoundaryVerdict, "fault_image" | "fault_tile_t">, images: Pick<StripImage, "tiles">[]): string | null {
+/**
+ * Where a cited fault tile cannot carry the rule it is cited for, or null.
+ * The calibration's false results: a "rule 7" fault on an END tile under
+ * the card (3033.867: that tile is rule 7's target), a "rule 8" fault on a
+ * tile that is neither side of the cut, a tie-break "buried" card read off
+ * an END tile. Rule 7 shows on the cut tile or after it; rule 8 on the last
+ * tile before the cut or the cut tile; rules 2 and 4 within 1.5 s of the cut.
+ */
+export function faultRuleProblem(rule: FaultRule | null, tileT: number, img: Pick<StripImage, "tiles">, cutT: number, field = "fault_tile_t"): string | null {
+  if (rule === null) return null;
+  const tol = SEEN_TOLERANCE_S + 1e-9;
+  if (rule === "7") {
+    if (tileT < cutT - tol) {
+      return `${field} ${tileT} is an END tile, before the cut at ${cutT}s: a rule-7 fault is the card, flare or fade still on the CUT tile, or on a tile after it, so cite a tile at or after the cut. A card that ends before the cut, with the cut tile already the next shot, is the target: the card belongs at the END of this episode, so a card before the cut is the target, not a fault`;
+    }
+    return null;
+  }
+  if (rule === "8") {
+    const idx = cutIndexOf(img.tiles, cutT);
+    const allowed = [img.tiles[idx - 1], img.tiles[idx]].filter((t): t is number => t !== undefined);
+    if (!allowed.some((t) => Math.abs(t - tileT) <= tol)) return `${field} ${tileT} cannot show a split line: a rule-8 fault is the SAME subtitle line on the last tile before the cut AND on the cut tile, so cite one of those two tiles of that image (${allowed.join(" or ")})`;
+    return null;
+  }
+  if (rule === "2" || rule === "4") {
+    const away = Math.round(Math.abs(tileT - cutT) * 1000) / 1000;
+    if (away > 1.5 + 1e-9) return `${field} ${tileT} is ${away} s from the cut at ${cutT}s: a rule-${rule} fault (${rule === "2" ? "a cut inside a physical action" : "no aftermath after an impact"}) shows within 1.5 s of the cut`;
+    return null;
+  }
+  return null;
+}
+
+/** Which attached images show the CHOSEN cut: its own option strip and the dense strip, 1-based, with the cut time. */
+export type CitationContext = {
+  chosen_image: number;
+  dense_image: number | null;
+  cut_t: number;
+};
+
+/** The citation context of a skeptic call: the chosen option's strip (by its time) and the dense strip after every option strip. */
+export function citationContextOf(strips: Pick<StripImage, "t">[], chosenT: number, dense: boolean): CitationContext | null {
+  const i = strips.findIndex((s) => Math.abs(s.t - chosenT) <= 0.0015);
+  if (i < 0) return null;
+  return { chosen_image: i + 1, dense_image: dense ? strips.length + 1 : null, cut_t: chosenT };
+}
+
+/**
+ * Where the skeptic's citation is wrong, or null: both fields or neither, an
+ * attached image, a tile of that image; with a context, the image must show
+ * the chosen cut (its own strip or the dense strip, never another option's)
+ * and the tile must be able to carry the claimed rule (faultRuleProblem).
+ */
+export function citationProblem(out: Pick<BoundaryVerdict, "fault_image" | "fault_tile_t"> & Partial<Pick<BoundaryVerdict, "fault_rule">>, images: Pick<StripImage, "tiles">[], ctx?: CitationContext | null): string | null {
   if (out.fault_image === null && out.fault_tile_t === null) return null;
   if (out.fault_image === null || out.fault_tile_t === null) return "cite both fault_image and fault_tile_t, or neither";
   const img = images[out.fault_image - 1];
   if (!img) return `fault_image ${out.fault_image} is not an attached image (1-${images.length})`;
   if (!img.tiles.some((t) => Math.abs(t - out.fault_tile_t!) <= SEEN_TOLERANCE_S + 1e-9)) return `fault_tile_t ${out.fault_tile_t} is not a tile of image ${out.fault_image} (its tiles: ${img.tiles.join(", ")})`;
+  if (!ctx) return null;
+  if (out.fault_image !== ctx.chosen_image && out.fault_image !== ctx.dense_image) {
+    return `fault_image ${out.fault_image} does not show the chosen cut at ${ctx.cut_t}s: a fault must show on the chosen option's own strip (image ${ctx.chosen_image})${ctx.dense_image ? ` or the dense strip (image ${ctx.dense_image})` : ""}, not on another option's strip, whose cut is another time`;
+  }
+  return faultRuleProblem(out.fault_rule ?? null, out.fault_tile_t, img, ctx.cut_t);
+}
+
+/**
+ * What the skeptic's own chosen_* observations say against its verdict, or
+ * null: the calibration had it write that the same caption sits on both
+ * sides of the cut "which would normally trip rule 8 - but..." and agree
+ * (2541.067, a real split), so agreeing over an observed fault is refused,
+ * and a rule-8 or rule-7 fault the observation does not show is refused too.
+ */
+export function verdictContradiction(out: Pick<BoundaryVerdict, "agree" | "fault_rule" | "chosen_caption_across_cut" | "chosen_card_or_flare" | "chosen_action_across_cut">): string | null {
+  if (out.agree) {
+    const close = "; set agree=false and cite the tile (fault_image, fault_tile_t, fault_rule)";
+    if (out.chosen_caption_across_cut) return `your own chosen_caption_across_cut says the same subtitle line shows on the last tile before the chosen cut and on its cut tile, a split spoken line (rule 8)${close}`;
+    if (out.chosen_card_or_flare === "across_cut") return `your own chosen_card_or_flare says the cut tile still shows the card, flare or fade, so the next episode would open on it (rule 7)${close}`;
+    if (out.chosen_card_or_flare === "after_cut") return `your own chosen_card_or_flare says the card shows after the chosen cut, so the cut comes before the source's break and buries the card (rule 7)${close}`;
+    if (namesAction({ physical_action_across_cut: out.chosen_action_across_cut })) return `your own chosen_action_across_cut says the chosen cut is inside a physical action (${out.chosen_action_across_cut!.trim()}; rule 2)${close}`;
+    return null;
+  }
+  if (out.fault_rule === "8" && !out.chosen_caption_across_cut) {
+    return "your own chosen_caption_across_cut says no subtitle line runs across the chosen cut, which contradicts a rule-8 fault; set it true only if the SAME line shows on the last tile before the cut AND on the cut tile, otherwise name the rule the tile really breaks or set agree=true";
+  }
+  if (out.fault_rule === "7" && (out.chosen_card_or_flare === "none" || out.chosen_card_or_flare === "before_cut")) {
+    const seen = out.chosen_card_or_flare === "none" ? "no card, flare or fade shows in the chosen cut's images" : "the card ends before the cut and the cut tile is already the next shot, which is what rule 7 asks for (the card belongs at the END of this episode, so a card before the cut is the target, not a fault)";
+    return `your own chosen_card_or_flare says ${seen}, which contradicts a rule-7 fault; set it across_cut or after_cut only if a tile at or after the cut shows the card, otherwise name the rule the tile really breaks or set agree=true`;
+  }
   return null;
 }
 
@@ -96,6 +201,7 @@ export function buildBoundarySkeptic(input: BoundarySkepticInput) {
   const annotated = images.every((s) => s.annotated);
   const range = input.range ?? null;
   const rangeWords = range ? `between ${range.lo}s and ${range.hi}s` : `so that both episodes stay ${input.band[0]}-${input.band[1]} s long`;
+  const citation = citationContextOf(strips, pick.chosen_t, dense !== null);
   const system: LlmSystemBlock[] = [
     {
       text: [
@@ -110,6 +216,8 @@ export function buildBoundarySkeptic(input: BoundarySkepticInput) {
         filmNotesBlock(input.film_notes),
         "",
         "First write chosen_strip_shows: what the chosen option's own image shows before the cut and from the cut tile on, in your own words, before any verdict.",
+        "Then record, from the chosen cut's own images only: chosen_caption_across_cut (the SAME subtitle line on the last tile before the cut and on the cut tile), chosen_card_or_flare (where a card, flare or fade sits against the cut, if at all) and chosen_action_across_cut (a physical action in progress on the cut tile, or null).",
+        "Your verdict must agree with those three: an observed split caption, a card on or after the cut tile, or an action across the cut is a fault you must dispute, never waive; and a rule-8 or rule-7 fault you did not observe there cannot be cited.",
         "",
         "Look at the chosen option's strip AND at every other option's strip yourself. Check specifically:",
         "- does the chosen cut fall inside a physical action?",
@@ -122,9 +230,10 @@ export function buildBoundarySkeptic(input: BoundarySkepticInput) {
         "- is another listed option strictly better on rules 2-4?",
         "",
         "Disagree only for a fault you can SEE: name the image number and the tile time where it shows, and what is in that tile. A fault taken from the other reviewer's description, from the dialogue list or from the motion numbers is not a fault. Do not manufacture a disagreement over taste: if the choice is sound, or the frames do not settle it, set agree=true and say what is uncertain in reason.",
+        "A fault names the rule it breaks (fault_rule) and shows on an image of the CHOSEN cut: the chosen option's own strip or the dense strip, never another option's strip, whose cut is another time. A rule-7 fault is the card, flare or fade still on the cut tile or after it, so it cites a tile at or after the cut (an END tile under the card is the target, not a fault); a rule-8 fault cites the last tile before the cut or the cut tile; a rule-2 or rule-4 fault lies within 1.5 s of the cut.",
         "",
         "A fix must be a time you have looked at: a listed option (better_key and its exact t) or a legal cut inside one of the attached images, and it must keep this cut between the lo and hi the boundary facts give. If the only fix is a time you have not seen, give no fix - the boundary then goes to a person. Nothing else is a legal cut; a time not in those lists cannot be applied. A fault with no fix is allowed (better_key and better_t null).",
-        "When you agree, leave fault, fault_image, fault_tile_t, fault_tile_shows, better_key and better_t null.",
+        "When you agree, leave fault, fault_rule, fault_image, fault_tile_t, fault_tile_shows, better_key and better_t null.",
       ]
         .filter((line, i, arr) => !(line === "" && arr[i - 1] === ""))
         .join("\n"),
@@ -140,7 +249,7 @@ export function buildBoundarySkeptic(input: BoundarySkepticInput) {
     renderOptions(boundary, strips, range, input.card_spans),
     dense ? `\nDENSE STRIP around ${dense.t}s - image ${strips.length + 1}\n  tiles: ${dense.tiles.join(", ")}` : "",
     "",
-    `The other reviewer chose ${pick.chosen_key} at ${pick.chosen_t}s.`,
+    `The other reviewer chose ${pick.chosen_key} at ${pick.chosen_t}s${citation ? ` (its own strip is image ${citation.chosen_image}${citation.dense_image ? `; the dense strip is image ${citation.dense_image}` : ""})` : ""}.`,
     `They said the episode ends on: ${pick.ends_on}`,
     `and the next opens on: ${pick.opens_on}`,
     `Their reasoning: ${pick.why}`,
@@ -153,7 +262,7 @@ export function buildBoundarySkeptic(input: BoundarySkepticInput) {
     .join("\n");
   return {
     name: "verify_boundaries_verify",
-    description: "Record what the chosen strip shows, whether the chosen boundary holds up against the frames, the fault with the image and tile that show it when it does not, and a better legal time the skeptic has seen when one exists.",
+    description: "Record what the chosen strip shows and what its own images say for rules 8, 7 and 2, whether the chosen boundary holds up against the frames, the fault with its rule and the image and tile that show it when it does not, and a better legal time the skeptic has seen when one exists.",
     system,
     user,
     images: images.map(asLlmImage),
@@ -165,11 +274,14 @@ export function buildBoundarySkeptic(input: BoundarySkepticInput) {
     cacheSystem: true,
     prompt_version: BOUNDARY_RULE_VERSION,
     check: (out: BoundaryVerdict) => {
+      const contradiction = verdictContradiction(out);
+      if (contradiction) return contradiction;
       if (out.agree) {
         if (out.better_key !== null || out.better_t !== null) return "you agreed: better_key and better_t must be null";
         return null;
       }
-      const cited = citationProblem(out, images);
+      if (out.fault_rule === null) return `name fault_rule: the standing decision (${FAULT_RULES.join(", ")}) the fault breaks`;
+      const cited = citationProblem(out, images, citation);
       if (cited) return cited;
       const onCard = (t: number) => (input.card_spans ? inCardSpan(t, input.card_spans) : null);
       if (out.better_key !== null) {

@@ -269,6 +269,12 @@ export default function BoundaryCard({ card, cards, review, busy, onDecide }: Pr
                 </dd>
               </div>
             ) : null}
+            {card.guard && card.guard.rule ? (
+              <div>
+                <dt>{tt("seg.review.guard")}</dt>
+                <dd lang="en"><strong>{tt(`seg.review.guardRule.${card.guard.rule}`)}</strong>{card.guard.detail ? ` — ${card.guard.detail}` : ""}</dd>
+              </div>
+            ) : null}
             {card.applied && card.applied.t === null ? <div><dt>{tt("seg.review.fault")}</dt><dd className="err">{card.applied.fault}</dd></div> : null}
             {card.rejudging ? <div><dt>{tt("seg.review.reason.rejudging")}</dt><dd>{tt("seg.review.rejudgingHint", { asked: v.rejudges_asked, done: v.rejudges_done })}</dd></div> : null}
           </dl>

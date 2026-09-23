@@ -1,11 +1,13 @@
 // The frame judge's second pass (decision 2026-09-23): the guard on a
 // skeptic override (a time it never saw, a band break, a card span, an
-// illegal cut), the blind tie-break and what each outcome writes into the
-// record and shows the review; the annotated strips (the ffmpeg filter and
-// the copy, with a fake ffmpeg); the scoring against the delivered cuts
-// with its hard-rule checks; the eval CLI's selection, film notes and bar.
-// No network, no ffmpeg, no Python: the fake llm answers from a script and
-// the annotator's runner is injected.
+// illegal cut, a buried card), the blind tie-break and what each outcome
+// writes into the record and shows the review; a call that fails after its
+// repair turn recorded per role instead of losing the boundary; the
+// annotated strips (the ffmpeg filter and the copy, with a fake ffmpeg);
+// the scoring against the delivered cuts with its hard-rule checks; the
+// eval CLI's selection, film notes and bar. No network, no ffmpeg, no
+// Python: the fake llm answers from a script and the annotator's runner is
+// injected.
 
 process.env.PROMO_RENDER = "off";
 
@@ -15,7 +17,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import { resetFixtureStore } from "@/lib/data/fixture";
-import type { StructuredCall, StructuredResult } from "@/lib/llm";
+import { LlmError, type StructuredCall, type StructuredResult } from "@/lib/llm";
 import type { BoundaryPick } from "@/lib/prompts/boundary-review";
 import type { BoundaryVerdict } from "@/lib/prompts/boundary-skeptic";
 import type { TiebreakVerdict } from "@/lib/prompts/boundary-tiebreak";
@@ -42,14 +44,17 @@ import {
   type StripImage,
 } from "@/lib/segment/strips";
 import {
+  BURY_AFTER_S,
   UNVERIFIED_OUTCOMES,
   applyVision,
   deliveredTruth,
   evidenceTiles,
   guardOverride,
+  isTransientLlmFailure,
   isUnavailable,
   judgeBoundaries,
   readGuard,
+  refusalPick,
   resolveJudgeModel,
   scoreAgainstTruth,
   type GuardInput,
@@ -129,15 +134,15 @@ function fakeLlm(script: Script = {}) {
       const pick: BoundaryPick = { options_seen: (entry?.options ?? []).map((o) => seenEntry(o.key)), chosen_key: dp?.key ?? "opt1", chosen_t: dp?.t ?? 0, ends_on: "A close-up.", opens_on: "A wide shot.", why: "Fake: the DP pick.", rejected: null, payoff_in_episode: true, confidence: 0.8 };
       data = pick;
     } else if (call.name === "verify_boundaries_verify") {
-      const v: BoundaryVerdict = { chosen_strip_shows: "Fake.", agree: true, fault: null, fault_image: null, fault_tile_t: null, fault_tile_shows: null, better_key: null, better_t: null, reason: "Fake: holds.", ...(script.verdict?.(b) ?? {}) };
+      const v: BoundaryVerdict = { chosen_strip_shows: "Fake.", chosen_caption_across_cut: false, chosen_card_or_flare: "none", chosen_action_across_cut: null, agree: true, fault: null, fault_rule: null, fault_image: null, fault_tile_t: null, fault_tile_shows: null, better_key: null, better_t: null, reason: "Fake: holds.", ...(script.verdict?.(b) ?? {}) };
       data = v;
     } else if (call.name === "verify_boundaries_tiebreak") {
       const aT = Number(call.user.match(/^CUT A at (\d+(?:\.\d+)?)s/m)?.[1]);
       const bT = Number(call.user.match(/^CUT B at (\d+(?:\.\d+)?)s/m)?.[1]);
       const want = script.tiebreak ?? "neither";
       const winner = want === "neither" ? "neither" : Math.abs(want - aT) <= 0.0015 ? "A" : Math.abs(want - bT) <= 0.0015 ? "B" : "neither";
-      // The losing side's fault tile is its own cut time, a tile of its option strip and of its dense strip; both sides for "neither".
-      const tv: TiebreakVerdict = { a_shows: "A's frames.", b_shows: "B's frames.", a_fault_tile_t: winner === "A" ? null : aT, b_fault_tile_t: winner === "B" ? null : bT, winner, evidence_image: null, evidence_tile_t: null, reason: `Fake: ${winner}.` };
+      // The losing side's fault tile is its own cut time, a tile of its option strip and of its dense strip, a rule-4 fault; both sides for "neither"; the winner carries none.
+      const tv: TiebreakVerdict = { a_shows: "A's frames.", b_shows: "B's frames.", a_fault_tile_t: winner === "A" ? null : aT, a_fault_rule: winner === "A" ? null : "4", b_fault_tile_t: winner === "B" ? null : bT, b_fault_rule: winner === "B" ? null : "4", winner, evidence_image: null, evidence_tile_t: null, reason: `Fake: ${winner}.` };
       data = tv;
     } else {
       throw new Error(`fake llm: unexpected call ${call.name}`);
@@ -155,7 +160,8 @@ function fakeLlm(script: Script = {}) {
 /** A dense strip the fake makes without ffmpeg: the fixture PNG with 0.1 s tiles around `at`. */
 const fakeDense = (at: number): StripImage => ({ key: "dense", t: at, path: path.join(FIXTURE_CUT, "review", "frames", "b4550_opt1.png"), rel: `dense_${at}.png`, media_type: "image/png", tiles: stripTiles(at, 3, 0.1), cols: 10, step: 0.1 });
 
-const SKEPTIC_4550 = { agree: false, fault: "Rule 4: no aftermath", fault_image: 2, fault_tile_t: 4569.567, fault_tile_shows: "the slap", better_key: "opt2", better_t: 4572.067 } as const;
+/** A skeptic dispute of opt1 at 4550.267 that passes the call's own check: a rule-4 fault on the chosen cut's own strip (image 1) at its cut tile, the listed opt2 as the fix. */
+const SKEPTIC_4550 = { chosen_caption_across_cut: false, chosen_card_or_flare: "none", chosen_action_across_cut: null, agree: false, fault: "Rule 4: no aftermath", fault_rule: "4", fault_image: 1, fault_tile_t: 4550.267, fault_tile_shows: "the slap", better_key: "opt2", better_t: 4572.067 } as const;
 
 // ---- the pure facts: seen times, neighbours, the range, card spans -----------------------------------------
 
@@ -232,7 +238,41 @@ test("guardOverride refuses a time the skeptic never saw, a band break, a card s
   const illegal = guardOverride({ ...base, better_t: 4551, legal_times: [4550.267, 4572.067] });
   assert.deepEqual(illegal, { ok: false, rule: "illegal", detail: "4551s is neither a listed option nor a legal cut in index/candidates.json" });
   assert.deepEqual(guardOverride({ ...base, better_t: 4551 }), { ok: true }, "a dense tile that is a legal cut passes");
-  assert.deepEqual(UNVERIFIED_OUTCOMES, ["rejected", "no_tiebreak"]);
+  // Rule (e), bury: the reviewer's own entry marks its pick as the first frame after a card, and the fix sits a second or more later (the no-card arm's two bad overrides, 214.733 and 2114.267). No card spans needed.
+  assert.equal(BURY_AFTER_S, 1);
+  const after = { ...base, legal_times: [...base.legal_times, 4551.267, 4550.767, 4549.767], chosen_t: 4550.267, chosen_card_or_flare: "before_cut" as const };
+  assert.deepEqual(guardOverride(after), { ok: false, rule: "bury", detail: "4572.067s is 21.8s after 4550.267s, which the reviewer's own options_seen marks as the first frame after the source's card; the card would end a second or more before the cut, buried inside the episode (rule 7)" });
+  assert.deepEqual(guardOverride({ ...after, better_t: 4551.267 }), { ok: false, rule: "bury", detail: "4551.267s is 1s after 4550.267s, which the reviewer's own options_seen marks as the first frame after the source's card; the card would end a second or more before the cut, buried inside the episode (rule 7)" }, "exactly a second later is buried");
+  assert.deepEqual(guardOverride({ ...after, better_t: 4550.767 }), { ok: true }, "half a second later is not");
+  assert.deepEqual(guardOverride({ ...after, better_t: 4549.767 }), { ok: true }, "earlier is not");
+  assert.deepEqual(guardOverride({ ...after, chosen_card_or_flare: "none" }), { ok: true });
+  assert.deepEqual(guardOverride({ ...after, chosen_card_or_flare: null }), { ok: true });
+  assert.deepEqual(guardOverride({ ...after, chosen_t: undefined }), { ok: true }, "no pick given: the rule cannot fire");
+  assert.deepEqual(guardOverride({ ...after, next: 4660 }).ok ? null : (guardOverride({ ...after, next: 4660 }) as { rule: string }).rule, "band", "rules a-d come first");
+  assert.deepEqual(UNVERIFIED_OUTCOMES, ["rejected", "no_tiebreak", "skeptic_failed"]);
+});
+
+test("the bury guard through the pass: a skeptic's later fix is refused when the reviewer's own options_seen marks the pick as the first frame after the card, and the review asks a person", async () => {
+  const cut = tempCut();
+  const doc = withFillers(await loadOptionsDoc(cut));
+  const afterCard = fakeLlm({ verdict: (b) => (b === 4550.267 ? { ...SKEPTIC_4550 } : {}), tiebreak: 4572.067 });
+  const llm = async <T>(call: StructuredCall<T>): Promise<StructuredResult<T>> => {
+    const out = await afterCard.llm(call);
+    if (call.name === "verify_boundaries_look" && boundaryOf(call as StructuredCall<unknown>) === 4550.267) {
+      const pick = out.data as unknown as BoundaryPick;
+      return { ...out, data: { ...pick, options_seen: pick.options_seen.map((o) => (o.key === "opt1" ? { ...o, card_or_flare: "before_cut" as const } : o)) } as unknown as T };
+    }
+    return out;
+  };
+  const r = await judgeBoundaries({ id: RUN_ID, cut_dir: cut }, doc, { label: "bury", llm, boundaries: [4550.267], card_spans: [] });
+  assert.ok(!isUnavailable(r));
+  assert.equal(afterCard.calls.length, 2, "no tie-break for a fix the guard refused");
+  const rec = r.records[0];
+  assert.equal(rec.verdict?.agree, true);
+  assert.deepEqual(readGuard(rec.verdict)?.rule, "bury");
+  assert.match(readGuard(rec.verdict)!.detail, /^4572.067s is 21.8s after 4550.267s, which the reviewer's own options_seen marks as the first frame after the source's card/);
+  assert.deepEqual(reviewState(doc, [r.records], []).boundaries.find((x) => x.boundary_s === 4550.267)!.reasons, ["skeptic_unverified"]);
+  assert.deepEqual(applyVision(r.records).choices, { "4550.267": 4550.267 });
 });
 
 test("a fix the guard refuses writes the reviewer's pick with the skeptic's verdict as a note, and the review asks a person (skeptic_unverified)", async () => {
@@ -285,15 +325,16 @@ test("a fix inside a card span is refused (the film's card spans are read from c
 test("an illegal fix (a dense tile that is no legal cut) is refused by the guard; an unseen time never reaches it because the prompt's own check refuses it first", async () => {
   const cut = tempCut();
   const doc = withFillers(await loadOptionsDoc(cut));
-  const fake = fakeLlm({ verdict: (b) => (b === 4550.267 ? { agree: false, fault: "Rule 4", fault_image: 3, fault_tile_t: 4550.967, fault_tile_shows: "the slap lands", better_key: null, better_t: 4550.967 } : {}), strict: false });
+  const fake = fakeLlm({ verdict: (b) => (b === 4550.267 ? { agree: false, fault: "Rule 4", fault_rule: "4", fault_image: 3, fault_tile_t: 4550.967, fault_tile_shows: "the slap lands", better_key: null, better_t: 4550.967 } : {}), strict: false });
   const r = await judgeBoundaries({ id: RUN_ID, cut_dir: cut }, doc, { label: "illegal", llm: fake.llm, boundaries: [4550.267], dense: async (_b, at) => fakeDense(at), candidates: null, card_spans: [] });
   assert.ok(!isUnavailable(r));
   const guard = readGuard(r.records[0].verdict);
   assert.deepEqual([guard?.outcome, guard?.rule], ["rejected", "illegal"], "seen (a dense tile), in band, no card, but not in the index");
   // The skeptic's check: 4550.967 is not a listed option nor a legal cut it has looked at.
   const verify = fake.calls.find((c) => c.name === "verify_boundaries_verify")!;
-  assert.match(verify.check!({ chosen_strip_shows: "x", agree: false, fault: "f", fault_image: 3, fault_tile_t: 4550.967, fault_tile_shows: "s", better_key: null, better_t: 4550.967, reason: "r" })!, /better_t 4550.967 is not a listed option or a legal cut you have looked at/);
-  assert.match(verify.check!({ chosen_strip_shows: "x", agree: false, fault: "f", fault_image: 3, fault_tile_t: 4550.967, fault_tile_shows: "s", better_key: null, better_t: 4600, reason: "r" })!, /not a listed option or a legal cut/);
+  const seenNothing = { chosen_strip_shows: "x", chosen_caption_across_cut: false, chosen_card_or_flare: "none" as const, chosen_action_across_cut: null };
+  assert.match(verify.check!({ ...seenNothing, agree: false, fault: "f", fault_rule: "4", fault_image: 3, fault_tile_t: 4550.967, fault_tile_shows: "s", better_key: null, better_t: 4550.967, reason: "r" })!, /better_t 4550.967 is not a listed option or a legal cut you have looked at/);
+  assert.match(verify.check!({ ...seenNothing, agree: false, fault: "f", fault_rule: "4", fault_image: 3, fault_tile_t: 4550.967, fault_tile_shows: "s", better_key: null, better_t: 4600, reason: "r" })!, /not a listed option or a legal cut/);
   assert.equal(verify.images?.length, 3, "the dense strip rode along");
 });
 
@@ -387,7 +428,7 @@ test("a skeptic fault that cites no image and tile, or names no fix, follows the
   assert.deepEqual(applyVision(r.records).choices, { "4550.267": 4550.267 });
   assert.equal(reviewState(doc, [r.records], []).boundaries.find((x) => x.boundary_s === 4550.267)!.status, "pre_accepted", "recorded, not applied, not a decision for a person");
 
-  const noFix = fakeLlm({ verdict: (b) => (b === 4550.267 ? { agree: false, fault: "Rule 5", fault_image: 1, fault_tile_t: 4550.267, fault_tile_shows: "a stranger's back", better_key: null, better_t: null } : {}) });
+  const noFix = fakeLlm({ verdict: (b) => (b === 4550.267 ? { agree: false, fault: "Rule 5", fault_rule: "5", fault_image: 1, fault_tile_t: 4550.267, fault_tile_shows: "a stranger's back", better_key: null, better_t: null } : {}) });
   const r2 = await judgeBoundaries({ id: `${RUN_ID.slice(0, -1)}7`, cut_dir: cut }, doc, { label: "nofix", llm: noFix.llm, boundaries: [4550.267], card_spans: [] });
   assert.ok(!isUnavailable(r2));
   assert.equal(readGuard(r2.records[0].verdict)?.outcome, "fault_no_fix");
@@ -397,6 +438,131 @@ test("a skeptic fault that cites no image and tile, or names no fix, follows the
   // A refusal carries the guard's note too; a Workflow record without one reads null.
   assert.equal(readGuard({ agree: true, reason: "the Workflow's" }), null);
   assert.deepEqual(evidenceTiles({ agree: true, reason: "" }), []);
+});
+
+/** The fake with one role failing as the gateway does after its repair turn: one LlmError per call, `times` calls in a row. */
+function failingLlm(script: Script, role: string, error: () => LlmError, times = Infinity) {
+  const base = fakeLlm(script);
+  let thrown = 0;
+  const llm = async <T>(call: StructuredCall<T>): Promise<StructuredResult<T>> => {
+    if (call.name === role && thrown < times) {
+      thrown += 1;
+      base.calls.push(call as StructuredCall<unknown>);
+      throw error();
+    }
+    return base.llm(call);
+  };
+  return { llm, calls: base.calls, thrown: () => thrown };
+}
+
+const CHECK_MESSAGE = "your own options_seen says opt2 shows the same subtitle line on the last tile before the cut and on the cut tile, a split spoken line (rule 8); choose another option or refuse with confidence 0";
+
+test("a reviewer whose answer fails its check after the repair turn is a refusal record, not a lost boundary: confidence 0 with the check's words, apply_vision faults it, the review asks a person", async () => {
+  const cut = tempCut();
+  const doc = withFillers(await loadOptionsDoc(cut));
+  const fake = failingLlm({}, "verify_boundaries_look", () => new LlmError("invalid_output", CHECK_MESSAGE));
+  const r = await judgeBoundaries({ id: RUN_ID, cut_dir: cut }, doc, { label: "look-refused", llm: fake.llm, boundaries: [4550.267], card_spans: [] });
+  assert.ok(!isUnavailable(r));
+  assert.deepEqual(r.errors, [], "the boundary is recorded, not errored");
+  assert.deepEqual(r.retries, [], "a check failure is not transient: no retry");
+  assert.equal(fake.calls.length, 1, "no skeptic for a refusal");
+  const rec = r.records[0];
+  assert.deepEqual([rec.pick.confidence, rec.pick.chosen_key, rec.pick.chosen_t, rec.pick.payoff_in_episode], [0, "opt2", 4572.067, false], "the last answer's key, read off the check's message");
+  assert.equal(rec.pick.why, `check refused after repair: ${CHECK_MESSAGE}`);
+  assert.deepEqual(readGuard(rec.verdict), { outcome: "refused", rule: "check", detail: CHECK_MESSAGE, better_t: null });
+  assert.equal(rec.verdict?.agree, false);
+  assert.match(String(rec.verdict?.reason), /^reviewer's answer refused by the check after its repair turn \(your own options_seen says opt2/);
+  assert.match(applyVision(r.records).faults[0], /^4550.267s: reviewer refused or returned nothing - check refused after repair: your own options_seen says opt2/);
+  const b = reviewState(doc, [r.records], []).boundaries.find((x) => x.boundary_s === 4550.267)!;
+  assert.deepEqual([b.status, b.reasons, b.applied_t], ["needs_decision", ["fault", "low_confidence"], null]);
+  const file = readJson(r.file);
+  assert.equal(file.result.length, 1);
+  assert.deepEqual(file.logs, ["1 boundaries judged by eye"]);
+  // A message naming no option: nothing chosen.
+  assert.deepEqual(refusalPick(findBoundary(doc, 4550.267)!, "The response was not a JSON object."), { options_seen: [], chosen_key: "none", chosen_t: 0, ends_on: "", opens_on: "", why: "check refused after repair: The response was not a JSON object.", rejected: null, payoff_in_episode: false, confidence: 0 });
+  assert.equal(refusalPick(findBoundary(doc, 4550.267)!, 'chosen_key "opt9" is not one of opt1, opt2').chosen_key, "none", "the first key named is the answer's own; unlisted, it is no key");
+  assert.equal(refusalPick(findBoundary(doc, 4550.267)!, "chosen_t must be exactly 4572.067 for opt2 (copied from the option list)").chosen_t, 4572.067);
+  // Any other failure of the reviewer's call still errors the boundary (a retry decision re-runs it).
+  const refused = failingLlm({}, "verify_boundaries_look", () => new LlmError("refused", "The model declined to process this content."));
+  const r2 = await judgeBoundaries({ id: `${RUN_ID.slice(0, -1)}7`, cut_dir: cut }, doc, { label: "look-declined", llm: refused.llm, boundaries: [4550.267], card_spans: [] });
+  assert.ok(!isUnavailable(r2));
+  assert.deepEqual(r2.records, []);
+  assert.deepEqual(r2.errors, [{ boundary_s: 4550.267, error: "LlmError (refused): The model declined to process this content." }]);
+});
+
+test("a skeptic whose call fails after its repair turn keeps the reviewer's pick unverified (skeptic_failed), and the review asks a person", async () => {
+  const cut = tempCut();
+  const doc = withFillers(await loadOptionsDoc(cut));
+  const message = "better_key opt3 is the option you are disputing; name a different one, a legal cut, or no fix";
+  const fake = failingLlm({}, "verify_boundaries_verify", () => new LlmError("invalid_output", message));
+  const r = await judgeBoundaries({ id: RUN_ID, cut_dir: cut }, doc, { label: "verify-failed", llm: fake.llm, boundaries: [4550.267], dense: async (_b, at) => fakeDense(at), card_spans: [] });
+  assert.ok(!isUnavailable(r));
+  assert.deepEqual(r.errors, []);
+  assert.deepEqual(fake.calls.map((c) => c.name), ["verify_boundaries_look", "verify_boundaries_verify"], "no tie-break");
+  const rec = r.records[0];
+  assert.equal(rec.pick.confidence, 0.8, "the reviewer's valid pick is kept");
+  assert.equal(rec.verdict?.agree, true);
+  assert.equal("better_t" in (rec.verdict ?? {}), false);
+  assert.deepEqual(readGuard(rec.verdict), { outcome: "skeptic_failed", rule: null, detail: `LlmError (invalid_output): ${message}`, better_t: null });
+  assert.match(String(rec.verdict?.reason), /^the skeptic's call failed after its repair turn \(LlmError \(invalid_output\): better_key opt3 is the option you are disputing/);
+  assert.deepEqual(evidenceTiles(rec.verdict).map((e) => e.tiles.length), [11, 11, 31], "the images it was shown are still recorded");
+  assert.deepEqual(applyVision(r.records).choices, { "4550.267": 4550.267 });
+  const b = reviewState(doc, [r.records], []).boundaries.find((x) => x.boundary_s === 4550.267)!;
+  assert.deepEqual([b.status, b.reasons, b.applied_t, b.applied_source], ["needs_decision", ["skeptic_unverified"], 4550.267, "reviewer"]);
+});
+
+test("a tie-break whose call fails after its repair turn leaves the two cuts undecided (no_tiebreak), and the review asks a person", async () => {
+  const cut = tempCut();
+  const doc = withFillers(await loadOptionsDoc(cut));
+  const fake = failingLlm({ verdict: (b) => (b === 4550.267 ? { ...SKEPTIC_4550 } : {}) }, "verify_boundaries_tiebreak", () => new LlmError("invalid_output", "winner B but b_fault_tile_t cites B's own rule break; if both cuts break a rule answer neither, else clear the winner's fault tile"));
+  const r = await judgeBoundaries({ id: RUN_ID, cut_dir: cut }, doc, { label: "tiebreak-failed", llm: fake.llm, boundaries: [4550.267], dense: async (_b, at) => fakeDense(at), card_spans: [] });
+  assert.ok(!isUnavailable(r));
+  assert.deepEqual(r.errors, []);
+  assert.deepEqual(fake.calls.map((c) => c.name), ["verify_boundaries_look", "verify_boundaries_verify", "verify_boundaries_tiebreak"]);
+  const rec = r.records[0];
+  assert.equal(rec.verdict?.agree, true, "the reviewer's pick is written; the skeptic's fix is not applied");
+  assert.equal(readGuard(rec.verdict)?.outcome, "no_tiebreak");
+  assert.match(readGuard(rec.verdict)!.detail, /^the tie-break's call failed after its repair turn \(LlmError \(invalid_output\): winner B but b_fault_tile_t cites B's own rule break/);
+  assert.equal(readGuard(rec.verdict)?.better_t, 4572.067);
+  assert.match(String(rec.verdict?.reason), /the guards passed but the tie-break's call failed after its repair turn/);
+  assert.deepEqual(reviewState(doc, [r.records], []).boundaries.find((x) => x.boundary_s === 4550.267)!.reasons, ["skeptic_unverified"]);
+});
+
+test("a transport or non-JSON failure is retried once at the job level, in every role; one that fails twice is recorded like a check failure, or errors the reviewer's boundary", async () => {
+  assert.ok(isTransientLlmFailure(new LlmError("api", "Claude API 529: overloaded", 529)));
+  assert.ok(isTransientLlmFailure(new LlmError("invalid_output", "The response was not a JSON object.")));
+  assert.ok(!isTransientLlmFailure(new LlmError("invalid_output", CHECK_MESSAGE)), "a check failure repeats: not retried");
+  assert.ok(!isTransientLlmFailure(new LlmError("truncated", "Output hit max_tokens")));
+  assert.ok(!isTransientLlmFailure(new Error("The response was not a JSON object.")), "only the gateway's own error");
+  const cut = tempCut();
+  const doc = withFillers(await loadOptionsDoc(cut));
+  // The reviewer's call: the API fails once, the retry answers.
+  const once = failingLlm({}, "verify_boundaries_look", () => new LlmError("api", "Claude API 529: overloaded", 529), 1);
+  const r = await judgeBoundaries({ id: RUN_ID, cut_dir: cut }, doc, { label: "retry-look", llm: once.llm, boundaries: [4550.267], card_spans: [] });
+  assert.ok(!isUnavailable(r));
+  assert.deepEqual(r.errors, []);
+  assert.deepEqual(r.retries, [{ boundary_s: 4550.267, role: "look", error: "LlmError (api): Claude API 529: overloaded" }]);
+  assert.deepEqual(once.calls.map((c) => c.name), ["verify_boundaries_look", "verify_boundaries_look", "verify_boundaries_verify"]);
+  assert.equal(r.records[0].pick.confidence, 0.8);
+  assert.deepEqual(readJson(r.file).logs, ["1 boundaries judged by eye", "4550.267s: look retried once after LlmError (api): Claude API 529: overloaded"]);
+  assert.deepEqual(readJson(r.file).retries, r.retries);
+  // The skeptic's call: not a JSON object once, the retry answers.
+  const json = failingLlm({}, "verify_boundaries_verify", () => new LlmError("invalid_output", "The response was not a JSON object."), 1);
+  const r2 = await judgeBoundaries({ id: `${RUN_ID.slice(0, -1)}7`, cut_dir: cut }, doc, { label: "retry-verify", llm: json.llm, boundaries: [4550.267], card_spans: [] });
+  assert.ok(!isUnavailable(r2));
+  assert.deepEqual(r2.retries.map((x) => x.role), ["verify"]);
+  assert.equal(readGuard(r2.records[0].verdict)?.outcome, "agreed");
+  // Twice: the skeptic's boundary keeps the reviewer's pick (skeptic_failed); the reviewer's boundary errors, since there is nothing to record.
+  const twice = failingLlm({}, "verify_boundaries_verify", () => new LlmError("invalid_output", "The response was not a JSON object."));
+  const r3 = await judgeBoundaries({ id: `${RUN_ID.slice(0, -1)}8`, cut_dir: cut }, doc, { label: "retry-verify-twice", llm: twice.llm, boundaries: [4550.267], card_spans: [] });
+  assert.ok(!isUnavailable(r3));
+  assert.deepEqual([r3.errors.length, r3.retries.length, twice.thrown()], [0, 1, 2]);
+  assert.deepEqual(readGuard(r3.records[0].verdict), { outcome: "skeptic_failed", rule: null, detail: "LlmError (invalid_output): The response was not a JSON object.", better_t: null });
+  const down = failingLlm({}, "verify_boundaries_look", () => new LlmError("api", "connect ETIMEDOUT"));
+  const r4 = await judgeBoundaries({ id: `${RUN_ID.slice(0, -1)}9`, cut_dir: cut }, doc, { label: "retry-look-twice", llm: down.llm, boundaries: [4550.267], card_spans: [] });
+  assert.ok(!isUnavailable(r4));
+  assert.deepEqual([r4.records.length, r4.retries.length, down.thrown()], [0, 1, 2]);
+  assert.deepEqual(r4.errors, [{ boundary_s: 4550.267, error: "LlmError (api): connect ETIMEDOUT" }]);
 });
 
 test("the model override: a model of the provider's family that reads images runs; another family's or a text-only model is refused before any call", async () => {
@@ -542,10 +708,25 @@ test("scoreAgainstTruth scores the applied time with and without the skeptic, th
   const shy = scoreAgainstTruth({ doc, truth, judged: [...judged.slice(0, 3), rec(424.433, 424.433, { guard: { outcome: "agreed", rule: null, detail: "", better_t: null } }, { confidence: 0.45 }), rec(528.9, 528.9, { guard: { outcome: "agreed", rule: null, detail: "", better_t: null } }, { confidence: 0.6 })], card_spans: cards, fixed_start: 0 });
   assert.deepEqual([shy.handoffs, shy.person_reviews], [0, 2], "0 hand-offs, but the 0.45 and the 0.6 go to a person");
   assert.equal(score.dp_rate, 0.8);
-  assert.deepEqual(score.rows.map((r) => [r.boundary_s, r.effect]), [[115.367, "neutral"], [214.733, "helped"], [323.4, "hurt"], [424.433, "neutral"], [528.9, "handoff"]]);
+  // 528.9's reviewer matched the truth and the skeptic faulted it with no fix: a false hand-off, a review that was not needed.
+  assert.deepEqual(score.rows.map((r) => [r.boundary_s, r.effect]), [[115.367, "neutral"], [214.733, "helped"], [323.4, "hurt"], [424.433, "neutral"], [528.9, "false_handoff"]]);
+  assert.equal(score.false_handoffs, 1);
   assert.deepEqual(score.skeptic.bad_overrides, 1);
   assert.deepEqual([score.skeptic.agreed, score.skeptic.disputed, score.skeptic.fixes_named, score.skeptic.applied, score.skeptic.rejected, score.skeptic.fault_no_fix, score.skeptic.tiebreak_skeptic, score.skeptic.helped, score.skeptic.hurt], [1, 4, 3, 2, { band: 1 }, 1, 2, 1, 1]);
-  assert.deepEqual(score.cards, { boundaries: 1, agree: 1 }, "213.5 is the first frame after a card");
+  assert.deepEqual(score.cards, { boundaries: 1, agree: 1, errored: 0 }, "213.5 is the first frame after a card");
+  assert.deepEqual([score.errors, score.truth_not_option, score.rule7_vs_delivered], [0, 2, 0], "the truths at 214.733 (213.5) and 323.4 (315.533) are no listed option: the measure cannot be met there");
+  assert.deepEqual(score.rows.map((r) => r.truth_is_option), [true, false, false, true, true]);
+  // An errored card boundary is a card miss and counts in `errors`, never dropped from the card line; an errored boundary that was judged after all is not double-counted.
+  const short = scoreAgainstTruth({ doc, truth, judged: judged.filter((r) => r.boundary_s !== 214.733), card_spans: cards, fixed_start: 0, selection: [115.367, 214.733, 323.4, 424.433, 528.9], errors: [{ boundary_s: 214.733, error: "LlmError (api): down" }] });
+  assert.deepEqual([short.n, short.errors, short.cards], [4, 1, { boundaries: 1, agree: 0, errored: 1 }]);
+  assert.equal(scoreAgainstTruth({ doc, truth, judged, card_spans: cards, fixed_start: 0, errors: [{ boundary_s: 214.733, error: "x" }] }).cards.errored, 0);
+  // Rule 7 against the delivered cut: the applied cut is a loaded card's end while the delivered cut lies a second or more after it (744.6, 1325.967).
+  const buried = scoreAgainstTruth({ doc, truth: { ...truth, "528.9": 530.5 }, judged: [rec(528.9, 528.9, { guard: { outcome: "agreed", rule: null, detail: "", better_t: null } })], card_spans: [{ from_s: 526.4, to_s: 528.9, why: null }], fixed_start: 0 });
+  assert.deepEqual([buried.rule7_vs_delivered, buried.rows[0].rule7_vs_delivered, buried.rows[0].applied_agree, buried.rows[0].card_boundary], [1, true, false, false]);
+  assert.equal(scoreAgainstTruth({ doc, truth: { ...truth, "528.9": 529.5 }, judged: [rec(528.9, 528.9, null)], card_spans: [{ from_s: 526.4, to_s: 528.9, why: null }], fixed_start: 0 }).rule7_vs_delivered, 0, "under a second after the card end is not buried");
+  // A skeptic that failed after its repair turn is a hand-off too (the reviewer's pick stands unverified).
+  const unverified = scoreAgainstTruth({ doc, truth, judged: [rec(115.367, 115.367, { guard: { outcome: "skeptic_failed", rule: null, detail: "x", better_t: null } })], card_spans: [], fixed_start: 0 });
+  assert.deepEqual([unverified.handoffs, unverified.person_reviews, unverified.applied_agree], [1, 1, 1]);
   const byB = new Map(score.rows.map((r) => [r.boundary_s, r]));
   assert.deepEqual(byB.get(323.4)!.rule_failures, ["unseen: the applied override 323.4s is not a tile of any image the skeptic saw"]);
   assert.deepEqual(byB.get(214.733)!.rule_failures, []);
@@ -572,13 +753,16 @@ test("the eval selects boundaries by index range, index or time, reads the film 
   assert.equal(filmNotesFromState(state), '- **Watermark:** bottom.\n- The source shows a vertical "TO BE CONTINUED" card at each original episode break.');
   assert.equal(filmNotesFromState("# x\n\n## Decisions\n- a\n"), null);
   assert.equal(filmNotesFromState("## Film-specific notes\n- last section\n"), "- last section");
-  const score = { n: 20, applied_agree: 15, reviewer_only_agree: 12, handoffs: 2, person_reviews: 2, confidence_gate: 0.65, dp_rate: 0.5, skeptic: { bad_overrides: 1 }, cards: { boundaries: 10, agree: 9 }, rule_failures: { card: 0, band: 0, unseen: 0, total: 0 } } as unknown as Parameters<typeof calibrationBar>[0];
+  const score = { n: 20, applied_agree: 15, reviewer_only_agree: 12, handoffs: 2, false_handoffs: 1, person_reviews: 2, confidence_gate: 0.65, truth_not_option: 3, rule7_vs_delivered: 2, dp_rate: 0.5, skeptic: { bad_overrides: 1 }, cards: { boundaries: 10, agree: 9, errored: 0 }, rule_failures: { card: 0, band: 0, unseen: 0, total: 0 } } as unknown as Parameters<typeof calibrationBar>[0];
   const indices20 = Array.from({ length: 20 }, (_, i) => i + 1);
   const bar = calibrationBar(score, indices20, 700);
   assert.deepEqual(bar.map((b) => b.pass), [true, true, true, true, true, true]);
-  assert.match(bar[0].line, /^applied agreement 15\/20 \(bar 15\/20, tuning 15\/20\)$/);
-  assert.match(bar[3].line, /^person reviews 2 = hand-offs 2 \(faults, unverified fixes\) \+ picks under 0.65 confidence 0 \+ errors 0 \(bar at most 2 per 20/);
+  assert.match(bar[0].line, /^applied agreement 15\/20 \(bar 15\/20, tuning 15\/20; the measure: 3 truths not a listed option, 2 applied cuts on the first frame after a card the delivered cut buries \(rule 7 vs delivered\)\)$/);
+  assert.match(bar[1].line, /^hard-rule failures 0 \(card 0, band 0, unseen 0; bar 0; rule 8, a split caption, is checked by eye only\)$/);
+  assert.match(bar[3].line, /^person reviews 2 = hand-offs 2 \(faults, unverified fixes; 1 of them false: the reviewer's pick matched and was handed off anyway\) \+ picks under 0.65 confidence 0 \+ errors 0 \(bar at most 2 per 20/);
   assert.match(bar[4].line, /\(bar 9 of 10\)$/, "nothing said about the card prompt when the arm is not named");
+  assert.match(calibrationBar({ ...score, cards: { boundaries: 10, agree: 8, errored: 1 } } as typeof score, indices20, 700)[4].line, /^card boundaries 8\/10 on the first frame after the card \(bar 9 of 10; 1 errored, counted as missed\)$/);
+  assert.match(calibrationBar({ ...score, false_handoffs: undefined, truth_not_option: undefined, rule7_vs_delivered: undefined, cards: { boundaries: 10, agree: 9 } } as unknown as typeof score, indices20, 700)[0].line, /the measure: 0 truths not a listed option, 0 applied cuts/, "an older score prints zeros");
   const held = calibrationBar({ ...score, applied_agree: 14 } as typeof score, Array.from({ length: 20 }, (_, i) => i + 21), 900);
   assert.match(held[0].line, /bar 14\/20, held-out 14\/20/);
   assert.deepEqual(held.map((b) => b.pass), [true, true, true, true, true, false], "$0.45 per boundary is over the bar");
@@ -587,13 +771,13 @@ test("the eval selects boundaries by index range, index or time, reads the film 
   // The bar counts the person's real workload: picks under the gate fail the hand-off line even with no fault or unverified fix.
   const shy = calibrationBar({ ...score, handoffs: 0, person_reviews: 3 } as typeof score, indices20, 700);
   assert.equal(shy[3].pass, false);
-  assert.match(shy[3].line, /^person reviews 3 = hand-offs 0 \(faults, unverified fixes\) \+ picks under 0.65 confidence 3 \+ errors 0/);
+  assert.match(shy[3].line, /^person reviews 3 = hand-offs 0 \(faults, unverified fixes; 1 of them false: [^)]+\) \+ picks under 0.65 confidence 3 \+ errors 0/);
   // An errored boundary is a miss and a review, never a smaller denominator: 15/19 scored is 15/20 asked, and the errors are printed on the agreement line.
   const errors = [{ boundary_s: 1462.1, error: "LlmError: the skeptic named the disputed option again" }];
   const errored = calibrationBar({ ...score, n: 19, applied_agree: 14 } as typeof score, indices20, 700, { errors, card_prompt: false });
-  assert.match(errored[0].line, /^applied agreement 14\/20 \(bar 15\/20, tuning 15\/20; 1 errored, counted as missed: 1462.1s LlmError: the skeptic named the disputed option again\)$/);
+  assert.match(errored[0].line, /^applied agreement 14\/20 \(bar 15\/20, tuning 15\/20; 1 errored, counted as missed: 1462.1s LlmError: the skeptic named the disputed option again; the measure: 3 truths not a listed option, 2 applied cuts on the first frame after a card the delivered cut buries \(rule 7 vs delivered\)\)$/);
   assert.equal(errored[0].pass, false);
-  assert.match(errored[3].line, /^person reviews 3 = hand-offs 2 \(faults, unverified fixes\) \+ picks under 0.65 confidence 0 \+ errors 1 \(bar at most 2 per 20/);
+  assert.match(errored[3].line, /^person reviews 3 = hand-offs 2 \(faults, unverified fixes; 1 of them false: [^)]+\) \+ picks under 0.65 confidence 0 \+ errors 1 \(bar at most 2 per 20/);
   assert.equal(errored[3].pass, false);
   assert.match(errored[4].line, /\(bar 9 of 10; card spans NOT in the prompt, as a by-eye run in production\)$/);
   assert.match(errored[5].line, /^cost 0.350 \$ per boundary/, "the cost is per boundary asked");

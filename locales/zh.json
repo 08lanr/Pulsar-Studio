@@ -3967,5 +3967,12 @@
   "cd.checked.failed": "上次读取失败于 {time}，尚无成功读取",
   "cd.chip.live_complete.hint": "部分分集为较早的渲染",
   "cd.check.preview.link": "打开工作人员页面",
-  "seg.review.reason.skeptic_unverified": "质疑者的改动未经核实"
+  "seg.review.reason.skeptic_unverified": "质疑者的改动未经核实",
+  "seg.review.guard": "守门检查",
+  "seg.review.guardRule.unseen_time": "质疑者没有看过这个时间点的画面",
+  "seg.review.guardRule.band": "会让一集的时长超出区间",
+  "seg.review.guardRule.card": "落在片源的过场卡上",
+  "seg.review.guardRule.illegal": "不是合法切点",
+  "seg.review.guardRule.bury": "会把过场卡埋进这一集里（规则 7）",
+  "seg.review.guardRule.check": "审看者的回答两次没有通过检查"
 }

@@ -176,29 +176,38 @@ async function main() {
     process.exit(3);
   }
   const wall = Math.round((Date.now() - t0) / 1000);
-  console.log(`\n${result.records.length} judged, ${result.errors.length} failed, ${result.jobs.length} job rows, ${result.cost_cents} cents, ${wall} s wall (${result.provider} ${result.model})`);
+  console.log(`\n${result.records.length} judged, ${result.errors.length} failed, ${result.retries.length} retried, ${result.jobs.length} job rows, ${result.cost_cents} cents, ${wall} s wall (${result.provider} ${result.model})`);
   for (const e of result.errors) console.log(`  FAILED ${e.boundary_s}s: ${e.error}`);
+  for (const r of result.retries) console.log(`  RETRIED ${r.boundary_s}s ${r.role}: ${r.error}`);
+  // A check that failed after its repair turn is a record now (a refusal, skeptic_failed, no_tiebreak), never a lost boundary: say so.
+  for (const r of result.records) {
+    const g = (r.verdict as { guard?: { outcome?: string; rule?: string | null; detail?: string } } | null | undefined)?.guard;
+    if (g?.outcome === "refused" && g.rule === "check") console.log(`  REFUSED ${r.boundary_s}s: the reviewer's answer failed its check twice (${g.detail})`);
+    if (g?.outcome === "skeptic_failed") console.log(`  UNVERIFIED ${r.boundary_s}s: the skeptic's call failed twice, the reviewer's pick stands (${g.detail})`);
+  }
 
-  const score = scoreAgainstTruth({ doc, truth, judged: result.records, card_spans: cardSpans, fixed_start: 0 });
+  const score = scoreAgainstTruth({ doc, truth, judged: result.records, card_spans: cardSpans, fixed_start: 0, selection: selection.boundaries, errors: result.errors });
   const n = score.n;
   const asked = selection.boundaries.length;
   console.log(`\nagainst the ${truthMode === "delivered" ? "DELIVERED cuts" : "recorded pass"} (±${score.tolerance_s} s), ${n} scored of ${asked} asked${result.errors.length ? ` (${result.errors.length} errored: ${result.errors.map((e) => `${e.boundary_s}s`).join(", ")})` : ""}:`);
   console.log(`  applied time (with the guarded skeptic): ${score.applied_agree}/${n}${result.errors.length ? ` (${score.applied_agree}/${asked} with the errors as misses)` : ""}`);
   console.log(`  reviewer alone (skeptic switched off):   ${score.reviewer_only_agree}/${n}`);
-  console.log(`  hand-offs (faults, unverified fixes):    ${score.handoffs}`);
+  console.log(`  the measure: truth not a listed option   ${score.truth_not_option}; rule 7 vs the delivered cut ${score.rule7_vs_delivered} (the applied cut is the first frame after a card the delivered cut buries)`);
+  console.log(`  hand-offs (faults, unverified fixes):    ${score.handoffs} (${score.false_handoffs} false: the reviewer's pick matched and was handed off)`);
   console.log(`  person reviews (+ picks under ${score.confidence_gate}):   ${score.person_reviews}${result.errors.length ? ` (+ ${result.errors.length} errored = ${score.person_reviews + result.errors.length})` : ""}`);
   console.log(`  DP-pick rate:                            ${score.dp_rate ?? "-"}`);
-  console.log(`  card boundaries:                         ${score.cards.agree}/${score.cards.boundaries}`);
+  console.log(`  card boundaries:                         ${score.cards.agree}/${score.cards.boundaries}${score.cards.errored ? ` (${score.cards.errored} errored, counted as missed)` : ""}`);
   const s = score.skeptic;
   console.log(`\nthe skeptic: agreed ${s.agreed}, disputed ${s.disputed}, fixes named ${s.fixes_named}, applied ${s.applied}`);
   console.log(`  rejected by the guard: ${JSON.stringify(s.rejected)}; uncited ${s.uncited}; fault with no fix ${s.fault_no_fix}; no tie-break ${s.no_tiebreak}`);
   console.log(`  tie-break: skeptic ${s.tiebreak_skeptic}, reviewer ${s.tiebreak_reviewer}, neither ${s.tiebreak_neither}`);
   console.log(`  effect: helped ${s.helped}, hurt ${s.hurt}, bad overrides ${s.bad_overrides}`);
-  console.log(`\nhard-rule failures: ${score.rule_failures.total} (card ${score.rule_failures.card}, band ${score.rule_failures.band}, unseen ${score.rule_failures.unseen})`);
-  console.log(`\n${"boundary".padStart(10)} ${"truth".padStart(10)} ${"reviewer".padStart(10)} ${"applied".padStart(10)}  agree  rev  guard             effect   rules`);
+  console.log(`\nhard-rule failures: ${score.rule_failures.total} (card ${score.rule_failures.card}, band ${score.rule_failures.band}, unseen ${score.rule_failures.unseen}; rule 8, a split caption, is checked by eye only)`);
+  console.log(`\n${"boundary".padStart(10)} ${"truth".padStart(10)} ${"reviewer".padStart(10)} ${"applied".padStart(10)}  agree  rev  guard             effect         rules`);
   for (const r of score.rows) {
+    const notes = [...r.rule_failures, ...(r.truth_is_option === false ? ["truth is not a listed option"] : []), ...(r.rule7_vs_delivered ? ["rule 7 vs the delivered cut"] : [])];
     console.log(
-      `${String(r.boundary_s).padStart(10)} ${String(r.truth_t ?? "-").padStart(10)} ${String(r.reviewer_t).padStart(10)} ${String(r.applied_t ?? "fault").padStart(10)}  ${r.applied_agree ? "yes" : "NO "}    ${r.reviewer_agree ? "yes" : "NO "}  ${(r.guard ?? "-").padEnd(17)} ${r.effect.padEnd(8)} ${r.rule_failures.length ? r.rule_failures.join("; ") : ""}`
+      `${String(r.boundary_s).padStart(10)} ${String(r.truth_t ?? "-").padStart(10)} ${String(r.reviewer_t).padStart(10)} ${String(r.applied_t ?? "fault").padStart(10)}  ${r.applied_agree ? "yes" : "NO "}    ${r.reviewer_agree ? "yes" : "NO "}  ${(r.guard ?? "-").padEnd(17)} ${r.effect.padEnd(14)} ${notes.length ? notes.join("; ") : ""}`
     );
   }
   const evRecorded = evaluate(recorded, result.records);
@@ -209,7 +218,7 @@ async function main() {
   console.log(`  ${bar.every((b) => b.pass) ? "ALL PASS" : `${bar.filter((b) => !b.pass).length} of ${bar.length} not met`}; wall ${wall} s`);
 
   const evalFile = path.join(outDir, `${label}.eval.json`);
-  await fsp.writeFile(evalFile, `${JSON.stringify({ film, truth: truthMode, delivered_file: delivered?.file ?? null, provider: result.provider, model: result.model, dense: denseOn, annotated: annotatedOn, tiebreak, card_prompt: cardPrompt, film_notes: filmNotes, indices: selection.indices, errors: result.errors, cost_cents: result.cost_cents, wall_s: wall, score, recorded: evRecorded, bar }, null, 1)}\n`, "utf8");
+  await fsp.writeFile(evalFile, `${JSON.stringify({ film, truth: truthMode, delivered_file: delivered?.file ?? null, provider: result.provider, model: result.model, dense: denseOn, annotated: annotatedOn, tiebreak, card_prompt: cardPrompt, film_notes: filmNotes, indices: selection.indices, errors: result.errors, retries: result.retries, cost_cents: result.cost_cents, wall_s: wall, score, recorded: evRecorded, bar }, null, 1)}\n`, "utf8");
   console.log(`\nevaluation -> ${evalFile}`);
 }
 

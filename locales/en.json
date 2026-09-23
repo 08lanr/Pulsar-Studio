@@ -3967,5 +3967,12 @@
   "cd.checked.failed": "Last read failed {time}; no good read yet",
   "cd.chip.live_complete.hint": "some older renders",
   "cd.check.preview.link": "Open the staff page",
-  "seg.review.reason.skeptic_unverified": "Skeptic's fix not verified"
+  "seg.review.reason.skeptic_unverified": "Skeptic's fix not verified",
+  "seg.review.guard": "Guard",
+  "seg.review.guardRule.unseen_time": "A time the skeptic never saw",
+  "seg.review.guardRule.band": "An episode would leave the band",
+  "seg.review.guardRule.card": "Inside the source's card",
+  "seg.review.guardRule.illegal": "Not a legal cut",
+  "seg.review.guardRule.bury": "Would bury the card inside the episode (rule 7)",
+  "seg.review.guardRule.check": "The reviewer's answer failed its check twice"
 }

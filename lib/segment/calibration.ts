@@ -39,7 +39,9 @@ export function filmNotesFromState(stateMd: string): string | null {
 
 export type BarLine = { line: string; pass: boolean };
 
-export type BarScore = Pick<Score, "n" | "applied_agree" | "handoffs" | "person_reviews" | "confidence_gate" | "cards" | "rule_failures"> & { skeptic: Pick<Score["skeptic"], "bad_overrides"> };
+/** What the bar reads of a score; the second-round fields (`false_handoffs`, `truth_not_option`, `rule7_vs_delivered`, `cards.errored`) are optional so an older score still prints. */
+export type BarScore = Pick<Score, "n" | "applied_agree" | "handoffs" | "person_reviews" | "confidence_gate" | "rule_failures"> &
+  Partial<Pick<Score, "false_handoffs" | "truth_not_option" | "rule7_vs_delivered">> & { skeptic: Pick<Score["skeptic"], "bad_overrides">; cards: { boundaries: number; agree: number; errored?: number } };
 
 export type BarOptions = {
   /** Boundaries whose call errored (judgeBoundaries' `errors`): each counts as not agreed and as a person review, never dropped from the denominator. */
@@ -58,7 +60,14 @@ export type BarOptions = {
  * (`indices`), so a boundary that errored is a miss and a review, not a
  * smaller denominator; the person-review line counts what reviewState
  * sends to a person: faults, unverified fixes, picks under the confidence
- * gate, and the errors.
+ * gate, and the errors, and names the false hand-offs among them (a
+ * reviewer pick that matched and was handed off anyway). The agreement
+ * line names the measure's own limits beside the number: truths that are
+ * no listed option, and applied cuts on the first frame after a card where
+ * the delivered cut buries it (rule 7 against the delivered cut). The
+ * hard-rule line says what it cannot check: rule 8, a split caption, is
+ * read by eye only. The card line is over the selection: an errored card
+ * boundary is a miss.
  */
 export function calibrationBar(score: BarScore, indices: number[], costCents: number, opts: BarOptions = {}): BarLine[] {
   const errors = opts.errors ?? [];
@@ -70,15 +79,20 @@ export function calibrationBar(score: BarScore, indices: number[], costCents: nu
   const reviews = score.person_reviews + errors.length;
   const lowConfidence = score.person_reviews - score.handoffs;
   const cardArm = opts.card_prompt === undefined ? "" : opts.card_prompt ? "; card spans were in the prompt" : "; card spans NOT in the prompt, as a by-eye run in production";
+  const notOption = score.truth_not_option ?? 0;
+  const rule7 = score.rule7_vs_delivered ?? 0;
+  const falseHandoffs = score.false_handoffs ?? 0;
+  const cardErrored = score.cards.errored ?? 0;
+  const measure = `; the measure: ${notOption} truth${notOption === 1 ? "" : "s"} not a listed option, ${rule7} applied cut${rule7 === 1 ? "" : "s"} on the first frame after a card the delivered cut buries (rule 7 vs delivered)`;
   return [
-    { line: `applied agreement ${score.applied_agree}/${n} (bar ${need}/${n}, ${heldOut ? "held-out 14/20" : "tuning 15/20"}${errored})`, pass: score.applied_agree >= need },
-    { line: `hard-rule failures ${score.rule_failures.total} (card ${score.rule_failures.card}, band ${score.rule_failures.band}, unseen ${score.rule_failures.unseen}; bar 0)`, pass: score.rule_failures.total === 0 },
+    { line: `applied agreement ${score.applied_agree}/${n} (bar ${need}/${n}, ${heldOut ? "held-out 14/20" : "tuning 15/20"}${errored}${measure})`, pass: score.applied_agree >= need },
+    { line: `hard-rule failures ${score.rule_failures.total} (card ${score.rule_failures.card}, band ${score.rule_failures.band}, unseen ${score.rule_failures.unseen}; bar 0; rule 8, a split caption, is checked by eye only)`, pass: score.rule_failures.total === 0 },
     { line: `bad overrides ${score.skeptic.bad_overrides} (bar at most 1 per 20)`, pass: per20(score.skeptic.bad_overrides) <= 1 + 1e-9 },
     {
-      line: `person reviews ${reviews} = hand-offs ${score.handoffs} (faults, unverified fixes) + picks under ${score.confidence_gate} confidence ${lowConfidence} + errors ${errors.length} (bar at most 2 per 20, every one reviewState sends to a person; each must be a real fault when checked by eye)`,
+      line: `person reviews ${reviews} = hand-offs ${score.handoffs} (faults, unverified fixes; ${falseHandoffs} of them false: the reviewer's pick matched and was handed off anyway) + picks under ${score.confidence_gate} confidence ${lowConfidence} + errors ${errors.length} (bar at most 2 per 20, every one reviewState sends to a person; each must be a real fault when checked by eye)`,
       pass: per20(reviews) <= 2 + 1e-9,
     },
-    { line: `card boundaries ${score.cards.agree}/${score.cards.boundaries} on the first frame after the card (bar 9 of 10${cardArm})`, pass: score.cards.boundaries === 0 || score.cards.agree >= Math.ceil(0.9 * score.cards.boundaries) },
+    { line: `card boundaries ${score.cards.agree}/${score.cards.boundaries} on the first frame after the card (bar 9 of 10${cardErrored ? `; ${cardErrored} errored, counted as missed` : ""}${cardArm})`, pass: score.cards.boundaries === 0 || score.cards.agree >= Math.ceil(0.9 * score.cards.boundaries) },
     { line: `cost ${(costCents / 100 / n).toFixed(3)} $ per boundary (bar 0.40)`, pass: costCents / 100 / n <= 0.4 },
   ];
 }

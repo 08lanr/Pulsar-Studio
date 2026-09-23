@@ -22,8 +22,8 @@ import path from "node:path";
 import { z } from "zod";
 import { systemSession, type Session } from "@/lib/auth";
 import { demoReplayActive } from "@/lib/data-source";
-import { runJob } from "@/lib/jobs";
-import { KEY_VAR, callStructured, isLlmAvailable, modelFamily, modelSupportsVision, visionProviderStatus, type LlmProvider, type StructuredCall, type StructuredResult } from "@/lib/llm";
+import { runJob, type RunJobResult, type RunJobSpec } from "@/lib/jobs";
+import { KEY_VAR, LlmError, callStructured, isLlmAvailable, modelFamily, modelSupportsVision, visionProviderStatus, type LlmProvider, type StructuredCall, type StructuredResult } from "@/lib/llm";
 import {
   BAND_FIX_RULE_VERSION,
   bandFixNote,
@@ -38,8 +38,8 @@ import {
   type BandFixVerdict,
   type FirstPassRecord,
 } from "@/lib/prompts/band-fix";
-import { BOUNDARY_RULE_VERSION, buildBoundaryReview, type BoundaryPick } from "@/lib/prompts/boundary-review";
-import { buildBoundarySkeptic, citationProblem, type BoundaryVerdict } from "@/lib/prompts/boundary-skeptic";
+import { BOUNDARY_RULE_VERSION, buildBoundaryReview, type BoundaryPick, type OptionSeen } from "@/lib/prompts/boundary-review";
+import { buildBoundarySkeptic, citationContextOf, citationProblem, type BoundaryVerdict } from "@/lib/prompts/boundary-skeptic";
 import { buildBoundaryTiebreak, type TiebreakSide, type TiebreakVerdict } from "@/lib/prompts/boundary-tiebreak";
 import type { CandidatesIndex } from "@/lib/film-import/types";
 import { CONFIDENCE_GATE } from "@/lib/segment/stages";
@@ -218,11 +218,13 @@ export function applyVision(...passes: WorkflowRecord[][]): AppliedChoices {
 // reviewer; the API's has the same or less. So here an override is a
 // candidate, not an answer: it must be a time the skeptic saw in an image,
 // keep both episodes in band against the planner's neighbours, lie outside
-// the source's card spans and be a legal cut; then a blind tie-break call
-// decides between the two cuts. The file Studio writes already carries the
-// guarded decision, so apply_vision.py stays as it is.
+// the source's card spans, be a legal cut, and not bury a card the
+// reviewer's own observation places right before its pick; then a blind
+// tie-break call decides between the two cuts. The file Studio writes
+// already carries the guarded decision, so apply_vision.py stays as it is.
 
-export type GuardRule = "unseen_time" | "band" | "card" | "illegal";
+/** Why a skeptic's fix was not applied (`bury`: rule e), or, on a refusal record, `check`: the reviewer's own answer failed its check twice. */
+export type GuardRule = "unseen_time" | "band" | "card" | "illegal" | "bury" | "check";
 
 export type GuardInput = {
   better_t: number;
@@ -234,11 +236,24 @@ export type GuardInput = {
   card_spans: CardSpan[];
   /** The listed option times plus every legal cut of the index. */
   legal_times: number[];
+  /** The reviewer's pick and what its own options_seen entry says of a card there (rule e needs no card spans). */
+  chosen_t?: number;
+  chosen_card_or_flare?: OptionSeen["card_or_flare"] | null;
 };
 
 export type GuardResult = { ok: true } | { ok: false; rule: GuardRule; detail: string };
 
-/** The four checks an override must pass, in order; the first failure names itself. Pure. */
+/** A fix this far after a pick the reviewer marked as the first frame after a card buries the card (rule 7). */
+export const BURY_AFTER_S = 1.0;
+
+/**
+ * The five checks an override must pass, in order; the first failure names
+ * itself. Pure. Rule (e), `bury`: in production by-eye mode there are no
+ * card spans, so rule (c) never fires, and the calibration's two bad
+ * overrides on that arm (214.733, 2114.267) both moved a cut the reviewer's
+ * own entry marked `before_cut` a second or more later; the card would then
+ * end a second or more before the cut, buried inside the episode.
+ */
 export function guardOverride(g: GuardInput): GuardResult {
   const t = g.better_t;
   if (!isSeenTime(t, g.images)) return { ok: false, rule: "unseen_time", detail: `${t}s is not a tile time of any image the skeptic saw (a listed option's centre tile or a dense tile within ${SEEN_TOLERANCE_S}s)` };
@@ -249,6 +264,10 @@ export function guardOverride(g: GuardInput): GuardResult {
   const card = inCardSpan(t, g.card_spans);
   if (card) return { ok: false, rule: "card", detail: `${t}s is inside the source's card ${card.from_s}-${card.to_s}s: the next episode would open on the card` };
   if (!isListedTime(t, g.legal_times)) return { ok: false, rule: "illegal", detail: `${t}s is neither a listed option nor a legal cut in index/candidates.json` };
+  if (g.chosen_card_or_flare === "before_cut" && g.chosen_t !== undefined && t >= g.chosen_t + BURY_AFTER_S - 1e-9) {
+    const after = Math.round((t - g.chosen_t) * 1000) / 1000;
+    return { ok: false, rule: "bury", detail: `${t}s is ${after}s after ${g.chosen_t}s, which the reviewer's own options_seen marks as the first frame after the source's card; the card would end a second or more before the cut, buried inside the episode (rule 7)` };
+  }
   return { ok: true };
 }
 
@@ -262,17 +281,18 @@ export type GuardOutcome =
   | "no_tiebreak"
   | "tiebreak_skeptic"
   | "tiebreak_reviewer"
-  | "tiebreak_neither";
+  | "tiebreak_neither"
+  | "skeptic_failed";
 
-/** The outcomes that send the boundary to a person as `skeptic_unverified`: a fix that failed a guard, or one nobody could tie-break. */
-export const UNVERIFIED_OUTCOMES: readonly GuardOutcome[] = ["rejected", "no_tiebreak"];
+/** The outcomes that send the boundary to a person as `skeptic_unverified`: a fix that failed a guard, one nobody could tie-break, or a skeptic call that failed after its repair turn (the reviewer's pick stands unverified). */
+export const UNVERIFIED_OUTCOMES: readonly GuardOutcome[] = ["rejected", "no_tiebreak", "skeptic_failed"];
 
-const GuardOutcomeSchema = z.enum(["agreed", "refused", "uncited", "fault_no_fix", "rejected", "no_tiebreak", "tiebreak_skeptic", "tiebreak_reviewer", "tiebreak_neither"]);
+const GuardOutcomeSchema = z.enum(["agreed", "refused", "uncited", "fault_no_fix", "rejected", "no_tiebreak", "tiebreak_skeptic", "tiebreak_reviewer", "tiebreak_neither", "skeptic_failed"]);
 
-/** The guard's note on a verdict: the outcome, the rule that stopped a fix, the skeptic's time. Passthrough for apply_vision.py and phase 1, read back by reviewState. */
+/** The guard's note on a verdict: the outcome, the rule that stopped a fix (or `check` on a refusal record the reviewer's failed check made), the skeptic's time. Passthrough for apply_vision.py and phase 1, read back by reviewState. */
 export const VerdictGuardSchema = z.object({
   outcome: GuardOutcomeSchema,
-  rule: z.enum(["unseen_time", "band", "card", "illegal"]).nullable(),
+  rule: z.enum(["unseen_time", "band", "card", "illegal", "bury", "check"]).nullable(),
   detail: z.string(),
   better_t: z.number().nullable(),
 });
@@ -292,9 +312,11 @@ export const VerdictTiebreakSchema = z.object({
   winner: z.enum(["reviewer", "skeptic", "neither"]),
   a_shows: z.string(),
   b_shows: z.string(),
-  /** The tile of each side's own images where it breaks a rule (the losing side always; both for `neither`): what the review screen shows the person to look at. */
+  /** The tile of each side's own images where it breaks a rule (the losing side always; both for `neither`) and the rule it breaks: what the review screen shows the person to look at. */
   a_fault_tile_t: z.number().nullable(),
+  a_fault_rule: z.string().nullable(),
   b_fault_tile_t: z.number().nullable(),
+  b_fault_rule: z.string().nullable(),
   evidence_image: z.number().nullable(),
   evidence_tile_t: z.number().nullable(),
   reason: z.string(),
@@ -411,8 +433,10 @@ export type JudgeResult = {
   file: string;
   output: WorkflowOutput;
   records: WorkflowRecord[];
-  /** Boundaries whose call failed (an LlmError, a missing strip); a result with any is not ready for apply_vision.py. */
+  /** Boundaries whose call failed (a missing strip, a transport failure that a retry did not cure, a cancel); a result with any is not ready for apply_vision.py. A check that failed after its repair turn is not here: it is recorded per role (a refusal record, `skeptic_failed`, `no_tiebreak`). */
   errors: { boundary_s: number; error: string }[];
+  /** Calls retried once after a transport or non-JSON failure, by boundary and role. */
+  retries: { boundary_s: number; role: JudgedJob["role"]; error: string }[];
   jobs: JudgedJob[];
   cost_cents: number;
   provider: LlmProvider;
@@ -465,6 +489,35 @@ async function writeJson(file: string, value: unknown): Promise<void> {
 
 const SUMMARY = "Choose each episode boundary by looking at contact strips, then adversarially verify each choice";
 
+/** A failure a second call may cure: the transport (an API error, a timeout) or a reply that was not a JSON object at all. A check or schema failure after the repair turn is not one: the same prompt would fail the same way. */
+export function isTransientLlmFailure(e: unknown): boolean {
+  return e instanceof LlmError && (e.code === "api" || (e.code === "invalid_output" && /not a JSON object/i.test(e.message)));
+}
+
+/**
+ * The refusal record for a reviewer whose answer failed its check after the
+ * repair turn (`check refused after repair`): confidence 0, so apply_vision.py
+ * faults it and reviewState asks a person, with the check's own words as the
+ * why; the key is the last answer's when the message names a listed option.
+ * Before this, such a boundary errored, lost its record, and the whole file
+ * short one choice was refused by `pick_cuts.py --choices` later on.
+ */
+export function refusalPick(boundary: Pick<OptionsBoundary, "options">, message: string): BoundaryPick {
+  const named = [...message.matchAll(/\b(opt\d+)\b/g)].map((m) => m[1]);
+  const option = boundary.options.find((o) => o.key === named[0]) ?? null;
+  return {
+    options_seen: [],
+    chosen_key: option?.key ?? "none",
+    chosen_t: option?.t ?? 0,
+    ends_on: "",
+    opens_on: "",
+    why: `check refused after repair: ${message}`,
+    rejected: null,
+    payoff_in_episode: false,
+    confidence: 0,
+  };
+}
+
 /**
  * The pass: every boundary of `doc` (or `opts.boundaries`), reviewer then
  * skeptic (then, for a skeptic's fix that passes the guards, a blind
@@ -505,10 +558,23 @@ export async function judgeBoundaries(run: SegmentRun, doc: OptionsDoc, opts: Ju
 
   const jobs: JudgedJob[] = [];
   const errors: JudgeResult["errors"] = [];
+  const retries: JudgeResult["retries"] = [];
   let done = 0;
   const keyFor = (b: number, role: JudgedJob["role"]) => `verify_boundaries:${run.id}:${b}:${role}:${sha.slice(0, 12)}:${BOUNDARY_RULE_VERSION}:${attempt}`;
   const cancelled = () => opts.signal?.aborted === true;
   const common = { kind: JOB_KIND, title_id: NO_TITLE, target_type: FILM_RUN_TARGET, target_id: run.id, provider, model } as const;
+  const describe = (e: unknown) => (e instanceof LlmError ? `${e.name} (${e.code}): ${e.message}` : e instanceof Error ? `${e.name}: ${e.message}` : String(e));
+
+  /** One job-level retry after a transport or non-JSON failure (the failed row is re-run under its own key); anything else is thrown as it came. */
+  const callJob = async <T>(b: number, role: JudgedJob["role"], spec: RunJobSpec<T>): Promise<RunJobResult<T>> => {
+    try {
+      return await runJob<T>(session, spec);
+    } catch (e) {
+      if (!isTransientLlmFailure(e) || cancelled()) throw e;
+      retries.push({ boundary_s: b, role, error: describe(e) });
+      return await runJob<T>(session, spec);
+    }
+  };
 
   const judgeOne = async (boundary: OptionsBoundary): Promise<WorkflowRecord | null> => {
     const b = boundary.boundary_s;
@@ -527,22 +593,34 @@ export async function judgeBoundaries(run: SegmentRun, doc: OptionsDoc, opts: Ju
       const span = allowedRange(prev, next, doc.band);
       const range = span.lo <= span.hi ? { prev, next, ...span } : null;
       const look = buildBoundaryReview({ boundary, strips, layout, band: doc.band, range, card_spans: cardSpans, film_notes: filmNotes, provider, model });
-      const looked = await runJob<BoundaryPick>(session, {
-        ...common,
-        idempotency_key: keyFor(b, "look"),
-        input: { boundary_s: b, role: "look", label, attempt, options_sha: sha, rule_version: look.prompt_version, strips: strips.map((s) => s.rel), annotated: strips.every((s) => !!s.annotated), range },
-        run: async () => {
-          const c = await llm(look);
-          return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model, provider: c.provider };
-        },
-      });
-      jobs.push({ boundary_s: b, role: "look", job_id: looked.job.id, cost_cents: looked.job.cost_cents ?? 0, skipped: looked.skipped });
-      const pick = looked.output;
+      // The reviewer. A check or schema failure after the repair turn is not the boundary's error: it becomes a refusal record
+      // (confidence 0, the guard's rule `check`), which apply_vision.py faults and reviewState hands to a person with the reason.
+      let pick: BoundaryPick;
+      let lookRefused: string | null = null;
+      try {
+        const looked = await callJob<BoundaryPick>(b, "look", {
+          ...common,
+          idempotency_key: keyFor(b, "look"),
+          input: { boundary_s: b, role: "look", label, attempt, options_sha: sha, rule_version: look.prompt_version, strips: strips.map((s) => s.rel), annotated: strips.every((s) => !!s.annotated), range },
+          run: async () => {
+            const c = await llm(look);
+            return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model, provider: c.provider };
+          },
+        });
+        jobs.push({ boundary_s: b, role: "look", job_id: looked.job.id, cost_cents: looked.job.cost_cents ?? 0, skipped: looked.skipped });
+        pick = looked.output;
+      } catch (e) {
+        if (!(e instanceof LlmError && e.code === "invalid_output")) throw e;
+        lookRefused = e.message;
+        pick = refusalPick(boundary, e.message);
+      }
 
       let verdict: WorkflowVerdict;
       if (pick.confidence === 0) {
-        // The reviewer refused (no strip, unreadable strip). apply_vision.py faults it on the confidence alone; no skeptic is paid for.
-        verdict = { agree: false, fault: "", better_key: "", reason: "reviewer refused (confidence 0); not verified", guard: { outcome: "refused", rule: null, detail: "", better_t: null } satisfies VerdictGuard };
+        // The reviewer refused (no strip, unreadable strip), or its answer failed the check twice. apply_vision.py faults it on the confidence alone; no skeptic is paid for.
+        verdict = lookRefused
+          ? { agree: false, fault: "", better_key: "", reason: `reviewer's answer refused by the check after its repair turn (${lookRefused}); nothing chosen, not verified: a person decides`, guard: { outcome: "refused", rule: "check", detail: lookRefused, better_t: null } satisfies VerdictGuard }
+          : { agree: false, fault: "", better_key: "", reason: "reviewer refused (confidence 0); not verified", guard: { outcome: "refused", rule: null, detail: "", better_t: null } satisfies VerdictGuard };
       } else {
         // The reviewer's row is done and reused by a retry; the skeptic is not called for a cancelled run.
         if (cancelled()) throw new Error(CANCELLED);
@@ -551,77 +629,104 @@ export async function judgeBoundaries(run: SegmentRun, doc: OptionsDoc, opts: Ju
         const images = [...strips, ...(dense ? [dense] : [])];
         const legal = legalCutsInView(candidates, images, range);
         const verify = buildBoundarySkeptic({ boundary, strips, pick, dense, legal_cuts: legal, layout, band: doc.band, range, card_spans: cardSpans, film_notes: filmNotes, provider, model });
-        const verified2 = await runJob<BoundaryVerdict>(session, {
-          ...common,
-          idempotency_key: keyFor(b, "verify"),
-          input: { boundary_s: b, role: "verify", label, attempt, options_sha: sha, rule_version: verify.prompt_version, chosen_t: pick.chosen_t, dense: dense ? dense.rel : null, legal_cuts: legal.map((c) => c.t), range },
-          run: async () => {
-            const c = await llm(verify);
-            return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model, provider: c.provider };
-          },
-        });
-        jobs.push({ boundary_s: b, role: "verify", job_id: verified2.job.id, cost_cents: verified2.job.cost_cents ?? 0, skipped: verified2.skipped });
-        const skeptic = verified2.output;
         const evidence = evidenceOf(images);
-        const note = (outcome: GuardOutcome, rule: GuardRule | null, detail: string): VerdictGuard => ({ outcome, rule, detail, better_t: skeptic.better_t ?? null });
+        // The skeptic. A call that fails after its repair turn keeps the reviewer's pick, unverified: reviewState asks a person (skeptic_unverified).
+        let skeptic: BoundaryVerdict | null = null;
+        let verifyFailed: string | null = null;
+        try {
+          const verified2 = await callJob<BoundaryVerdict>(b, "verify", {
+            ...common,
+            idempotency_key: keyFor(b, "verify"),
+            input: { boundary_s: b, role: "verify", label, attempt, options_sha: sha, rule_version: verify.prompt_version, chosen_t: pick.chosen_t, dense: dense ? dense.rel : null, legal_cuts: legal.map((c) => c.t), range },
+            run: async () => {
+              const c = await llm(verify);
+              return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model, provider: c.provider };
+            },
+          });
+          jobs.push({ boundary_s: b, role: "verify", job_id: verified2.job.id, cost_cents: verified2.job.cost_cents ?? 0, skipped: verified2.skipped });
+          skeptic = verified2.output;
+        } catch (e) {
+          if (!(e instanceof LlmError)) throw e;
+          verifyFailed = describe(e);
+        }
 
-        if (skeptic.agree) {
-          verdict = { ...toWorkflowVerdict(skeptic), skeptic_raw: skeptic, guard: note("agreed", null, ""), evidence };
-        } else if (skeptic.fault_image === null || skeptic.fault_tile_t === null || citationProblem(skeptic, images) !== null) {
-          // A fault that cites no image and tile (or a tile the image does not have) is recorded, never applied: the reviewer's pick stands.
-          const problem = citationProblem(skeptic, images) ?? "cite both fault_image and fault_tile_t, or neither";
-          verdict = { agree: true, fault: "", better_key: "", reason: `skeptic disputed ${pick.chosen_t}s without citing a frame (${problem}); ignored. Skeptic said: ${skeptic.fault ?? ""} ${skeptic.reason}`.trim(), skeptic_raw: skeptic, guard: note("uncited", null, problem), evidence };
-        } else if (skeptic.better_t === null || skeptic.better_t === undefined || skeptic.better_t === 0) {
-          // A cited fault with no fix: apply_vision.py's rule 2, the boundary goes to a person.
-          verdict = { ...toWorkflowVerdict({ ...skeptic, better_t: null }), skeptic_raw: skeptic, guard: note("fault_no_fix", null, ""), evidence };
+        if (skeptic === null) {
+          verdict = { agree: true, fault: "", better_key: "", reason: `the skeptic's call failed after its repair turn (${verifyFailed}); the reviewer's pick stands unverified, a person decides`, guard: { outcome: "skeptic_failed", rule: null, detail: verifyFailed ?? "", better_t: null } satisfies VerdictGuard, evidence };
         } else {
-          const betterT = skeptic.better_t;
-          const guard = guardOverride({ better_t: betterT, images, prev, next, band: doc.band, card_spans: cardSpans, legal_times: [...boundary.options.map((o) => o.t), ...allLegal] });
-          if (!guard.ok) {
-            // The reviewer's pick is written as the answer; the skeptic's verdict is the note. reviewState reads guard.outcome and asks a person.
-            verdict = { agree: true, fault: "", better_key: "", reason: `skeptic disputed ${pick.chosen_t}s (${skeptic.fault ?? "fault"}) and named ${betterT}s, not applied (${guard.rule}: ${guard.detail}). Skeptic said: ${skeptic.reason}`, skeptic_raw: skeptic, guard: note("rejected", guard.rule, guard.detail), evidence };
+          const note = (outcome: GuardOutcome, rule: GuardRule | null, detail: string): VerdictGuard => ({ outcome, rule, detail, better_t: skeptic!.better_t ?? null });
+          const citation = citationContextOf(strips, pick.chosen_t, dense !== null);
+          const chosenSeen = pick.options_seen.find((o) => o.key === pick.chosen_key) ?? null;
+
+          if (skeptic.agree) {
+            verdict = { ...toWorkflowVerdict(skeptic), skeptic_raw: skeptic, guard: note("agreed", null, ""), evidence };
+          } else if (skeptic.fault_image === null || skeptic.fault_tile_t === null || citationProblem(skeptic, images, citation) !== null) {
+            // A fault that cites no image and tile (or a tile the image does not have, or another option's strip, or a tile that cannot carry the rule) is recorded, never applied: the reviewer's pick stands.
+            const problem = citationProblem(skeptic, images, citation) ?? "cite both fault_image and fault_tile_t, or neither";
+            verdict = { agree: true, fault: "", better_key: "", reason: `skeptic disputed ${pick.chosen_t}s without citing a frame (${problem}); ignored. Skeptic said: ${skeptic.fault ?? ""} ${skeptic.reason}`.trim(), skeptic_raw: skeptic, guard: note("uncited", null, problem), evidence };
+          } else if (skeptic.better_t === null || skeptic.better_t === undefined || skeptic.better_t === 0) {
+            // A cited fault with no fix: apply_vision.py's rule 2, the boundary goes to a person.
+            verdict = { ...toWorkflowVerdict({ ...skeptic, better_t: null }), skeptic_raw: skeptic, guard: note("fault_no_fix", null, ""), evidence };
           } else {
-            // The blind tie-break: the reviewer's cut and the skeptic's, as A and B, each with its images; no reasoning from either side.
-            if (cancelled()) throw new Error(CANCELLED);
-            const optionStripAt = (t: number) => strips.find((s) => Math.abs(s.t - t) <= 0.0015) ?? null;
-            const skepticDenseRaw = opts.dense ? await opts.dense(boundary, betterT) : null;
-            const skepticDense = skepticDenseRaw && annotate ? await annotate(skepticDenseRaw, betterT) : skepticDenseRaw;
-            const reviewerImages = [optionStripAt(pick.chosen_t), dense].filter((x): x is StripImage => x !== null);
-            const skepticImages = [optionStripAt(betterT), skepticDense].filter((x): x is StripImage => x !== null);
-            const first = tiebreakOrder(run.id, b, attempt);
-            if (!tiebreakOn || !reviewerImages.length || !skepticImages.length) {
-              const why = !tiebreakOn ? "the tie-break is off for this pass" : "no image covers one of the two cuts (no dense strip could be rendered)";
-              verdict = { agree: true, fault: "", better_key: "", reason: `skeptic disputed ${pick.chosen_t}s (${skeptic.fault ?? "fault"}) and named ${betterT}s; the guards passed but ${why}, so a person decides. Skeptic said: ${skeptic.reason}`, skeptic_raw: skeptic, guard: note("no_tiebreak", null, why), evidence };
+            const betterT = skeptic.better_t;
+            const guard = guardOverride({ better_t: betterT, images, prev, next, band: doc.band, card_spans: cardSpans, legal_times: [...boundary.options.map((o) => o.t), ...allLegal], chosen_t: pick.chosen_t, chosen_card_or_flare: chosenSeen?.card_or_flare ?? null });
+            if (!guard.ok) {
+              // The reviewer's pick is written as the answer; the skeptic's verdict is the note. reviewState reads guard.outcome and asks a person.
+              verdict = { agree: true, fault: "", better_key: "", reason: `skeptic disputed ${pick.chosen_t}s (${skeptic.fault ?? "fault"}) and named ${betterT}s, not applied (${guard.rule}: ${guard.detail}). Skeptic said: ${skeptic.reason}`, skeptic_raw: skeptic, guard: note("rejected", guard.rule, guard.detail), evidence };
             } else {
-              const sideOf = (label: "A" | "B", who: "reviewer" | "skeptic"): TiebreakSide => {
-                const t = who === "reviewer" ? pick.chosen_t : betterT;
-                const opt = boundary.options.find((o) => Math.abs(o.t - t) <= 0.0015);
-                return { label, t, option_key: opt?.key ?? null, images: who === "reviewer" ? reviewerImages : skepticImages };
-              };
-              const a = sideOf("A", first);
-              const bSide = sideOf("B", first === "reviewer" ? "skeptic" : "reviewer");
-              const tb = buildBoundaryTiebreak({ boundary, sides: [a, bSide], layout, band: doc.band, range, card_spans: cardSpans, film_notes: filmNotes, provider, model });
-              const broken = await runJob<TiebreakVerdict>(session, {
-                ...common,
-                idempotency_key: keyFor(b, "tiebreak"),
-                input: { boundary_s: b, role: "tiebreak", label, attempt, options_sha: sha, rule_version: tb.prompt_version, a_t: a.t, b_t: bSide.t, a_side: first, images: [...a.images, ...bSide.images].map((i) => i.rel) },
-                run: async () => {
-                  const c = await llm(tb);
-                  return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model, provider: c.provider };
-                },
-              });
-              jobs.push({ boundary_s: b, role: "tiebreak", job_id: broken.job.id, cost_cents: broken.job.cost_cents ?? 0, skipped: broken.skipped });
-              const tv = broken.output;
-              const winner: VerdictTiebreak["winner"] = tv.winner === "neither" ? "neither" : (tv.winner === "A") === (first === "reviewer") ? "reviewer" : "skeptic";
-              const tiebreak: VerdictTiebreak = { a_side: first, a_t: a.t, b_t: bSide.t, winner, a_shows: tv.a_shows, b_shows: tv.b_shows, a_fault_tile_t: tv.a_fault_tile_t, b_fault_tile_t: tv.b_fault_tile_t, evidence_image: tv.evidence_image, evidence_tile_t: tv.evidence_tile_t, reason: tv.reason };
-              const faults = tiebreakFaults(tiebreak);
-              const at = (t: number | null) => (t === null ? "no tile cited" : `look at tile ${t}s`);
-              if (winner === "skeptic") {
-                verdict = { ...toWorkflowVerdict(skeptic), reason: `${skeptic.reason} | tie-break chose the skeptic's ${betterT}s (${pick.chosen_t}s faults: ${at(faults.reviewer)}): ${tv.reason}`, skeptic_raw: skeptic, guard: note("tiebreak_skeptic", null, tv.reason), tiebreak, evidence };
-              } else if (winner === "reviewer") {
-                verdict = { agree: true, fault: "", better_key: "", reason: `skeptic disputed ${pick.chosen_t}s (${skeptic.fault ?? "fault"}) and named ${betterT}s; the blind tie-break kept ${pick.chosen_t}s (${betterT}s faults: ${at(faults.skeptic)}): ${tv.reason}. Skeptic said: ${skeptic.reason}`, skeptic_raw: skeptic, guard: note("tiebreak_reviewer", null, tv.reason), tiebreak, evidence };
+              // The blind tie-break: the reviewer's cut and the skeptic's, as A and B, each with its images; no reasoning from either side.
+              if (cancelled()) throw new Error(CANCELLED);
+              const optionStripAt = (t: number) => strips.find((s) => Math.abs(s.t - t) <= 0.0015) ?? null;
+              const skepticDenseRaw = opts.dense ? await opts.dense(boundary, betterT) : null;
+              const skepticDense = skepticDenseRaw && annotate ? await annotate(skepticDenseRaw, betterT) : skepticDenseRaw;
+              const reviewerImages = [optionStripAt(pick.chosen_t), dense].filter((x): x is StripImage => x !== null);
+              const skepticImages = [optionStripAt(betterT), skepticDense].filter((x): x is StripImage => x !== null);
+              const first = tiebreakOrder(run.id, b, attempt);
+              const unbroken = (why: string): WorkflowVerdict => ({ agree: true, fault: "", better_key: "", reason: `skeptic disputed ${pick.chosen_t}s (${skeptic!.fault ?? "fault"}) and named ${betterT}s; the guards passed but ${why}, so a person decides. Skeptic said: ${skeptic!.reason}`, skeptic_raw: skeptic, guard: note("no_tiebreak", null, why), evidence });
+              if (!tiebreakOn || !reviewerImages.length || !skepticImages.length) {
+                verdict = unbroken(!tiebreakOn ? "the tie-break is off for this pass" : "no image covers one of the two cuts (no dense strip could be rendered)");
               } else {
-                verdict = { agree: false, fault: skeptic.fault || `tie-break: neither ${pick.chosen_t}s nor ${betterT}s satisfies the payoff rule`, better_key: "", reason: `the blind tie-break found neither cut sound (${pick.chosen_t}s: ${at(faults.reviewer)}; ${betterT}s: ${at(faults.skeptic)}): ${tv.reason}. Skeptic said: ${skeptic.reason}`, skeptic_raw: skeptic, guard: note("tiebreak_neither", null, tv.reason), tiebreak, evidence };
+                const sideOf = (label: "A" | "B", who: "reviewer" | "skeptic"): TiebreakSide => {
+                  const t = who === "reviewer" ? pick.chosen_t : betterT;
+                  const opt = boundary.options.find((o) => Math.abs(o.t - t) <= 0.0015);
+                  return { label, t, option_key: opt?.key ?? null, images: who === "reviewer" ? reviewerImages : skepticImages };
+                };
+                const a = sideOf("A", first);
+                const bSide = sideOf("B", first === "reviewer" ? "skeptic" : "reviewer");
+                const tb = buildBoundaryTiebreak({ boundary, sides: [a, bSide], layout, band: doc.band, range, card_spans: cardSpans, film_notes: filmNotes, provider, model });
+                // The tie-break. A call that fails after its repair turn leaves the two cuts undecided: no_tiebreak, a person decides.
+                let tv: TiebreakVerdict | null = null;
+                let tiebreakFailed: string | null = null;
+                try {
+                  const broken = await callJob<TiebreakVerdict>(b, "tiebreak", {
+                    ...common,
+                    idempotency_key: keyFor(b, "tiebreak"),
+                    input: { boundary_s: b, role: "tiebreak", label, attempt, options_sha: sha, rule_version: tb.prompt_version, a_t: a.t, b_t: bSide.t, a_side: first, images: [...a.images, ...bSide.images].map((i) => i.rel) },
+                    run: async () => {
+                      const c = await llm(tb);
+                      return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model, provider: c.provider };
+                    },
+                  });
+                  jobs.push({ boundary_s: b, role: "tiebreak", job_id: broken.job.id, cost_cents: broken.job.cost_cents ?? 0, skipped: broken.skipped });
+                  tv = broken.output;
+                } catch (e) {
+                  if (!(e instanceof LlmError)) throw e;
+                  tiebreakFailed = describe(e);
+                }
+                if (tv === null) {
+                  verdict = unbroken(`the tie-break's call failed after its repair turn (${tiebreakFailed ?? "no answer"})`);
+                } else {
+                  const winner: VerdictTiebreak["winner"] = tv.winner === "neither" ? "neither" : (tv.winner === "A") === (first === "reviewer") ? "reviewer" : "skeptic";
+                  const tiebreak: VerdictTiebreak = { a_side: first, a_t: a.t, b_t: bSide.t, winner, a_shows: tv.a_shows, b_shows: tv.b_shows, a_fault_tile_t: tv.a_fault_tile_t, a_fault_rule: tv.a_fault_rule, b_fault_tile_t: tv.b_fault_tile_t, b_fault_rule: tv.b_fault_rule, evidence_image: tv.evidence_image, evidence_tile_t: tv.evidence_tile_t, reason: tv.reason };
+                  const faults = tiebreakFaults(tiebreak);
+                  const at = (t: number | null) => (t === null ? "no tile cited" : `look at tile ${t}s`);
+                  if (winner === "skeptic") {
+                    verdict = { ...toWorkflowVerdict(skeptic), reason: `${skeptic.reason} | tie-break chose the skeptic's ${betterT}s (${pick.chosen_t}s faults: ${at(faults.reviewer)}): ${tv.reason}`, skeptic_raw: skeptic, guard: note("tiebreak_skeptic", null, tv.reason), tiebreak, evidence };
+                  } else if (winner === "reviewer") {
+                    verdict = { agree: true, fault: "", better_key: "", reason: `skeptic disputed ${pick.chosen_t}s (${skeptic.fault ?? "fault"}) and named ${betterT}s; the blind tie-break kept ${pick.chosen_t}s (${betterT}s faults: ${at(faults.skeptic)}): ${tv.reason}. Skeptic said: ${skeptic.reason}`, skeptic_raw: skeptic, guard: note("tiebreak_reviewer", null, tv.reason), tiebreak, evidence };
+                  } else {
+                    verdict = { agree: false, fault: skeptic.fault || `tie-break: neither ${pick.chosen_t}s nor ${betterT}s satisfies the payoff rule`, better_key: "", reason: `the blind tie-break found neither cut sound (${pick.chosen_t}s: ${at(faults.reviewer)}; ${betterT}s: ${at(faults.skeptic)}): ${tv.reason}. Skeptic said: ${skeptic.reason}`, skeptic_raw: skeptic, guard: note("tiebreak_neither", null, tv.reason), tiebreak, evidence };
+                  }
+                }
               }
             }
           }
@@ -632,7 +737,7 @@ export async function judgeBoundaries(run: SegmentRun, doc: OptionsDoc, opts: Ju
       opts.onBoundary?.(record, done, wanted.length);
       return record;
     } catch (e) {
-      const message = e instanceof Error ? (e.message === CANCELLED ? CANCELLED : `${e.name}: ${e.message}`) : String(e);
+      const message = e instanceof Error ? (e.message === CANCELLED ? CANCELLED : describe(e)) : String(e);
       errors.push({ boundary_s: b, error: message });
       done += 1;
       return null;
@@ -659,16 +764,17 @@ export async function judgeBoundaries(run: SegmentRun, doc: OptionsDoc, opts: Ju
     fixed_start: fixedStart,
     card_spans: cardSpans.length,
     agentCount: jobs.length,
-    logs: [`${records.length} boundaries judged by eye`, ...errors.map((e) => `${e.boundary_s}s: ${e.error}`)],
+    logs: [`${records.length} boundaries judged by eye`, ...errors.map((e) => `${e.boundary_s}s: ${e.error}`), ...retries.map((r) => `${r.boundary_s}s: ${r.role} retried once after ${r.error}`)],
     result: records,
     errors,
+    retries,
     jobs: jobs.map((j) => ({ ...j })),
     cost_cents: costCents,
     totalTokens: 0,
   };
   WorkflowOutputSchema.parse(output);
   await writeJson(outFile, output);
-  return { file: outFile, output, records, errors, jobs, cost_cents: costCents, provider, model };
+  return { file: outFile, output, records, errors, retries, jobs, cost_cents: costCents, provider, model };
 }
 
 // ---- the band-fix path ----------------------------------------------------------------------------
@@ -948,7 +1054,8 @@ export function deliveredTruth(doc: Pick<OptionsDoc, "boundaries">, deliveredEnd
   return { truth, unmatched };
 }
 
-export type SkepticEffect = "helped" | "hurt" | "neutral" | "handoff";
+/** `false_handoff`: the reviewer's pick matched the truth and the boundary was handed to a person anyway (a skeptic fault with no fix, a tie-break "neither"): a review that was not needed. */
+export type SkepticEffect = "helped" | "hurt" | "neutral" | "handoff" | "false_handoff";
 
 export type ScoreRow = {
   boundary_s: number;
@@ -969,21 +1076,34 @@ export type ScoreRow = {
   /** A card boundary: the delivered cut is the first frame after a card span. */
   card_boundary: boolean;
   card_agree: boolean | null;
-  /** Hard-rule failures of the applied time, in words; [] when it passes. */
+  /** Whether a listed option lies within the tolerance of the truth (null without a truth): a miss with false here is the measure's, not the model's. */
+  truth_is_option: boolean | null;
+  /** The applied cut is the first frame after a loaded card span while the delivered cut lies a second or more after it: the API follows rule 7 where the delivered cut buries the card. */
+  rule7_vs_delivered: boolean;
+  /** Hard-rule failures of the applied time, in words; [] when it passes. Rule 8 (a split caption) has no automatic check: it is read by eye. */
   rule_failures: string[];
   lengths: { before: number; after: number } | null;
 };
 
 export type Score = {
   tolerance_s: number;
+  /** Boundaries scored (a record each). */
   n: number;
+  /** Boundaries asked for whose call errored (no record): each a miss and a review, and a card miss when its truth is a card end. */
+  errors: number;
   applied_agree: number;
   reviewer_only_agree: number;
   /** Boundaries with no applied time (a fault) or a fix nobody could verify or tie-break: apply_vision's FAILs plus `skeptic_unverified`. */
   handoffs: number;
+  /** Hand-offs whose reviewer pick matched the truth (`reviewer_agree` with no applied time): reviews that were not needed, each a real fault to check by eye. */
+  false_handoffs: number;
   /** Every boundary reviewState marks needs_decision: the hand-offs plus every reviewer pick under the confidence gate. The person's real workload; the bar counts this. */
   person_reviews: number;
   confidence_gate: number;
+  /** Scored boundaries whose truth is no listed option (within the tolerance): the measure cannot be met there. */
+  truth_not_option: number;
+  /** Scored boundaries where the applied cut is a loaded card's end while the delivered cut lies a second or more after it (rule 7 against the delivered cut). */
+  rule7_vs_delivered: number;
   dp_rate: number | null;
   skeptic: {
     agreed: number;
@@ -1002,7 +1122,9 @@ export type Score = {
     /** Applied overrides that moved away from a reviewer pick which matched the truth. */
     bad_overrides: number;
   };
-  cards: { boundaries: number; agree: number };
+  /** `boundaries` counts the errored card boundaries too (`errored`), so the bar's card line is over the selection. */
+  cards: { boundaries: number; agree: number; errored: number };
+  /** The three automatic checks; rule 8 (a split caption) has none and is checked by eye. */
   rule_failures: { card: number; band: number; unseen: number; total: number };
   rows: ScoreRow[];
 };
@@ -1013,6 +1135,9 @@ export type ScoreInput = {
   truth: Record<string, number | null>;
   judged: WorkflowRecord[];
   card_spans: CardSpan[];
+  /** The boundaries asked for (the eval's selection) and those whose call errored: an errored card boundary is a card miss, never dropped from the card line. */
+  selection?: number[];
+  errors?: { boundary_s: number; error: string }[];
   fixed_start?: number;
   tolerance_s?: number;
 };
@@ -1020,10 +1145,13 @@ export type ScoreInput = {
 /**
  * The judged pass against the delivered cuts: the applied time (after the
  * guarded skeptic), the reviewer's own pick (the skeptic switched off), the
- * skeptic's effect boundary by boundary, the DP-pick rate, the card
- * boundaries, and the three hard-rule checks on every applied time. The
- * band check uses the APPLIED neighbours: a judged neighbour's applied time,
- * else the delivered truth, else the planner's position.
+ * skeptic's effect boundary by boundary, the false hand-offs, the DP-pick
+ * rate, the card boundaries (the errored ones counted as misses), the
+ * measure's own limits (a truth that is no listed option; an applied cut on
+ * the first frame after a card where the delivered cut buries it), and the
+ * three hard-rule checks on every applied time. The band check uses the
+ * APPLIED neighbours: a judged neighbour's applied time, else the delivered
+ * truth, else the planner's position. Rule 8 has no automatic check.
  */
 export function scoreAgainstTruth(input: ScoreInput): Score {
   const tol = input.tolerance_s ?? 0.2;
@@ -1063,8 +1191,10 @@ export function scoreAgainstTruth(input: ScoreInput): Score {
     }
     const reviewerAgree = (j.pick.confidence ?? 0) > 0 && near(j.pick.chosen_t, truth);
     const appliedAgree = near(appliedT, truth);
-    const effect: SkepticEffect = appliedT === null ? "handoff" : reviewerAgree && !appliedAgree ? "hurt" : !reviewerAgree && appliedAgree ? "helped" : "neutral";
+    const effect: SkepticEffect = appliedT === null ? (reviewerAgree ? "false_handoff" : "handoff") : reviewerAgree && !appliedAgree ? "hurt" : !reviewerAgree && appliedAgree ? "helped" : "neutral";
     const cardBoundary = truth !== null && cardEnds.some((e) => Math.abs(e - truth) <= tol + 1e-9);
+    const truthIsOption = truth === null ? null : entry.options.some((o) => near(o.t, truth));
+    const rule7VsDelivered = appliedT !== null && truth !== null && cardEnds.some((e) => near(e, appliedT)) && truth >= appliedT + 1.0 - 1e-9;
     rows.push({
       boundary_s: j.boundary_s,
       truth_t: truth,
@@ -1081,6 +1211,8 @@ export function scoreAgainstTruth(input: ScoreInput): Score {
       effect,
       card_boundary: cardBoundary,
       card_agree: cardBoundary ? appliedAgree : null,
+      truth_is_option: truthIsOption,
+      rule7_vs_delivered: rule7VsDelivered,
       rule_failures: failures,
       lengths,
     });
@@ -1094,16 +1226,26 @@ export function scoreAgainstTruth(input: ScoreInput): Score {
     if (g?.outcome === "rejected" && g.rule) rejected[g.rule] = (rejected[g.rule] ?? 0) + 1;
   }
   const cardRows = rows.filter((r) => r.card_boundary);
-  const handoff = (r: ScoreRow) => r.applied_t === null || r.guard === "rejected" || r.guard === "no_tiebreak";
+  // An errored boundary has no row; when its truth is a card end it is still a card boundary the pass missed.
+  const errored = (input.errors ?? []).filter((e) => !rows.some((r) => keyOf(r.boundary_s) === keyOf(e.boundary_s)));
+  const erroredCards = errored.filter((e) => {
+    const t = input.truth[String(e.boundary_s)] ?? null;
+    return t !== null && cardEnds.some((c) => Math.abs(c - t) <= tol + 1e-9);
+  }).length;
+  const handoff = (r: ScoreRow) => r.applied_t === null || r.guard === "rejected" || r.guard === "no_tiebreak" || r.guard === "skeptic_failed";
   return {
     tolerance_s: tol,
     n,
+    errors: errored.length,
     applied_agree: count((r) => r.applied_agree),
     reviewer_only_agree: count((r) => r.reviewer_agree),
     handoffs: count(handoff),
+    false_handoffs: count((r) => r.effect === "false_handoff"),
     // The same predicate reviewState applies (lib/segment/plan.ts): a fault, an unverified fix, or a pick under CONFIDENCE_GATE.
     person_reviews: count((r) => handoff(r) || r.reviewer_confidence < CONFIDENCE_GATE),
     confidence_gate: CONFIDENCE_GATE,
+    truth_not_option: count((r) => r.truth_is_option === false),
+    rule7_vs_delivered: count((r) => r.rule7_vs_delivered),
     dp_rate: n ? Math.round((count((r) => r.dp_pick) / n) * 1000) / 1000 : null,
     skeptic: {
       agreed: outcome("agreed"),
@@ -1121,7 +1263,7 @@ export function scoreAgainstTruth(input: ScoreInput): Score {
       hurt: count((r) => r.effect === "hurt"),
       bad_overrides: count((r) => r.applied_source === "SKEPTIC OVERRIDE" && r.reviewer_agree && !r.applied_agree),
     },
-    cards: { boundaries: cardRows.length, agree: cardRows.filter((r) => r.card_agree).length },
+    cards: { boundaries: cardRows.length + erroredCards, agree: cardRows.filter((r) => r.card_agree).length, errored: erroredCards },
     rule_failures: {
       card: count((r) => r.rule_failures.some((f) => f.startsWith("card:"))),
       band: count((r) => r.rule_failures.some((f) => f.startsWith("band:"))),

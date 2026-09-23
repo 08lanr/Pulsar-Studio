@@ -38,8 +38,8 @@ import {
   type BandFixPick,
   type BandFixVerdict,
 } from "@/lib/prompts/band-fix";
-import { BOUNDARY_RULES, BOUNDARY_RULE_VERSION, BoundaryPickSchema, OptionSeenSchema, buildBoundaryReview, denseReadingLine, selfContradiction, type BoundaryPick, type OptionSeen } from "@/lib/prompts/boundary-review";
-import { BoundaryVerdictSchema, buildBoundarySkeptic, citationProblem, type BoundaryVerdict } from "@/lib/prompts/boundary-skeptic";
+import { BOUNDARY_RULES, BOUNDARY_RULE_VERSION, BoundaryPickSchema, OptionSeenSchema, buildBoundaryReview, denseReadingLine, refusalProblem, selfContradiction, type BoundaryPick, type OptionSeen } from "@/lib/prompts/boundary-review";
+import { BoundaryVerdictSchema, buildBoundarySkeptic, citationContextOf, citationProblem, faultRuleProblem, verdictContradiction, type BoundaryVerdict } from "@/lib/prompts/boundary-skeptic";
 import { TiebreakSchema, buildBoundaryTiebreak, tiebreakLayoutLine, type TiebreakSide, type TiebreakVerdict } from "@/lib/prompts/boundary-tiebreak";
 import {
   DENSE_COLS,
@@ -163,14 +163,14 @@ function fakeLlm(script: Script = {}) {
       data = { options_seen: seen, chosen_key: dp?.key, chosen_t: dp?.t, ends_on: "A close-up.", opens_on: "A wide shot.", why: "Fake: the DP pick.", rejected: "Fake: the other option cuts mid-action.", payoff_in_episode: true, confidence: 0.8, ...extra };
     } else if (call.name === "verify_boundaries_verify") {
       const extra = typeof script.verdict === "function" ? script.verdict(b) : script.verdict ?? {};
-      data = { chosen_strip_shows: "Fake: a close-up, then a wide shot.", agree: true, fault: null, fault_image: null, fault_tile_t: null, fault_tile_shows: null, better_key: null, better_t: null, reason: "Fake: the pick holds.", ...extra };
+      data = { chosen_strip_shows: "Fake: a close-up, then a wide shot.", chosen_caption_across_cut: false, chosen_card_or_flare: "none", chosen_action_across_cut: null, agree: true, fault: null, fault_rule: null, fault_image: null, fault_tile_t: null, fault_tile_shows: null, better_key: null, better_t: null, reason: "Fake: the pick holds.", ...extra };
     } else if (call.name === "verify_boundaries_tiebreak") {
       const want = typeof script.tiebreak === "function" ? script.tiebreak(b) : script.tiebreak ?? null;
       const aT = Number(call.user.match(/^CUT A at (\d+(?:\.\d+)?)s/m)?.[1]);
       const bT = Number(call.user.match(/^CUT B at (\d+(?:\.\d+)?)s/m)?.[1]);
       const winner = want === "neither" ? "neither" : want === null ? "A" : Math.abs(want - aT) <= 0.0015 ? "A" : Math.abs(want - bT) <= 0.0015 ? "B" : "neither";
-      // The losing side's fault tile is its own cut tile (a tile of its option strip and of its dense strip); both for "neither".
-      data = { a_shows: "Fake: cut A's frames.", b_shows: "Fake: cut B's frames.", a_fault_tile_t: winner === "A" ? null : aT, b_fault_tile_t: winner === "B" ? null : bT, winner, evidence_image: null, evidence_tile_t: null, reason: `Fake: ${winner} satisfies the payoff rule.` };
+      // The losing side's fault tile is its own cut tile (a tile of its option strip and of its dense strip), a rule-4 fault; both for "neither"; the winner carries none.
+      data = { a_shows: "Fake: cut A's frames.", b_shows: "Fake: cut B's frames.", a_fault_tile_t: winner === "A" ? null : aT, a_fault_rule: winner === "A" ? null : "4", b_fault_tile_t: winner === "B" ? null : bT, b_fault_rule: winner === "B" ? null : "4", winner, evidence_image: null, evidence_tile_t: null, reason: `Fake: ${winner} satisfies the payoff rule.` };
     } else {
       throw new Error(`fake llm: unexpected call ${call.name}`);
     }
@@ -293,7 +293,7 @@ test("the reviewer prompt is deterministic, carries the standing rules verbatim 
   assert.deepEqual({ system: a.system, user: a.user, images: a.images, name: a.name, model: a.model, provider: a.provider }, { system: b.system, user: b.user, images: b.images, name: b.name, model: b.model, provider: b.provider });
   assert.equal(a.name, "verify_boundaries_look");
   assert.equal(a.prompt_version, BOUNDARY_RULE_VERSION);
-  assert.equal(BOUNDARY_RULE_VERSION, "by-eye-v3", "the calibration fixes changed rules 7-8, the schema descriptions and the reading block: a new rule version, new idempotency keys");
+  assert.equal(BOUNDARY_RULE_VERSION, "by-eye-v4", "the calibration fixes changed rules 7-8, the schema descriptions and the reading block, then the second round changed the skeptic's schema: a new rule version, new idempotency keys");
   const system = a.system.map((s) => s.text).join("\n");
   assert.ok(system.includes(BOUNDARY_RULES), "the standing decisions, word for word");
   assert.ok(system.includes("NEVER cut inside a physical action - mid-punch, mid-throw, mid-fall."));
@@ -358,7 +358,15 @@ test("the reviewer prompt is deterministic, carries the standing rules verbatim 
   assert.match(marked.check(good)!, /opt2 at 433.1s is outside the allowed range 410.533-405s/);
   assert.match(carded.check(good)!, /opt2 at 433.1s is inside the source's own card 433.1-435.1s: the next episode would open on the card \(rule 7\)/);
   assert.equal(carded.check({ ...good, chosen_key: "opt1", chosen_t: 424.433 }), null);
-  assert.equal(a.check({ ...good, chosen_key: "none", chosen_t: 0, confidence: 0 }), null, "a refusal (confidence 0) chooses nothing and is not repaired");
+  // A refusal (confidence 0) chooses nothing, but it must be a real one: every strip was attached, so the why names the image it could not read (the calibration recorded a why of "placeholder" as a refusal).
+  const refused = { ...good, chosen_key: "none", chosen_t: 0, confidence: 0 };
+  assert.equal(a.check({ ...refused, why: "image 2 (opt2) is blank: none of its tiles rendered" }), null, "a refusal that names the unreadable image is not repaired");
+  assert.match(a.check(refused)!, /^confidence 0 is a refusal to judge: every option strip was rendered and attached to this call before it was made, so why must say which image is missing or unreadable/);
+  assert.match(a.check({ ...refused, why: "placeholder" })!, /confidence 0 is a refusal/);
+  assert.match(a.check({ ...refused, why: "I could not decide between the two options here" })!, /confidence 0 is a refusal/, "twenty characters that name no image");
+  assert.match(a.check({ ...refused, why: "image 2 (opt2) is blank: none of its tiles rendered", options_seen: [seen("opt1")] })!, /options_seen must have exactly one entry per option/, "a refusal still covers every option");
+  assert.equal(refusalProblem("opt3's strip is garbled below the first row"), null);
+  assert.match(refusalProblem("n/a")!, /confidence 0 is a refusal/);
   // A pick the reviewer's own options_seen contradicts is refused (the calibration had cap=true chosen at 2429, a real split): a caption across the cut, the card on or after the cut tile, an action across the cut.
   const contradicted = (entry: Partial<OptionSeen>) => ({ ...good, options_seen: [seen("opt1"), { ...seen("opt2"), ...entry }] });
   assert.match(a.check(contradicted({ caption_across_cut: true }))!, /^your own options_seen says opt2 shows the same subtitle line on the last tile before the cut and on the cut tile, a split spoken line \(rule 8\); choose another option or refuse with confidence 0$/);
@@ -369,7 +377,23 @@ test("the reviewer prompt is deterministic, carries the standing rules verbatim 
   assert.equal(a.check(contradicted({ physical_action_across_cut: "none" })), null, '"none" written for null is not an action');
   assert.equal(a.check({ ...good, options_seen: [{ ...seen("opt1"), caption_across_cut: true }, seen("opt2")] }), null, "a fault on another option does not touch the choice");
   assert.equal(selfContradiction({ options_seen: [], chosen_key: "opt2" }), null);
-  assert.equal(a.check({ ...contradicted({ caption_across_cut: true }), confidence: 0 }), null, "refusing with confidence 0 is the way out the message names");
+  assert.equal(a.check({ ...contradicted({ caption_across_cut: true }), confidence: 0, why: "opt2 splits a line and opt1 cuts mid-throw: no option is clean" }), null, "refusing with confidence 0, saying why, is the way out the message names");
+  // Rule 7's target among the options: a chosen option marked before_cut while an EARLIER choosable option is marked the same, clean, is refused (2324.933 chose opt6 two seconds after the card over opt5).
+  const afterCard = (key: string) => ({ ...seen(key), card_or_flare: "before_cut" as const });
+  assert.match(a.check({ ...good, options_seen: [afterCard("opt1"), afterCard("opt2")] })!, /^your own options_seen says opt1 is also after the card and earlier; rule 7's target is the FIRST frame after the card; choose it or explain with confidence 0$/);
+  assert.equal(a.check({ ...good, options_seen: [afterCard("opt1"), afterCard("opt2")], chosen_key: "opt1", chosen_t: 424.433 }), null, "the earliest one is the target");
+  assert.equal(a.check({ ...good, options_seen: [{ ...afterCard("opt1"), caption_across_cut: true }, afterCard("opt2")] }), null, "an earlier option that splits a line is no target");
+  assert.equal(a.check({ ...good, options_seen: [{ ...afterCard("opt1"), physical_action_across_cut: "a slap" }, afterCard("opt2")] }), null);
+  const tightBefore = { prev: 315.533, next: 528.9, ...allowedRange(315.533, 528.9, [95, 150]) };
+  const early = buildBoundaryReview({ ...input, range: { ...tightBefore, lo: 430 } });
+  assert.equal(early.check({ ...good, options_seen: [afterCard("opt1"), afterCard("opt2")] }), null, "an earlier option outside the range cannot be chosen, so it is no target");
+  // The shape of 2324.933: seven options, opt5 and opt6 both marked before_cut, opt6 chosen.
+  const seven = ["opt1", "opt2", "opt3", "opt4", "opt5", "opt6", "opt7"].map((k, i) => ({ key: k, t: 2310 + i * 3 }));
+  const shape = { options_seen: seven.map((o) => (o.key === "opt5" || o.key === "opt6" ? afterCard(o.key) : seen(o.key))), chosen_key: "opt6" };
+  assert.match(selfContradiction(shape, seven)!, /^your own options_seen says opt5 is also after the card and earlier/);
+  assert.equal(selfContradiction({ ...shape, chosen_key: "opt5" }, seven), null);
+  assert.equal(selfContradiction(shape, seven.filter((o) => o.key !== "opt5")), null, "opt5 not choosable (out of range or on a card): opt6 stands");
+  assert.match(selfContradiction(shape)!, /opt5 is also after the card and earlier/, "without the times, option order is time order");
   assert.ok(BoundaryPickSchema.safeParse(good).success);
   assert.deepEqual(Object.keys(BoundaryPickSchema.shape)[0], "options_seen", "what each strip shows is recorded before the choice");
   assert.throws(() => buildBoundaryReview({ ...input, strips: input.strips.slice(1) }), /1 strips for 2 options/);
@@ -418,7 +442,7 @@ test("the skeptic prompt restates the pick, lists only the legal cuts it has see
   assert.ok(system.includes("- does the SAME subtitle line show on the last tile before the cut and on the cut tile (rule 8)? One line ending before the cut and a different line starting after it is not a split."));
   assert.ok(system.includes("A card that ends before the cut, with the cut tile already the next shot, is the target, not a fault."));
   assert.ok(a.user.includes("A fix must be a time you have looked at: a listed option (better_key and its exact t) or a legal cut inside one of the attached images, and it must keep this cut between 4545s and 4585s. If the only fix is a time you have not seen, give no fix - the boundary then goes to a person."));
-  assert.match(a.user, /The other reviewer chose opt1 at 4550.267s\./);
+  assert.match(a.user, /The other reviewer chose opt1 at 4550.267s \(its own strip is image 1; the dense strip is image 3\)\./);
   assert.match(a.user, /They said the episode ends on: Helen's half-smile\./);
   assert.match(a.user, /LEGAL CUTS you have looked at/);
   assert.match(a.user, /4550.267s \(a listed option\)/);
@@ -426,10 +450,14 @@ test("the skeptic prompt restates the pick, lists only the legal cuts it has see
   assert.match(a.user, /DENSE STRIP around 4550.267s - image 3/);
   assert.equal(a.images.length, 3, "two option strips, then the dense strip");
   assert.equal(a.images[2].path, dense.path);
-  assert.deepEqual(Object.keys(BoundaryVerdictSchema.shape)[0], "chosen_strip_shows", "what the chosen strip shows is recorded before the verdict");
+  assert.deepEqual(Object.keys(BoundaryVerdictSchema.shape).slice(0, 5), ["chosen_strip_shows", "chosen_caption_across_cut", "chosen_card_or_flare", "chosen_action_across_cut", "agree"], "what the chosen strip shows, and what its own images say for rules 8, 7 and 2, are recorded before the verdict");
+  assert.match(a.user, /The other reviewer chose opt1 at 4550.267s \(its own strip is image 1; the dense strip is image 3\)\./);
+  assert.ok(system.includes("A fault names the rule it breaks (fault_rule) and shows on an image of the CHOSEN cut"));
+  assert.ok(system.includes("an observed split caption, a card on or after the cut tile, or an action across the cut is a fault you must dispute, never waive"));
 
-  const agree: BoundaryVerdict = { chosen_strip_shows: "a half-smile, then the hallway", agree: true, fault: null, fault_image: null, fault_tile_t: null, fault_tile_shows: null, better_key: null, better_t: null, reason: "Holds." };
-  const dispute = (extra: Partial<BoundaryVerdict>): BoundaryVerdict => ({ ...agree, agree: false, fault: "Rule 3", fault_image: 2, fault_tile_t: 4569.567, fault_tile_shows: "the slap", better_key: null, better_t: null, reason: "...", ...extra });
+  const agree: BoundaryVerdict = { chosen_strip_shows: "a half-smile, then the hallway", chosen_caption_across_cut: false, chosen_card_or_flare: "none", chosen_action_across_cut: null, agree: true, fault: null, fault_rule: null, fault_image: null, fault_tile_t: null, fault_tile_shows: null, better_key: null, better_t: null, reason: "Holds." };
+  // A fault on the chosen cut's own strip (image 1, opt1 at 4550.267): rule 3, whose tile may lie anywhere on that image.
+  const dispute = (extra: Partial<BoundaryVerdict>): BoundaryVerdict => ({ ...agree, agree: false, fault: "Rule 3", fault_rule: "3", fault_image: 1, fault_tile_t: 4551.267, fault_tile_shows: "the slap still to come", better_key: null, better_t: null, reason: "...", ...extra });
   assert.equal(a.check(agree), null);
   assert.match(a.check({ ...agree, better_t: 4572.067 })!, /you agreed: better_key and better_t must be null/);
   assert.equal(a.check(dispute({ better_key: "opt2", better_t: 4572.067 })), null);
@@ -446,6 +474,35 @@ test("the skeptic prompt restates the pick, lists only the legal cuts it has see
   assert.equal(a.check(dispute({ fault_image: 3, fault_tile_t: 4550.967 })), null, "a dense tile");
   assert.equal(citationProblem({ fault_image: null, fault_tile_t: null }, a.images.map(() => ({ tiles: [] }))), null, "no citation is not a repair; the guard ignores the fault instead");
   assert.ok(BoundaryVerdictSchema.safeParse(agree).success);
+  // The citation must show the CHOSEN cut (2662.667 cited opt1's strip against the chosen opt6) and the tile must carry the rule: rule 7 at or after the cut (3033.867 cited an END tile under the card, rule 7's own target), rule 8 on the last tile before the cut or the cut tile, rules 2 and 4 within 1.5 s.
+  assert.deepEqual(citationContextOf(input.strips, 4550.267, true), { chosen_image: 1, dense_image: 3, cut_t: 4550.267 });
+  assert.deepEqual(citationContextOf(input.strips, 4572.067, false), { chosen_image: 2, dense_image: null, cut_t: 4572.067 });
+  assert.equal(citationContextOf(input.strips, 4560, true), null);
+  assert.match(a.check(dispute({ fault_image: 2, fault_tile_t: 4569.567 }))!, /^fault_image 2 does not show the chosen cut at 4550.267s: a fault must show on the chosen option's own strip \(image 1\) or the dense strip \(image 3\), not on another option's strip, whose cut is another time$/);
+  assert.match(a.check(dispute({ fault_rule: null }))!, /^name fault_rule: the standing decision \(2, 3, 4, 5, 6, 7, 8\) the fault breaks$/);
+  assert.match(a.check(dispute({ fault_rule: "7", fault_tile_t: 4549.767, chosen_card_or_flare: "across_cut" }))!, /^fault_tile_t 4549.767 is an END tile, before the cut at 4550.267s: a rule-7 fault is the card, flare or fade still on the CUT tile, or on a tile after it, so cite a tile at or after the cut\. A card that ends before the cut, with the cut tile already the next shot, is the target: the card belongs at the END of this episode, so a card before the cut is the target, not a fault$/);
+  assert.equal(a.check(dispute({ fault_rule: "7", fault_tile_t: 4550.267, chosen_card_or_flare: "across_cut" })), null, "the card on the cut tile");
+  assert.equal(a.check(dispute({ fault_rule: "7", fault_image: 3, fault_tile_t: 4550.367, chosen_card_or_flare: "across_cut" })), null, "a dense tile after the cut");
+  assert.match(a.check(dispute({ fault_rule: "8", fault_tile_t: 4551.267, chosen_caption_across_cut: true }))!, /^fault_tile_t 4551.267 cannot show a split line: a rule-8 fault is the SAME subtitle line on the last tile before the cut AND on the cut tile, so cite one of those two tiles of that image \(4549.767 or 4550.267\)$/);
+  assert.equal(a.check(dispute({ fault_rule: "8", fault_tile_t: 4549.767, chosen_caption_across_cut: true })), null, "the last tile before the cut");
+  assert.equal(a.check(dispute({ fault_rule: "8", fault_image: 3, fault_tile_t: 4550.167, chosen_caption_across_cut: true })), null, "the dense strip's last tile before the cut");
+  assert.match(a.check(dispute({ fault_rule: "8", fault_image: 3, fault_tile_t: 4549.767, chosen_caption_across_cut: true }))!, /cite one of those two tiles of that image \(4550.167 or 4550.267\)/);
+  assert.match(a.check(dispute({ fault_rule: "2", fault_tile_t: 4552.267, chosen_action_across_cut: "a slap" }))!, /^fault_tile_t 4552.267 is 2 s from the cut at 4550.267s: a rule-2 fault \(a cut inside a physical action\) shows within 1.5 s of the cut$/);
+  assert.match(a.check(dispute({ fault_rule: "4", fault_tile_t: 4548.267 }))!, /a rule-4 fault \(no aftermath after an impact\) shows within 1.5 s of the cut/);
+  assert.equal(a.check(dispute({ fault_rule: "4", fault_tile_t: 4551.767 })), null, "1.5 s away");
+  assert.equal(a.check(dispute({ fault_rule: "5", fault_tile_t: 4552.767 })), null, "rules 3, 5 and 6 have no tile-position rule");
+  assert.equal(faultRuleProblem(null, 1, { tiles: [1] }, 1), null);
+  // The verdict must agree with the skeptic's own chosen_* observations (2541.067 saw the split caption and waived it).
+  assert.match(a.check({ ...agree, chosen_caption_across_cut: true })!, /^your own chosen_caption_across_cut says the same subtitle line shows on the last tile before the chosen cut and on its cut tile, a split spoken line \(rule 8\); set agree=false and cite the tile \(fault_image, fault_tile_t, fault_rule\)$/);
+  assert.match(a.check({ ...agree, chosen_card_or_flare: "across_cut" })!, /your own chosen_card_or_flare says the cut tile still shows the card, flare or fade, so the next episode would open on it \(rule 7\); set agree=false/);
+  assert.match(a.check({ ...agree, chosen_card_or_flare: "after_cut" })!, /your own chosen_card_or_flare says the card shows after the chosen cut, so the cut comes before the source's break and buries the card \(rule 7\); set agree=false/);
+  assert.match(a.check({ ...agree, chosen_action_across_cut: "a punch landing" })!, /your own chosen_action_across_cut says the chosen cut is inside a physical action \(a punch landing; rule 2\); set agree=false/);
+  assert.equal(a.check({ ...agree, chosen_card_or_flare: "before_cut" }), null, "the card ending before the cut is what rule 7 asks for");
+  assert.equal(a.check({ ...agree, chosen_action_across_cut: "none" }), null);
+  assert.match(a.check(dispute({ fault_rule: "8", fault_tile_t: 4550.267 }))!, /^your own chosen_caption_across_cut says no subtitle line runs across the chosen cut, which contradicts a rule-8 fault/);
+  assert.match(a.check(dispute({ fault_rule: "7", fault_tile_t: 4550.267 }))!, /^your own chosen_card_or_flare says no card, flare or fade shows in the chosen cut's images, which contradicts a rule-7 fault/);
+  assert.match(a.check(dispute({ fault_rule: "7", fault_tile_t: 4550.267, chosen_card_or_flare: "before_cut" }))!, /your own chosen_card_or_flare says the card ends before the cut and the cut tile is already the next shot, which is what rule 7 asks for/);
+  assert.equal(verdictContradiction({ agree: false, fault_rule: "3", chosen_caption_across_cut: false, chosen_card_or_flare: "none", chosen_action_across_cut: null }), null);
   // A fix outside the range is refused even when listed; so is one inside the source's card.
   const narrow = buildBoundarySkeptic({ ...base, range: { prev: 4450, next: 4660, ...allowedRange(4450, 4660, [95, 150]) } });
   assert.match(narrow.check(dispute({ better_key: "opt2", better_t: 4572.067 }))!, /opt2 at 4572.067s is outside the allowed range 4545-4565s/);
@@ -471,7 +528,7 @@ test("the tie-break prompt shows both cuts blind, in the order the hash gives, w
   const range = { prev: 4450, next: 4680, ...allowedRange(4450, 4680, [95, 150]) };
   const a = buildBoundaryTiebreak({ boundary: input.boundary, sides, layout: input.layout, band: input.band, range, film_notes: "A card marks the breaks.", provider: "anthropic", model: "claude-sonnet-5" });
   assert.equal(a.name, "verify_boundaries_tiebreak");
-  assert.equal(a.prompt_version, `${BOUNDARY_RULE_VERSION}:tiebreak-v2`, "the fault tiles changed the schema");
+  assert.equal(a.prompt_version, `${BOUNDARY_RULE_VERSION}:tiebreak-v3`, "the fault tiles changed the schema, then the fault rules");
   const system = a.system.map((s) => s.text).join("\n");
   assert.ok(system.includes("You are not told who proposed which, and you are given no reasoning from either side."));
   assert.ok(system.includes(BOUNDARY_RULES));
@@ -483,7 +540,7 @@ test("the tie-break prompt shows both cuts blind, in the order the hash gives, w
   assert.ok(!system.includes("0.1s apart, 10 per row, with the cut at its centre tile"));
   assert.equal(tiebreakLayoutLine([{ key: "dense", t: 10, tiles: stripTiles(10, 2, 0.1), cols: 7, step: 0.1 }], input.layout), "An option strip shows frames 0.5s apart, 6 per row, the cut at tile 6. A DENSE strip shows 21 frames 0.1s apart, 7 per row, the cut at tile 11. Each side's images are listed with their tile times.");
   assert.ok(system.includes("The losing side must carry a fault tile"));
-  assert.ok(system.includes("Pick neither only when both cuts break a rule, each with its fault tile cited."));
+  assert.ok(system.includes("The winner carries none: a cut whose own fault tile you have cited cannot win. Pick neither only when both cuts break a rule, each with its fault tile cited."));
   assert.match(a.user, /^BOUNDARY 4550.267s/);
   assert.match(a.user, /CUT A at 4572.067s \(listed option opt2; motion detector: moving at the cut/);
   assert.match(a.user, /  image 1: option strip, 0.5s steps, cut at tile 6; tiles: 4569.567/);
@@ -496,21 +553,33 @@ test("the tie-break prompt shows both cuts blind, in the order the hash gives, w
   assert.match(carded.user, /CUT A at 4572.067s \(listed option opt2[^\n]+\n  ON THE CARD: 4572.067s is inside the source's own card 4572.067-4574.1s/);
   assert.ok(!/CUT B at 4550.267s[^\n]+\n  ON THE CARD/.test(carded.user));
   assert.equal(a.images.length, 4);
-  assert.deepEqual(Object.keys(TiebreakSchema.shape).slice(0, 5), ["a_shows", "b_shows", "a_fault_tile_t", "b_fault_tile_t", "winner"], "what each side shows and where each breaks a rule are recorded before the verdict");
-  const good: TiebreakVerdict = { a_shows: "x", b_shows: "y", a_fault_tile_t: 4572.067, b_fault_tile_t: null, winner: "B", evidence_image: 3, evidence_tile_t: 4550.267, reason: "r" };
+  assert.deepEqual(Object.keys(TiebreakSchema.shape).slice(0, 7), ["a_shows", "b_shows", "a_fault_tile_t", "a_fault_rule", "b_fault_tile_t", "b_fault_rule", "winner"], "what each side shows, where each breaks a rule and which rule are recorded before the verdict");
+  const good: TiebreakVerdict = { a_shows: "x", b_shows: "y", a_fault_tile_t: 4572.067, a_fault_rule: "4", b_fault_tile_t: null, b_fault_rule: null, winner: "B", evidence_image: 3, evidence_tile_t: 4550.267, reason: "r" };
   assert.equal(a.check(good), null);
   assert.match(a.check({ ...good, a_shows: " " })!, /a_shows and b_shows must each describe/);
   assert.match(a.check({ ...good, evidence_image: 9 })!, /evidence_image 9 is not an attached image \(1-4\)/);
   assert.match(a.check({ ...good, evidence_image: 1, evidence_tile_t: 4550.267 })!, /evidence_tile_t 4550.267 is not a tile of image 1/);
   // The losing side carries a fault tile of its OWN images; "neither" carries one on each side (the calibration's "neither" at 3152.433 cited nothing and handed off the delivered cut).
-  assert.match(a.check({ ...good, a_fault_tile_t: null })!, /^winner B: cite a_fault_tile_t, the tile of cut A's own images where A breaks a rule; if A breaks none, it is not the loser$/);
+  assert.match(a.check({ ...good, a_fault_tile_t: null, a_fault_rule: null })!, /^winner B: cite a_fault_tile_t, the tile of cut A's own images where A breaks a rule; if A breaks none, it is not the loser$/);
   assert.match(a.check({ ...good, a_fault_tile_t: 4550.267 })!, /^a_fault_tile_t 4550.267 is not a tile of cut A's own images \(its tiles: 4569.567..4574.567, 4570.567..4573.567\)$/);
-  assert.match(a.check({ ...good, winner: "A", a_fault_tile_t: null })!, /^winner A: cite b_fault_tile_t/);
-  assert.equal(a.check({ ...good, winner: "A", a_fault_tile_t: null, b_fault_tile_t: 4550.767 }), null, "a dense tile of B's own strip");
-  assert.match(a.check({ ...good, winner: "A", a_fault_tile_t: null, b_fault_tile_t: 4569.567 })!, /b_fault_tile_t 4569.567 is not a tile of cut B's own images/);
+  assert.match(a.check({ ...good, winner: "A", a_fault_tile_t: null, a_fault_rule: null })!, /^winner A: cite b_fault_tile_t/);
+  assert.equal(a.check({ ...good, winner: "A", a_fault_tile_t: null, a_fault_rule: null, b_fault_tile_t: 4550.767, b_fault_rule: "4" }), null, "a dense tile of B's own strip");
+  assert.match(a.check({ ...good, winner: "A", a_fault_tile_t: null, a_fault_rule: null, b_fault_tile_t: 4569.567, b_fault_rule: "4" })!, /b_fault_tile_t 4569.567 is not a tile of cut B's own images/);
   assert.match(a.check({ ...good, winner: "neither", evidence_image: null, evidence_tile_t: null })!, /^neither: cite a_fault_tile_t AND b_fault_tile_t/);
-  assert.equal(a.check({ ...good, winner: "neither", b_fault_tile_t: 4550.267, evidence_image: null, evidence_tile_t: null }), null);
-  assert.equal(a.check({ ...good, a_fault_tile_t: 4573.067, b_fault_tile_t: 4551.267 }), null, "a fault tile on the winning side too is allowed when it is one of its tiles");
+  assert.equal(a.check({ ...good, winner: "neither", b_fault_tile_t: 4550.267, b_fault_rule: "4", evidence_image: null, evidence_tile_t: null }), null);
+  // A winner with its own fault tile cited (2212.567: "Cut B ... splitting a spoken line", winner B, a real rule-8 split applied) is refused: both break a rule, or the winner's tile is cleared.
+  assert.match(a.check({ ...good, a_fault_tile_t: 4573.067, b_fault_tile_t: 4551.267, b_fault_rule: "4" })!, /^winner B but b_fault_tile_t cites B's own rule break; if both cuts break a rule answer neither, else clear the winner's fault tile$/);
+  assert.match(a.check({ ...good, winner: "A", a_fault_tile_t: 4573.067, b_fault_tile_t: 4551.267, b_fault_rule: "4" })!, /^winner A but a_fault_tile_t cites A's own rule break; if both cuts break a rule answer neither, else clear the winner's fault tile$/);
+  assert.equal(a.check({ ...good, winner: "neither", a_fault_tile_t: 4573.067, b_fault_tile_t: 4551.267, b_fault_rule: "4", evidence_image: null, evidence_tile_t: null }), null, "repaired to neither: both cuts break a rule, each with its tile");
+  assert.equal(a.check({ ...good, a_fault_tile_t: 4573.067, b_fault_tile_t: null, b_fault_rule: null }), null, "repaired to B with its tile cleared");
+  // Each fault tile names its rule, and the tile must carry it against that side's cut (2114.267's tie-break called a card on an END tile "buried").
+  assert.match(a.check({ ...good, a_fault_rule: null })!, /^a_fault_tile_t 4572.067 is cited without a_fault_rule: name the standing decision \(2-8\) that tile shows cut A breaking$/);
+  assert.match(a.check({ ...good, a_fault_tile_t: null })!, /^a_fault_rule 4 names a rule cut A breaks but a_fault_tile_t is null; cite the tile of A's own images that shows it, or clear the rule$/);
+  assert.match(a.check({ ...good, a_fault_tile_t: 4571.567, a_fault_rule: "7" })!, /^a_fault_tile_t 4571.567 is an END tile, before the cut at 4572.067s: a rule-7 fault is the card, flare or fade still on the CUT tile/);
+  assert.equal(a.check({ ...good, a_fault_tile_t: 4572.067, a_fault_rule: "7" }), null, "the card on A's cut tile");
+  assert.match(a.check({ ...good, a_fault_tile_t: 4573.567, a_fault_rule: "8" })!, /^a_fault_tile_t 4573.567 cannot show a split line: a rule-8 fault is the SAME subtitle line on the last tile before the cut AND on the cut tile, so cite one of those two tiles of that image \(4571.567 or 4572.067\)$/);
+  assert.equal(a.check({ ...good, a_fault_tile_t: 4571.967, a_fault_rule: "8" }), null, "the dense strip's last tile before A's cut");
+  assert.match(a.check({ ...good, a_fault_tile_t: 4574.567, a_fault_rule: "2" })!, /is 2.5 s from the cut at 4572.067s: a rule-2 fault/);
   assert.throws(() => buildBoundaryTiebreak({ boundary: input.boundary, sides: [sides[0], { ...sides[1], images: [] }], layout: input.layout, band: input.band, film_notes: null, provider: "anthropic", model: "claude-sonnet-5" }), /every side needs at least one image/);
   // The order: a hash of the run, the boundary and the attempt, so a re-run repeats it and another run may differ.
   assert.equal(tiebreakOrder(RUN_ID, 4550.267, 1), tiebreakOrder(RUN_ID, 4550.267, 1));
@@ -553,7 +622,7 @@ test("applyVision: a skeptic with a better time wins, a dispute with no fix reje
 test("judgeBoundaries writes the Workflow output shape, one job row per call, and a re-run pays for nothing", async () => {
   const cut = tempCut();
   const doc = withFillers(await loadOptionsDoc(cut));
-  const fake = fakeLlm({ verdict: (b) => (b === 4550.267 ? { agree: false, fault: "Rule 4: no aftermath", fault_image: 2, fault_tile_t: 4569.567, fault_tile_shows: "the slap", better_key: "opt2", better_t: 4572.067 } : {}), tiebreak: 4572.067 });
+  const fake = fakeLlm({ verdict: (b) => (b === 4550.267 ? { agree: false, fault: "Rule 4: no aftermath", fault_rule: "4", fault_image: 1, fault_tile_t: 4550.267, fault_tile_shows: "the slap", better_key: "opt2", better_t: 4572.067 } : {}), tiebreak: 4572.067 });
   const seen: number[] = [];
   const r = await judgeBoundaries({ id: RUN_ID, cut_dir: cut, film_notes: null }, doc, { label: "0-end", llm: fake.llm, concurrency: 3, boundaries: [424.433, 4550.267], onBoundary: (rec_, done, total) => seen.push(done * 100 + total) });
   assert.ok(!isUnavailable(r));
@@ -637,7 +706,7 @@ test("judgeBoundaries returns unavailable without a call when no vision provider
 test("judgeBoundaries keeps a failed boundary out of the result and skips the skeptic for a reviewer that refused", async () => {
   const cut = tempCut();
   const doc = await loadOptionsDoc(cut);
-  const fake = fakeLlm({ fail: [424.433], pick: (b) => (b === 4550.267 ? { confidence: 0, chosen_key: "none", chosen_t: 0, why: "strip unreadable" } : {}) });
+  const fake = fakeLlm({ fail: [424.433], pick: (b) => (b === 4550.267 ? { confidence: 0, chosen_key: "none", chosen_t: 0, why: "image 1 (opt1) is unreadable: its tiles are blank" } : {}) });
   const r = await judgeBoundaries({ id: RUN_ID, cut_dir: cut }, doc, { label: "partial", llm: fake.llm });
   assert.ok(!isUnavailable(r));
   assert.deepEqual(r.errors.map((e) => e.boundary_s), [424.433]);
@@ -648,7 +717,7 @@ test("judgeBoundaries keeps a failed boundary out of the result and skips the sk
   const file = readJson(r.file);
   assert.deepEqual(file.logs, ["1 boundaries judged by eye", "424.433s: Error: fake refusal at 424.433"]);
   const applied = applyVision(file.result);
-  assert.match(applied.faults[0], /4550.267s: reviewer refused or returned nothing - strip unreadable/);
+  assert.match(applied.faults[0], /4550.267s: reviewer refused or returned nothing - image 1 \(opt1\) is unreadable/);
   // The failed boundary's job row is failed, not done: a re-run calls it again.
   const before = fake.calls.length;
   const again = await judgeBoundaries({ id: RUN_ID, cut_dir: cut }, doc, { label: "partial", llm: fakeLlm().llm });
@@ -697,7 +766,7 @@ test("the real apply_vision.py accepts the file (skipped when the drama-remix ch
   }
   const cut = tempCut();
   const doc = withFillers(await loadOptionsDoc(cut));
-  const fake = fakeLlm({ verdict: (b) => (b === 4550.267 ? { agree: false, fault: "Rule 4", fault_image: 2, fault_tile_t: 4569.567, fault_tile_shows: "the slap", better_key: "opt2", better_t: 4572.067 } : {}), tiebreak: 4572.067 });
+  const fake = fakeLlm({ verdict: (b) => (b === 4550.267 ? { agree: false, fault: "Rule 4", fault_rule: "4", fault_image: 1, fault_tile_t: 4550.267, fault_tile_shows: "the slap", better_key: "opt2", better_t: 4572.067 } : {}), tiebreak: 4572.067 });
   const r = await judgeBoundaries({ id: RUN_ID, cut_dir: cut }, doc, { label: "0-end", llm: fake.llm, boundaries: [424.433, 4550.267] });
   assert.ok(!isUnavailable(r));
   const run = spawnSync(pipelinePython(), [script, "--from", "review/vision/0-end.json", "--label", "0-end"], { cwd: cut, encoding: "utf8", env: { ...process.env, PYTHONIOENCODING: "utf-8" } });
@@ -708,7 +777,7 @@ test("the real apply_vision.py accepts the file (skipped when the drama-remix ch
   assert.equal(stamped.applied.label, "0-end");
 
   // A dispute with no fix: exit 1, choices.json not written (the previous one moved aside).
-  const fake2 = fakeLlm({ verdict: (b) => (b === 424.433 ? { agree: false, fault: "Rule 3: the payoff lands in the next episode", fault_image: 1, fault_tile_t: 424.933, fault_tile_shows: "the reaction" } : {}) });
+  const fake2 = fakeLlm({ verdict: (b) => (b === 424.433 ? { agree: false, fault: "Rule 3: the payoff lands in the next episode", fault_rule: "3", fault_image: 1, fault_tile_t: 424.933, fault_tile_shows: "the reaction" } : {}) });
   const r2 = await judgeBoundaries({ id: RUN_ID, cut_dir: cut, film_notes: null }, doc, { label: "dispute", llm: fake2.llm, attempt: 2, allow_applied: true, boundaries: [424.433, 4550.267] });
   assert.ok(!isUnavailable(r2));
   const run2 = spawnSync(pipelinePython(), [script, "--from", "review/vision/dispute.json", "--label", "dispute"], { cwd: cut, encoding: "utf8", env: { ...process.env, PYTHONIOENCODING: "utf-8" } });

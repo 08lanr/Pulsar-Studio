@@ -154,6 +154,18 @@ export function titleFromSlug(slug: string): string {
 
 export type CardReason = "low_confidence" | "skeptic" | "skeptic_unverified" | "fault" | "no_record" | "rejudged" | "rejudging" | "band";
 
+/** The guard's note on the record's verdict (lib/segment/vision VerdictGuard): what became of the skeptic's answer, the rule that stopped a fix (or `check`, the reviewer's own answer failing its check twice), the skeptic's time. */
+export type CardGuard = { outcome: string; rule: string | null; detail: string; better_t: number | null };
+
+/** The guard note off a record's verdict, read without the server's schema (the screen bundle stays light); null when the verdict carries none. */
+export function guardOf(verdict: unknown): CardGuard | null {
+  const raw = verdict && typeof verdict === "object" ? (verdict as { guard?: unknown }).guard : null;
+  if (!raw || typeof raw !== "object") return null;
+  const g = raw as Record<string, unknown>;
+  if (typeof g.outcome !== "string") return null;
+  return { outcome: g.outcome, rule: typeof g.rule === "string" ? g.rule : null, detail: typeof g.detail === "string" ? g.detail : "", better_t: typeof g.better_t === "number" ? g.better_t : null };
+}
+
 export type ReviewCard = {
   key: string;
   boundary_s: number;
@@ -165,6 +177,8 @@ export type ReviewCard = {
   skeptic_override: boolean;
   /** What apply_vision would apply for the record, or null with the fault. */
   applied: { t: number; source: "reviewer" | "skeptic" } | { t: null; fault: string } | null;
+  /** The guard's note on the verdict: the rule that stopped the skeptic's fix, or the check the reviewer's answer failed. */
+  guard: CardGuard | null;
   reasons: CardReason[];
   /** A person must look: the server says `needs_decision` or `rejudging`. */
   required: boolean;
@@ -197,6 +211,7 @@ export function buildCards(review: ReviewLike): ReviewCard[] {
       confidence: b.confidence,
       skeptic_override: !!b.record?.verdict && b.record.verdict.agree === false,
       applied,
+      guard: guardOf(b.record?.verdict ?? null),
       reasons,
       required: b.status === "needs_decision" || b.status === "rejudging",
       settled: b.status === "decided",
