@@ -91,6 +91,8 @@ export type LensPassSpec = {
   /** The run's work folder (STUDIO_WORK_DIR/<run>): crops and copies. */
   work_dir: string;
   workflow_file: string;
+  /** The SHA-256 the sync recorded for the workflow file: the shim refuses to compile other bytes. */
+  workflow_sha256?: string;
   workflow_name: string;
   recorder: PictureRecorder;
   kind: PictureJobKind;
@@ -215,6 +217,7 @@ export async function runLensPass(spec: LensPassSpec): Promise<LensPassResult | 
   const r = await runWorkflow({
     file: spec.workflow_file,
     expect_name: spec.workflow_name,
+    ...(spec.workflow_sha256 ? { expect_sha256: spec.workflow_sha256 } : {}),
     args: { premise: spec.premise, items: spec.items },
     images: (p) => attachments.get(p) ?? null,
     image_paths: [...attachments.keys()],
@@ -325,6 +328,8 @@ export type FramePassOptions = PassDeps & {
   scripts_dir?: string;
   /** The synced workflow (`<scripts>/frame_verify.workflow.js`). */
   workflow_file?: string;
+  /** Its SHA-256 as the sync recorded it (the shim refuses other bytes). */
+  workflow_sha256?: string;
 };
 
 export type FramePassResult = LensPassResult & {
@@ -354,6 +359,7 @@ export async function runFramePass(opts: FramePassOptions): Promise<FramePassRes
     run_id: opts.run_id,
     work_dir: opts.work_dir,
     workflow_file: opts.workflow_file ?? path.join(scripts, "frame_verify.workflow.js"),
+    workflow_sha256: opts.workflow_sha256,
     workflow_name: "frame-verify",
     recorder: "frame_claims",
     kind: PICTURE_JOB_KINDS.frame_verify,

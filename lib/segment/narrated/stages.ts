@@ -35,14 +35,14 @@
 // episode's row.
 
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync, appendFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, utimesSync, writeFileSync, appendFileSync } from "node:fs";
 import path from "node:path";
 import { CHILD_ENV_ALLOWED, claudeLauncher, writingSlotHolder, type ClaudeLauncher, type SessionOutcome } from "@/lib/claude-session";
 import type { RunEpisodeStageInput } from "@/lib/data";
 import { LockHeldError, studioRunLock, type Held, type StudioRunLock } from "@/lib/locks";
 import { dramaRemixRoot, gitBashPath, pipelinePython, runBashScript, runProcess, runPython, type RunResult } from "@/lib/python";
 import { resolveNarratedSettings, type NarratedSettings } from "@/lib/segment/settings";
-import { syncSkipThrough, type SyncResult } from "@/lib/segment/scripts-sync";
+import { readSyncRecord, syncSkipThrough, verifySyncedScripts, type SyncResult } from "@/lib/segment/scripts-sync";
 import type { FilmRun, FilmRunDecision, FilmRunEpisode, FilmRunStage, Json } from "@/lib/types";
 import { RunCancelled, heavyLockRootFor, readJson, tailLines, type Env, type StageContext, type StageDetail, type StageOutcome, type WaitFor } from "../stages";
 
@@ -68,7 +68,8 @@ export const NARRATED_RUN_STAGES: readonly FilmRunStage[] = ["intake", "index", 
  *   episode ep    {action: approve | send_back | drop, to_stage?}, `why` the note
  *   film_meta     the season's titles and slug (no licence gate: amendment 5)
  *   import_now    import the delivered episodes
- *   retry         run the failed stage (or, with `ep`, the episode's refused step) again, unchanged
+ *   retry         run the failed stage (or, with `ep`, the episode's refused step) again, unchanged;
+ *                 {accept_index: true} after a prep's W-id refusal takes the whisper rows as they now are
  */
 export const NARRATED_DECISION = {
   intake: "intake",
@@ -399,6 +400,23 @@ export async function runFilmStep(ctx: NarratedContext, step: FilmStep): Promise
   return r;
 }
 
+/**
+ * Why nothing may run from the film's synced scripts now, or null: the copy
+ * no longer matches the SHA-256 per file its sync recorded (a writing session
+ * edited, added or removed a file under scripts/). Asked before every picture
+ * pass (its `*.workflow.js` is compiled in Studio's own process), before the
+ * draft checks, the voice render and build_ep.sh, and at the hand-off; the
+ * refusal names the files and how to put them back.
+ */
+export function scriptsDriftRefusal(ctx: Pick<NarratedContext, "paths">): string | null {
+  const drift = verifySyncedScripts(ctx.paths.film);
+  if (!drift) return null;
+  const record = readSyncRecord(ctx.paths.film);
+  const sha = record?.sha ?? "(no record)";
+  const parts = [drift.changed.length ? `changed ${drift.changed.slice(0, 8).join(", ")}${drift.changed.length > 8 ? ", …" : ""}` : "", drift.added.length ? `added ${drift.added.slice(0, 8).join(", ")}${drift.added.length > 8 ? ", …" : ""}` : "", drift.missing.length ? `missing ${drift.missing.slice(0, 8).join(", ")}${drift.missing.length > 8 ? ", …" : ""}` : ""].filter(Boolean);
+  return `SCRIPTS DRIFTED: the pipeline copy in scripts/ is not what Studio synced from drama-remix @ ${sha.slice(0, 12)} (.studio-scripts.json): ${parts.join("; ")}. Every check, recorder, build and picture pass would run the changed copy, so nothing runs from it. Put the synced files back (for each: git -C <drama-remix> show ${sha}:scripts/skip-through/<file> > scripts/<file>; delete an added one), then Retry.`;
+}
+
 /** The skip-through scripts that call TypeSafe Jev (jev.py): one `jev_check` job row per run of one, cost null until jev.py logs usage. */
 export const JEV_SCRIPTS = ["narr_lint.py", "scene_audit.py", "continuity.py", "ledger_check.py", "preflight.py"] as const;
 
@@ -596,7 +614,20 @@ export type WritingResult =
  * worker restart mid-session RESUMES by id ("running" with an id means the
  * process died with the worker) and a usage limit waits until it resets.
  */
-export async function runWritingSession(ctx: NarratedContext, spec: WritingSpec, opts: { handoff: boolean; progress: (record: SessionRecord, progress: Json) => Promise<void> }): Promise<WritingResult> {
+export async function runWritingSession(
+  ctx: NarratedContext,
+  spec: WritingSpec,
+  opts: {
+    handoff: boolean;
+    progress: (record: SessionRecord, progress: Json) => Promise<void>;
+    /**
+     * Called once a session is really about to run: Studio's own after the machine's writing slot was found free (never
+     * before a busy wait), or the person's when the hand-off is handed over (their session runs after it and nothing
+     * else would see the project before it). What a step compares "before the session" against is taken here.
+     */
+    onStart?: () => void | Promise<void>;
+  }
+): Promise<WritingResult> {
   const now = () => new Date().toISOString();
   const prev = spec.previous;
   // A note (a send-back, an edit, a refusal to fix) that a session never finished — the slot was busy, a limit or an
@@ -609,7 +640,8 @@ export async function runWritingSession(ctx: NarratedContext, spec: WritingSpec,
   if (!existsSync(spec.brief.path) || readFileSync(spec.brief.path, "utf8") !== fileText) writeFileSync(spec.brief.path, fileText, "utf8");
 
   if (opts.handoff) {
-    const record: SessionRecord = { ...(prev ?? { session_id: null, transport: null, log_file: null, started_at: now(), ended_at: null, resumes: 0 }), status: "running", brief_path: spec.brief.path, brief_sha: spec.brief.sha, message: "run it yourself", continuation: note } as SessionRecord;
+    await opts.onStart?.();
+    const record: SessionRecord ={ ...(prev ?? { session_id: null, transport: null, log_file: null, started_at: now(), ended_at: null, resumes: 0 }), status: "running", brief_path: spec.brief.path, brief_sha: spec.brief.sha, message: "run it yourself", continuation: note } as SessionRecord;
     return {
       kind: "wait",
       for: "handoff",
@@ -644,6 +676,7 @@ export async function runWritingSession(ctx: NarratedContext, spec: WritingSpec,
     const message = `another writing session holds the machine's slot: ${holder.what} (${holder.run_id ?? holder.owner}, since ${holder.started_at})`;
     return { kind: "wait", for: "session", record: { ...(prev ?? started), status: "busy", message, continuation: note }, detail: { session_problem: message }, retryMs: 60_000 };
   }
+  await opts.onStart?.();
   await opts.progress(started, null).catch(() => undefined);
 
   const job = await ctx.data.recordJob(ctx.session, {
@@ -718,7 +751,9 @@ export async function runWritingSession(ctx: NarratedContext, spec: WritingSpec,
 /** Every file under the film root with its mtime and size (the heavy media folders skipped; junctions not followed). */
 export type MtimeSnapshot = Record<string, { mtime_ms: number; size: number }>;
 
-const SNAPSHOT_SKIP = new Set(["source", "scripts", "node_modules", ".git", "__pycache__", "stems", "pieces", "clean_evidence", "variants", "frames", "joins", "sheets", "narration", "audition"]);
+// `scripts` is walked (about a hundred small files): a session that edits the synced pipeline copy is a write outside its
+// files like any other, flagged on the review (and `verifySyncedScripts` refuses the copy before anything runs from it).
+const SNAPSHOT_SKIP = new Set(["source", "node_modules", ".git", "__pycache__", "stems", "pieces", "clean_evidence", "variants", "frames", "joins", "sheets", "narration", "audition"]);
 
 export function snapshotMtimes(root: string): MtimeSnapshot {
   const out: MtimeSnapshot = {};
@@ -792,9 +827,20 @@ export async function withFilmLock<T>(ctx: Pick<NarratedContext, "paths" | "beat
       await new Promise((r) => setTimeout(r, opts.pollMs ?? 3000));
     }
   }
+  // A live hold keeps the directory fresh, so the thirty-minute rule above never takes a long hold (the build's) for a dead one.
+  const touch = setInterval(() => {
+    try {
+      const t = new Date();
+      utimesSync(dir, t, t);
+    } catch {
+      // gone: the finally below has nothing to remove either
+    }
+  }, 60_000);
+  touch.unref?.();
   try {
     return await fn();
   } finally {
+    clearInterval(touch);
     rmSync(dir, { recursive: true, force: true });
   }
 }

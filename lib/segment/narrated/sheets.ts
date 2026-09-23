@@ -16,7 +16,7 @@ import path from "node:path";
 import type { Json } from "@/lib/types";
 import { fail, next, type StageOutcome } from "../stages";
 import { flattenSheetRead, listMinuteSheets, sheetGroups, sheetReadFileName, type SheetEntry } from "./picture/sheets";
-import { dataOf, NARRATED_DECISION, narratedWait, pendingRunDecisions, writeProjectFile, type NarratedContext } from "./stages";
+import { dataOf, NARRATED_DECISION, narratedWait, pendingRunDecisions, scriptsDriftRefusal, writeProjectFile, type NarratedContext } from "./stages";
 
 /** The minutes the existing `index/sheet_read_<a>_<b>.json` files cover (by their names). */
 export function coveredMinutes(indexDir: string): Set<number> {
@@ -81,6 +81,9 @@ export async function runSheetsStage(ctx: NarratedContext): Promise<StageOutcome
   }
 
   if (ctx.settings.vision === "api" && ctx.readers) {
+    // The pass compiles the film's sheet_read.workflow.js in Studio's own process: never a copy that no longer matches its sync.
+    const drift = scriptsDriftRefusal(ctx);
+    if (drift) return narratedWait("sheets", { sheets: { error: drift } as unknown as Json });
     await ctx.progress({ progress: { step: "sheet_read", minutes: sheets.length } }, { force: true });
     const r = await ctx.readers.sheets(ctx);
     if (r.status === "done") return next("script_raw", { sheets: { minutes: sheets.length, ...r.detail, via: "api" }, decisions_seen: ctx.run.decisions.length });

@@ -15,7 +15,9 @@
 // folder — with the record at `<film>/.studio-scripts.json`. That folder has
 // no `.route` file yet (checks.py reads a missing one as skip-through), and
 // its record carries a SHA-256 per file: the prep brief Studio fills is READ
-// from the synced PREP-BRIEF.md, and the brief's sha names the text it came from.
+// from the synced PREP-BRIEF.md, and the brief's sha names the text it came from;
+// `verifySyncedScripts` re-hashes the copy against it before Studio runs or
+// compiles anything from it (a writing session can write there).
 //
 // A dirty working tree (`git status --porcelain` lists anything) is refused
 // unless the run's settings say `allow_dirty`: a session edited a script and
@@ -191,6 +193,48 @@ export function readSyncRecord(filmCutDir: string): SyncRecord | null {
   } catch {
     return null;
   }
+}
+
+/** How a synced copy differs from its record: changed (hash), added (not in the record), missing. Each sorted. */
+export type ScriptsDrift = { changed: string[]; added: string[]; missing: string[] };
+
+/**
+ * Re-hash every file of a skip-through copy against the SHA-256 its sync
+ * recorded (`.studio-scripts.json` `file_sha256`), and list any file the
+ * record does not name (a module dropped beside the scripts shadows an
+ * import: the scripts' folder is first on their sys.path). A writing session
+ * runs in the film folder with Bash and could "fix" a noisy check by editing
+ * the copy; every later check, recorder, build and the `*.workflow.js` Studio
+ * compiles in its own process read that copy. Null when it matches; a record
+ * with no per-file hashes (or none at all) is a drift of everything, since
+ * nothing says what the copy should be.
+ */
+export function verifySyncedScripts(filmDir: string): ScriptsDrift | null {
+  const record = readSyncRecord(filmDir);
+  const scriptsDir = path.join(filmDir, "scripts");
+  let have: string[] = [];
+  try {
+    have = listSyncFiles(scriptsDir);
+  } catch {
+    have = [];
+  }
+  const hashes = record?.file_sha256;
+  if (!record || !hashes || typeof hashes !== "object") return { changed: [], added: have, missing: record?.files ?? [] };
+  const changed: string[] = [];
+  const missing: string[] = [];
+  for (const [rel, sha] of Object.entries(hashes)) {
+    let now: string | null = null;
+    try {
+      now = createHash("sha256").update(readFileSync(path.join(scriptsDir, ...rel.split("/")))).digest("hex");
+    } catch {
+      now = null;
+    }
+    if (now === null) missing.push(rel);
+    else if (now !== sha) changed.push(rel);
+  }
+  const added = have.filter((rel) => !(rel in hashes));
+  if (!changed.length && !added.length && !missing.length) return null;
+  return { changed: changed.sort(), added: added.sort(), missing: missing.sort() };
 }
 
 /** Tests: remove a synced copy. */

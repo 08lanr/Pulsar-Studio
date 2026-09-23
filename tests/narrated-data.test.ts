@@ -73,7 +73,7 @@ test("a narrated run is created in the high-quality bucket only, with its N2 set
   assert.throws(() => filmRunRow({ producer_id: "p", source_path: "/x.mp4", bucket: "low-quality", slug: "x", mode: "by_eye_2min", settings: { band: [150, 95] } }));
 });
 
-test("the narrated settings resolve with N2's defaults, and the newest intake answer folds over the row key by key", () => {
+test("the narrated settings resolve with N2's defaults, and an intake answer folds over the row key by key", () => {
   const run = { settings: validateFilmRunSettings({ season: { ...season, prior_projects: ["lbl-e03", "lbl-e04"] }, tts_char_budget: 12_000 }), decisions: [] as FilmRun["decisions"] };
   const s = resolveNarratedSettings(run);
   assert.equal(s.vision, "handoff", "readers stay a hand-off until the N8 bar passes");
@@ -99,6 +99,35 @@ test("the narrated settings resolve with N2's defaults, and the newest intake an
   assert.equal(sourceLabelOf("C:/Downloads/Love.Between.Lines.S01E05.1080p.mp4"), "S01E05");
   assert.equal(sourceLabelOf("C:/Downloads/s1e5.mp4"), "S01E05");
   assert.equal(sourceLabelOf("C:/Downloads/film.mp4"), null);
+});
+
+test("every intake answer folds, oldest first: a later raised budget keeps the season, the premise and the brief an earlier answer gave", () => {
+  const run = { settings: validateFilmRunSettings({ tts_char_budget: 12_000 }), decisions: [] as FilmRun["decisions"] };
+  const intake = (settings: Record<string, unknown>, by = "ruobin") => decisionRow({ action: "intake", boundary_s: null, data: { settings } as never }, by);
+  const first = intake({ sheet_premise: "the cast", narrator: "Hu Xiu", season: { ...season, title_source_ref: "love-between-lines" }, brief: { names: "Hu Xiu, Boss Yu" } });
+  // The voice lane later asks for a raised budget; an invalid answer in between is skipped, not a reason to drop the rest.
+  const invalid = intake({ creative: "robot" });
+  const raised = intake({ tts_char_budget: 30_000 });
+  const s = resolveNarratedSettings({ ...run, decisions: [first, invalid, raised] });
+  assert.equal(s.tts_char_budget, 30_000, "the newest budget wins");
+  assert.equal(s.sheet_premise, "the cast");
+  assert.equal(s.narrator, "Hu Xiu");
+  assert.equal(s.season.series_key, "love-between-lines");
+  assert.equal(s.season.first_episode_n, 36);
+  assert.equal(s.season.title_source_ref, "love-between-lines", "the import still goes into the season's title");
+  assert.equal(s.brief.names, "Hu Xiu, Boss Yu", "the brief keeps the names, not the committed defaults");
+  assert.equal(s.creative, "session", "the invalid answer folded nothing");
+
+  // The missing keys answered in two decisions: the second does not drop the first. A season answer may carry only the
+  // number the intake asked for, over the season an earlier answer (or the row) gave.
+  const renumbered = intake({ season: { first_episode_n: 40 } });
+  const s2 = resolveNarratedSettings({ ...run, decisions: [first, raised, renumbered] });
+  assert.equal(s2.season.first_episode_n, 40);
+  assert.equal(s2.season.series_key, "love-between-lines");
+  assert.deepEqual(s2.season.prior_projects, ["lbl-e04"]);
+  assert.equal(s2.sheet_premise, "the cast");
+  assert.deepEqual(intakePatch([first, raised, renumbered]).season, { ...season, title_source_ref: "love-between-lines", first_episode_n: 40 });
+  assert.deepEqual(intakePatch([intake({ season: { first_episode_n: 40 } })]), {}, "a season number alone, with no season anywhere, is invalid and folds nothing");
 });
 
 test("a decision can name its episode; anything but a season number is refused", () => {

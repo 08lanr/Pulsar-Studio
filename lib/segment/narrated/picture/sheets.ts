@@ -124,6 +124,8 @@ export type SheetPassOptions = PassDeps & {
   out_file?: string;
   scripts_dir?: string;
   workflow_file?: string;
+  /** Its SHA-256 as the sync recorded it (the shim refuses other bytes). */
+  workflow_sha256?: string;
 };
 
 export type SheetPassResult = {
@@ -200,6 +202,7 @@ export async function runSheetPass(opts: SheetPassOptions): Promise<SheetPassRes
   const r = await runWorkflow({
     file: opts.workflow_file ?? path.join(scripts, "sheet_read.workflow.js"),
     expect_name: "sheet-read",
+    ...(opts.workflow_sha256 ? { expect_sha256: opts.workflow_sha256 } : {}),
     args: { premise, groups },
     images: (p) => attachments.get(p) ?? null,
     image_paths: [...attachments.keys()],

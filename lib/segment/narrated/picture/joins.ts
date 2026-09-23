@@ -64,6 +64,8 @@ export type JoinPassOptions = PassDeps & {
   record?: boolean;
   scripts_dir?: string;
   workflow_file?: string;
+  /** Its SHA-256 as the sync recorded it (the shim refuses other bytes). */
+  workflow_sha256?: string;
 };
 
 export type JoinPassResult = LensPassResult & {
@@ -92,6 +94,7 @@ export async function runJoinPass(opts: JoinPassOptions): Promise<JoinPassResult
     run_id: opts.run_id,
     work_dir: opts.work_dir,
     workflow_file: opts.workflow_file ?? path.join(scripts, "cut_verify.workflow.js"),
+    workflow_sha256: opts.workflow_sha256,
     workflow_name: "cut-verify",
     recorder: "cut_joins",
     kind: PICTURE_JOB_KINDS.cut_verify,

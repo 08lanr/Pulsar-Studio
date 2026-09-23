@@ -8,7 +8,10 @@
 // 46-50, so Studio refuses to build N before N-1 has shipped — a Studio
 // episode of this run, or the prior project's through its junction). Under
 // the heavy lock: `bash scripts/build_ep.sh N v<next>`, always a fresh K
-// (assemble_v rewrites a variant in place with no .part). Its stop lines are
+// (assemble_v rewrites a variant in place with no .part), with the film's
+// `.lock` held (its make_ep and checks read the shared index files a prep
+// agent edits under that lock) and only from a copy of the scripts that still
+// matches its sync record. Its stop lines are
 // the refusal, verbatim; its five Jev scripts are one `jev_check` row. The
 // gate's counts and the two files' SHA-256 go on the row.
 //
@@ -58,6 +61,8 @@ import {
   pendingEpisodeDecision,
   prepApprovalOf,
   runFilmStep,
+  scriptsDriftRefusal,
+  withFilmLock,
   type EpisodePatch,
   type EpisodeStepOutcome,
   type EpisodeWaitFor,
@@ -88,6 +93,11 @@ export async function runBuildStep(ctx: NarratedContext, ep: FilmRunEpisode, all
   if (ep.words_stage !== "ready" || ep.picture_stage !== "ready") return { kind: "moved", patch: { stage: "lanes" }, note: `ep${ep.n} is not ready to build (words ${ep.words_stage}, picture ${ep.picture_stage})` };
   const order = orderingRefusal(ep, all, ctx.paths.film);
   if (order) return { kind: "wait", for: "order", patch: { stage_detail: { ...d, order } } };
+  // A refusal consumes the decisions it was run with: its lane waits for a Retry, and a Retry left unconsumed would wake it
+  // again at once, rebuilding for ever (or, for an instant refusal, spinning).
+  const consumed = { decisions_seen: ctx.run.decisions.length };
+  const drift = scriptsDriftRefusal(ctx);
+  if (drift) return { kind: "refused", error: drift, patch: { stage_detail: { ...d, ...consumed } } };
   const epFolder = path.join(ctx.paths.film, epDir(ep.n));
   const k = (newestVariant(epFolder)?.k ?? 0) + 1;
   const variant = `v${k}`;
@@ -102,7 +112,11 @@ export async function runBuildStep(ctx: NarratedContext, ep: FilmRunEpisode, all
       input: { via: "build_ep.sh", ep: ep.n, variant, scripts: [...JEV_SCRIPTS], metered: false } as Json,
     });
     const started = Date.now();
-    const r = await runFilmStep(ctx, { script: "build_ep.sh", args: [String(ep.n), variant], what: `build ep${ep.n} ${variant}`, interpreter: "bash", keys: ["TYPESAFE_API_KEY"], timeoutMs: 60 * 60 * 1000, onLine: (_s, line) => lines.push(line) });
+    // Under the film's `.lock` (the shared-index rule): build_ep.sh starts with `make_ep.py --no-cut`, which reads
+    // index/whisper.json, captions_zh.json and anchors.json, and its checks read them after it, while another episode's prep
+    // session may be in the middle of a read-modify-write of those files under that lock. The hold is kept fresh while the
+    // build runs, so no one's thirty-minute rule takes it for a dead one; a prep agent waits for it as it waits for any holder.
+    const r = await withFilmLock(ctx, () => runFilmStep(ctx, { script: "build_ep.sh", args: [String(ep.n), variant], what: `build ep${ep.n} ${variant}`, interpreter: "bash", keys: ["TYPESAFE_API_KEY"], timeoutMs: 60 * 60 * 1000, onLine: (_s, line) => lines.push(line) }));
     await ctx.data.finishJob(ctx.session, job.id, { status: "done", cost_cents: null, output: { exit: r.code, unmetered: true } as Json }).catch(() => undefined);
     const variantDir = path.join(epFolder, "variants", variant);
     const gate = readGate(variantDir, ep.n);
@@ -121,12 +135,12 @@ export async function runBuildStep(ctx: NarratedContext, ep: FilmRunEpisode, all
           note: `ep${ep.n}: build_ep.sh says the picture is stale; the picture lane runs again before the build`,
         };
       }
-      return { kind: "refused", error: refusal, patch: { variant: existsSync(variantDir) ? variant : ep.variant, gate: gate?.counts ?? null, stage_detail: { ...d, build: buildDetail as unknown as Json } } };
+      return { kind: "refused", error: refusal, patch: { variant: existsSync(variantDir) ? variant : ep.variant, gate: gate?.counts ?? null, stage_detail: { ...d, ...consumed, build: buildDetail as unknown as Json } } };
     }
     const shipped = path.join(variantDir, `ep${ep.n}.mp4`);
     const body = existsSync(path.join(variantDir, "body.mp4")) ? path.join(variantDir, "body.mp4") : shipped;
     if (!gate || gate.counts.FAIL !== 0 || !existsSync(shipped)) {
-      return { kind: "refused", error: `build_ep.sh exited 0 but ${epDir(ep.n)}/variants/${variant} has ${gate ? `a gate with FAIL ${gate.counts.FAIL}` : "no gate report"}${existsSync(shipped) ? "" : " and no shipped file"}`, patch: { variant, stage_detail: { ...d, build: buildDetail as unknown as Json } } };
+      return { kind: "refused", error: `build_ep.sh exited 0 but ${epDir(ep.n)}/variants/${variant} has ${gate ? `a gate with FAIL ${gate.counts.FAIL}` : "no gate report"}${existsSync(shipped) ? "" : " and no shipped file"}`, patch: { variant, stage_detail: { ...d, ...consumed, build: buildDetail as unknown as Json } } };
     }
     return {
       kind: "moved",

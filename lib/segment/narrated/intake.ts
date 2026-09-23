@@ -15,14 +15,18 @@
 //      a session's project (lbl-e03, lbl-e04) is refused, whatever the
 //      settings say — there is no claim for the narrated route.
 //   4. The lock `<film>/.studio-run.json`, taken only after the folder check.
-//   5. The source hardlinked (copied across volumes) to `source/original.mp4`
+//   5. The scripts synced from drama-remix `scripts/skip-through/` into
+//      `<film>/scripts/`, the record `<film>/.studio-scripts.json`, the sha
+//      and dirty flag on the row — first, before anything else lands in the
+//      folder: its likely refusal (a dirty drama-remix tree, which other
+//      sessions edit) then leaves only the lock, and the slug stays usable;
+//      once it succeeds the record marks the folder as Studio's.
+//   6. The source hardlinked (copied across volumes) to `source/original.mp4`
 //      — the scripts take the first `source/*.mp4`, so one video only.
-//   6. The season: `mklink /J` junctions `epK → <prior project>/epK` for every
+//   7. The season: `mklink /J` junctions `epK → <prior project>/epK` for every
 //      earlier episode (ledger_check walks ep1..epN, continuity reads epN-1);
 //      a junction, never a copy, never a write into the prior project.
-//   7. The scripts synced from drama-remix `scripts/skip-through/` into
-//      `<film>/scripts/`, the record `<film>/.studio-scripts.json`, the sha
-//      and dirty flag on the row; `sheet_premise.txt` from the settings.
+//      `sheet_premise.txt` from the settings.
 //   8. `checks.py --project <film> --strict`, run FROM the canonical copy.
 
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync, symlinkSync } from "node:fs";
@@ -211,7 +215,17 @@ export async function runNarratedIntakeStage(ctx: NarratedContext): Promise<Stag
   }
   mkdirSync(paths.work, { recursive: true });
 
-  // 5. The source: one video under source/.
+  // 5. The scripts, before the source and the junctions: a refusal here leaves nothing in the folder but the lock.
+  let sync;
+  try {
+    sync = ctx.sync(paths.film, { allowDirty: settings.allow_dirty });
+  } catch (e) {
+    if (e instanceof ScriptsSyncError) return fail(e.message, { sync_refused: e.code });
+    return fail(`could not sync the skip-through scripts: ${(e as Error).message}`);
+  }
+  ctx.log(`scripts synced from ${sync.source} @ ${sync.sha.slice(0, 12)}${sync.dirty ? " (dirty tree, allowed)" : ""}: ${sync.files.length} files`);
+
+  // 6. The source: one video under source/.
   const sourceDir = path.dirname(paths.source);
   mkdirSync(sourceDir, { recursive: true });
   const others = readdirSync(sourceDir).filter((f) => /\.mp4$/i.test(f) && f !== "original.mp4");
@@ -232,7 +246,7 @@ export async function runNarratedIntakeStage(ctx: NarratedContext): Promise<Stag
   ctx.log(`source ${placed}: ${paths.source} (${facts.width}×${facts.height} @ ${facts.fps} fps${facts.duration_s ? `, ${Math.round(facts.duration_s)} s` : ""})`);
   await ctx.progress({ source: source as unknown as Json });
 
-  // 6. The season's earlier episodes, junctioned in read-only.
+  // 7. The season's earlier episodes, junctioned in read-only.
   const firstN = settings.season.first_episode_n ?? 1;
   const prior = priorEpisodes(paths.projects, settings.season.prior_projects, firstN);
   const missingPrior: number[] = [];
@@ -242,15 +256,7 @@ export async function runNarratedIntakeStage(ctx: NarratedContext): Promise<Stag
   const warnings: string[] = [];
   if (missingPrior.length) warnings.push(`no prior project holds ep${missingPrior.join(", ep")}: ledger_check walks ep1..epN and continuity reads the episode before, so those checks will say so`);
 
-  // 7. The scripts, and the sheet premise.
-  let sync;
-  try {
-    sync = ctx.sync(paths.film, { allowDirty: settings.allow_dirty });
-  } catch (e) {
-    if (e instanceof ScriptsSyncError) return fail(e.message, { sync_refused: e.code });
-    return fail(`could not sync the skip-through scripts: ${(e as Error).message}`);
-  }
-  ctx.log(`scripts synced from ${sync.source} @ ${sync.sha.slice(0, 12)}${sync.dirty ? " (dirty tree, allowed)" : ""}: ${sync.files.length} files`);
+  // The sheet premise.
   const premise = settings.sheet_premise ?? "";
   const premiseFile = path.join(paths.film, "sheet_premise.txt");
   if (!existsSync(premiseFile) || readFileSync(premiseFile, "utf8") !== premise) {

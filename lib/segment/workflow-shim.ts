@@ -461,6 +461,12 @@ export type WorkflowShimOptions = {
   args: unknown;
   /** Refuse a file whose meta.name is not this (a mis-synced or renamed script). */
   expect_name?: string;
+  /**
+   * Refuse a file whose bytes do not hash to this (the SHA-256 its sync recorded, `.studio-scripts.json`): the file is
+   * compiled in this process, and a writing session can write the film's copy — so what is compiled is what was synced,
+   * read once, not a copy checked a moment before.
+   */
+  expect_sha256?: string;
   /** The attachments standing for one path the prompt names, or null when the path is not the caller's (the call then fails). */
   images: (promptPath: string) => ShimImage[] | null;
   /** The image paths the args carry (the sheets), matched whole before the prompt is scanned for others. */
@@ -611,6 +617,9 @@ export async function runWorkflow(opts: WorkflowShimOptions): Promise<WorkflowRu
   if ("unavailable" in resolved) return resolved;
   const { provider, model } = resolved;
   const compiled = loadWorkflow(opts.file);
+  if (opts.expect_sha256 && compiled.sha256 !== opts.expect_sha256) {
+    throw new WorkflowShimError(`${compiled.file} is not the file Studio synced (SHA-256 ${compiled.sha256.slice(0, 12)}, the sync recorded ${opts.expect_sha256.slice(0, 12)}): nothing is compiled from a changed copy`);
+  }
   if (opts.expect_name && compiled.meta.name !== opts.expect_name) {
     throw new WorkflowShimError(`${compiled.file} is the ${compiled.meta.name} workflow, not ${opts.expect_name}`);
   }

@@ -17,6 +17,7 @@
 process.env.PROMO_RENDER = "off";
 
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -28,15 +29,16 @@ import type { RunResult } from "@/lib/python";
 import { NARRATED_MANIFEST_FILE } from "@/lib/film-import/manifest";
 import { narratedOf, scanFilm } from "@/lib/film-import/scan";
 import { EPISODE_PLAN_FILE } from "@/lib/segment/narrated/briefs";
-import { dropRefusal, orderingRefusal, planEpisodeSteps, STEP_CAPACITY } from "@/lib/segment/narrated/build";
-import { firstNumberRefusal } from "@/lib/segment/narrated/intake";
+import { dropRefusal, laneView, orderingRefusal, planEpisodeSteps, STEP_CAPACITY, writeFor } from "@/lib/segment/narrated/build";
+import { shippedVerdicts, unwaivedFromStatus } from "@/lib/segment/narrated/handoff";
+import { firstNumberRefusal, narratedFolderRefusal } from "@/lib/segment/narrated/intake";
 import { statusSays } from "@/lib/segment/narrated/narration";
 import { wIdViolation } from "@/lib/segment/narrated/prep";
-import { EPISODE_WAKES, isNarratedActionable, narratedRefusal, runNarratedStage, type FilmStep, type NarratedDeps, type NarratedScriptRunner, type PictureOutcome } from "@/lib/segment/narrated/stages";
+import { EPISODE_WAKES, isNarratedActionable, narratedRefusal, runNarratedStage, type EpisodeStepOutcome, type FilmStep, type NarratedDeps, type NarratedScriptRunner, type PictureOutcome } from "@/lib/segment/narrated/stages";
 import { ttsSig } from "@/lib/segment/narrated/voice";
 import type { StageContext, StageOutcome } from "@/lib/segment/stages";
-import type { SyncResult } from "@/lib/segment/scripts-sync";
-import type { FilmRun, FilmRunDecision, Json } from "@/lib/types";
+import { ScriptsSyncError, type SyncResult } from "@/lib/segment/scripts-sync";
+import type { FilmRun, FilmRunDecision, FilmRunEpisode, Json } from "@/lib/types";
 import { producer, staff } from "./seed-minute";
 
 afterEach(() => resetFixtureStore());
@@ -68,6 +70,8 @@ const PREP_BRIEF = [
   "```",
   "",
 ].join("\n");
+
+const SYNCED_WORKFLOW = "export const meta = { name: 'frame-verify' };\n";
 
 type Env = {
   root: string;
@@ -234,9 +238,11 @@ function setup(plan = [{ n: 36, src_in: 140, src_out: 392 }, { n: 37, src_in: 39
   const env = { root, work, canonical, film: path.join(root, "high-quality", "lbl-s01e05"), calls: [] } as unknown as Env;
   env.launcher = new FakeClaudeLauncher(sessionScript(env, plan));
   const sync = (film: string): SyncResult => {
-    write(path.join(film, "scripts", "PREP-BRIEF.md"), PREP_BRIEF);
-    write(path.join(film, "scripts", "build_ep.sh"), "echo");
-    const record = { sha: "c".repeat(40), dirty: false, dirty_paths: [], synced_at: new Date().toISOString(), files: ["PREP-BRIEF.md", "build_ep.sh"], source: "canonical", route: "skip-through" as const };
+    // The copy and its record with a SHA-256 per file, as syncSkipThrough writes them (the stages re-hash the copy against it).
+    const files: Record<string, string> = { "PREP-BRIEF.md": PREP_BRIEF, "build_ep.sh": "echo", "frame_verify.workflow.js": SYNCED_WORKFLOW };
+    for (const [rel, text] of Object.entries(files)) write(path.join(film, "scripts", rel), text);
+    const file_sha256 = Object.fromEntries(Object.entries(files).map(([rel, text]) => [rel, createHash("sha256").update(text).digest("hex")]));
+    const record = { sha: "c".repeat(40), dirty: false, dirty_paths: [], synced_at: new Date().toISOString(), files: Object.keys(files).sort(), source: "canonical", route: "skip-through" as const, file_sha256 };
     write(path.join(film, ".studio-scripts.json"), JSON.stringify(record));
     return { ...record, scripts_dir: path.join(film, "scripts"), record_file: path.join(film, ".studio-scripts.json") };
   };
@@ -551,7 +557,7 @@ test("a prep that breaks the W-id rule is refused with the words to fix it, and 
   const env = setup([{ n: 36, src_in: 0, src_out: 100 }]);
   try {
     const run = await createRun(env, { sheet_premise: "cast" });
-    write(path.join(env.film, "scripts", "PREP-BRIEF.md"), PREP_BRIEF);
+    env.deps.sync!(env.film, { allowDirty: false }); // the copy and its record, as the intake synced them
     write(path.join(env.film, "index", "whisper.json"), JSON.stringify({ duration: DURATION, segments: [{ start: 10, end: 12, text: "a" }, { start: 300, end: 302, text: "b" }] }));
     const [ep] = await fixtureData.createRunEpisodes(sys, run.id, { series_key: "love-between-lines", episodes: [{ n: 36, src_in: 0, src_out: 100 }] });
     env.deps.launcher = new FakeClaudeLauncher(() => ({ writes: { "index/whisper.json": JSON.stringify({ duration: DURATION, segments: [{ start: 10, end: 12, text: "a" }] }), "ep36/narration.json": "{}" } }));
@@ -571,6 +577,8 @@ test("a prep that breaks the W-id rule is refused with the words to fix it, and 
 
 async function directCtx(env: Env, run: FilmRun) {
   const { narratedContext } = await import("@/lib/segment/narrated/stages");
+  // A film the intake made has its synced copy and record; a test that changes the copy on purpose synced it first.
+  if (!existsSync(path.join(env.film, ".studio-scripts.json"))) env.deps.sync!(env.film, { allowDirty: false });
   return narratedContext({ run, session: sys, data: fixtureData, runner: { fake: true } as never, owner: "t", env: { HEAVY_LOCK_ROOT: env.work, PATH: process.env.PATH }, dirs: { root: env.root, film: env.film, cut: "", source: "", work: env.work }, log: () => undefined, progress: async () => undefined, beat: async () => undefined, signal: new AbortController().signal, lock: () => undefined }, env.deps);
 }
 
@@ -581,7 +589,7 @@ test("the prep review decides every waiver: one the agent wrote is a proposal un
   const env = setup([{ n: 36, src_in: 0, src_out: 100 }]);
   try {
     const run = await createRun(env, { sheet_premise: "cast" });
-    write(path.join(env.film, "scripts", "PREP-BRIEF.md"), PREP_BRIEF);
+    env.deps.sync!(env.film, { allowDirty: false }); // the copy and its record, as the intake synced them
     const file = path.join(env.film, "ep36", "waivers.json");
     // An earlier review accepted one waiver; the prep adds its own beside it.
     const before = JSON.stringify({ N1_old: "accepted at the last review" });
@@ -727,7 +735,7 @@ test("an episode re-prepped after its picture finished builds again: its own sta
   const env = setup([{ n: 36, src_in: 0, src_out: 100 }]);
   try {
     const run = await createRun(env, { sheet_premise: "cast" });
-    write(path.join(env.film, "scripts", "PREP-BRIEF.md"), PREP_BRIEF);
+    env.deps.sync!(env.film, { allowDirty: false }); // the copy and its record, as the intake synced them
     const [row] = await fixtureData.createRunEpisodes(sys, run.id, { series_key: "love-between-lines", episodes: [{ n: 36, src_in: 0, src_out: 100 }] });
     // (a) The re-prep re-cut base.mp4: stale_check reads this episode's own clean as older than its cut.
     env.failScript = (step) => (step.script === "stale_check.py" ? { ...ok("STALE ep36: clean.mp4 is older than base.mp4"), code: 1 } : null);
@@ -740,8 +748,11 @@ test("an episode re-prepped after its picture finished builds again: its own sta
 
     // (b) A build that stops on PICTURE IS STALE goes back to the lanes with the picture lane to run, not to a Retry that stops the same way.
     const stop = "stale_check ep36\nPICTURE IS STALE - re-run the GPU chain for ep36 (see above). Nothing built.";
+    const lockHeld: boolean[] = [];
     env.failScript = (step) => {
       if (step.script !== "build_ep.sh") return null;
+      // build_ep.sh's make_ep and checks read the shared index files: the film's .lock is held while it runs.
+      lockHeld.push(existsSync(path.join(env.film, ".lock")));
       for (const l of stop.split("\n")) step.onLine?.("stdout", l);
       return { ...ok(stop), code: 1 };
     };
@@ -752,6 +763,8 @@ test("an episode re-prepped after its picture finished builds again: its own sta
     const b = await runBuildStep(await directCtx(env, run), ready, [ready]);
     assert.equal(b.kind, "moved", JSON.stringify(b));
     assert.deepEqual(b.kind === "moved" ? [b.patch.stage, b.patch.picture_stage] : null, ["lanes", "stale"]);
+    assert.deepEqual(lockHeld, [true], "the build ran under the film's .lock");
+    assert.equal(existsSync(path.join(env.film, ".lock")), false, "and let it go");
     assert.match(JSON.stringify(b.kind === "moved" ? b.patch.stage_detail : null), /PICTURE IS STALE/);
     assert.deepEqual(
       planEpisodeSteps(run, { ...ready, stage: "lanes", picture_stage: "stale" }).map((s) => s.name),
@@ -828,4 +841,231 @@ test("the smaller rules: only the last open episode can be dropped, a season num
   const d = (data: Json): FilmRunDecision => ({ at: "", by: "x", action: "reframe", ep: 36, boundary_s: null, data });
   assert.equal(planEpisodeSteps({ decisions: [d({ action: "override", box: [2] })] }, glance).find((s) => s.name === "reframe_glance")?.cls, "heavy", "the GPU re-run never runs beside the run's own picture or build step");
   assert.equal(planEpisodeSteps({ decisions: [d({ action: "accept" })] }, glance).find((s) => s.name === "reframe_glance")?.cls, "light");
+});
+
+// ---- phase 4a review fixes, round 2 ---------------------------------------------------------------------------------
+
+/** The row after a lane's outcome, as the scheduler writes it (writeFor over the row as it is). */
+function applied(row: FilmRunEpisode, out: EpisodeStepOutcome): FilmRunEpisode {
+  const w = writeFor(row, laneView(row, "words").stage_detail, "words", out, "t");
+  return { ...row, ...w, stage_detail: w.stage_detail } as FilmRunEpisode;
+}
+
+const whisperOf = (rows: [number, number, string][]) => JSON.stringify({ duration: DURATION, segments: rows.map(([start, end, text]) => ({ start, end, text })) });
+
+test("two preps limited in turn both finish: neither is refused for the cues the other re-timed inside its own window while it waited", async () => {
+  resetFixtureStore();
+  const plan = [
+    { n: 36, src_in: 0, src_out: 100 },
+    { n: 37, src_in: 100, src_out: 200 },
+  ];
+  const env = setup(plan);
+  try {
+    const run = await createRun(env, { sheet_premise: "cast" });
+    const whisper = path.join(env.film, "index", "whisper.json");
+    write(whisper, whisperOf([[10, 12, "a"], [50, 52, "b"], [120, 122, "c"], [150, 152, "d"]]));
+    let [r36, r37, r38] = await fixtureData.createRunEpisodes(sys, run.id, { series_key: "love-between-lines", episodes: [...plan, { n: 38, src_in: 200, src_out: 300 }] });
+    // Each session re-times one cue inside its own window (the brief's cue fixes); the first run of each hits the limit.
+    const retime = (k: number) => {
+      const w = JSON.parse(readFileSync(whisper, "utf8")) as { segments: { start: number; end: number }[] };
+      w.segments[k] = { ...w.segments[k], start: w.segments[k].start + 0.4 };
+      return JSON.stringify(w);
+    };
+    const launcher = new FakeClaudeLauncher((call) => {
+      const n = Number(/prep-ep(\d+)/.exec(path.basename(call.req.logFile))?.[1]);
+      const k = n === 36 ? (call.kind === "launch" ? 1 : 0) : call.kind === "launch" ? 2 : 3;
+      const writes = { "index/whisper.json": retime(k), [`ep${n}/narration.json`]: JSON.stringify({ lines: [{ id: "N1", text: "x" }] }) };
+      return call.kind === "launch" ? { writes, outcome: { status: "limited" as const, resets_at: new Date(Date.now() - 1000).toISOString() } } : { writes };
+    });
+    env.deps.launcher = launcher;
+    const { runPrepStep } = await import("@/lib/segment/narrated/prep");
+    const ctx = await directCtx(env, run);
+    // ep36 starts and is limited; the writing class is free, so ep37 starts and is limited too.
+    const a36 = await runPrepStep(ctx, laneView(r36, "words"), [r36, r37]);
+    assert.equal(a36.kind === "wait" ? a36.for : a36.kind, "session");
+    r36 = applied(r36, a36);
+    const a37 = await runPrepStep(ctx, laneView(r37, "words"), [r36, r37]);
+    assert.equal(a37.kind === "wait" ? a37.for : a37.kind, "session");
+    r37 = applied(r37, a37);
+    // After the reset both resume, ep36 first: W3 (ep37's) changed while ep36 waited, and W2 (ep36's) while ep37 waited.
+    const b36 = await runPrepStep(ctx, laneView(r36, "words"), [r36, r37]);
+    assert.equal(b36.kind, "moved", JSON.stringify(b36));
+    const b37 = await runPrepStep(ctx, laneView(r37, "words"), [r36, r37]);
+    assert.equal(b37.kind, "moved", JSON.stringify(b37));
+    assert.deepEqual(
+      launcher.calls.map((c) => [path.basename(c.req.logFile, ".jsonl"), c.kind]),
+      [
+        ["prep-ep36", "launch"],
+        ["prep-ep37", "launch"],
+        ["prep-ep36", "resume"],
+        ["prep-ep37", "resume"],
+      ]
+    );
+    for (const out of [b36, b37]) {
+      const outside = (out.kind === "moved" ? (out.patch.stage_detail as { writes_outside: string[] }).writes_outside : []).filter((f) => /^(edl|ep\d+)\//.test(f));
+      assert.deepEqual(outside, [], "neither review blames the other's files");
+    }
+
+    // No snapshot is taken for a session that never started: a busy slot is a wait with nothing recorded.
+    const held = takeWritingLock({ root: env.work, holder: "another-run/ep12", what: "prep of ep12 (another run)" });
+    try {
+      const busy = await runPrepStep(ctx, laneView(r38, "words"), [r36, r37, r38]);
+      assert.equal(busy.kind === "wait" ? busy.for : busy.kind, "session");
+      assert.equal(existsSync(path.join(env.work, "sessions", "prep-ep38.before.json")), false, "no snapshot before a busy wait");
+    } finally {
+      held.release();
+    }
+  } finally {
+    teardown(env);
+  }
+});
+
+test("only a draft-check refusal resumes the prep on its own: a W-id refusal after one waits for a person's Retry, which may accept the index", async () => {
+  resetFixtureStore();
+  const env = setup([{ n: 36, src_in: 0, src_out: 100 }]);
+  try {
+    const run = await createRun(env, { sheet_premise: "cast" });
+    write(path.join(env.film, "index", "whisper.json"), whisperOf([[10, 12, "a"], [300, 302, "b"]]));
+    let [row] = await fixtureData.createRunEpisodes(sys, run.id, { series_key: "love-between-lines", episodes: [{ n: 36, src_in: 0, src_out: 100 }] });
+    let sessions = 0;
+    env.deps.launcher = new FakeClaudeLauncher((): FakeSessionScript => {
+      sessions++;
+      // The resumed session "fixes" make_ep by editing a row that belongs to another episode.
+      return sessions === 1 ? { writes: { "ep36/narration.json": "{}" } } : { writes: { "index/whisper.json": whisperOf([[10, 12, "a"], [300, 302, "changed"]]) } };
+    });
+    env.failScript = (step) => (step.script === "make_ep.py" && sessions === 1 ? { ...ok("INVARIANT: pieces overlap at 40.0"), code: 1 } : null);
+    const { runPrepStep } = await import("@/lib/segment/narrated/prep");
+    const first = await runPrepStep(await directCtx(env, run), laneView(row, "words"), [row]);
+    assert.equal(first.kind, "refused");
+    assert.match(first.kind === "refused" ? first.error : "", /make_ep\.py --ep 36 exited 1/);
+    row = applied(row, first);
+    assert.deepEqual(
+      planEpisodeSteps(run, row).map((s) => s.name),
+      ["prep"],
+      "make_ep's refusal resumes the session on its own"
+    );
+
+    const second = await runPrepStep(await directCtx(env, run), laneView(row, "words"), [row]);
+    assert.equal(second.kind, "refused");
+    assert.match(second.kind === "refused" ? second.error : "", /changed whisper rows outside its window .*W2/);
+    row = applied(row, second);
+    assert.equal((row.stage_detail as { prep_auto_retry?: boolean }).prep_auto_retry, false);
+    assert.equal((row.stage_detail as { prep_refusals?: number }).prep_refusals, 1, "the draft-check count is untouched");
+    assert.deepEqual(planEpisodeSteps(run, row), [], "the W-id refusal waits for a person, however many draft refusals came before");
+    assert.equal(sessions, 2);
+
+    // The person looked and the rows are right as they are: a Retry that accepts the index re-checks with no session.
+    const accepted = await decide(run.id, { action: "retry", ep: 36, why: "W2's new text is the right one", data: { accept_index: true } });
+    assert.deepEqual(
+      planEpisodeSteps(accepted, row).map((s) => s.name),
+      ["prep"]
+    );
+    const third = await runPrepStep(await directCtx(env, accepted), laneView(row, "words"), [row]);
+    assert.equal(third.kind, "moved", JSON.stringify(third));
+    assert.equal(sessions, 2, "no session for an accepted index");
+    assert.equal(((third.kind === "moved" ? third.patch.stage_detail : {}) as { index_accepted: { why: string } }).index_accepted.why, "W2's new text is the right one");
+  } finally {
+    teardown(env);
+  }
+});
+
+test("a session that edits the synced scripts is flagged, and nothing runs from the copy until it is put back", async () => {
+  resetFixtureStore();
+  const env = setup([{ n: 36, src_in: 0, src_out: 100 }]);
+  try {
+    const run = await createRun(env, { sheet_premise: "cast", vision: "api" });
+    env.deps.sync!(env.film, { allowDirty: false });
+    const wf = path.join(env.film, "scripts", "frame_verify.workflow.js");
+    let [row] = await fixtureData.createRunEpisodes(sys, run.id, { series_key: "love-between-lines", episodes: [{ n: 36, src_in: 0, src_out: 100 }] });
+    // The session "fixes" a noisy check by editing the workflow Studio would compile in its own process.
+    const launcher = new FakeClaudeLauncher(() => ({ writes: { "ep36/narration.json": "{}", "scripts/frame_verify.workflow.js": "export const meta = { name: 'frame-verify' }; globalThis.leak = process.env;\n" } }));
+    env.deps.launcher = launcher;
+    const { runPrepStep } = await import("@/lib/segment/narrated/prep");
+    const out = await runPrepStep(await directCtx(env, run), laneView(row, "words"), [row]);
+    assert.equal(out.kind, "refused");
+    assert.match(out.kind === "refused" ? out.error : "", /^SCRIPTS DRIFTED: .*changed frame_verify\.workflow\.js/);
+    assert.ok(((out.kind === "refused" ? out.patch?.stage_detail : {}) as { writes_outside: string[] }).writes_outside.includes("scripts/frame_verify.workflow.js"), "the write is flagged on the review");
+    assert.equal(
+      env.calls.some((c) => c.script === "make_ep.py"),
+      false,
+      "no draft check runs from the changed copy"
+    );
+
+    // The picture pass refuses the copy before its reader (the shim's loadWorkflow) is ever called.
+    let readerCalls = 0;
+    env.deps.readers = {
+      sheets: async () => ({ status: "unavailable", reason: "-" }),
+      frames: async () => {
+        readerCalls++;
+        return { status: "done", detail: {}, contradicted: [] };
+      },
+      joins: async () => ({ status: "unavailable", reason: "-" }),
+    };
+    const { runFramesStep, runJoinsStep } = await import("@/lib/segment/narrated/narration");
+    const f = await runFramesStep(await directCtx(env, run), { ...row, words_stage: "frames", stage_detail: APPROVED as unknown as Json });
+    assert.equal(f.kind, "refused");
+    assert.match(f.kind === "refused" ? f.error : "", /SCRIPTS DRIFTED/);
+    assert.equal(readerCalls, 0);
+    assert.equal(
+      env.calls.some((c) => c.script === "frame_claims.py"),
+      false
+    );
+    assert.equal((await runJoinsStep(await directCtx(env, run), { ...row, words_stage: "joins", stage_detail: APPROVED as unknown as Json })).kind, "refused");
+
+    // A module dropped beside the scripts shadows an import: the build refuses it too.
+    writeFileSync(wf, SYNCED_WORKFLOW);
+    write(path.join(env.film, "scripts", "sitecustomize.py"), "import os\n");
+    write(path.join(env.film, "ep35", "variants", "v1", "ep35.mp4"), "prior");
+    write(path.join(env.film, "ep35", "variants", "v1", "ep35.mp4.gate.json"), JSON.stringify({ counts: { PASS: 1, WARN: 0, FAIL: 0 } }));
+    const { runBuildStep } = await import("@/lib/segment/narrated/build");
+    const ready = { ...row, words_stage: "ready" as const, picture_stage: "ready" as const, stage: "build" as const, stage_detail: APPROVED as unknown as Json };
+    const b = await runBuildStep(await directCtx(env, run), ready, [ready]);
+    assert.match(b.kind === "refused" ? b.error : "", /SCRIPTS DRIFTED: .*added sitecustomize\.py/);
+    assert.equal(
+      env.calls.some((c) => c.script === "build_ep.sh"),
+      false
+    );
+    rmSync(path.join(env.film, "scripts", "sitecustomize.py"));
+
+    // Put back, the Retry re-checks the finished prep with no new session.
+    row = applied(row, out);
+    const retried = await decide(run.id, { action: "retry", ep: 36 });
+    const again = await runPrepStep(await directCtx(env, retried), laneView(row, "words"), [row]);
+    assert.equal(again.kind, "moved", JSON.stringify(again));
+    assert.equal(launcher.calls.length, 1, "the session's work was done; only the copy was wrong");
+  } finally {
+    teardown(env);
+  }
+});
+
+test("the intake syncs the scripts before anything lands in the folder, so a dirty drama-remix leaves the slug usable; the delivery reads the recorders' verdicts", async () => {
+  resetFixtureStore();
+  const env = setup();
+  try {
+    const realSync = env.deps.sync!;
+    env.deps.sync = () => {
+      throw new ScriptsSyncError("dirty", "drama-remix has uncommitted changes (1):  M scripts/skip-through/narr_lint.py — commit them");
+    };
+    let run = await createRun(env, { sheet_premise: "cast" });
+    run = await drive(env, run.id);
+    assert.equal(run.stage, "failed");
+    assert.match(run.error_text ?? "", /uncommitted changes/);
+    assert.equal(existsSync(path.join(env.film, "source")), false, "no source placed");
+    assert.equal(existsSync(path.join(env.film, "ep35")), false, "no junction made");
+    assert.equal(narratedFolderRefusal(run, env.film), null, "a new run on the same slug is not refused as a session's project");
+
+    // The delivery's counts are the recorders' own, asked at the hand-off: a verdict or a waiver changed after the build refuses it.
+    assert.equal(unwaivedFromStatus("frames", 0, "   CONTRADICTED ep36 N2: x"), 0);
+    assert.equal(unwaivedFromStatus("frames", 1, "   CONTRADICTED ep36 N2: she smiles\n        frames: she frowns\n   CONTRADICTED ep36 N4: a car\n        frames: none"), 2);
+    assert.equal(unwaivedFromStatus("joins", 1, "   ep36: the cut at 3:10 (1.00-2.00) loses the viewer - restore the footage, narrate the jump, or waive cut_join_1.00-2.00"), 1);
+    env.deps.sync = realSync;
+    env.failScript = (step) => (step.script === "frame_claims.py" && step.args[0] === "status" ? { ...ok("   CONTRADICTED ep36 N2: she smiles\n        frames: she frowns"), code: 1 } : null);
+    const v = await shippedVerdicts(await directCtx(env, run), 36);
+    assert.deepEqual([v.contradicted, v.lost], [1, 0]);
+    assert.match(v.refusal ?? "", /^ep36 is shipped but its picture checks no longer pass .*\nframe_claims\.py status exited 1:\n {3}CONTRADICTED ep36 N2/);
+    env.failScript = undefined;
+    assert.deepEqual(await shippedVerdicts(await directCtx(env, run), 36), { contradicted: 0, lost: 0, refusal: null });
+  } finally {
+    teardown(env);
+  }
 });

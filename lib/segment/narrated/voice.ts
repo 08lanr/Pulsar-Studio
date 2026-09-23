@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import type { FilmRunEpisode, Json } from "@/lib/types";
 import { readJson, tailLines } from "../stages";
-import { dataOf, epDir, NARRATED_DECISION, narratedRefusal, pendingEpisodeDecision, requirePrepApproved, runFilmStep, writeProjectFile, type EpisodeStepOutcome, type NarratedContext } from "./stages";
+import { dataOf, epDir, NARRATED_DECISION, narratedRefusal, pendingEpisodeDecision, requirePrepApproved, runFilmStep, scriptsDriftRefusal, writeProjectFile, type EpisodeStepOutcome, type NarratedContext } from "./stages";
 
 // ---- the prediction --------------------------------------------------------------------------------------------------
 
@@ -120,12 +120,15 @@ export async function runVoiceStep(ctx: NarratedContext, ep: FilmRunEpisode, all
   if (gate) return { kind: "refused", error: gate, patch: { words_stage: "prep_review" } };
   const d = ep.stage_detail as Record<string, Json | undefined>;
   const voice = ctx.settings.voice_id ?? (typeof (ctx.run.stage_detail as { voice?: { id?: unknown } }).voice?.id === "string" ? String((ctx.run.stage_detail as { voice: { id: string } }).voice.id) : null);
-  if (!voice) return { kind: "refused", error: "no voice id: the intake records one (settings.voice_id, or a prior project's narration manifest)" };
+  if (!voice) return { kind: "refused", error: "no voice id: the intake records one (settings.voice_id, or a prior project's narration manifest)", patch: { stage_detail: { ...d, decisions_seen: ctx.run.decisions.length } } };
   const model = ctx.settings.tts_model;
   const ep_ = epDir(ep.n);
   const nf = path.join(ctx.paths.film, ep_, "narration.json");
   if (!existsSync(nf)) return { kind: "refused", error: `${ep_}/narration.json is not there: the prep writes it`, patch: { words_stage: "prep" } };
   const consumed = { decisions_seen: ctx.run.decisions.length };
+  // The render runs the film's tts_narration.py with the ElevenLabs key: never from a copy a session changed.
+  const drift = scriptsDriftRefusal(ctx);
+  if (drift) return { kind: "refused", error: drift, patch: { stage_detail: { ...d, ...consumed } } };
 
   // What will bill, against the run's budget and the episode's soft cap.
   const prediction = predictRender(nf, voice, model);

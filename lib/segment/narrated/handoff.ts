@@ -9,7 +9,10 @@
 //   handoff      `<film>/DELIVERED-narrated.json` from the gated files — values
 //                read (the shipped file's SHA-256 is the one the build stored
 //                on the episode row; the source's is computed once and kept
-//                on the run), nothing re-derived — then the scanner's narrated
+//                on the run; the unwaived contradicted lines and lost joins
+//                from frame_claims / cut_joins status run at the hand-off,
+//                which refuses the manifest when either exits non-zero),
+//                nothing re-derived — then the scanner's narrated
 //                branch polled until READY, then `{kind: "import_now"}` starts
 //                the import (into `settings.season.title_source_ref`'s title
 //                when the season names one).
@@ -23,10 +26,10 @@ import { importQuietMs, startImport } from "@/lib/film-import/import";
 import { NARRATED_MANIFEST_FILE, NarratedManifestSchema, type NarratedManifest } from "@/lib/film-import/manifest";
 import { narratedOf, scanFilm } from "@/lib/film-import/scan";
 import type { FilmRun, FilmRunDecision, FilmRunEpisode, Json } from "@/lib/types";
-import { fail, next, readJson, sourceRefOf, type StageOutcome } from "../stages";
+import { fail, next, readJson, sourceRefOf, tailLines, type StageOutcome } from "../stages";
 import { readGate } from "./gate";
 import { narrationLines, pyLen } from "./voice";
-import { dataOf, epDir, fileSha256, NARRATED_DECISION, narratedWait, pendingRunDecisions, writeProjectFile, type NarratedContext } from "./stages";
+import { dataOf, epDir, fileSha256, NARRATED_DECISION, narratedWait, pendingRunDecisions, runFilmStep, scriptsDriftRefusal, writeProjectFile, type NarratedContext } from "./stages";
 
 const READY_POLL_MS = 30_000;
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -106,9 +109,44 @@ export function piecesOf(epFolder: string): { id: string; src_in: number; src_ou
 }
 
 /**
+ * The unwaived contradicted lines / lost joins a `frame_claims.py status` /
+ * `cut_joins.py status` run reports, read the way they print them
+ * (ST/frame_claims.py status: a `CONTRADICTED` line each; ST/cut_joins.py
+ * status: a "loses the viewer" line each). 0 only on exit 0. Pure.
+ */
+export function unwaivedFromStatus(kind: "frames" | "joins", code: number | null, text: string): number {
+  if (code === 0) return 0;
+  const re = kind === "frames" ? /^\s*CONTRADICTED\b/ : /loses the viewer/;
+  return text
+    .replace(/\r/g, "")
+    .split("\n")
+    .filter((l) => re.test(l)).length;
+}
+
+/**
+ * The two recorders' verdicts on a shipped episode, asked NOW (a waiver or a
+ * verdict may have changed since the build): the counts for the manifest, or
+ * the refusal when either status exits non-zero (a contradiction or a lost
+ * join nobody waived, or a line / join no longer judged).
+ */
+export async function shippedVerdicts(ctx: NarratedContext, n: number): Promise<{ contradicted: number; lost: number; refusal: string | null }> {
+  const ep = epDir(n);
+  const f = await runFilmStep(ctx, { script: "frame_claims.py", args: ["status", "--ep", ep], what: `frame_claims status ${ep} (delivery)` });
+  const j = await runFilmStep(ctx, { script: "cut_joins.py", args: ["status", "--ep", ep], what: `cut_joins status ${ep} (delivery)` });
+  const contradicted = unwaivedFromStatus("frames", f.code, f.stdoutTail);
+  const lost = unwaivedFromStatus("joins", j.code, j.stdoutTail);
+  const said = [
+    f.code !== 0 ? `frame_claims.py status exited ${f.code ?? "killed"}:\n${tailLines(`${f.stdoutTail}\n${f.stderrTail}`, 8).join("\n")}` : "",
+    j.code !== 0 ? `cut_joins.py status exited ${j.code ?? "killed"}:\n${tailLines(`${j.stdoutTail}\n${j.stderrTail}`, 8).join("\n")}` : "",
+  ].filter(Boolean);
+  return { contradicted, lost, refusal: said.length ? `${ep} is shipped but its picture checks no longer pass (a verdict or a waiver changed after the build):\n${said.join("\n")}` : null };
+}
+
+/**
  * `DELIVERED-narrated.json` for the shipped episodes of the run (N7), from
- * the files on disk and the rows — never a recomputed plan. Throws when a
- * shipped episode lost its file.
+ * the files on disk and the rows — never a recomputed plan; the unwaived
+ * counts from the recorders' status, run now. Throws when a shipped episode
+ * lost its file or its picture checks no longer pass.
  */
 export async function buildNarratedManifest(ctx: NarratedContext, eps: FilmRunEpisode[], sourceSha: string | null): Promise<NarratedManifest> {
   const shipped = eps.filter((e) => e.stage === "shipped").sort((a, b) => a.n - b.n);
@@ -130,6 +168,8 @@ export async function buildNarratedManifest(ctx: NarratedContext, eps: FilmRunEp
     const nf = path.join(epFolder, "narration.json");
     const manifest = readJson<{ voice?: unknown; model?: unknown }>(path.join(epFolder, "narration", "manifest.json"));
     const lines = narrationLines(nf);
+    const verdicts = await shippedVerdicts(ctx, e.n);
+    if (verdicts.refusal) throw new Error(verdicts.refusal);
     out.push({
       n: e.n,
       project,
@@ -147,9 +187,9 @@ export async function buildNarratedManifest(ctx: NarratedContext, eps: FilmRunEp
       user_review: existsSync(path.join(variantDir, "USER-REVIEW.md")) ? `${variantRel}/USER-REVIEW.md` : null,
       pieces: piecesOf(epFolder),
       narration: existsSync(nf) ? { file: `${ep}/narration.json`, sha256: fileSha256(nf), lines: lines.length, chars: lines.reduce((s, l) => s + pyLen(l.text), 0), voice: typeof manifest?.voice === "string" ? manifest.voice : null, model: typeof manifest?.model === "string" ? manifest.model : null } : null,
-      // The build refuses unless frame_claims and cut_joins status pass, so a shipped episode has none unwaived.
-      frame_check: { lines: countOf(path.join(epFolder, "review", "frame_check.json"), entries), contradicted_unwaived: 0 },
-      cut_joins: { joins: countOf(path.join(epFolder, "review", "cut_joins.json"), entries), lost_unwaived: 0 },
+      // Read, not assumed from the build: the status runs above (0 only on exit 0; a non-zero exit refused the manifest).
+      frame_check: { lines: countOf(path.join(epFolder, "review", "frame_check.json"), entries), contradicted_unwaived: verdicts.contradicted },
+      cut_joins: { joins: countOf(path.join(epFolder, "review", "cut_joins.json"), entries), lost_unwaived: verdicts.lost },
       approved_by: e.approved_by,
       approved_at: e.approved_at,
     });
@@ -191,6 +231,9 @@ export async function runNarratedHandoffStage(ctx: NarratedContext): Promise<Sta
     await ctx.progress({ source_sha256: sourceSha }, { force: true });
   }
   const manifestFile = path.join(ctx.paths.film, NARRATED_MANIFEST_FILE);
+  // The status runs the manifest reads are the film's copy of the recorders: never one a session changed.
+  const drift = scriptsDriftRefusal(ctx);
+  if (drift) return fail(`the delivery manifest cannot be written: ${drift}`);
   let manifest: NarratedManifest;
   try {
     manifest = await buildNarratedManifest(ctx, eps, sourceSha);

@@ -365,6 +365,8 @@ test("runWorkflow refuses before any call without a vision key or in demo replay
   assert.match(demo.unavailable, /demo mode/);
   process.env.DEMO_REPLAY = "0";
   await assert.rejects(runWorkflow({ ...base, expect_name: "frame-verify" }), /is the toy workflow, not frame-verify/);
+  // The bytes compiled are the bytes the sync recorded: a copy a session changed is never compiled in this process.
+  await assert.rejects(runWorkflow({ ...base, expect_sha256: "0".repeat(64) }), (e: unknown) => e instanceof WorkflowShimError && /is not the file Studio synced .*the sync recorded 000000000000\): nothing is compiled from a changed copy/.test(e.message));
   assert.equal(apiReaderVersion("fv-2", "claude-opus-5-5"), "fv-2+api:claude-opus-5-5");
 });
 

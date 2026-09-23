@@ -26,15 +26,18 @@
 // pass that left items unjudged — a reader call failed, the recorder
 // refused, the account ran out of credit — with nothing contradicted or lost
 // waits for a Retry, with the count and the errors, not for a decision no
-// line needs; a Retry also wakes a `line` / `join` wait.
+// line needs; a Retry also wakes a `line` / `join` wait. Nothing runs from a
+// synced copy of the scripts that no longer matches its sync record: the
+// passes compile the copy's `*.workflow.js` in Studio's own process.
 
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { readSyncRecord } from "@/lib/segment/scripts-sync";
 import type { FilmRunEpisode, Json } from "@/lib/types";
 import { readJson, tailLines } from "../stages";
 import { runCheck } from "./gate";
 import { writeWaivers } from "./prep";
-import { dataOf, epDir, NARRATED_DECISION, narratedRefusal, pendingEpisodeDecision, pendingEpisodeDecisions, runFilmStep, writeProjectFile, type EpisodeStepOutcome, type NarratedContext, type PictureOutcome, type PictureReaders } from "./stages";
+import { dataOf, epDir, NARRATED_DECISION, narratedRefusal, pendingEpisodeDecision, pendingEpisodeDecisions, runFilmStep, scriptsDriftRefusal, writeProjectFile, type EpisodeStepOutcome, type NarratedContext, type PictureOutcome, type PictureReaders } from "./stages";
 
 /** The exact Workflow call for a picture check hand-off: the synced workflow, the premise, the pending items as the pipeline wrote them. */
 export function pictureHandoffCommand(film: string, workflow: "frame_verify" | "cut_verify", pendingFile: string): string {
@@ -139,13 +142,19 @@ export async function runFramesStep(ctx: NarratedContext, ep: FilmRunEpisode): P
     }
     const note = missing.length ? `${e}/narration.json has no line ${missing.join(", ")}` : null;
     if (reworded.length) {
-      const lint = await runCheck(ctx, { script: "narr_lint.py", args: ["--ep", e, "--narration", "narration.json"], what: "narr_lint (Jev)" }, ep.n);
+      // narr_lint runs from the synced copy: not from one a session changed (the voice step refuses that copy too, and
+      // build_ep.sh runs narr_lint again), so the rewords are kept and the lane still goes to the voice.
+      const drift = scriptsDriftRefusal(ctx);
+      const lint = drift ? { skipped: drift } : await runCheck(ctx, { script: "narr_lint.py", args: ["--ep", e, "--narration", "narration.json"], what: "narr_lint (Jev)" }, ep.n);
       // The changed lines re-render (their sigs miss), the placement and the frame check follow.
       return { kind: "moved", patch: { words_stage: "voice", stage_detail: { ...d, ...consumed, reworded: reworded as unknown as Json, waived, narr_lint_after_reword: lint as unknown as Json, ...(note ? { note } : {}) } } };
     }
     if (note) return { kind: "wait", for: "line", patch: { stage_detail: { ...d, ...consumed, waived, note } } };
   }
 
+  // Every script below, and the frame_verify.workflow.js the API pass compiles in Studio's own process, is the film's copy.
+  const drift = scriptsDriftRefusal(ctx);
+  if (drift) return { kind: "refused", error: drift, patch: { stage_detail: { ...d, ...consumed } } };
   const prep = await runFilmStep(ctx, { script: "frame_claims.py", args: ["prepare", "--ep", e, "--narration", "narration.json"], what: `frame_claims prepare ${e}` });
   if (prep.code !== 0) return { kind: "refused", error: narratedRefusal({ script: "frame_claims.py" }, prep), patch: { stage_detail: { ...d, ...consumed } } };
   let status = await frameStatus(ctx, e);
@@ -207,6 +216,9 @@ export async function runJoinsStep(ctx: NarratedContext, ep: FilmRunEpisode): Pr
     };
   }
 
+  // Every script below, and the cut_verify.workflow.js the API pass compiles in Studio's own process, is the film's copy.
+  const drift = scriptsDriftRefusal(ctx);
+  if (drift) return { kind: "refused", error: drift, patch: { stage_detail: { ...d, ...consumed } } };
   const prep = await runFilmStep(ctx, { script: "cut_joins.py", args: ["prepare", "--ep", e], what: `cut_joins prepare ${e}` });
   if (prep.code !== 0) return { kind: "refused", error: narratedRefusal({ script: "cut_joins.py" }, prep), patch: { stage_detail: { ...d, ...consumed } } };
   let status = await joinStatus(ctx, e);
@@ -254,12 +266,18 @@ export function unjudged(r: { complete: string[]; incomplete: { key: string; err
 
 export function apiPictureReaders(): PictureReaders {
   const deps = (ctx: NarratedContext) => ({ film: ctx.paths.film, run_id: ctx.run.id, work_dir: ctx.paths.work, env: ctx.env, signal: ctx.signal, session: ctx.session, ...(ctx.settings.reader_model ? { model: ctx.settings.reader_model } : {}), onLog: (l: string) => ctx.log(l) });
+  // The workflow's SHA-256 as the sync recorded it: the shim compiles only those bytes (the stage checked the whole copy
+  // before; this closes the moment between that check and the read, while another episode's session runs).
+  const synced = (ctx: NarratedContext, file: string): { workflow_sha256?: string } => {
+    const sha = readSyncRecord(ctx.paths.film)?.file_sha256?.[file];
+    return sha ? { workflow_sha256: sha } : {};
+  };
   return {
     async sheets(ctx) {
       const { runSheetPass } = await import("./picture/sheets");
       const { isWorkflowUnavailable } = await import("@/lib/segment/workflow-shim");
       try {
-        const r = await runSheetPass({ ...deps(ctx), premise: ctx.settings.sheet_premise ?? undefined });
+        const r = await runSheetPass({ ...deps(ctx), ...synced(ctx, "sheet_read.workflow.js"), premise: ctx.settings.sheet_premise ?? undefined });
         if (isWorkflowUnavailable(r)) return { status: "unavailable", reason: r.unavailable };
         if (!r.file) return { status: "failed", error: `${r.failed_groups.length} sheet group(s) failed: ${r.failed_groups.map((g) => `${g.label}: ${g.error}`).join("; ").slice(0, 1500)}`, detail: { cost_cents: r.cost_cents, reader_version: r.reader_version } };
         return { status: "done", detail: { file: path.relative(ctx.paths.film, r.file).split(path.sep).join("/"), entries: r.entries, cost_cents: r.cost_cents, reader_version: r.reader_version, model: r.model } };
@@ -271,7 +289,7 @@ export function apiPictureReaders(): PictureReaders {
       const { runFramePass } = await import("./picture/frames");
       const { isWorkflowUnavailable } = await import("@/lib/segment/workflow-shim");
       try {
-        const r = await runFramePass({ ...deps(ctx), ep: epDir(ep.n) });
+        const r = await runFramePass({ ...deps(ctx), ...synced(ctx, "frame_verify.workflow.js"), ep: epDir(ep.n) });
         if (isWorkflowUnavailable(r)) return { status: "unavailable", reason: r.unavailable };
         const u = unjudged(r, "frame_claims.py");
         return { status: "done", detail: { complete: r.complete.length, incomplete: u.incomplete, errors: u.errors, cost_cents: r.cost_cents, reader_version: r.reader_version, model: r.model }, contradicted: r.contradicted.map((c) => ({ id: c.id, claim: c.claim, evidence: c.evidence })), incomplete: u.incomplete };
@@ -283,7 +301,7 @@ export function apiPictureReaders(): PictureReaders {
       const { runJoinPass } = await import("./picture/joins");
       const { isWorkflowUnavailable } = await import("@/lib/segment/workflow-shim");
       try {
-        const r = await runJoinPass({ ...deps(ctx), ep: epDir(ep.n) });
+        const r = await runJoinPass({ ...deps(ctx), ...synced(ctx, "cut_verify.workflow.js"), ep: epDir(ep.n) });
         if (isWorkflowUnavailable(r)) return { status: "unavailable", reason: r.unavailable };
         const u = unjudged(r, "cut_joins.py");
         return { status: "done", detail: { complete: r.complete.length, incomplete: u.incomplete, errors: u.errors, cost_cents: r.cost_cents, reader_version: r.reader_version, model: r.model }, lost: r.lost.map((l) => ({ id: l.id, why: l.why })), incomplete: u.incomplete };

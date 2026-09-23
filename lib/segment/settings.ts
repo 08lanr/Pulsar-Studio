@@ -5,8 +5,8 @@
 //
 // Every key is optional on the row. A cut-only run reads the pipeline's own
 // defaults for a missing one (lib/segment/stages.ts); a narrated run reads
-// `resolveNarratedSettings`, which fills N2's defaults and folds in the
-// newest `intake` decision — the intake stage waits for what a new source
+// `resolveNarratedSettings`, which fills N2's defaults and folds in every
+// `intake` decision, oldest first — the intake stage waits for what a new source
 // cannot default (the sheet premise, the season), and the person's answer is
 // a decision, never an edit of the row, so who set what stays on record.
 //
@@ -164,27 +164,52 @@ export type NarratedSettings = {
   allow_dirty: boolean;
 };
 
-/** The `settings` patch of the newest intake decision (`{kind: "intake", settings}`), validated; {} when there is none. */
-export function intakePatch(decisions: readonly FilmRunDecision[]): FilmRunSettings {
-  for (let i = decisions.length - 1; i >= 0; i--) {
-    const d = decisions[i];
+/**
+ * Lay `over` on `under`: key by key, `season` and `brief` one level deep (a
+ * list inside them, like `prior_projects`, is replaced whole). Pure.
+ */
+export function foldSettings(under: FilmRunSettings, over: FilmRunSettings): FilmRunSettings {
+  const out: FilmRunSettings = { ...under, ...over };
+  for (const k of ["season", "brief"] as const) {
+    const a = under[k] as unknown;
+    const b = over[k] as unknown;
+    if (isPlainObject(a) && isPlainObject(b)) (out as Record<string, unknown>)[k] = { ...a, ...b };
+  }
+  return out;
+}
+
+/**
+ * Every intake decision's `settings` (`{kind: "intake", settings}`), folded
+ * oldest to newest: each answer adds to the ones before it (the season and
+ * the premise first, a raised `tts_char_budget` later), a later key wins key
+ * by key, `season` and `brief` merge one level deep. Each answer is checked
+ * over what came before it and `base` (the row's settings, so a season
+ * answer may name only the number the intake asked for): an invalid one is
+ * skipped, never a reason to drop the valid ones. {} when there is none.
+ */
+export function intakePatch(decisions: readonly FilmRunDecision[], base: FilmRunSettings = {}): FilmRunSettings {
+  let acc: FilmRunSettings = {};
+  for (const d of decisions) {
     if (d.action !== "intake") continue;
     const data = d.data;
-    const patch = isPlainObject(data) && isPlainObject((data as Record<string, unknown>).settings) ? ((data as Record<string, unknown>).settings as FilmRunSettings) : {};
+    const patch = isPlainObject(data) && isPlainObject((data as Record<string, unknown>).settings) ? ((data as Record<string, unknown>).settings as FilmRunSettings) : null;
+    if (!patch) continue;
+    const next = foldSettings(acc, patch);
     try {
-      return validateFilmRunSettings(patch);
+      validateFilmRunSettings(foldSettings(base, next));
     } catch {
-      return {};
+      continue;
     }
+    acc = JSON.parse(JSON.stringify(next)) as FilmRunSettings;
   }
-  return {};
+  return acc;
 }
 
 const str = (v: Json | undefined): string | null => (typeof v === "string" && v.trim() ? v : null);
 
-/** N2's defaults over the row's settings and the newest intake answer (the answer wins key by key; `season` and `brief` merge one level deep). */
+/** N2's defaults over the row's settings and every intake answer folded (a later answer wins key by key; `season` and `brief` merge one level deep). */
 export function resolveNarratedSettings(run: Pick<FilmRun, "settings" | "decisions">): NarratedSettings {
-  const patch = intakePatch(run.decisions ?? []);
+  const patch = intakePatch(run.decisions ?? [], run.settings ?? {});
   const s: FilmRunSettings = { ...(run.settings ?? {}), ...patch };
   const seasonRow = (isPlainObject(run.settings?.season) ? run.settings.season : {}) as Partial<NarratedSeason>;
   const seasonPatch = (isPlainObject(patch.season) ? patch.season : {}) as Partial<NarratedSeason>;
