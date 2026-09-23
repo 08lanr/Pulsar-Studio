@@ -20,7 +20,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { ffmpegBin } from "@/lib/clips/cut";
 import { runProcess } from "@/lib/python";
-import { SEEN_TOLERANCE_S, SegmentError, type StripImage } from "./strips";
+import { SegmentError, cutIndexOf, type StripImage } from "./strips";
 
 type Env = Record<string, string | undefined>;
 
@@ -128,11 +128,8 @@ export function annotateArgs(src: string, out: string, spec: AnnotateSpec): stri
   return ["-hide_banner", "-y", "-v", "error", "-i", src, "-vf", annotateFilter(spec), "-frames:v", "1", out];
 }
 
-/** The cut tile of a strip: the tile at `cutT` (SEEN_TOLERANCE_S), else the centre tile. */
-export function cutIndexOf(tiles: number[], cutT: number): number {
-  const i = tiles.findIndex((t) => Math.abs(t - cutT) <= SEEN_TOLERANCE_S + 1e-9);
-  return i >= 0 ? i : Math.floor(tiles.length / 2);
-}
+/** The cut tile of a strip: the tile at `cutT`, else the centre tile (lib/segment/strips; the prompts' reading block uses the same rule for the dense strip). */
+export { cutIndexOf };
 
 export type AnnotateDeps = {
   env?: Env;

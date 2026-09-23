@@ -488,6 +488,12 @@ export function cutTileOf(layout: Pick<StripLayout, "window" | "step">): { index
   return { index: Math.floor(count / 2), count };
 }
 
+/** The cut tile of a rendered strip from its own tiles: the tile at `cutT` (SEEN_TOLERANCE_S), else the centre tile. The annotation frames it; the reading block names it. */
+export function cutIndexOf(tiles: number[], cutT: number): number {
+  const i = tiles.findIndex((t) => Math.abs(t - cutT) <= SEEN_TOLERANCE_S + 1e-9);
+  return i >= 0 ? i : Math.floor(tiles.length / 2);
+}
+
 // ---- the dense strip for the skeptic --------------------------------------------------------------
 
 export type DenseStripRequest = {

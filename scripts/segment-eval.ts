@@ -18,6 +18,9 @@
 //   --truth        delivered (default) | records (the recorded first-pass records, the old measure)
 //   --no-dense     no dense strip for the skeptic (A/B arm)         --raw-strips   the pipeline's PNGs, unannotated (A/B arm)
 //   --no-tiebreak  no blind tie-break (an override that passes the guards then needs a person)
+//   --no-card-prompt  the card spans stay out of the prompts and the guard (the production by-eye arm: a new film has
+//                  no film-meta.json and no skips.json at vision time); the hard-rule and card checks still score
+//                  against the loaded spans
 //   --concurrency  boundaries judged at once (3)                    --label        the result file's name
 //
 // Reads .env.local like the worker (@next/env): WORKSPACE_ROOT (or the
@@ -69,7 +72,7 @@ function workDir(): string {
 async function main() {
   const film = arg("film");
   if (!film) {
-    console.error("usage: npx tsx scripts/segment-eval.ts --film low-quality/<film> [--first N | --boundaries 1-20,#38,115.367] [--model m] [--truth delivered|records] [--no-dense] [--raw-strips] [--no-tiebreak] [--concurrency 3] [--label eval]");
+    console.error("usage: npx tsx scripts/segment-eval.ts --film low-quality/<film> [--first N | --boundaries 1-20,#38,115.367] [--model m] [--truth delivered|records] [--no-dense] [--raw-strips] [--no-tiebreak] [--no-card-prompt] [--concurrency 3] [--label eval]");
     process.exit(2);
   }
   const root = process.env.WORKSPACE_ROOT?.trim() || path.resolve(process.cwd(), "..", "Pulsar-Workspace", "mini-drama-system", "projects");
@@ -128,7 +131,10 @@ async function main() {
     console.log(`truth: the recorded pass (${recorded.length} records; --truth records)`);
   }
   const cardSpans = await loadCardSpans(cutDir);
-  console.log(`card spans: ${cardSpans.length} (film-meta.json exclusions of kind card, index/skips.json)`);
+  // A delivered film's card spans were hand-written after delivery and end on the delivered cut, so a prompt that
+  // carries them is told the answer at every card boundary; a by-eye run in production has none at vision time.
+  const cardPrompt = !flag("no-card-prompt");
+  console.log(`card spans: ${cardSpans.length} (film-meta.json exclusions of kind card, index/skips.json); in the prompt: ${cardPrompt ? "yes" : "NO (--no-card-prompt, as a by-eye run in production; the checks still use them)"}`);
 
   const src = path.join(cutDir, "..", "source", "original.mp4");
   const denseOn = !flag("no-dense");
@@ -155,7 +161,7 @@ async function main() {
       dense,
       annotate,
       tiebreak,
-      card_spans: cardSpans,
+      card_spans: cardPrompt ? cardSpans : [],
       // A delivered film's pins cover every boundary; the neighbours are the planner's own.
       fixed_start: 0,
       onBoundary: (r, done, total) => {
@@ -175,10 +181,12 @@ async function main() {
 
   const score = scoreAgainstTruth({ doc, truth, judged: result.records, card_spans: cardSpans, fixed_start: 0 });
   const n = score.n;
-  console.log(`\nagainst the ${truthMode === "delivered" ? "DELIVERED cuts" : "recorded pass"} (±${score.tolerance_s} s), ${n} scored:`);
-  console.log(`  applied time (with the guarded skeptic): ${score.applied_agree}/${n}`);
+  const asked = selection.boundaries.length;
+  console.log(`\nagainst the ${truthMode === "delivered" ? "DELIVERED cuts" : "recorded pass"} (±${score.tolerance_s} s), ${n} scored of ${asked} asked${result.errors.length ? ` (${result.errors.length} errored: ${result.errors.map((e) => `${e.boundary_s}s`).join(", ")})` : ""}:`);
+  console.log(`  applied time (with the guarded skeptic): ${score.applied_agree}/${n}${result.errors.length ? ` (${score.applied_agree}/${asked} with the errors as misses)` : ""}`);
   console.log(`  reviewer alone (skeptic switched off):   ${score.reviewer_only_agree}/${n}`);
-  console.log(`  hand-offs to a person:                   ${score.handoffs}`);
+  console.log(`  hand-offs (faults, unverified fixes):    ${score.handoffs}`);
+  console.log(`  person reviews (+ picks under ${score.confidence_gate}):   ${score.person_reviews}${result.errors.length ? ` (+ ${result.errors.length} errored = ${score.person_reviews + result.errors.length})` : ""}`);
   console.log(`  DP-pick rate:                            ${score.dp_rate ?? "-"}`);
   console.log(`  card boundaries:                         ${score.cards.agree}/${score.cards.boundaries}`);
   const s = score.skeptic;
@@ -195,13 +203,13 @@ async function main() {
   }
   const evRecorded = evaluate(recorded, result.records);
   console.log(`\nfor reference, against the recorded first-pass records: applied ${evRecorded.applied_agree}/${evRecorded.matched}, reviewer ${evRecorded.reviewer_agree}/${evRecorded.matched}`);
-  console.log("\ncalibration bar (decision 2026-09-23):");
-  const bar = calibrationBar(score, selection.indices, result.cost_cents);
+  console.log(`\ncalibration bar (decision 2026-09-23; ${result.provider} ${result.model}; dense ${denseOn ? "on" : "off"}, annotated ${annotatedOn ? "on" : "off"}, tie-break ${tiebreak ? "on" : "off"}, card spans in the prompt ${cardPrompt ? "on" : "OFF"}):`);
+  const bar = calibrationBar(score, selection.indices, result.cost_cents, { errors: result.errors, card_prompt: cardPrompt });
   for (const b of bar) console.log(`  ${b.pass ? "PASS" : "FAIL"}  ${b.line}`);
   console.log(`  ${bar.every((b) => b.pass) ? "ALL PASS" : `${bar.filter((b) => !b.pass).length} of ${bar.length} not met`}; wall ${wall} s`);
 
   const evalFile = path.join(outDir, `${label}.eval.json`);
-  await fsp.writeFile(evalFile, `${JSON.stringify({ film, truth: truthMode, delivered_file: delivered?.file ?? null, provider: result.provider, model: result.model, dense: denseOn, annotated: annotatedOn, tiebreak, film_notes: filmNotes, indices: selection.indices, cost_cents: result.cost_cents, wall_s: wall, score, recorded: evRecorded, bar }, null, 1)}\n`, "utf8");
+  await fsp.writeFile(evalFile, `${JSON.stringify({ film, truth: truthMode, delivered_file: delivered?.file ?? null, provider: result.provider, model: result.model, dense: denseOn, annotated: annotatedOn, tiebreak, card_prompt: cardPrompt, film_notes: filmNotes, indices: selection.indices, errors: result.errors, cost_cents: result.cost_cents, wall_s: wall, score, recorded: evRecorded, bar }, null, 1)}\n`, "utf8");
   console.log(`\nevaluation -> ${evalFile}`);
 }
 

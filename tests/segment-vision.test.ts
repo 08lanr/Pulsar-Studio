@@ -38,9 +38,9 @@ import {
   type BandFixPick,
   type BandFixVerdict,
 } from "@/lib/prompts/band-fix";
-import { BOUNDARY_RULES, BOUNDARY_RULE_VERSION, BoundaryPickSchema, buildBoundaryReview, type BoundaryPick } from "@/lib/prompts/boundary-review";
+import { BOUNDARY_RULES, BOUNDARY_RULE_VERSION, BoundaryPickSchema, OptionSeenSchema, buildBoundaryReview, denseReadingLine, selfContradiction, type BoundaryPick, type OptionSeen } from "@/lib/prompts/boundary-review";
 import { BoundaryVerdictSchema, buildBoundarySkeptic, citationProblem, type BoundaryVerdict } from "@/lib/prompts/boundary-skeptic";
-import { TiebreakSchema, buildBoundaryTiebreak, type TiebreakSide, type TiebreakVerdict } from "@/lib/prompts/boundary-tiebreak";
+import { TiebreakSchema, buildBoundaryTiebreak, tiebreakLayoutLine, type TiebreakSide, type TiebreakVerdict } from "@/lib/prompts/boundary-tiebreak";
 import {
   DENSE_COLS,
   DENSE_STEP_S,
@@ -169,7 +169,8 @@ function fakeLlm(script: Script = {}) {
       const aT = Number(call.user.match(/^CUT A at (\d+(?:\.\d+)?)s/m)?.[1]);
       const bT = Number(call.user.match(/^CUT B at (\d+(?:\.\d+)?)s/m)?.[1]);
       const winner = want === "neither" ? "neither" : want === null ? "A" : Math.abs(want - aT) <= 0.0015 ? "A" : Math.abs(want - bT) <= 0.0015 ? "B" : "neither";
-      data = { a_shows: "Fake: cut A's frames.", b_shows: "Fake: cut B's frames.", winner, evidence_image: null, evidence_tile_t: null, reason: `Fake: ${winner} satisfies the payoff rule.` };
+      // The losing side's fault tile is its own cut tile (a tile of its option strip and of its dense strip); both for "neither".
+      data = { a_shows: "Fake: cut A's frames.", b_shows: "Fake: cut B's frames.", a_fault_tile_t: winner === "A" ? null : aT, b_fault_tile_t: winner === "B" ? null : bT, winner, evidence_image: null, evidence_tile_t: null, reason: `Fake: ${winner} satisfies the payoff rule.` };
     } else {
       throw new Error(`fake llm: unexpected call ${call.name}`);
     }
@@ -292,17 +293,30 @@ test("the reviewer prompt is deterministic, carries the standing rules verbatim 
   assert.deepEqual({ system: a.system, user: a.user, images: a.images, name: a.name, model: a.model, provider: a.provider }, { system: b.system, user: b.user, images: b.images, name: b.name, model: b.model, provider: b.provider });
   assert.equal(a.name, "verify_boundaries_look");
   assert.equal(a.prompt_version, BOUNDARY_RULE_VERSION);
-  assert.equal(BOUNDARY_RULE_VERSION, "by-eye-v2", "the second pass changed the prompts and the schema: a new rule version, new idempotency keys");
+  assert.equal(BOUNDARY_RULE_VERSION, "by-eye-v3", "the calibration fixes changed rules 7-8, the schema descriptions and the reading block: a new rule version, new idempotency keys");
   const system = a.system.map((s) => s.text).join("\n");
   assert.ok(system.includes(BOUNDARY_RULES), "the standing decisions, word for word");
   assert.ok(system.includes("NEVER cut inside a physical action - mid-punch, mid-throw, mid-fall."));
   assert.ok(system.includes("If someone is thrown into a pool, the episode must end AFTER they hit the water and go under"));
-  // The two rules the second pass adds, as the diagnosis proposed them.
-  assert.ok(system.includes('7. If the source shows its own episode break - a flare or light leak with a vertical "TO BE CONTINUED" card, or a fade to black - that is where the original episode ended. Cut on the FIRST frame after it (the hard cut to the next shot). Never start an episode on the card, the flare into it or any part of it, and do not leave the card inside an episode with more story after it.'));
-  assert.ok(system.includes("8. A burned-in subtitle that shows on tiles on BOTH sides of the cut means the cut splits a spoken line. Do not choose that option, whatever the dialogue list says: the transcript misses voice-overs and shouted lines, the burned captions do not."));
-  // The reading block: the cut tile, which tiles are this episode and which the next, the motion flag as a detector reading, the dialogue list as no evidence of the picture.
+  // The two rules the second pass adds, restated after the calibration: rule 7 names its target positively (the model read "do not leave the card inside an episode" as "a card anywhere is forbidden"), rule 8 says the SAME line (the model read any two captions as a split).
+  assert.ok(
+    system.includes(
+      '7. If the source shows its own episode break - a flare or light leak with a vertical "TO BE CONTINUED" card, or a fade to black - that is where the original episode ended. The best cut is the FIRST frame after the source\'s card: the option whose END tiles finish on the card and whose cut tile is already the next shot. The card belongs at the END of this episode, so a card before the cut is the target, not a fault. Only two things are faults: a cut tile that still shows the card, flare or fade (the next episode opens on it), and a cut a second or more after the card ends (the card is buried inside an episode with more story after it).'
+    )
+  );
+  assert.ok(
+    system.includes(
+      "8. If the SAME subtitle line (the same words) shows on the last tile before the cut AND on the cut tile, the cut splits a spoken line; do not choose it, whatever the dialogue list says: the transcript misses voice-overs and shouted lines, the burned captions do not. One line ending before the cut and a different line starting after it is not a split."
+    )
+  );
+  assert.ok(!system.includes("do not leave the card inside an episode"), "the clause the model read backwards is gone");
+  // The reading block: the cut tile of the OPTION strips (a dense strip gets its own line), which tiles are this episode and which the next, the motion flag as a detector reading, the dialogue list as no evidence of the picture.
   assert.ok(system.includes("READING THE STRIPS AND THE FACTS"));
-  assert.ok(system.includes("- In every strip the cut is tile 6, the LAST tile of the FIRST row. Tiles 1-5 are the last 2.5 s of THIS episode; tile 6 and the whole second row are the first 3 s of the NEXT one. ends_on describes only tiles 1-5 of the chosen option's own image, opens_on only tile 6 onward. Describe only what that image shows - never what another option's image or the dialogue list shows."));
+  assert.ok(system.includes("- In every OPTION strip the cut is tile 6, the LAST tile of the FIRST row. Tiles 1-5 are the last 2.5 s of THIS episode; tile 6 and the whole second row are the first 3 s of the NEXT one. ends_on describes only tiles 1-5 of the chosen option's own image, opens_on only tile 6 onward. Describe only what that image shows - never what another option's image or the dialogue list shows."));
+  assert.ok(!system.includes("In the DENSE strip"), "the reviewer sees no dense strip, so no dense line");
+  assert.ok(system.includes("Your choice must agree with your own entry for it"));
+  assert.match(OptionSeenSchema.shape.card_or_flare.description ?? "", /before_cut = the card ends before the cut and the cut tile is the next shot \(what rule 7 asks for\)/);
+  assert.match(OptionSeenSchema.shape.caption_across_cut.description ?? "", /the SAME burned-in subtitle line \(the same words\) shows on the last tile before the cut AND on the cut tile/);
   assert.ok(system.includes('- "motion" comes from a motion detector, not a person. It also fires on flares, card transitions, fades, camera moves and walking. Only a punch, slap, push, grab, throw, fall, collision or something flying counts as a physical action for rules 2-4; a blink, a head turn, a hand gesture, a walk or a camera move does not. Judge from the frames; the motion numbers are never the time of an impact.'));
   assert.ok(system.includes("- The dialogue list is whisper's transcript: times are where lines START, it misses voice-overs and shouting, and a line can be many seconds from the cut. It is never evidence of what is on screen."));
   assert.ok(!system.includes("Every strip is labelled"), "raw strips: no labelling note");
@@ -345,6 +359,17 @@ test("the reviewer prompt is deterministic, carries the standing rules verbatim 
   assert.match(carded.check(good)!, /opt2 at 433.1s is inside the source's own card 433.1-435.1s: the next episode would open on the card \(rule 7\)/);
   assert.equal(carded.check({ ...good, chosen_key: "opt1", chosen_t: 424.433 }), null);
   assert.equal(a.check({ ...good, chosen_key: "none", chosen_t: 0, confidence: 0 }), null, "a refusal (confidence 0) chooses nothing and is not repaired");
+  // A pick the reviewer's own options_seen contradicts is refused (the calibration had cap=true chosen at 2429, a real split): a caption across the cut, the card on or after the cut tile, an action across the cut.
+  const contradicted = (entry: Partial<OptionSeen>) => ({ ...good, options_seen: [seen("opt1"), { ...seen("opt2"), ...entry }] });
+  assert.match(a.check(contradicted({ caption_across_cut: true }))!, /^your own options_seen says opt2 shows the same subtitle line on the last tile before the cut and on the cut tile, a split spoken line \(rule 8\); choose another option or refuse with confidence 0$/);
+  assert.match(a.check(contradicted({ card_or_flare: "across_cut" }))!, /your own options_seen says opt2 still shows the card, flare or fade on its cut tile, so the next episode would open on it \(rule 7\); choose another option or refuse with confidence 0/);
+  assert.match(a.check(contradicted({ card_or_flare: "after_cut" }))!, /your own options_seen says opt2 shows the card after its cut, so the cut comes before the source's break and buries the card \(rule 7\); choose another option/);
+  assert.match(a.check(contradicted({ physical_action_across_cut: "a slap landing" }))!, /your own options_seen says opt2 cuts inside a physical action \(a slap landing; rule 2\); choose another option/);
+  assert.equal(a.check(contradicted({ card_or_flare: "before_cut" })), null, "the card ending before the cut is what rule 7 asks for");
+  assert.equal(a.check(contradicted({ physical_action_across_cut: "none" })), null, '"none" written for null is not an action');
+  assert.equal(a.check({ ...good, options_seen: [{ ...seen("opt1"), caption_across_cut: true }, seen("opt2")] }), null, "a fault on another option does not touch the choice");
+  assert.equal(selfContradiction({ options_seen: [], chosen_key: "opt2" }), null);
+  assert.equal(a.check({ ...contradicted({ caption_across_cut: true }), confidence: 0 }), null, "refusing with confidence 0 is the way out the message names");
   assert.ok(BoundaryPickSchema.safeParse(good).success);
   assert.deepEqual(Object.keys(BoundaryPickSchema.shape)[0], "options_seen", "what each strip shows is recorded before the choice");
   assert.throws(() => buildBoundaryReview({ ...input, strips: input.strips.slice(1) }), /1 strips for 2 options/);
@@ -383,6 +408,15 @@ test("the skeptic prompt restates the pick, lists only the legal cuts it has see
   assert.ok(!system.includes("Default to agree=false"), "the first pass's close is gone");
   assert.ok(system.includes("A fix must be a time you have looked at: a listed option (better_key and its exact t) or a legal cut inside one of the attached images"));
   assert.ok(system.includes("DENSE strip"));
+  // The reading block names the dense strip's cut tile from its own layout: 31 tiles, 10 per row, the cut at tile 16, so tile 6 is a second BEFORE it (the tie-break at 4099.367 read the card off tile 6 as the cut tile).
+  assert.ok(system.includes("- In every OPTION strip the cut is tile 6"));
+  assert.ok(system.includes("- In the DENSE strip (31 tiles 0.1 s apart, 10 per row) the cut is tile 16 (row 2, tile 6 of that row, the centre tile); its tile 6 is 1 s BEFORE the cut. Its tiles 1-15 are THIS episode, tile 16 on the NEXT."));
+  assert.ok(system.includes("the chosen cut at the tile the READING block names for it (not tile 6)"));
+  assert.equal(denseReadingLine(dense, 6, { annotated: true }), "- In the DENSE strip (31 tiles 0.1 s apart, 10 per row) the cut is tile 16 (row 2, tile 6 of that row, the red-framed tile); its tile 6 is 1 s BEFORE the cut. Its tiles 1-15 are THIS episode, tile 16 on the NEXT.");
+  assert.equal(denseReadingLine({ tiles: stripTiles(10, 1, 0.1), cols: 6, step: 0.1, t: 10 }, 6), "- In the DENSE strip (11 tiles 0.1 s apart, 6 per row) the cut is tile 6 (row 1, tile 6 of that row, the centre tile); its tile 6 is the cut. Its tiles 1-5 are THIS episode, tile 6 on the NEXT.");
+  assert.ok(!buildBoundarySkeptic({ ...base, dense: null, legal_cuts: [] }).system.map((s) => s.text).join("\n").includes("In the DENSE strip"), "no dense strip, no dense line");
+  assert.ok(system.includes("- does the SAME subtitle line show on the last tile before the cut and on the cut tile (rule 8)? One line ending before the cut and a different line starting after it is not a split."));
+  assert.ok(system.includes("A card that ends before the cut, with the cut tile already the next shot, is the target, not a fault."));
   assert.ok(a.user.includes("A fix must be a time you have looked at: a listed option (better_key and its exact t) or a legal cut inside one of the attached images, and it must keep this cut between 4545s and 4585s. If the only fix is a time you have not seen, give no fix - the boundary then goes to a person."));
   assert.match(a.user, /The other reviewer chose opt1 at 4550.267s\./);
   assert.match(a.user, /They said the episode ends on: Helen's half-smile\./);
@@ -437,16 +471,23 @@ test("the tie-break prompt shows both cuts blind, in the order the hash gives, w
   const range = { prev: 4450, next: 4680, ...allowedRange(4450, 4680, [95, 150]) };
   const a = buildBoundaryTiebreak({ boundary: input.boundary, sides, layout: input.layout, band: input.band, range, film_notes: "A card marks the breaks.", provider: "anthropic", model: "claude-sonnet-5" });
   assert.equal(a.name, "verify_boundaries_tiebreak");
-  assert.equal(a.prompt_version, `${BOUNDARY_RULE_VERSION}:tiebreak-v1`);
+  assert.equal(a.prompt_version, `${BOUNDARY_RULE_VERSION}:tiebreak-v2`, "the fault tiles changed the schema");
   const system = a.system.map((s) => s.text).join("\n");
   assert.ok(system.includes("You are not told who proposed which, and you are given no reasoning from either side."));
   assert.ok(system.includes(BOUNDARY_RULES));
   assert.ok(system.includes("Every strip is labelled"));
   assert.ok(system.includes("About this film:\nA card marks the breaks."));
+  // The strip layouts come from the attached images, not a hardcoded "0.1s apart, 10 per row", and the reading block names the dense strip's own cut tile.
+  assert.ok(system.includes("An option strip shows 11 frames 0.5s apart, 6 per row, the cut at tile 6. A DENSE strip shows 31 frames 0.1s apart, 10 per row, the cut at tile 16. Each side's images are listed with their tile times."));
+  assert.ok(system.includes("- In the DENSE strip (31 tiles 0.1 s apart, 10 per row) the cut is tile 16 (row 2, tile 6 of that row, the red-framed tile); its tile 6 is 1 s BEFORE the cut."));
+  assert.ok(!system.includes("0.1s apart, 10 per row, with the cut at its centre tile"));
+  assert.equal(tiebreakLayoutLine([{ key: "dense", t: 10, tiles: stripTiles(10, 2, 0.1), cols: 7, step: 0.1 }], input.layout), "An option strip shows frames 0.5s apart, 6 per row, the cut at tile 6. A DENSE strip shows 21 frames 0.1s apart, 7 per row, the cut at tile 11. Each side's images are listed with their tile times.");
+  assert.ok(system.includes("The losing side must carry a fault tile"));
+  assert.ok(system.includes("Pick neither only when both cuts break a rule, each with its fault tile cited."));
   assert.match(a.user, /^BOUNDARY 4550.267s/);
   assert.match(a.user, /CUT A at 4572.067s \(listed option opt2; motion detector: moving at the cut/);
-  assert.match(a.user, /  image 1: option strip, 0.5s steps, cut at the centre tile; tiles: 4569.567/);
-  assert.match(a.user, /  image 2: dense strip, 0.1s steps/);
+  assert.match(a.user, /  image 1: option strip, 0.5s steps, cut at tile 6; tiles: 4569.567/);
+  assert.match(a.user, /  image 2: dense strip, 0.1s steps, cut at tile 16; tiles: 4570.567/);
   assert.match(a.user, /CUT B at 4550.267s \(listed option opt1; motion detector: still at the cut \(motion 31.67s before, 15.83s after\)\)/);
   assert.match(a.user, /  image 3: option strip/);
   assert.match(a.user, /  image 4: dense strip/);
@@ -455,13 +496,21 @@ test("the tie-break prompt shows both cuts blind, in the order the hash gives, w
   assert.match(carded.user, /CUT A at 4572.067s \(listed option opt2[^\n]+\n  ON THE CARD: 4572.067s is inside the source's own card 4572.067-4574.1s/);
   assert.ok(!/CUT B at 4550.267s[^\n]+\n  ON THE CARD/.test(carded.user));
   assert.equal(a.images.length, 4);
-  assert.deepEqual(Object.keys(TiebreakSchema.shape).slice(0, 2), ["a_shows", "b_shows"], "what each side shows is recorded before the verdict");
-  const good: TiebreakVerdict = { a_shows: "x", b_shows: "y", winner: "B", evidence_image: 3, evidence_tile_t: 4550.267, reason: "r" };
+  assert.deepEqual(Object.keys(TiebreakSchema.shape).slice(0, 5), ["a_shows", "b_shows", "a_fault_tile_t", "b_fault_tile_t", "winner"], "what each side shows and where each breaks a rule are recorded before the verdict");
+  const good: TiebreakVerdict = { a_shows: "x", b_shows: "y", a_fault_tile_t: 4572.067, b_fault_tile_t: null, winner: "B", evidence_image: 3, evidence_tile_t: 4550.267, reason: "r" };
   assert.equal(a.check(good), null);
   assert.match(a.check({ ...good, a_shows: " " })!, /a_shows and b_shows must each describe/);
   assert.match(a.check({ ...good, evidence_image: 9 })!, /evidence_image 9 is not an attached image \(1-4\)/);
   assert.match(a.check({ ...good, evidence_image: 1, evidence_tile_t: 4550.267 })!, /evidence_tile_t 4550.267 is not a tile of image 1/);
-  assert.equal(a.check({ ...good, winner: "neither", evidence_image: null, evidence_tile_t: null }), null);
+  // The losing side carries a fault tile of its OWN images; "neither" carries one on each side (the calibration's "neither" at 3152.433 cited nothing and handed off the delivered cut).
+  assert.match(a.check({ ...good, a_fault_tile_t: null })!, /^winner B: cite a_fault_tile_t, the tile of cut A's own images where A breaks a rule; if A breaks none, it is not the loser$/);
+  assert.match(a.check({ ...good, a_fault_tile_t: 4550.267 })!, /^a_fault_tile_t 4550.267 is not a tile of cut A's own images \(its tiles: 4569.567..4574.567, 4570.567..4573.567\)$/);
+  assert.match(a.check({ ...good, winner: "A", a_fault_tile_t: null })!, /^winner A: cite b_fault_tile_t/);
+  assert.equal(a.check({ ...good, winner: "A", a_fault_tile_t: null, b_fault_tile_t: 4550.767 }), null, "a dense tile of B's own strip");
+  assert.match(a.check({ ...good, winner: "A", a_fault_tile_t: null, b_fault_tile_t: 4569.567 })!, /b_fault_tile_t 4569.567 is not a tile of cut B's own images/);
+  assert.match(a.check({ ...good, winner: "neither", evidence_image: null, evidence_tile_t: null })!, /^neither: cite a_fault_tile_t AND b_fault_tile_t/);
+  assert.equal(a.check({ ...good, winner: "neither", b_fault_tile_t: 4550.267, evidence_image: null, evidence_tile_t: null }), null);
+  assert.equal(a.check({ ...good, a_fault_tile_t: 4573.067, b_fault_tile_t: 4551.267 }), null, "a fault tile on the winning side too is allowed when it is one of its tiles");
   assert.throws(() => buildBoundaryTiebreak({ boundary: input.boundary, sides: [sides[0], { ...sides[1], images: [] }], layout: input.layout, band: input.band, film_notes: null, provider: "anthropic", model: "claude-sonnet-5" }), /every side needs at least one image/);
   // The order: a hash of the run, the boundary and the attempt, so a re-run repeats it and another run may differ.
   assert.equal(tiebreakOrder(RUN_ID, 4550.267, 1), tiebreakOrder(RUN_ID, 4550.267, 1));

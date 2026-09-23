@@ -42,6 +42,7 @@ import { BOUNDARY_RULE_VERSION, buildBoundaryReview, type BoundaryPick } from "@
 import { buildBoundarySkeptic, citationProblem, type BoundaryVerdict } from "@/lib/prompts/boundary-skeptic";
 import { buildBoundaryTiebreak, type TiebreakSide, type TiebreakVerdict } from "@/lib/prompts/boundary-tiebreak";
 import type { CandidatesIndex } from "@/lib/film-import/types";
+import { CONFIDENCE_GATE } from "@/lib/segment/stages";
 import type { JobKind, Json } from "@/lib/types";
 import {
   SEEN_TOLERANCE_S,
@@ -291,12 +292,20 @@ export const VerdictTiebreakSchema = z.object({
   winner: z.enum(["reviewer", "skeptic", "neither"]),
   a_shows: z.string(),
   b_shows: z.string(),
+  /** The tile of each side's own images where it breaks a rule (the losing side always; both for `neither`): what the review screen shows the person to look at. */
+  a_fault_tile_t: z.number().nullable(),
+  b_fault_tile_t: z.number().nullable(),
   evidence_image: z.number().nullable(),
   evidence_tile_t: z.number().nullable(),
   reason: z.string(),
 });
 
 export type VerdictTiebreak = z.infer<typeof VerdictTiebreakSchema>;
+
+/** The fault tiles of a tie-break by side: the reviewer's cut and the skeptic's, whichever letter each was. */
+export function tiebreakFaults(tb: Pick<VerdictTiebreak, "a_side" | "a_fault_tile_t" | "b_fault_tile_t">): { reviewer: number | null; skeptic: number | null } {
+  return tb.a_side === "reviewer" ? { reviewer: tb.a_fault_tile_t, skeptic: tb.b_fault_tile_t } : { reviewer: tb.b_fault_tile_t, skeptic: tb.a_fault_tile_t };
+}
 
 /** The guard's note on a record's verdict, or null for a record without one (a hand-off, the fake, a first-pass Workflow record). */
 export function readGuard(verdict: WorkflowVerdict | null | undefined): VerdictGuard | null {
@@ -604,13 +613,15 @@ export async function judgeBoundaries(run: SegmentRun, doc: OptionsDoc, opts: Ju
               jobs.push({ boundary_s: b, role: "tiebreak", job_id: broken.job.id, cost_cents: broken.job.cost_cents ?? 0, skipped: broken.skipped });
               const tv = broken.output;
               const winner: VerdictTiebreak["winner"] = tv.winner === "neither" ? "neither" : (tv.winner === "A") === (first === "reviewer") ? "reviewer" : "skeptic";
-              const tiebreak: VerdictTiebreak = { a_side: first, a_t: a.t, b_t: bSide.t, winner, a_shows: tv.a_shows, b_shows: tv.b_shows, evidence_image: tv.evidence_image, evidence_tile_t: tv.evidence_tile_t, reason: tv.reason };
+              const tiebreak: VerdictTiebreak = { a_side: first, a_t: a.t, b_t: bSide.t, winner, a_shows: tv.a_shows, b_shows: tv.b_shows, a_fault_tile_t: tv.a_fault_tile_t, b_fault_tile_t: tv.b_fault_tile_t, evidence_image: tv.evidence_image, evidence_tile_t: tv.evidence_tile_t, reason: tv.reason };
+              const faults = tiebreakFaults(tiebreak);
+              const at = (t: number | null) => (t === null ? "no tile cited" : `look at tile ${t}s`);
               if (winner === "skeptic") {
-                verdict = { ...toWorkflowVerdict(skeptic), reason: `${skeptic.reason} | tie-break chose the skeptic's ${betterT}s: ${tv.reason}`, skeptic_raw: skeptic, guard: note("tiebreak_skeptic", null, tv.reason), tiebreak, evidence };
+                verdict = { ...toWorkflowVerdict(skeptic), reason: `${skeptic.reason} | tie-break chose the skeptic's ${betterT}s (${pick.chosen_t}s faults: ${at(faults.reviewer)}): ${tv.reason}`, skeptic_raw: skeptic, guard: note("tiebreak_skeptic", null, tv.reason), tiebreak, evidence };
               } else if (winner === "reviewer") {
-                verdict = { agree: true, fault: "", better_key: "", reason: `skeptic disputed ${pick.chosen_t}s (${skeptic.fault ?? "fault"}) and named ${betterT}s; the blind tie-break kept ${pick.chosen_t}s: ${tv.reason}. Skeptic said: ${skeptic.reason}`, skeptic_raw: skeptic, guard: note("tiebreak_reviewer", null, tv.reason), tiebreak, evidence };
+                verdict = { agree: true, fault: "", better_key: "", reason: `skeptic disputed ${pick.chosen_t}s (${skeptic.fault ?? "fault"}) and named ${betterT}s; the blind tie-break kept ${pick.chosen_t}s (${betterT}s faults: ${at(faults.skeptic)}): ${tv.reason}. Skeptic said: ${skeptic.reason}`, skeptic_raw: skeptic, guard: note("tiebreak_reviewer", null, tv.reason), tiebreak, evidence };
               } else {
-                verdict = { agree: false, fault: skeptic.fault || `tie-break: neither ${pick.chosen_t}s nor ${betterT}s satisfies the payoff rule`, better_key: "", reason: `the blind tie-break found neither cut sound: ${tv.reason}. Skeptic said: ${skeptic.reason}`, skeptic_raw: skeptic, guard: note("tiebreak_neither", null, tv.reason), tiebreak, evidence };
+                verdict = { agree: false, fault: skeptic.fault || `tie-break: neither ${pick.chosen_t}s nor ${betterT}s satisfies the payoff rule`, better_key: "", reason: `the blind tie-break found neither cut sound (${pick.chosen_t}s: ${at(faults.reviewer)}; ${betterT}s: ${at(faults.skeptic)}): ${tv.reason}. Skeptic said: ${skeptic.reason}`, skeptic_raw: skeptic, guard: note("tiebreak_neither", null, tv.reason), tiebreak, evidence };
               }
             }
           }
@@ -968,7 +979,11 @@ export type Score = {
   n: number;
   applied_agree: number;
   reviewer_only_agree: number;
+  /** Boundaries with no applied time (a fault) or a fix nobody could verify or tie-break: apply_vision's FAILs plus `skeptic_unverified`. */
   handoffs: number;
+  /** Every boundary reviewState marks needs_decision: the hand-offs plus every reviewer pick under the confidence gate. The person's real workload; the bar counts this. */
+  person_reviews: number;
+  confidence_gate: number;
   dp_rate: number | null;
   skeptic: {
     agreed: number;
@@ -1079,12 +1094,16 @@ export function scoreAgainstTruth(input: ScoreInput): Score {
     if (g?.outcome === "rejected" && g.rule) rejected[g.rule] = (rejected[g.rule] ?? 0) + 1;
   }
   const cardRows = rows.filter((r) => r.card_boundary);
+  const handoff = (r: ScoreRow) => r.applied_t === null || r.guard === "rejected" || r.guard === "no_tiebreak";
   return {
     tolerance_s: tol,
     n,
     applied_agree: count((r) => r.applied_agree),
     reviewer_only_agree: count((r) => r.reviewer_agree),
-    handoffs: count((r) => r.applied_t === null || r.guard === "rejected" || r.guard === "no_tiebreak"),
+    handoffs: count(handoff),
+    // The same predicate reviewState applies (lib/segment/plan.ts): a fault, an unverified fix, or a pick under CONFIDENCE_GATE.
+    person_reviews: count((r) => handoff(r) || r.reviewer_confidence < CONFIDENCE_GATE),
+    confidence_gate: CONFIDENCE_GATE,
     dp_rate: n ? Math.round((count((r) => r.dp_pick) / n) * 1000) / 1000 : null,
     skeptic: {
       agreed: outcome("agreed"),

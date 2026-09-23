@@ -19,15 +19,24 @@
 // The Workflow's RULES are not mirrored here: that repo is read-only from
 // Studio, so rules 7-8 wait for their own commit there.
 //
+// The calibration of the second pass (phase 2.1, 2026-09-23) found the
+// model reading rule 7 backwards (an option whose END tiles carry the card
+// "contains the card, so it must be avoided") and rule 8 as any two
+// captions, choosing an option its own options_seen had faulted, and the
+// reading block calling tile 6 the cut of the dense strip too. So rule 7
+// now states its target positively, rule 8 says the SAME line, the check
+// refuses a pick the model's own options_seen contradicts, and the reading
+// block names the dense strip's cut tile from that strip's own layout.
+//
 // Schemas use .nullable(), never .optional(): lib/llm.ts emits strict JSON
 // schema where every key is required.
 
 import { z } from "zod";
 import type { LlmProvider, LlmSystemBlock } from "@/lib/llm";
-import { asLlmImage, cutTileOf, inCardSpan, type CardSpan, type OptionsBoundary, type StripImage, type StripLayout } from "@/lib/segment/strips";
+import { asLlmImage, cutIndexOf, cutTileOf, inCardSpan, type CardSpan, type OptionsBoundary, type StripImage, type StripLayout } from "@/lib/segment/strips";
 
 /** Bumped when the rules, the prompt text or a schema changes; part of every verify_boundaries idempotency key. */
-export const BOUNDARY_RULE_VERSION = "by-eye-v2";
+export const BOUNDARY_RULE_VERSION = "by-eye-v3";
 
 /** The standing decisions: 1-6 verbatim from pick_by_eye.workflow.js, 7-8 from the second pass. Not preferences. */
 export const BOUNDARY_RULES = [
@@ -38,8 +47,8 @@ export const BOUNDARY_RULES = [
   "4. After an impact, leave roughly 1.0-1.5s of aftermath (follow-through, reaction) so the blow reads. A cut 0.5s after contact lands but never registers.",
   "5. The cut must end on an open question AND be somewhere a cold viewer can start and tell who is on screen within about 10 seconds.",
   "6. A break landing after the tension has already resolved is weak however clean it looks.",
-  '7. If the source shows its own episode break - a flare or light leak with a vertical "TO BE CONTINUED" card, or a fade to black - that is where the original episode ended. Cut on the FIRST frame after it (the hard cut to the next shot). Never start an episode on the card, the flare into it or any part of it, and do not leave the card inside an episode with more story after it.',
-  "8. A burned-in subtitle that shows on tiles on BOTH sides of the cut means the cut splits a spoken line. Do not choose that option, whatever the dialogue list says: the transcript misses voice-overs and shouted lines, the burned captions do not.",
+  '7. If the source shows its own episode break - a flare or light leak with a vertical "TO BE CONTINUED" card, or a fade to black - that is where the original episode ended. The best cut is the FIRST frame after the source\'s card: the option whose END tiles finish on the card and whose cut tile is already the next shot. The card belongs at the END of this episode, so a card before the cut is the target, not a fault. Only two things are faults: a cut tile that still shows the card, flare or fade (the next episode opens on it), and a cut a second or more after the card ends (the card is buried inside an episode with more story after it).',
+  "8. If the SAME subtitle line (the same words) shows on the last tile before the cut AND on the cut tile, the cut splits a spoken line; do not choose it, whatever the dialogue list says: the transcript misses voice-overs and shouted lines, the burned captions do not. One line ending before the cut and a different line starting after it is not a split.",
 ].join("\n");
 
 /** Film-specific facts a reviewer must know (the Workflow's `film_notes`), e.g. how the source marks its own episode breaks. */
@@ -57,19 +66,42 @@ export function stripFacts(layout: Pick<StripLayout, "window" | "step" | "cols">
   return { cut, count, before: index, from: count - index, before_s: index * layout.step, from_s: (count - index) * layout.step, row: Math.floor(index / layout.cols) + 1, last_of_row: (index + 1) % layout.cols === 0 };
 }
 
+/** A dense strip as the reading block needs it: its tiles, its layout and the cut time at its centre. */
+export type DenseLayout = Pick<StripImage, "tiles" | "cols" | "step" | "t">;
+
+/**
+ * The dense strip's own tile facts, for the reading block: which tile is
+ * its cut (the centre tile at `t`, the red-framed one when annotated), in
+ * which row, and where the option strips' cut tile number falls in it. The
+ * calibration's tie-break claimed the card sat on the dense strip's cut
+ * tile because the block said "tile 6" of every strip: in the pipeline's
+ * 31-tile dense strip the cut is tile 16 and tile 6 is a second before it.
+ */
+export function denseReadingLine(dense: DenseLayout, optionCutTile: number, opts: { annotated?: boolean } = {}): string {
+  const index = cutIndexOf(dense.tiles, dense.t);
+  const k = index + 1;
+  const row = Math.floor(index / dense.cols) + 1;
+  const col = (index % dense.cols) + 1;
+  const offset = Math.round((k - optionCutTile) * dense.step * 1000) / 1000;
+  const six = offset > 0 ? `its tile ${optionCutTile} is ${secs(offset)} BEFORE the cut` : offset < 0 ? `its tile ${optionCutTile} is ${secs(-offset)} AFTER the cut` : `its tile ${optionCutTile} is the cut`;
+  return `- In the DENSE strip (${dense.tiles.length} tiles ${dense.step} s apart, ${dense.cols} per row) the cut is tile ${k} (row ${row}, tile ${col} of that row, ${opts.annotated ? "the red-framed tile" : "the centre tile"}); ${six}. Its tiles 1-${index} are THIS episode, tile ${k} on the NEXT.`;
+}
+
 /**
  * READING THE STRIPS AND THE FACTS: the block the second pass adds to every
  * prompt that attaches a strip. The tile numbers follow from the layout; for
  * the pipeline's default (11 tiles, 6 per row, 0.5 s) the cut is tile 6, the
- * last of the first row.
+ * last of the first row. That holds for the OPTION strips only: a dense
+ * strip attached to the call gets its own line from its own layout.
  */
-export function readingBlock(layout: Pick<StripLayout, "window" | "step" | "cols">, opts: { annotated?: boolean } = {}): string {
+export function readingBlock(layout: Pick<StripLayout, "window" | "step" | "cols">, opts: { annotated?: boolean; dense?: DenseLayout | null } = {}): string {
   const f = stripFacts(layout);
   const where = f.last_of_row ? `the LAST tile of the ${f.row === 1 ? "FIRST" : `row ${f.row}`} row` : `tile ${((f.cut - 1) % layout.cols) + 1} of row ${f.row}`;
   const rest = f.last_of_row && f.row === 1 ? "tile " + f.cut + " and the whole second row" : `tile ${f.cut} and every tile after it`;
   return [
     "READING THE STRIPS AND THE FACTS",
-    `- In every strip the cut is tile ${f.cut}, ${where}. Tiles 1-${f.before} are the last ${secs(f.before_s)} of THIS episode; ${rest} are the first ${secs(f.from_s)} of the NEXT one. ends_on describes only tiles 1-${f.before} of the chosen option's own image, opens_on only tile ${f.cut} onward. Describe only what that image shows - never what another option's image or the dialogue list shows.`,
+    `- In every OPTION strip the cut is tile ${f.cut}, ${where}. Tiles 1-${f.before} are the last ${secs(f.before_s)} of THIS episode; ${rest} are the first ${secs(f.from_s)} of the NEXT one. ends_on describes only tiles 1-${f.before} of the chosen option's own image, opens_on only tile ${f.cut} onward. Describe only what that image shows - never what another option's image or the dialogue list shows.`,
+    ...(opts.dense ? [denseReadingLine(opts.dense, f.cut, { annotated: opts.annotated })] : []),
     ...(opts.annotated
       ? [
           "- Every strip is labelled: the header names the option and its cut time, each tile carries its own time in the top-left corner, tiles before the cut are marked END and tiles from the cut on are marked NEXT, and the cut tile has a red frame. Read the times off the tiles; the option list repeats them.",
@@ -80,11 +112,11 @@ export function readingBlock(layout: Pick<StripLayout, "window" | "step" | "cols
   ].join("\n");
 }
 
-/** How to read a strip: the Workflow's stripHowTo, with the images attached instead of Read, then the reading block. */
-export function stripHowTo(layout: Pick<StripLayout, "window" | "step" | "cols">, opts: { annotated?: boolean } = {}): string {
+/** How to read a strip: the Workflow's stripHowTo, with the images attached instead of Read, then the reading block (with the dense strip's own line when one is attached). */
+export function stripHowTo(layout: Pick<StripLayout, "window" | "step" | "cols">, opts: { annotated?: boolean; dense?: DenseLayout | null } = {}): string {
   return [
     "Each option's strip is attached to this message as an image, in the order the options are listed. LOOK at the frames.",
-    `A strip is a grid of frames ${layout.step}s apart, ${layout.cols} per row, read left to right then top to bottom.`,
+    `An option strip is a grid of frames ${layout.step}s apart, ${layout.cols} per row, read left to right then top to bottom.`,
     "Each option below lists the timestamp of every tile in that same order.",
     "The proposed cut falls at the CENTRE tile: the episode ENDS on the frames before it, and the next episode STARTS on the frames from it onward.",
     "",
@@ -97,10 +129,38 @@ export const OptionSeenSchema = z.object({
   key: z.string().describe("the option key this line describes, e.g. opt3"),
   ends_on: z.string().describe("what the tiles BEFORE the cut of this option's own image show, physically"),
   opens_on: z.string().describe("what the cut tile and the tiles after it show, physically"),
-  caption_across_cut: z.boolean().describe("true when the same burned-in subtitle shows on a tile before the cut AND on the cut tile or after it (rule 8)"),
-  card_or_flare: z.enum(["none", "before_cut", "across_cut", "after_cut"]).describe("where a flare, light leak, fade to black or TO BE CONTINUED card appears in this image, if at all (rule 7)"),
+  caption_across_cut: z.boolean().describe("true only when the SAME burned-in subtitle line (the same words) shows on the last tile before the cut AND on the cut tile (rule 8); one line ending before the cut and a different line starting after it is false"),
+  card_or_flare: z
+    .enum(["none", "before_cut", "across_cut", "after_cut"])
+    .describe(
+      "where a flare, light leak, fade to black or TO BE CONTINUED card appears in this image, if at all (rule 7): none; before_cut = the card ends before the cut and the cut tile is the next shot (what rule 7 asks for); across_cut = the cut tile still shows the card, flare or fade (the next episode would open on it); after_cut = the card shows on tiles after the cut (the cut comes before the source's break)"
+    ),
   physical_action_across_cut: z.string().nullable().describe("a punch, slap, push, grab, throw, fall, collision or something flying that is in progress on the cut tile; null when none"),
 });
+
+/** True when an options_seen entry names a physical action across the cut (a model sometimes writes "none" for null). */
+export function namesAction(entry: Pick<OptionSeen, "physical_action_across_cut">): boolean {
+  const text = entry.physical_action_across_cut?.trim() ?? "";
+  return text !== "" && !/^(none|null|no|n\/a|-|nothing)$/i.test(text);
+}
+
+/**
+ * What the reviewer's own options_seen entry for its chosen option says
+ * against the choice, or null: the calibration had the model flag a caption
+ * across the cut (2429, 1325.967, 3866.967, 115.367) or a card on the cut
+ * tile and choose that option anyway, and one of those was a real rule-8
+ * split. A deterministic check catches exactly that.
+ */
+export function selfContradiction(out: Pick<BoundaryPick, "options_seen" | "chosen_key">): string | null {
+  const own = out.options_seen.find((s) => s.key === out.chosen_key);
+  if (!own) return null;
+  const close = "; choose another option or refuse with confidence 0";
+  if (own.caption_across_cut) return `your own options_seen says ${own.key} shows the same subtitle line on the last tile before the cut and on the cut tile, a split spoken line (rule 8)${close}`;
+  if (own.card_or_flare === "across_cut") return `your own options_seen says ${own.key} still shows the card, flare or fade on its cut tile, so the next episode would open on it (rule 7)${close}`;
+  if (own.card_or_flare === "after_cut") return `your own options_seen says ${own.key} shows the card after its cut, so the cut comes before the source's break and buries the card (rule 7)${close}`;
+  if (namesAction(own)) return `your own options_seen says ${own.key} cuts inside a physical action (${own.physical_action_across_cut!.trim()}; rule 2)${close}`;
+  return null;
+}
 
 export type OptionSeen = z.infer<typeof OptionSeenSchema>;
 
@@ -204,6 +264,7 @@ export function buildBoundaryReview(input: BoundaryReviewInput) {
         `Every episode must be ${input.band[0]}-${input.band[1]} s long. The boundary facts below name the planner's neighbouring boundaries and the range this cut must lie in; an option outside that range, or inside the source's own card, is marked and cannot be chosen.`,
         "",
         "First fill options_seen: one entry per option, from that option's own image only, before you choose.",
+        "Your choice must agree with your own entry for it: an option whose entry shows the same caption on both sides of the cut, the card on or after its cut tile, or a physical action across the cut cannot be chosen.",
         "Judge the options as PAIRS: what the episode ends on, and what the next one opens on. In ends_on and",
         "opens_on describe what you SEE in the frames, physically and concretely - not what the dialogue says.",
         "Set payoff_in_episode true only if the nearest physical payoff completes inside this episode.",
@@ -257,7 +318,7 @@ export function buildBoundaryReview(input: BoundaryReviewInput) {
       if (range && (o.t < range.lo - 1e-9 || o.t > range.hi + 1e-9)) return `${o.key} at ${o.t}s is outside the allowed range ${range.lo}-${range.hi}s (an episode would leave the ${input.band[0]}-${input.band[1]} s band); choose an option inside it, or refuse with confidence 0 and say why`;
       const card = input.card_spans ? inCardSpan(o.t, input.card_spans) : null;
       if (card) return `${o.key} at ${o.t}s is inside the source's own card ${card.from_s}-${card.to_s}s: the next episode would open on the card (rule 7); choose the first frame after it or another option, or refuse with confidence 0 and say why`;
-      return null;
+      return selfContradiction(out);
     },
   };
 }

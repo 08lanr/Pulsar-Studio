@@ -136,7 +136,8 @@ function fakeLlm(script: Script = {}) {
       const bT = Number(call.user.match(/^CUT B at (\d+(?:\.\d+)?)s/m)?.[1]);
       const want = script.tiebreak ?? "neither";
       const winner = want === "neither" ? "neither" : Math.abs(want - aT) <= 0.0015 ? "A" : Math.abs(want - bT) <= 0.0015 ? "B" : "neither";
-      const tv: TiebreakVerdict = { a_shows: "A's frames.", b_shows: "B's frames.", winner, evidence_image: null, evidence_tile_t: null, reason: `Fake: ${winner}.` };
+      // The losing side's fault tile is its own cut time, a tile of its option strip and of its dense strip; both sides for "neither".
+      const tv: TiebreakVerdict = { a_shows: "A's frames.", b_shows: "B's frames.", a_fault_tile_t: winner === "A" ? null : aT, b_fault_tile_t: winner === "B" ? null : bT, winner, evidence_image: null, evidence_tile_t: null, reason: `Fake: ${winner}.` };
       data = tv;
     } else {
       throw new Error(`fake llm: unexpected call ${call.name}`);
@@ -325,6 +326,10 @@ test("the tie-break decides an override that passed the guards: the skeptic's si
   assert.equal(v1.agree, false);
   assert.equal(v1.better_t, 4572.067);
   assert.equal(readGuard(v1)?.outcome, "tiebreak_skeptic");
+  // The fault tiles ride on the verdict by letter, and the reason names the losing side's tile for the review screen.
+  const tb1 = (v1 as { tiebreak?: { a_side: string; a_fault_tile_t: number | null; b_fault_tile_t: number | null } }).tiebreak!;
+  assert.deepEqual(tb1.a_side === "reviewer" ? [tb1.a_fault_tile_t, tb1.b_fault_tile_t] : [tb1.b_fault_tile_t, tb1.a_fault_tile_t], [4550.267, null], "the reviewer's side (the loser) carries the fault tile");
+  assert.match(String(v1.reason), /tie-break chose the skeptic's 4572.067s \(4550.267s faults: look at tile 4550.267s\)/);
   assert.deepEqual(applyVision(r1.records).rows[0].source, "SKEPTIC OVERRIDE");
   assert.deepEqual(reviewState(doc, [r1.records], []).boundaries.find((x) => x.boundary_s === 4550.267)!.reasons, ["skeptic_override"], "an applied override still goes to a person, as before");
   assert.deepEqual(evidenceTiles(v1).map((e) => e.tiles.length), [11, 11, 31], "the evidence rebuilds every image's tiles");
@@ -350,6 +355,7 @@ test("the tie-break decides an override that passed the guards: the skeptic's si
   assert.equal(v3.agree, false);
   assert.equal("better_t" in v3, false);
   assert.equal(readGuard(v3)?.outcome, "tiebreak_neither");
+  assert.match(String(v3.reason), /the blind tie-break found neither cut sound \(4550.267s: look at tile 4550.267s; 4572.067s: look at tile 4572.067s\)/);
   assert.match(applyVision(r3.records).faults[0], /4550.267s: skeptic disputes 4550.267s and names no fix - Rule 4: no aftermath/);
   assert.deepEqual(reviewState(doc, [r3.records], []).boundaries.find((x) => x.boundary_s === 4550.267)!.reasons, ["fault"]);
 
@@ -531,6 +537,10 @@ test("scoreAgainstTruth scores the applied time with and without the skeptic, th
   assert.equal(score.applied_agree, 2, "115.367 and 214.733 (the skeptic's 213.5)");
   assert.equal(score.reviewer_only_agree, 3, "115.367, 323.4 (the reviewer's 315.533) and 528.9, whose reviewer was right before the skeptic faulted it");
   assert.equal(score.handoffs, 2);
+  assert.deepEqual([score.person_reviews, score.confidence_gate], [2, 0.65], "every pick is at 0.8: the person's workload is the two hand-offs");
+  // A confident-looking pass with picks under the gate: reviewState sends those to a person too, and the score says so.
+  const shy = scoreAgainstTruth({ doc, truth, judged: [...judged.slice(0, 3), rec(424.433, 424.433, { guard: { outcome: "agreed", rule: null, detail: "", better_t: null } }, { confidence: 0.45 }), rec(528.9, 528.9, { guard: { outcome: "agreed", rule: null, detail: "", better_t: null } }, { confidence: 0.6 })], card_spans: cards, fixed_start: 0 });
+  assert.deepEqual([shy.handoffs, shy.person_reviews], [0, 2], "0 hand-offs, but the 0.45 and the 0.6 go to a person");
   assert.equal(score.dp_rate, 0.8);
   assert.deepEqual(score.rows.map((r) => [r.boundary_s, r.effect]), [[115.367, "neutral"], [214.733, "helped"], [323.4, "hurt"], [424.433, "neutral"], [528.9, "handoff"]]);
   assert.deepEqual(score.skeptic.bad_overrides, 1);
@@ -562,15 +572,33 @@ test("the eval selects boundaries by index range, index or time, reads the film 
   assert.equal(filmNotesFromState(state), '- **Watermark:** bottom.\n- The source shows a vertical "TO BE CONTINUED" card at each original episode break.');
   assert.equal(filmNotesFromState("# x\n\n## Decisions\n- a\n"), null);
   assert.equal(filmNotesFromState("## Film-specific notes\n- last section\n"), "- last section");
-  const score = { n: 20, applied_agree: 15, reviewer_only_agree: 12, handoffs: 2, dp_rate: 0.5, skeptic: { bad_overrides: 1 }, cards: { boundaries: 10, agree: 9 }, rule_failures: { card: 0, band: 0, unseen: 0, total: 0 } } as unknown as Parameters<typeof calibrationBar>[0];
-  const bar = calibrationBar(score, Array.from({ length: 20 }, (_, i) => i + 1), 700);
+  const score = { n: 20, applied_agree: 15, reviewer_only_agree: 12, handoffs: 2, person_reviews: 2, confidence_gate: 0.65, dp_rate: 0.5, skeptic: { bad_overrides: 1 }, cards: { boundaries: 10, agree: 9 }, rule_failures: { card: 0, band: 0, unseen: 0, total: 0 } } as unknown as Parameters<typeof calibrationBar>[0];
+  const indices20 = Array.from({ length: 20 }, (_, i) => i + 1);
+  const bar = calibrationBar(score, indices20, 700);
   assert.deepEqual(bar.map((b) => b.pass), [true, true, true, true, true, true]);
-  assert.match(bar[0].line, /applied agreement 15\/20 \(bar 15\/20, tuning 15\/20\)/);
+  assert.match(bar[0].line, /^applied agreement 15\/20 \(bar 15\/20, tuning 15\/20\)$/);
+  assert.match(bar[3].line, /^person reviews 2 = hand-offs 2 \(faults, unverified fixes\) \+ picks under 0.65 confidence 0 \+ errors 0 \(bar at most 2 per 20/);
+  assert.match(bar[4].line, /\(bar 9 of 10\)$/, "nothing said about the card prompt when the arm is not named");
   const held = calibrationBar({ ...score, applied_agree: 14 } as typeof score, Array.from({ length: 20 }, (_, i) => i + 21), 900);
   assert.match(held[0].line, /bar 14\/20, held-out 14\/20/);
   assert.deepEqual(held.map((b) => b.pass), [true, true, true, true, true, false], "$0.45 per boundary is over the bar");
-  const failing = calibrationBar({ ...score, applied_agree: 10, handoffs: 5, rule_failures: { card: 1, band: 0, unseen: 0, total: 1 }, skeptic: { bad_overrides: 2 } } as typeof score, [1], 10);
+  const failing = calibrationBar({ ...score, applied_agree: 10, handoffs: 5, person_reviews: 5, rule_failures: { card: 1, band: 0, unseen: 0, total: 1 }, skeptic: { bad_overrides: 2 } } as typeof score, [1], 10);
   assert.deepEqual(failing.map((b) => b.pass), [false, false, false, false, true, true]);
+  // The bar counts the person's real workload: picks under the gate fail the hand-off line even with no fault or unverified fix.
+  const shy = calibrationBar({ ...score, handoffs: 0, person_reviews: 3 } as typeof score, indices20, 700);
+  assert.equal(shy[3].pass, false);
+  assert.match(shy[3].line, /^person reviews 3 = hand-offs 0 \(faults, unverified fixes\) \+ picks under 0.65 confidence 3 \+ errors 0/);
+  // An errored boundary is a miss and a review, never a smaller denominator: 15/19 scored is 15/20 asked, and the errors are printed on the agreement line.
+  const errors = [{ boundary_s: 1462.1, error: "LlmError: the skeptic named the disputed option again" }];
+  const errored = calibrationBar({ ...score, n: 19, applied_agree: 14 } as typeof score, indices20, 700, { errors, card_prompt: false });
+  assert.match(errored[0].line, /^applied agreement 14\/20 \(bar 15\/20, tuning 15\/20; 1 errored, counted as missed: 1462.1s LlmError: the skeptic named the disputed option again\)$/);
+  assert.equal(errored[0].pass, false);
+  assert.match(errored[3].line, /^person reviews 3 = hand-offs 2 \(faults, unverified fixes\) \+ picks under 0.65 confidence 0 \+ errors 1 \(bar at most 2 per 20/);
+  assert.equal(errored[3].pass, false);
+  assert.match(errored[4].line, /\(bar 9 of 10; card spans NOT in the prompt, as a by-eye run in production\)$/);
+  assert.match(errored[5].line, /^cost 0.350 \$ per boundary/, "the cost is per boundary asked");
+  assert.match(calibrationBar(score, indices20, 700, { card_prompt: true })[4].line, /; card spans were in the prompt\)$/);
+  assert.equal(calibrationBar({ ...score, n: 19 } as typeof score, [], 700, { errors })[0].line.startsWith("applied agreement 15/20"), true, "no indices: the selection is the scored plus the errored");
 });
 
 test("legalCutsInView with no range lists every seen legal cut", async () => {

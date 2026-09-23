@@ -22,7 +22,7 @@ import { z } from "zod";
 import type { LlmProvider, LlmSystemBlock } from "@/lib/llm";
 import type { CutCandidate } from "@/lib/film-import/types";
 import { SEEN_TOLERANCE_S, asLlmImage, inCardSpan, isListedTime, type CardSpan, type OptionsBoundary, type StripImage, type StripLayout } from "@/lib/segment/strips";
-import { BOUNDARY_RULES, BOUNDARY_RULE_VERSION, filmNotesBlock, rangeLine, renderOptions, stripHowTo, type BoundaryPick, type BoundaryRange } from "./boundary-review";
+import { BOUNDARY_RULES, BOUNDARY_RULE_VERSION, filmNotesBlock, rangeLine, renderOptions, stripFacts, stripHowTo, type BoundaryPick, type BoundaryRange } from "./boundary-review";
 
 export const BoundaryVerdictSchema = z.object({
   chosen_strip_shows: z.string().describe("what the chosen option's own image shows: the tiles before the cut, then the cut tile and after - written before the verdict"),
@@ -101,9 +101,9 @@ export function buildBoundarySkeptic(input: BoundarySkepticInput) {
       text: [
         "Adversarial check on an episode boundary chosen by another reviewer. Your job is to REFUTE it if you can.",
         "",
-        stripHowTo(input.layout, { annotated }),
+        stripHowTo(input.layout, { annotated, dense }),
         dense
-          ? `The last image is a DENSE strip around the chosen cut: frames ${dense.step}s apart, ${dense.cols} per row, the chosen cut at the centre tile. Use it to place an impact or a shot change to the tenth of a second.`
+          ? `The last image is a DENSE strip around the chosen cut: frames ${dense.step}s apart, ${dense.cols} per row, the chosen cut at the tile the READING block names for it (not tile ${stripFacts(input.layout).cut}). Use it to place an impact or a shot change to the tenth of a second.`
           : "",
         "",
         BOUNDARY_RULES,
@@ -117,7 +117,8 @@ export function buildBoundarySkeptic(input: BoundarySkepticInput) {
         "- is the chosen cut less than about 1 second after an impact, so it never reads?",
         "- can a cold viewer starting at the chosen point tell who is on screen?",
         "- does their reasoning rest on something the frames do not show?",
-        "- does the next episode open on the source's own card or the flare into it, or does a caption run across the cut (rules 7 and 8)?",
+        "- does the next episode open on the source's own card or the flare into it (rule 7)? A card that ends before the cut, with the cut tile already the next shot, is the target, not a fault.",
+        "- does the SAME subtitle line show on the last tile before the cut and on the cut tile (rule 8)? One line ending before the cut and a different line starting after it is not a split.",
         "- is another listed option strictly better on rules 2-4?",
         "",
         "Disagree only for a fault you can SEE: name the image number and the tile time where it shows, and what is in that tile. A fault taken from the other reviewer's description, from the dialogue list or from the motion numbers is not a fault. Do not manufacture a disagreement over taste: if the choice is sound, or the frames do not settle it, set agree=true and say what is uncertain in reason.",
