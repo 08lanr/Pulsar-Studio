@@ -39,7 +39,7 @@ import { dramaRemixRoot } from "@/lib/python";
 import type { FilmRunDecision, Json } from "@/lib/types";
 import { findBandConflicts, type FirstPassRecord } from "@/lib/prompts/band-fix";
 import { loadCandidates, loadOptionsDoc, legalCutsNear, verifyOptions, type OptionsDoc } from "@/lib/segment/strips";
-import { WorkflowOutputSchema, appliedTimeOf, isUnavailable, mergeVisionPasses, type WorkflowRecord } from "@/lib/segment/vision";
+import { UNVERIFIED_OUTCOMES, WorkflowOutputSchema, appliedTimeOf, isUnavailable, mergeVisionPasses, readGuard, type WorkflowRecord } from "@/lib/segment/vision";
 import {
   CONFIDENCE_GATE,
   DECISION,
@@ -122,8 +122,12 @@ export function loadRunRecords(files: VisionFile[]): { passes: WorkflowRecord[][
 
 // ---- the review state ----------------------------------------------------------------------------------------------
 
-/** `rejudged`: the person rejected the boundary and its re-judge has run; their accept or move closes it, not the new confidence. */
-export type ReviewReason = "low_confidence" | "skeptic_override" | "fault" | "no_record" | "rejudged";
+/**
+ * `rejudged`: the person rejected the boundary and its re-judge has run; their accept or move closes it, not the new confidence.
+ * `skeptic_unverified`: the skeptic named a fix the guard refused (a time it never saw, a band break, a card, an illegal cut) or
+ * nobody could tie-break; the reviewer's pick is written and a person decides (decision 2026-09-23, "The frame judge, second pass").
+ */
+export type ReviewReason = "low_confidence" | "skeptic_override" | "fault" | "no_record" | "rejudged" | "skeptic_unverified";
 export type BoundaryStatus = "pre_accepted" | "needs_decision" | "decided" | "rejudging";
 
 export type BoundaryReview = {
@@ -188,6 +192,8 @@ export function reviewState(doc: OptionsDoc, passes: WorkflowRecord[][], decisio
       if (applied && applied.t === null) reasons.push("fault");
       if ((record.pick.confidence ?? 0) < CONFIDENCE_GATE) reasons.push("low_confidence");
       if (record.verdict && record.verdict.agree === false && record.verdict.better_t) reasons.push("skeptic_override");
+      const guard = readGuard(record.verdict);
+      if (guard && UNVERIFIED_OUTCOMES.includes(guard.outcome)) reasons.push("skeptic_unverified");
     }
     // A re-judge the person asked for is theirs to close: the second answer, however sure, is shown, not applied unread.
     if (asked > 0 && done >= asked) reasons.push("rejudged");

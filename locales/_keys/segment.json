@@ -148,7 +148,7 @@
 
   "seg.review.title": { "zh": "边界审阅", "en": "Boundary review" },
   "seg.review.pageTitle": { "zh": "边界审阅 · {slug}", "en": "Boundary review · {slug}" },
-  "seg.review.sub": { "zh": "置信度低于 0.65 或被质疑者推翻的边界必须由你决定；其余已预先接受，折叠在下面。", "en": "Every boundary under confidence 0.65 or overridden by the skeptic needs your decision; the rest are pre-accepted and collapsed below." },
+  "seg.review.sub": { "zh": "置信度低于 0.65、被质疑者推翻、或质疑者的改动未经核实的边界必须由你决定；其余已预先接受，折叠在下面。", "en": "Every boundary under confidence 0.65, overridden by the skeptic, or with a skeptic's fix the guard could not verify needs your decision; the rest are pre-accepted and collapsed below." },
   "seg.review.doorHint": { "zh": "渲染前先审阅边界：接受、移动、退回重判或删除。", "en": "Review the boundaries before the render: accept, move, send back or remove each." },
   "seg.review.open": { "zh": "打开边界审阅", "en": "Open the boundary review" },
   "seg.review.backToRun": { "zh": "返回任务", "en": "Back to the run" },
@@ -270,6 +270,7 @@
   "seg.review.reason.no_record": {"zh": "尚无判断记录", "en": "No record yet"},
   "seg.review.reason.rejudging": {"zh": "重判中", "en": "Re-judging"},
   "seg.review.reason.rejudged": {"zh": "已重判，等你决定", "en": "Re-judged: your call"},
+  "seg.review.reason.skeptic_unverified": {"zh": "质疑者的改动未经核实", "en": "Skeptic's fix not verified"},
   "seg.review.rejudgingHint": {"zh": "已请求 {asked} 次重判，完成 {done} 次；等质疑者再看一遍。", "en": "{asked} re-judge(s) asked, {done} done; waiting for the skeptic to look again."},
   "seg.review.counts.rejudging": {"zh": "重判中：{n}", "en": "Re-judging: {n}"},
   "seg.review.proxyFailed": {"zh": "预览片段无法播放（正在从源片生成，稍后刷新）。", "en": "The proxy clip did not play (it is made from the source on first request; refresh in a moment)."},

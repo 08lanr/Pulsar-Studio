@@ -152,7 +152,7 @@ export function titleFromSlug(slug: string): string {
 
 // ---- the boundary review model ---------------------------------------------------------------------------
 
-export type CardReason = "low_confidence" | "skeptic" | "fault" | "no_record" | "rejudged" | "rejudging" | "band";
+export type CardReason = "low_confidence" | "skeptic" | "skeptic_unverified" | "fault" | "no_record" | "rejudged" | "rejudging" | "band";
 
 export type ReviewCard = {
   key: string;
@@ -298,8 +298,9 @@ export function orderCards(cards: readonly ReviewCard[], review: { fixedStart: n
     .filter((c) => c.required)
     .slice()
     .sort((a, b) => {
-      const ra = a.skeptic_override || a.reasons.includes("fault") || a.reasons.includes("no_record") ? -1 : a.confidence ?? 1;
-      const rb = b.skeptic_override || b.reasons.includes("fault") || b.reasons.includes("no_record") ? -1 : b.confidence ?? 1;
+      const first = (c: ReviewCard) => c.skeptic_override || c.reasons.includes("skeptic_unverified") || c.reasons.includes("fault") || c.reasons.includes("no_record");
+      const ra = first(a) ? -1 : a.confidence ?? 1;
+      const rb = first(b) ? -1 : b.confidence ?? 1;
       return ra - rb || a.boundary_s - b.boundary_s;
     });
   const seen = new Set(attention.map((c) => c.key));

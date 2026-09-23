@@ -97,8 +97,10 @@ export const BandFixVerdictSchema = z.object({
 export type BandFixPick = z.infer<typeof BandFixPickSchema>;
 export type BandFixVerdict = z.infer<typeof BandFixVerdictSchema>;
 
-/** The first-pass record of one boundary, as the audit file holds it (the judge reads what the reviewer and skeptic saw). */
-export type FirstPassRecord = { boundary_s: number; pick: BoundaryPick; verdict: BoundaryVerdict | null };
+/** The first-pass record of one boundary, as the audit file holds it (the judge reads what the reviewer and skeptic saw): the Workflow fields, whatever else the record carries. */
+export type FirstPassPick = Pick<BoundaryPick, "chosen_key" | "chosen_t" | "ends_on" | "opens_on" | "why" | "payoff_in_episode" | "confidence"> & { rejected?: string | null };
+export type FirstPassVerdict = Pick<BoundaryVerdict, "agree" | "reason"> & { fault?: string | null; better_key?: string | null; better_t?: number | null };
+export type FirstPassRecord = { boundary_s: number; pick: FirstPassPick; verdict: FirstPassVerdict | null };
 
 export type BandFixInput = {
   group: BandFixGroup;

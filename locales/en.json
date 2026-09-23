@@ -3724,7 +3724,7 @@
   "seg.vision.command": "The Workflow call to run in Claude Code",
   "seg.review.title": "Boundary review",
   "seg.review.pageTitle": "Boundary review · {slug}",
-  "seg.review.sub": "Every boundary under confidence 0.65 or overridden by the skeptic needs your decision; the rest are pre-accepted and collapsed below.",
+  "seg.review.sub": "Every boundary under confidence 0.65, overridden by the skeptic, or with a skeptic's fix the guard could not verify needs your decision; the rest are pre-accepted and collapsed below.",
   "seg.review.doorHint": "Review the boundaries before the render: accept, move, send back or remove each.",
   "seg.review.open": "Open the boundary review",
   "seg.review.backToRun": "Back to the run",
@@ -3966,5 +3966,6 @@
   "cd.delta": "{d} frames",
   "cd.checked.failed": "Last read failed {time}; no good read yet",
   "cd.chip.live_complete.hint": "some older renders",
-  "cd.check.preview.link": "Open the staff page"
+  "cd.check.preview.link": "Open the staff page",
+  "seg.review.reason.skeptic_unverified": "Skeptic's fix not verified"
 }

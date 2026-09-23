@@ -183,6 +183,8 @@ export type StripImage = {
   tiles: number[];
   cols: number;
   step: number;
+  /** True when `path` is Studio's annotated copy (lib/segment/annotate: tile times, END/NEXT labels, the cut framed); `rel` still names the pipeline's PNG. */
+  annotated?: boolean;
 };
 
 export function sidecarPathOf(pngPath: string): string {
@@ -358,6 +360,132 @@ export function legalCutsNear(candidates: CandidatesIndex | null, t: number, win
 /** True when `t` is one of `times` (3 ms tolerance: the pipeline rounds to 3 decimals). */
 export function isListedTime(t: number, times: number[]): boolean {
   return times.some((x) => Math.abs(x - t) <= 0.0015);
+}
+
+// ---- what a reviewer has SEEN: tile times, neighbours, the allowed range, card spans -------------------
+//
+// The second pass of the frame judge (decision 2026-09-23, "The frame judge,
+// second pass"): a skeptic may propose only a time it has looked at, a cut
+// must keep both episodes in band against the planner's neighbours, and a
+// cut inside the source's own "TO BE CONTINUED" card is a defect. These are
+// the pure facts those rules are checked against.
+
+/**
+ * How close a time must be to a tile to count as SEEN: half the dense
+ * strip's step. A 0.5 s option strip shows only its own tiles (the centre
+ * is the option time); a 0.1 s dense strip covers its window to the tenth.
+ */
+export const SEEN_TOLERANCE_S = 0.05;
+
+/** True when some attached image has a tile within SEEN_TOLERANCE_S of `t`: the reviewer looked at that moment. */
+export function isSeenTime(t: number, images: Pick<StripImage, "tiles">[]): boolean {
+  return images.some((img) => img.tiles.some((tile) => Math.abs(tile - t) <= SEEN_TOLERANCE_S + 1e-9));
+}
+
+/** The 1-based image number and the tile it shows for `t`, or null when no image shows it. */
+export function seenIn(t: number, images: Pick<StripImage, "tiles">[]): { image: number; tile_t: number } | null {
+  for (const [i, img] of images.entries()) {
+    const tile = img.tiles.find((x) => Math.abs(x - t) <= SEEN_TOLERANCE_S + 1e-9);
+    if (tile !== undefined) return { image: i + 1, tile_t: tile };
+  }
+  return null;
+}
+
+/** The planner's neighbours of a boundary: the previous and next boundary positions (dp_pick, else boundary_s), the fixed start and the duration at the ends. */
+export function neighboursOf(doc: Pick<OptionsDoc, "boundaries" | "duration">, boundaryS: number, fixedStart = 0): { prev: number; next: number } {
+  const positions = doc.boundaries
+    .map((b) => ({ key: b.boundary_s, at: b.dp_pick ?? b.boundary_s }))
+    .filter((b) => Math.abs(b.key - boundaryS) > 0.0015)
+    .map((b) => b.at);
+  const prev = Math.max(fixedStart, ...positions.filter((p) => p < boundaryS));
+  const next = Math.min(doc.duration, ...positions.filter((p) => p > boundaryS));
+  return { prev, next };
+}
+
+/** The range a cut may lie in so that both episodes stay inside the band: [max(prev+lo, next-hi), min(prev+hi, next-lo)], rounded to 3 dp. */
+export function allowedRange(prev: number, next: number, band: [number, number]): { lo: number; hi: number } {
+  const [lo, hi] = band;
+  return { lo: round3(Math.max(prev + lo, next - hi)), hi: round3(Math.min(prev + hi, next - lo)) };
+}
+
+/** The two episode lengths a cut at `t` makes between its neighbours, 3 dp. */
+export function lengthsAt(t: number, prev: number, next: number): { before: number; after: number } {
+  return { before: round3(t - prev), after: round3(next - t) };
+}
+
+/** True when both episodes a cut at `t` makes stay inside the band. */
+export function inBand(t: number, prev: number, next: number, band: [number, number]): boolean {
+  const { before, after } = lengthsAt(t, prev, next);
+  return before >= band[0] - 1e-9 && before <= band[1] + 1e-9 && after >= band[0] - 1e-9 && after <= band[1] + 1e-9;
+}
+
+/** A span of the source that is the source's own episode card (a flare into "TO BE CONTINUED", a fade): `from_s` is its first frame, `to_s` the first frame after it. */
+export type CardSpan = { from_s: number; to_s: number; why: string | null };
+
+/** True when `t` is inside a card span or at its start (from_s <= t < to_s): an episode opening there opens on the card. The first frame after it (t == to_s) is the right cut. */
+export function inCardSpan(t: number, spans: CardSpan[]): CardSpan | null {
+  return spans.find((s) => t >= s.from_s - 0.0015 && t < s.to_s - 0.0015) ?? null;
+}
+
+const CardMetaSchema = z.object({ exclusions: z.array(z.object({ from_s: z.number(), to_s: z.number(), kind: z.string().nullish(), why: z.string().nullish() }).passthrough()).nullish() }).passthrough();
+const SkipsSchema = z.object({ skips: z.array(z.object({ start: z.number(), end: z.number() }).passthrough()) }).passthrough();
+
+/**
+ * The card spans of a film: `cut/film-meta.json` exclusions of kind `card`
+ * and `index/skips.json` (cards.py's spans), whichever exist; [] for a film
+ * with neither. Read-only; a file that does not parse contributes nothing.
+ */
+export async function loadCardSpans(cutDir: string): Promise<CardSpan[]> {
+  const out: CardSpan[] = [];
+  try {
+    const meta = CardMetaSchema.parse(JSON.parse(await fsp.readFile(path.join(cutDir, "film-meta.json"), "utf8")));
+    for (const e of meta.exclusions ?? []) if ((e.kind ?? "").toLowerCase() === "card" && e.to_s > e.from_s) out.push({ from_s: e.from_s, to_s: e.to_s, why: e.why ?? null });
+  } catch {
+    // no film-meta.json, or not one that parses
+  }
+  try {
+    const skips = SkipsSchema.parse(JSON.parse(await fsp.readFile(path.join(cutDir, "index", "skips.json"), "utf8")));
+    for (const s of skips.skips) if (s.end > s.start && !out.some((c) => Math.abs(c.from_s - s.start) <= 0.0015)) out.push({ from_s: s.start, to_s: s.end, why: "index/skips.json" });
+  } catch {
+    // no skips
+  }
+  return out.sort((a, b) => a.from_s - b.from_s);
+}
+
+/**
+ * The last pinned end of the newest DELIVERED plan (the fixed start of the
+ * stretch under judgement), or 0 when the film has none: the planner's
+ * previous neighbour of the first open boundary.
+ */
+export async function deliveredFixedStart(cutDir: string): Promise<number> {
+  const review = path.join(cutDir, "review");
+  let names: string[] = [];
+  try {
+    names = await fsp.readdir(review);
+  } catch {
+    return 0;
+  }
+  const newest = pickNewestDelivered(names);
+  if (!newest) return 0;
+  try {
+    const plan = DeliveredEndsSchema.parse(JSON.parse(await fsp.readFile(path.join(review, newest.file), "utf8")));
+    const pinned = plan.final_end_is_boundary ? plan.episodes : plan.episodes.slice(0, -1);
+    return Math.max(0, ...pinned.map((e) => e.end));
+  } catch {
+    return 0;
+  }
+}
+
+/** The legal cuts a skeptic may name: inside the allowed range (when there is one) AND shown by one of the attached images (a listed option's centre tile, or a dense tile). */
+export function legalCutsInView(candidates: CandidatesIndex | null, images: Pick<StripImage, "tiles">[], range: { lo: number; hi: number } | null): CutCandidate[] {
+  if (!candidates) return [];
+  return candidates.candidates.filter((c) => (!range || (c.t >= range.lo - 1e-9 && c.t <= range.hi + 1e-9)) && isSeenTime(c.t, images)).sort((a, b) => a.t - b.t);
+}
+
+/** The 0-based index of the cut tile in a strip (its centre tile), and the tile count, from the layout. */
+export function cutTileOf(layout: Pick<StripLayout, "window" | "step">): { index: number; count: number } {
+  const count = Math.round(layout.window / layout.step) + 1;
+  return { index: Math.floor(count / 2), count };
 }
 
 // ---- the dense strip for the skeptic --------------------------------------------------------------

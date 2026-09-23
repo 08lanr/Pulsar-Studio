@@ -3724,7 +3724,7 @@
   "seg.vision.command": "在 Claude Code 里运行的 Workflow 命令",
   "seg.review.title": "边界审阅",
   "seg.review.pageTitle": "边界审阅 · {slug}",
-  "seg.review.sub": "置信度低于 0.65 或被质疑者推翻的边界必须由你决定；其余已预先接受，折叠在下面。",
+  "seg.review.sub": "置信度低于 0.65、被质疑者推翻、或质疑者的改动未经核实的边界必须由你决定；其余已预先接受，折叠在下面。",
   "seg.review.doorHint": "渲染前先审阅边界：接受、移动、退回重判或删除。",
   "seg.review.open": "打开边界审阅",
   "seg.review.backToRun": "返回任务",
@@ -3966,5 +3966,6 @@
   "cd.delta": "差 {d} 帧",
   "cd.checked.failed": "上次读取失败于 {time}，尚无成功读取",
   "cd.chip.live_complete.hint": "部分分集为较早的渲染",
-  "cd.check.preview.link": "打开工作人员页面"
+  "cd.check.preview.link": "打开工作人员页面",
+  "seg.review.reason.skeptic_unverified": "质疑者的改动未经核实"
 }

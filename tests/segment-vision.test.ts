@@ -39,17 +39,21 @@ import {
   type BandFixVerdict,
 } from "@/lib/prompts/band-fix";
 import { BOUNDARY_RULES, BOUNDARY_RULE_VERSION, BoundaryPickSchema, buildBoundaryReview, type BoundaryPick } from "@/lib/prompts/boundary-review";
-import { BoundaryVerdictSchema, buildBoundarySkeptic, type BoundaryVerdict } from "@/lib/prompts/boundary-skeptic";
+import { BoundaryVerdictSchema, buildBoundarySkeptic, citationProblem, type BoundaryVerdict } from "@/lib/prompts/boundary-skeptic";
+import { TiebreakSchema, buildBoundaryTiebreak, type TiebreakSide, type TiebreakVerdict } from "@/lib/prompts/boundary-tiebreak";
 import {
   DENSE_COLS,
   DENSE_STEP_S,
   SegmentError,
+  allowedRange,
   boundaryStrips,
   denseStripArgs,
   dramaRemixRoot,
   findBoundary,
+  legalCutsInView,
   legalCutsNear,
   loadCandidates,
+  neighboursOf,
   loadOptionsDoc,
   optionsSha,
   parseOptionsDoc,
@@ -71,6 +75,7 @@ import {
   judgeBandFix,
   judgeBoundaries,
   mergeVisionPasses,
+  tiebreakOrder,
   type EvalRecord,
   type WorkflowRecord,
 } from "@/lib/segment/vision";
@@ -117,9 +122,27 @@ function recordedFixture(): EvalRecord[] {
   return parseVisionRecordFile(readJson(path.join(FIXTURE_CUT, "review", "vision", "2026-09-22_0-end.json")), "fixture").map((r) => ({ boundary_s: r.boundary_s, pick: r.pick, verdict: r.verdict }));
 }
 
+/**
+ * The fixture's two boundaries are 4126 s apart, so the planner's neighbours
+ * give no in-band range. Four filler boundaries (never judged) around them
+ * make the neighbours real: 424.433 lies between 300 and 550, 4550.267
+ * between 4450 and 4680, so opt2 at 4572.067 is inside its range.
+ */
+function withFillers(doc: OptionsDoc): OptionsDoc {
+  const template = doc.boundaries[0].options[0];
+  const fillers = [300, 550, 4450, 4680].map((t) => ({ boundary_s: t, dp_pick: t, before: [], after: [], options: [{ ...template, key: "opt1", t, is_dp_pick: true, strip_tiles: stripTiles(t, 5, 0.5) }] }));
+  return parseOptionsDoc({ ...doc, boundaries: [...doc.boundaries, ...fillers].sort((a, b) => a.boundary_s - b.boundary_s) });
+}
+
 // ---- a fake llm ---------------------------------------------------------------------------------------
 
-type Script = { pick?: Partial<BoundaryPick> | ((b: number) => Partial<BoundaryPick>); verdict?: Partial<BoundaryVerdict> | ((b: number) => Partial<BoundaryVerdict>); fail?: number[] };
+type Script = {
+  pick?: Partial<BoundaryPick> | ((b: number) => Partial<BoundaryPick>);
+  verdict?: Partial<BoundaryVerdict> | ((b: number) => Partial<BoundaryVerdict>);
+  /** The tie-break's winner as a cut time (the fake maps it to A or B), or "neither"; A when unscripted. */
+  tiebreak?: number | "neither" | ((b: number) => number | "neither");
+  fail?: number[];
+};
 
 const boundaryOf = (call: StructuredCall<unknown>) => Number(call.user.match(/^BOUNDARY (\d+(?:\.\d+)?)s/m)?.[1]);
 
@@ -136,10 +159,17 @@ function fakeLlm(script: Script = {}) {
     if (call.name === "verify_boundaries_look") {
       const dp = entry?.options.find((o) => o.is_dp_pick) ?? entry?.options[0];
       const extra = typeof script.pick === "function" ? script.pick(b) : script.pick ?? {};
-      data = { chosen_key: dp?.key, chosen_t: dp?.t, ends_on: "A close-up.", opens_on: "A wide shot.", why: "Fake: the DP pick.", rejected: "Fake: the other option cuts mid-action.", payoff_in_episode: true, confidence: 0.8, ...extra };
+      const seen = (entry?.options ?? []).map((o) => ({ key: o.key, ends_on: "A close-up.", opens_on: "A wide shot.", caption_across_cut: false, card_or_flare: "none", physical_action_across_cut: null }));
+      data = { options_seen: seen, chosen_key: dp?.key, chosen_t: dp?.t, ends_on: "A close-up.", opens_on: "A wide shot.", why: "Fake: the DP pick.", rejected: "Fake: the other option cuts mid-action.", payoff_in_episode: true, confidence: 0.8, ...extra };
     } else if (call.name === "verify_boundaries_verify") {
       const extra = typeof script.verdict === "function" ? script.verdict(b) : script.verdict ?? {};
-      data = { agree: true, fault: null, better_key: null, better_t: null, reason: "Fake: the pick holds.", ...extra };
+      data = { chosen_strip_shows: "Fake: a close-up, then a wide shot.", agree: true, fault: null, fault_image: null, fault_tile_t: null, fault_tile_shows: null, better_key: null, better_t: null, reason: "Fake: the pick holds.", ...extra };
+    } else if (call.name === "verify_boundaries_tiebreak") {
+      const want = typeof script.tiebreak === "function" ? script.tiebreak(b) : script.tiebreak ?? null;
+      const aT = Number(call.user.match(/^CUT A at (\d+(?:\.\d+)?)s/m)?.[1]);
+      const bT = Number(call.user.match(/^CUT B at (\d+(?:\.\d+)?)s/m)?.[1]);
+      const winner = want === "neither" ? "neither" : want === null ? "A" : Math.abs(want - aT) <= 0.0015 ? "A" : Math.abs(want - bT) <= 0.0015 ? "B" : "neither";
+      data = { a_shows: "Fake: cut A's frames.", b_shows: "Fake: cut B's frames.", winner, evidence_image: null, evidence_tile_t: null, reason: `Fake: ${winner} satisfies the payoff rule.` };
     } else {
       throw new Error(`fake llm: unexpected call ${call.name}`);
     }
@@ -253,48 +283,92 @@ async function reviewInput(cut = FIXTURE_CUT, boundaryS = 424.433) {
   return { doc, boundary, layout, strips, band: doc.band, film_notes: "A ~1.7 s TO BE CONTINUED card marks the source's own breaks.", provider: "anthropic" as const, model: "claude-sonnet-5" };
 }
 
-test("the reviewer prompt is deterministic, carries the standing rules verbatim, attaches every strip in option order, and its check refuses a pick that is not an option", async () => {
+test("the reviewer prompt is deterministic, carries the standing rules verbatim with the two second-pass rules, the reading block, the neighbours and the range, attaches every strip in option order, and its check refuses a pick that is not an option or is out of range", async () => {
   const input = await reviewInput();
-  const a = buildBoundaryReview(input);
-  const b = buildBoundaryReview(input);
+  const range = { prev: 315.533, next: 528.9, ...allowedRange(315.533, 528.9, [95, 150]) };
+  assert.deepEqual(range, { prev: 315.533, next: 528.9, lo: 410.533, hi: 433.9 });
+  const a = buildBoundaryReview({ ...input, range });
+  const b = buildBoundaryReview({ ...input, range });
   assert.deepEqual({ system: a.system, user: a.user, images: a.images, name: a.name, model: a.model, provider: a.provider }, { system: b.system, user: b.user, images: b.images, name: b.name, model: b.model, provider: b.provider });
   assert.equal(a.name, "verify_boundaries_look");
   assert.equal(a.prompt_version, BOUNDARY_RULE_VERSION);
+  assert.equal(BOUNDARY_RULE_VERSION, "by-eye-v2", "the second pass changed the prompts and the schema: a new rule version, new idempotency keys");
   const system = a.system.map((s) => s.text).join("\n");
-  assert.ok(system.includes(BOUNDARY_RULES), "the six standing decisions, word for word");
+  assert.ok(system.includes(BOUNDARY_RULES), "the standing decisions, word for word");
   assert.ok(system.includes("NEVER cut inside a physical action - mid-punch, mid-throw, mid-fall."));
   assert.ok(system.includes("If someone is thrown into a pool, the episode must end AFTER they hit the water and go under"));
+  // The two rules the second pass adds, as the diagnosis proposed them.
+  assert.ok(system.includes('7. If the source shows its own episode break - a flare or light leak with a vertical "TO BE CONTINUED" card, or a fade to black - that is where the original episode ended. Cut on the FIRST frame after it (the hard cut to the next shot). Never start an episode on the card, the flare into it or any part of it, and do not leave the card inside an episode with more story after it.'));
+  assert.ok(system.includes("8. A burned-in subtitle that shows on tiles on BOTH sides of the cut means the cut splits a spoken line. Do not choose that option, whatever the dialogue list says: the transcript misses voice-overs and shouted lines, the burned captions do not."));
+  // The reading block: the cut tile, which tiles are this episode and which the next, the motion flag as a detector reading, the dialogue list as no evidence of the picture.
+  assert.ok(system.includes("READING THE STRIPS AND THE FACTS"));
+  assert.ok(system.includes("- In every strip the cut is tile 6, the LAST tile of the FIRST row. Tiles 1-5 are the last 2.5 s of THIS episode; tile 6 and the whole second row are the first 3 s of the NEXT one. ends_on describes only tiles 1-5 of the chosen option's own image, opens_on only tile 6 onward. Describe only what that image shows - never what another option's image or the dialogue list shows."));
+  assert.ok(system.includes('- "motion" comes from a motion detector, not a person. It also fires on flares, card transitions, fades, camera moves and walking. Only a punch, slap, push, grab, throw, fall, collision or something flying counts as a physical action for rules 2-4; a blink, a head turn, a hand gesture, a walk or a camera move does not. Judge from the frames; the motion numbers are never the time of an impact.'));
+  assert.ok(system.includes("- The dialogue list is whisper's transcript: times are where lines START, it misses voice-overs and shouting, and a line can be many seconds from the cut. It is never evidence of what is on screen."));
+  assert.ok(!system.includes("Every strip is labelled"), "raw strips: no labelling note");
   assert.ok(system.includes("HARD PRECONDITION"));
   assert.ok(system.includes("About this film:\nA ~1.7 s TO BE CONTINUED card"));
+  assert.ok(system.includes("First fill options_seen"));
   assert.ok(system.includes("Judge the options as PAIRS"));
   assert.ok(system.includes("Copy chosen_t EXACTLY"));
   assert.ok(a.system[0].cache, "the rules are the cached prefix; the boundary is the user turn");
+  assert.ok(!system.includes("315.533"), "the neighbours are in the user turn, not the cached prefix");
   assert.deepEqual(a.images, input.strips.map((s) => ({ media_type: "image/png", path: s.path })));
   assert.match(a.user, /^BOUNDARY 424.433s/);
+  assert.ok(a.user.includes("Every episode must be 95-150 s long. The planner's neighbouring boundaries are at 315.533s and 528.9s, so this cut must lie between 410.533s and 433.9s."), "the band as a range with the neighbours (the diagnosis's sentence)");
   assert.match(a.user, /opt1 at 424.433s \[is_dp_pick\] - image 1/);
   assert.match(a.user, /opt2 at 433.1s - image 2/);
   assert.match(a.user, /tiles: 421.933, 422.433, 422.933, 423.433, 423.933, 424.433, 424.933, 425.433, 425.933, 426.433, 426.933/);
-  assert.match(a.user, /last action 4.13s before, next 22.17s after/);
+  assert.match(a.user, /motion detector: still at the cut \(motion 4.13s before, 22.17s after\)/);
+  assert.ok(!/line before:/.test(a.user), "the option block no longer repeats the dialogue lines without their times");
+  assert.ok(!/INSIDE an action/.test(a.user));
   assert.match(a.user, /\[412.7s\] Yet he fathered a child behind our backs/);
   assert.match(a.user, /Choose one of opt1, opt2\./);
+  // An option inside the source's card is marked, and the check refuses it (rule 7); the first frame after the card is not.
+  const carded = buildBoundaryReview({ ...input, range, card_spans: [{ from_s: 433.1, to_s: 435.1, why: null }] });
+  assert.match(carded.user, /opt2 at 433.1s - image 2\n  tiles: [^\n]+\n  motion detector[^\n]+\n  ON THE CARD: 433.1s is inside the source's own card 433.1-435.1s; the next episode would open on the card \(rule 7\)\. The first frame after it is 435.1s\./);
+  assert.ok(!/ON THE CARD/.test(buildBoundaryReview({ ...input, range, card_spans: [{ from_s: 431.1, to_s: 433.1, why: null }] }).user), "a cut on the first frame after the card is the right cut");
+  // An option outside the range is marked, and the check refuses it.
+  const tight = { prev: 315.533, next: 500, ...allowedRange(315.533, 500, [95, 150]) };
+  const marked = buildBoundaryReview({ ...input, range: tight });
+  assert.match(marked.user, /opt2 at 433.1s - image 2\n  tiles: [^\n]+\n  motion detector[^\n]+\n  OUT OF RANGE: 433.1s is outside 410.533-405s/);
 
-  const good: BoundaryPick = { chosen_key: "opt2", chosen_t: 433.1, ends_on: "x", opens_on: "y", why: "z", rejected: null, payoff_in_episode: true, confidence: 0.75 };
+  const seen = (key: string) => ({ key, ends_on: "e", opens_on: "o", caption_across_cut: false, card_or_flare: "none" as const, physical_action_across_cut: null });
+  const good: BoundaryPick = { options_seen: [seen("opt1"), seen("opt2")], chosen_key: "opt2", chosen_t: 433.1, ends_on: "x", opens_on: "y", why: "z", rejected: null, payoff_in_episode: true, confidence: 0.75 };
   assert.equal(a.check(good), null);
   assert.match(a.check({ ...good, chosen_key: "opt9" })!, /chosen_key "opt9" is not one of opt1, opt2/);
   assert.match(a.check({ ...good, chosen_t: 433 })!, /chosen_t must be exactly 433.1 for opt2/);
   assert.match(a.check({ ...good, confidence: 1.5 })!, /0 to 1/);
+  assert.match(a.check({ ...good, options_seen: [seen("opt1")] })!, /options_seen must have exactly one entry per option \(opt1, opt2\): missing \["opt2"\]/);
+  assert.match(a.check({ ...good, options_seen: [seen("opt1"), seen("opt2"), seen("opt2")] })!, /repeated \["opt2"\]/);
+  assert.match(marked.check(good)!, /opt2 at 433.1s is outside the allowed range 410.533-405s/);
+  assert.match(carded.check(good)!, /opt2 at 433.1s is inside the source's own card 433.1-435.1s: the next episode would open on the card \(rule 7\)/);
+  assert.equal(carded.check({ ...good, chosen_key: "opt1", chosen_t: 424.433 }), null);
   assert.equal(a.check({ ...good, chosen_key: "none", chosen_t: 0, confidence: 0 }), null, "a refusal (confidence 0) chooses nothing and is not repaired");
   assert.ok(BoundaryPickSchema.safeParse(good).success);
+  assert.deepEqual(Object.keys(BoundaryPickSchema.shape)[0], "options_seen", "what each strip shows is recorded before the choice");
   assert.throws(() => buildBoundaryReview({ ...input, strips: input.strips.slice(1) }), /1 strips for 2 options/);
+
+  // Annotated strips: the prompt says so.
+  const labelled = buildBoundaryReview({ ...input, range, strips: input.strips.map((s) => ({ ...s, annotated: true })) });
+  assert.ok(labelled.system.map((s) => s.text).join("\n").includes("- Every strip is labelled: the header names the option and its cut time, each tile carries its own time in the top-left corner, tiles before the cut are marked END and tiles from the cut on are marked NEXT, and the cut tile has a red frame."));
+  // The fixture's own neighbours (two boundaries 4000 s apart): the range comes out inverted and the prompt still states it.
+  const own = neighboursOf(input.doc, 424.433, 0);
+  assert.deepEqual(own, { prev: 0, next: 4550.267 });
 });
 
-test("the skeptic prompt restates the pick, lists the legal cuts, takes the dense strip last, and its check admits only listed times as a fix", async () => {
+test("the skeptic prompt restates the pick, lists only the legal cuts it has seen, takes the dense strip last, asks for a cited fault, and its check admits only seen, in-range times as a fix", async () => {
   const input = await reviewInput(FIXTURE_CUT, 4550.267);
-  const pick: BoundaryPick = { chosen_key: "opt1", chosen_t: 4550.267, ends_on: "Helen's half-smile.", opens_on: "The hallway wide shot.", why: "Clean shot change.", rejected: "opt2 is in action.", payoff_in_episode: true, confidence: 0.8 };
+  const seen = (key: string) => ({ key, ends_on: "e", opens_on: "o", caption_across_cut: false, card_or_flare: "none" as const, physical_action_across_cut: null });
+  const pick: BoundaryPick = { options_seen: [seen("opt1"), seen("opt2")], chosen_key: "opt1", chosen_t: 4550.267, ends_on: "Helen's half-smile.", opens_on: "The hallway wide shot.", why: "Clean shot change.", rejected: "opt2 is in action.", payoff_in_episode: true, confidence: 0.8 };
   const cands = await loadCandidates(FIXTURE_CUT);
-  const legal = legalCutsNear(cands, 4550.267);
   const dense: StripImage = { key: "dense", t: 4550.267, path: path.join(FIXTURE_CUT, "review", "frames", "b4550_opt1.png"), rel: "dense.png", media_type: "image/png", tiles: stripTiles(4550.267, 3, 0.1), cols: 10, step: 0.1 };
-  const base = { boundary: input.boundary, strips: input.strips, pick, dense, legal_cuts: legal, layout: input.layout, band: input.band, film_notes: null, provider: "anthropic" as const, model: "claude-sonnet-5" };
+  const range = { prev: 4450, next: 4680, ...allowedRange(4450, 4680, [95, 150]) };
+  assert.deepEqual(range, { prev: 4450, next: 4680, lo: 4545, hi: 4585 });
+  const legal = legalCutsInView(cands, [...input.strips, dense], range);
+  assert.deepEqual(legal.map((c) => c.t), [4550.267, 4572.067], "of the four legal cuts within 30 s only the two option centres are tiles of an image; 4520.767 and 4524.567 were never seen");
+  assert.deepEqual(legalCutsNear(cands, 4550.267).map((c) => c.t), [4520.767, 4524.567, 4550.267, 4572.067]);
+  const base = { boundary: input.boundary, strips: input.strips, pick, dense, legal_cuts: legal, layout: input.layout, band: input.band, range, film_notes: null, provider: "anthropic" as const, model: "claude-sonnet-5" };
   const a = buildBoundarySkeptic(base);
   const b = buildBoundarySkeptic(base);
   assert.deepEqual({ s: a.system, u: a.user, i: a.images }, { s: b.system, u: b.user, i: b.images });
@@ -302,34 +376,97 @@ test("the skeptic prompt restates the pick, lists the legal cuts, takes the dens
   const system = a.system.map((s) => s.text).join("\n");
   assert.ok(system.includes("Your job is to REFUTE it if you can."));
   assert.ok(system.includes(BOUNDARY_RULES));
+  assert.ok(system.includes("READING THE STRIPS AND THE FACTS"));
   assert.ok(system.includes("- is another listed option strictly better on rules 2-4?"));
-  assert.ok(system.includes("Do not manufacture\na disagreement over taste"));
+  assert.ok(system.includes("- does their reasoning rest on something the frames do not show?"));
+  assert.ok(system.includes("Disagree only for a fault you can SEE: name the image number and the tile time where it shows, and what is in that tile. A fault taken from the other reviewer's description, from the dialogue list or from the motion numbers is not a fault. Do not manufacture a disagreement over taste: if the choice is sound, or the frames do not settle it, set agree=true and say what is uncertain in reason."));
+  assert.ok(!system.includes("Default to agree=false"), "the first pass's close is gone");
+  assert.ok(system.includes("A fix must be a time you have looked at: a listed option (better_key and its exact t) or a legal cut inside one of the attached images"));
   assert.ok(system.includes("DENSE strip"));
+  assert.ok(a.user.includes("A fix must be a time you have looked at: a listed option (better_key and its exact t) or a legal cut inside one of the attached images, and it must keep this cut between 4545s and 4585s. If the only fix is a time you have not seen, give no fix - the boundary then goes to a person."));
   assert.match(a.user, /The other reviewer chose opt1 at 4550.267s\./);
   assert.match(a.user, /They said the episode ends on: Helen's half-smile\./);
-  assert.match(a.user, /LEGAL CUTS within 30 s/);
+  assert.match(a.user, /LEGAL CUTS you have looked at/);
   assert.match(a.user, /4550.267s \(a listed option\)/);
+  assert.ok(!a.user.includes("4524.567"), "a legal cut no image shows is not offered");
   assert.match(a.user, /DENSE STRIP around 4550.267s - image 3/);
   assert.equal(a.images.length, 3, "two option strips, then the dense strip");
   assert.equal(a.images[2].path, dense.path);
+  assert.deepEqual(Object.keys(BoundaryVerdictSchema.shape)[0], "chosen_strip_shows", "what the chosen strip shows is recorded before the verdict");
 
-  const agree: BoundaryVerdict = { agree: true, fault: null, better_key: null, better_t: null, reason: "Holds." };
+  const agree: BoundaryVerdict = { chosen_strip_shows: "a half-smile, then the hallway", agree: true, fault: null, fault_image: null, fault_tile_t: null, fault_tile_shows: null, better_key: null, better_t: null, reason: "Holds." };
+  const dispute = (extra: Partial<BoundaryVerdict>): BoundaryVerdict => ({ ...agree, agree: false, fault: "Rule 3", fault_image: 2, fault_tile_t: 4569.567, fault_tile_shows: "the slap", better_key: null, better_t: null, reason: "...", ...extra });
   assert.equal(a.check(agree), null);
   assert.match(a.check({ ...agree, better_t: 4572.067 })!, /you agreed: better_key and better_t must be null/);
-  assert.equal(a.check({ agree: false, fault: "Rule 3", better_key: "opt2", better_t: 4572.067, reason: "..." }), null);
-  assert.match(a.check({ agree: false, fault: "Rule 3", better_key: "opt2", better_t: 4572, reason: "..." })!, /better_t must be exactly 4572.067 for opt2/);
-  assert.match(a.check({ agree: false, fault: "Rule 3", better_key: "opt1", better_t: 4550.267, reason: "..." })!, /is the option you are disputing/);
-  assert.match(a.check({ agree: false, fault: "Rule 3", better_key: "opt7", better_t: 1, reason: "..." })!, /better_key "opt7" is not a listed option/);
-  const legalOther = legal.find((c) => Math.abs(c.t - 4550.267) > 1 && Math.abs(c.t - 4572.067) > 1)!;
-  assert.equal(a.check({ agree: false, fault: "Rule 4", better_key: null, better_t: legalOther.t, reason: "a legal cut from the list" }), null);
-  assert.match(a.check({ agree: false, fault: "Rule 4", better_key: null, better_t: 4551.111, reason: "a bare shot change" })!, /not a listed option or a legal cut from the list/);
-  assert.equal(a.check({ agree: false, fault: "Rule 5", better_key: null, better_t: null, reason: "a fault with no fix" }), null, "a dispute without a fix is allowed; apply_vision then reports it");
+  assert.equal(a.check(dispute({ better_key: "opt2", better_t: 4572.067 })), null);
+  assert.match(a.check(dispute({ better_key: "opt2", better_t: 4572 }))!, /better_t must be exactly 4572.067 for opt2/);
+  assert.match(a.check(dispute({ better_key: "opt1", better_t: 4550.267 }))!, /is the option you are disputing/);
+  assert.match(a.check(dispute({ better_key: "opt7", better_t: 1 }))!, /better_key "opt7" is not a listed option/);
+  assert.match(a.check(dispute({ better_t: 4524.567 }))!, /better_t 4524.567 is not a listed option or a legal cut you have looked at/);
+  assert.match(a.check(dispute({ better_t: 4551.111 }))!, /not a listed option or a legal cut you have looked at/);
+  assert.equal(a.check(dispute({})), null, "a cited fault without a fix is allowed; apply_vision then reports it");
+  // The citation: both fields or neither, an attached image, a tile of that image.
+  assert.match(a.check(dispute({ fault_image: null }))!, /cite both fault_image and fault_tile_t, or neither/);
+  assert.match(a.check(dispute({ fault_image: 4 }))!, /fault_image 4 is not an attached image \(1-3\)/);
+  assert.match(a.check(dispute({ fault_image: 1, fault_tile_t: 4569.567 }))!, /fault_tile_t 4569.567 is not a tile of image 1/);
+  assert.equal(a.check(dispute({ fault_image: 3, fault_tile_t: 4550.967 })), null, "a dense tile");
+  assert.equal(citationProblem({ fault_image: null, fault_tile_t: null }, a.images.map(() => ({ tiles: [] }))), null, "no citation is not a repair; the guard ignores the fault instead");
   assert.ok(BoundaryVerdictSchema.safeParse(agree).success);
+  // A fix outside the range is refused even when listed; so is one inside the source's card.
+  const narrow = buildBoundarySkeptic({ ...base, range: { prev: 4450, next: 4660, ...allowedRange(4450, 4660, [95, 150]) } });
+  assert.match(narrow.check(dispute({ better_key: "opt2", better_t: 4572.067 }))!, /opt2 at 4572.067s is outside the allowed range 4545-4565s/);
+  const carded = buildBoundarySkeptic({ ...base, card_spans: [{ from_s: 4572.067, to_s: 4574.1, why: null }] });
+  assert.match(carded.user, /opt2 at 4572.067s - image 2\n(?:[^\n]+\n){2}  ON THE CARD: 4572.067s is inside the source's own card 4572.067-4574.1s/);
+  assert.match(carded.check(dispute({ better_key: "opt2", better_t: 4572.067 }))!, /opt2 at 4572.067s is inside the source's own card 4572.067-4574.1s: the next episode would open on the card \(rule 7\); name a fix outside it, or no fix/);
+  assert.match(carded.check(dispute({ better_t: 4572.067 }))!, /better_t 4572.067 is inside the source's own card/);
 
   const noDense = buildBoundarySkeptic({ ...base, dense: null, legal_cuts: [] });
   assert.equal(noDense.images.length, 2);
-  assert.match(noDense.user, /\(no index here: only the listed options are legal\)/);
-  assert.match(noDense.check({ agree: false, fault: "x", better_key: null, better_t: legalOther.t, reason: "..." })!, /not a listed option or a legal cut/);
+  assert.match(noDense.user, /\(none beyond the listed options: only a listed option can be a fix\)/);
+  assert.match(noDense.check(dispute({ better_t: 4520.767 }))!, /not a listed option or a legal cut you have looked at/);
+});
+
+test("the tie-break prompt shows both cuts blind, in the order the hash gives, with their images and no reasoning from either side", async () => {
+  const input = await reviewInput(FIXTURE_CUT, 4550.267);
+  const denseAt = (t: number, rel: string): StripImage => ({ key: "dense", t, path: path.join(FIXTURE_CUT, "review", "frames", "b4550_opt1.png"), rel, media_type: "image/png", tiles: stripTiles(t, 3, 0.1), cols: 10, step: 0.1, annotated: true });
+  const strips = input.strips.map((s) => ({ ...s, annotated: true }));
+  const sides: [TiebreakSide, TiebreakSide] = [
+    { label: "A", t: 4572.067, option_key: "opt2", images: [strips[1], denseAt(4572.067, "dense_b.png")] },
+    { label: "B", t: 4550.267, option_key: "opt1", images: [strips[0], denseAt(4550.267, "dense_a.png")] },
+  ];
+  const range = { prev: 4450, next: 4680, ...allowedRange(4450, 4680, [95, 150]) };
+  const a = buildBoundaryTiebreak({ boundary: input.boundary, sides, layout: input.layout, band: input.band, range, film_notes: "A card marks the breaks.", provider: "anthropic", model: "claude-sonnet-5" });
+  assert.equal(a.name, "verify_boundaries_tiebreak");
+  assert.equal(a.prompt_version, `${BOUNDARY_RULE_VERSION}:tiebreak-v1`);
+  const system = a.system.map((s) => s.text).join("\n");
+  assert.ok(system.includes("You are not told who proposed which, and you are given no reasoning from either side."));
+  assert.ok(system.includes(BOUNDARY_RULES));
+  assert.ok(system.includes("Every strip is labelled"));
+  assert.ok(system.includes("About this film:\nA card marks the breaks."));
+  assert.match(a.user, /^BOUNDARY 4550.267s/);
+  assert.match(a.user, /CUT A at 4572.067s \(listed option opt2; motion detector: moving at the cut/);
+  assert.match(a.user, /  image 1: option strip, 0.5s steps, cut at the centre tile; tiles: 4569.567/);
+  assert.match(a.user, /  image 2: dense strip, 0.1s steps/);
+  assert.match(a.user, /CUT B at 4550.267s \(listed option opt1; motion detector: still at the cut \(motion 31.67s before, 15.83s after\)\)/);
+  assert.match(a.user, /  image 3: option strip/);
+  assert.match(a.user, /  image 4: dense strip/);
+  assert.ok(!/Helen|Clean shot change|reviewer|skeptic/i.test(a.user), "no reasoning and no side named");
+  const carded = buildBoundaryTiebreak({ boundary: input.boundary, sides, layout: input.layout, band: input.band, range, card_spans: [{ from_s: 4572.067, to_s: 4574.1, why: null }], film_notes: null, provider: "anthropic", model: "claude-sonnet-5" });
+  assert.match(carded.user, /CUT A at 4572.067s \(listed option opt2[^\n]+\n  ON THE CARD: 4572.067s is inside the source's own card 4572.067-4574.1s/);
+  assert.ok(!/CUT B at 4550.267s[^\n]+\n  ON THE CARD/.test(carded.user));
+  assert.equal(a.images.length, 4);
+  assert.deepEqual(Object.keys(TiebreakSchema.shape).slice(0, 2), ["a_shows", "b_shows"], "what each side shows is recorded before the verdict");
+  const good: TiebreakVerdict = { a_shows: "x", b_shows: "y", winner: "B", evidence_image: 3, evidence_tile_t: 4550.267, reason: "r" };
+  assert.equal(a.check(good), null);
+  assert.match(a.check({ ...good, a_shows: " " })!, /a_shows and b_shows must each describe/);
+  assert.match(a.check({ ...good, evidence_image: 9 })!, /evidence_image 9 is not an attached image \(1-4\)/);
+  assert.match(a.check({ ...good, evidence_image: 1, evidence_tile_t: 4550.267 })!, /evidence_tile_t 4550.267 is not a tile of image 1/);
+  assert.equal(a.check({ ...good, winner: "neither", evidence_image: null, evidence_tile_t: null }), null);
+  assert.throws(() => buildBoundaryTiebreak({ boundary: input.boundary, sides: [sides[0], { ...sides[1], images: [] }], layout: input.layout, band: input.band, film_notes: null, provider: "anthropic", model: "claude-sonnet-5" }), /every side needs at least one image/);
+  // The order: a hash of the run, the boundary and the attempt, so a re-run repeats it and another run may differ.
+  assert.equal(tiebreakOrder(RUN_ID, 4550.267, 1), tiebreakOrder(RUN_ID, 4550.267, 1));
+  const orders = new Set([1, 2, 3, 4, 5, 6, 7, 8].map((n) => tiebreakOrder(`run-${n}`, 4550.267, 1)));
+  assert.equal(orders.size, 2, "both orders occur across runs");
 });
 
 // ---- apply_vision.py's rules ------------------------------------------------------------------------------
@@ -366,19 +503,19 @@ test("applyVision: a skeptic with a better time wins, a dispute with no fix reje
 
 test("judgeBoundaries writes the Workflow output shape, one job row per call, and a re-run pays for nothing", async () => {
   const cut = tempCut();
-  const doc = await loadOptionsDoc(cut);
-  const fake = fakeLlm({ verdict: (b) => (b === 4550.267 ? { agree: false, fault: "Rule 4: no aftermath", better_key: "opt2", better_t: 4572.067 } : {}) });
+  const doc = withFillers(await loadOptionsDoc(cut));
+  const fake = fakeLlm({ verdict: (b) => (b === 4550.267 ? { agree: false, fault: "Rule 4: no aftermath", fault_image: 2, fault_tile_t: 4569.567, fault_tile_shows: "the slap", better_key: "opt2", better_t: 4572.067 } : {}), tiebreak: 4572.067 });
   const seen: number[] = [];
-  const r = await judgeBoundaries({ id: RUN_ID, cut_dir: cut, film_notes: null }, doc, { label: "0-end", llm: fake.llm, concurrency: 3, onBoundary: (rec_, done, total) => seen.push(done * 100 + total) });
+  const r = await judgeBoundaries({ id: RUN_ID, cut_dir: cut, film_notes: null }, doc, { label: "0-end", llm: fake.llm, concurrency: 3, boundaries: [424.433, 4550.267], onBoundary: (rec_, done, total) => seen.push(done * 100 + total) });
   assert.ok(!isUnavailable(r));
   assert.equal(r.file, path.join(cut, "review", "vision", "0-end.json"));
   assert.equal(r.provider, "anthropic");
   assert.equal(r.model, "claude-sonnet-5");
   assert.deepEqual(r.errors, []);
-  assert.equal(fake.calls.length, 4, "reviewer + skeptic per boundary");
-  assert.equal(r.jobs.length, 4);
+  assert.equal(fake.calls.length, 5, "reviewer + skeptic per boundary, and the tie-break where the skeptic's fix passed the guards");
+  assert.deepEqual(r.jobs.map((j) => j.role).sort(), ["look", "look", "tiebreak", "verify", "verify"]);
   assert.ok(r.jobs.every((j) => !j.skipped && j.cost_cents === 2));
-  assert.equal(r.cost_cents, 8);
+  assert.equal(r.cost_cents, 10);
   assert.deepEqual(seen.sort(), [102, 202]);
   for (const c of fake.calls) {
     assert.equal(c.provider, "anthropic");
@@ -398,24 +535,29 @@ test("judgeBoundaries writes the Workflow output shape, one job row per call, an
   assert.equal(file.run_id, RUN_ID);
   assert.equal(file.rule_version, BOUNDARY_RULE_VERSION);
   const agreeRec = file.result[0];
-  assert.deepEqual(Object.keys(agreeRec.verdict).sort(), ["agree", "better_key", "fault", "reason"], "no better_t when the skeptic agrees; fault and better_key are empty strings, as the Workflow wrote them");
+  assert.deepEqual(Object.keys(agreeRec.verdict).sort(), ["agree", "better_key", "evidence", "fault", "guard", "reason", "skeptic_raw"], "no better_t when the skeptic agrees; fault and better_key are empty strings, as the Workflow wrote them; the guard's note, the raw verdict and the evidence ride along");
   assert.equal(agreeRec.verdict.fault, "");
+  assert.equal(agreeRec.verdict.guard.outcome, "agreed");
   assert.equal("rejected" in agreeRec.pick, true);
+  assert.equal(agreeRec.pick.options_seen.length, 2, "what each strip showed is kept in the audit");
   assert.equal(file.result[1].verdict.better_t, 4572.067);
+  assert.equal(file.result[1].verdict.guard.outcome, "tiebreak_skeptic");
+  assert.deepEqual([file.result[1].verdict.tiebreak.winner, file.result[1].verdict.tiebreak.a_t, file.result[1].verdict.tiebreak.b_t].sort(), [4550.267, 4572.067, "skeptic"]);
+  assert.deepEqual(file.result[1].verdict.evidence.map((e: { image: number; key: string }) => [e.image, e.key]), [[1, "opt1"], [2, "opt2"]]);
   const applied = applyVision(file.result);
   assert.deepEqual(applied.choices, { "424.433": 424.433, "4550.267": 4572.067 });
 
   // A second run: the done rows short-circuit, the fake is never called, the file is rewritten the same.
-  const again = await judgeBoundaries({ id: RUN_ID, cut_dir: cut, film_notes: null }, doc, { label: "0-end", llm: fake.llm });
+  const again = await judgeBoundaries({ id: RUN_ID, cut_dir: cut, film_notes: null }, doc, { label: "0-end", llm: fake.llm, boundaries: [424.433, 4550.267] });
   assert.ok(!isUnavailable(again));
-  assert.equal(fake.calls.length, 4, "no new call");
+  assert.equal(fake.calls.length, 5, "no new call");
   assert.ok(again.jobs.every((j) => j.skipped));
   assert.deepEqual(again.records, r.records);
 
   // Another attempt (a person rejected the answer) is another set of rows.
   const attempt2 = await judgeBoundaries({ id: RUN_ID, cut_dir: cut, film_notes: null }, doc, { label: "0-end_2", llm: fake.llm, attempt: 2, boundaries: [4550.267] });
   assert.ok(!isUnavailable(attempt2));
-  assert.equal(fake.calls.length, 6);
+  assert.equal(fake.calls.length, 8);
   assert.equal(attempt2.records.length, 1);
   assert.equal(attempt2.file, path.join(cut, "review", "vision", "0-end_2.json"));
 });
@@ -505,9 +647,9 @@ test("the real apply_vision.py accepts the file (skipped when the drama-remix ch
     return;
   }
   const cut = tempCut();
-  const doc = await loadOptionsDoc(cut);
-  const fake = fakeLlm({ verdict: (b) => (b === 4550.267 ? { agree: false, fault: "Rule 4", better_key: "opt2", better_t: 4572.067 } : {}) });
-  const r = await judgeBoundaries({ id: RUN_ID, cut_dir: cut }, doc, { label: "0-end", llm: fake.llm });
+  const doc = withFillers(await loadOptionsDoc(cut));
+  const fake = fakeLlm({ verdict: (b) => (b === 4550.267 ? { agree: false, fault: "Rule 4", fault_image: 2, fault_tile_t: 4569.567, fault_tile_shows: "the slap", better_key: "opt2", better_t: 4572.067 } : {}), tiebreak: 4572.067 });
+  const r = await judgeBoundaries({ id: RUN_ID, cut_dir: cut }, doc, { label: "0-end", llm: fake.llm, boundaries: [424.433, 4550.267] });
   assert.ok(!isUnavailable(r));
   const run = spawnSync(pipelinePython(), [script, "--from", "review/vision/0-end.json", "--label", "0-end"], { cwd: cut, encoding: "utf8", env: { ...process.env, PYTHONIOENCODING: "utf-8" } });
   assert.equal(run.status, 0, `apply_vision.py refused the file:\n${run.stdout}\n${run.stderr}`);
@@ -517,8 +659,8 @@ test("the real apply_vision.py accepts the file (skipped when the drama-remix ch
   assert.equal(stamped.applied.label, "0-end");
 
   // A dispute with no fix: exit 1, choices.json not written (the previous one moved aside).
-  const fake2 = fakeLlm({ verdict: (b) => (b === 424.433 ? { agree: false, fault: "Rule 3: the payoff lands in the next episode" } : {}) });
-  const r2 = await judgeBoundaries({ id: RUN_ID, cut_dir: cut, film_notes: null }, doc, { label: "dispute", llm: fake2.llm, attempt: 2, allow_applied: true });
+  const fake2 = fakeLlm({ verdict: (b) => (b === 424.433 ? { agree: false, fault: "Rule 3: the payoff lands in the next episode", fault_image: 1, fault_tile_t: 424.933, fault_tile_shows: "the reaction" } : {}) });
+  const r2 = await judgeBoundaries({ id: RUN_ID, cut_dir: cut, film_notes: null }, doc, { label: "dispute", llm: fake2.llm, attempt: 2, allow_applied: true, boundaries: [424.433, 4550.267] });
   assert.ok(!isUnavailable(r2));
   const run2 = spawnSync(pipelinePython(), [script, "--from", "review/vision/dispute.json", "--label", "dispute"], { cwd: cut, encoding: "utf8", env: { ...process.env, PYTHONIOENCODING: "utf-8" } });
   assert.equal(run2.status, 1);

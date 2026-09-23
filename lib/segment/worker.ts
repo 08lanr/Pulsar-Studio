@@ -29,7 +29,8 @@ import { LockHeldError, studioRunLock, workerName, type Held, type StudioRunLock
 import { dramaRemixRoot, runBashScript, runProcess, runPython, type RunResult } from "@/lib/python";
 import { ffmpegBin } from "@/lib/clips/cut";
 import { syncScripts, type SyncResult } from "@/lib/segment/scripts-sync";
-import { renderDenseStrip } from "@/lib/segment/strips";
+import { annotateEnabled, annotateStrip } from "@/lib/segment/annotate";
+import { renderDenseStrip, type StripImage } from "@/lib/segment/strips";
 import { judgeBandFix, judgeBoundaries, type BandFixResult, type JudgeResult, type JudgeUnavailable } from "@/lib/segment/vision";
 import type { FilmRun, FilmRunStage, Json } from "@/lib/types";
 import { FakePipelineRunner } from "./fake-runner";
@@ -82,10 +83,13 @@ export function realRunner(env: Env = process.env): PipelineRunner {
     probe: (file: string): Promise<VideoFacts | null> => ffprobeFacts(file),
     sync: (cutDir: string, opts: { allowDirty: boolean }): SyncResult => syncScripts(cutDir, { root: dramaRemixRoot(env), allowDirty: opts.allowDirty }),
     judge: (req: JudgeRequest): Promise<JudgeResult | JudgeUnavailable> => {
-      // The skeptic's dense 10 fps strip is rendered by the pipeline's own script into Studio's work folder, never the film's.
-      const outDir = path.join(req.work_dir ?? path.join(tmpdir(), "studio-work"), "dense");
+      // The skeptic's dense 10 fps strip is rendered by the pipeline's own script into Studio's work folder, never the film's;
+      // the annotated copies every call sees (lib/segment/annotate, ffmpeg) land beside it. SEGMENT_STRIP_ANNOTATE=off sends the raw PNGs.
+      const work = req.work_dir ?? path.join(tmpdir(), "studio-work");
+      const outDir = path.join(work, "dense");
       const dense = req.opts.dense === undefined ? (_boundary: unknown, chosenT: number) => renderDenseStrip({ src: path.join(req.run.cut_dir, "..", "source", "original.mp4"), at: chosenT, outDir }, { env }).catch(() => null) : req.opts.dense;
-      return judgeBoundaries(req.run, req.doc, { ...req.opts, dense });
+      const annotate = req.opts.annotate === undefined ? (annotateEnabled(env) ? (strip: StripImage, cutT: number) => annotateStrip(strip, cutT, path.join(work, "annotated"), { env }) : null) : req.opts.annotate;
+      return judgeBoundaries(req.run, req.doc, { ...req.opts, dense, annotate });
     },
     bandFix: (req: BandFixRequest): Promise<BandFixResult | JudgeUnavailable> => judgeBandFix(req.run, req.doc, req.groups, { label: req.label, session: req.session, env, work_dir: req.work_dir, signal: req.signal }),
     async proxy(src: string, at: number, out: string): Promise<void> {
