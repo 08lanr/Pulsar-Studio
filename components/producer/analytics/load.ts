@@ -5,6 +5,7 @@ import type { Locale } from "@/lib/i18n";
 import { parseRange, parseWindow, type AnalyticsRange, type AnalyticsWindow, type TitleAnalytics } from "@/lib/analytics/types";
 import type { Session } from "@/lib/auth";
 import { adStatus, platformStatus, type AdReading, type PlatformStatus } from "@/lib/research/title-status";
+import { loadCrazydramasStatus, type CrazydramasState } from "@/lib/crazydramas";
 
 // What every analytics page needs in one call: the session, the locale, the
 // record for the range in the URL, and the base href the sub-views share.
@@ -22,9 +23,10 @@ export type AnalyticsPageData = {
   /** `?range=` suffix to keep on every link between the views. */
   query: string;
   canEdit: boolean;
-  /** The title workspace shell statuses: TikTok publication and Pulsar advertising. */
+  /** The title workspace shell statuses: TikTok publication, Pulsar advertising and the crazydramas series (state and whether it is a stale read). */
   platform: PlatformStatus;
   ads: AdReading;
+  crazydramas: { state: CrazydramasState; stale: boolean };
 };
 
 export type View = "overview" | "revenue" | "episodes" | "acquisition" | "link";
@@ -45,7 +47,13 @@ export async function loadAnalyticsPage(titleId: string, view: View, searchParam
   }
   const canEdit = !isStaffPreview(session) && (session.producerRole === "approver" || session.producerRole === "reviewer");
   const data = getData();
-  const [campaigns, results] = await Promise.all([data.listPromoCampaigns(session), data.listCreativeResults(session, { titleId })]);
+  const [campaigns, results, cd] = await Promise.all([
+    data.listPromoCampaigns(session),
+    data.listCreativeResults(session, { titleId }),
+    // The third header chip (plan A4): the shell reads the state only. The analytics record carries no slug, so the
+    // reading starts from the title row (getTitleAnalytics already answered not_found for a foreign title).
+    data.getTitle(session, titleId).then((detail) => loadCrazydramasStatus(session, detail.title)),
+  ]);
   const query = window ? `?range=custom&from=${window.from}&to=${window.to}` : `?range=${range}`;
-  return { session, locale, record, range, window, base, query, canEdit, platform: platformStatus(record.analytics_state), ads: adStatus(campaigns.filter((c) => c.title_id === titleId), results) };
+  return { session, locale, record, range, window, base, query, canEdit, platform: platformStatus(record.analytics_state), ads: adStatus(campaigns.filter((c) => c.title_id === titleId), results), crazydramas: { state: cd.state, stale: cd.stale } };
 }

@@ -19,6 +19,7 @@
 
 import type { AnalyticsLink, AnalyticsListing, AnalyticsRange, AnalyticsWindow, TitleAnalytics, TitlePerformanceRow } from "@/lib/analytics/types";
 import type { Session } from "@/lib/auth";
+import type { NewPlatformLinkInput, NewPlatformSnapshotInput } from "@/lib/crazydramas/types";
 import { dataSource } from "@/lib/data-source";
 import type { IngestResult } from "@/lib/ingest";
 import type { CatalogRow } from "@/lib/research/engine";
@@ -38,6 +39,9 @@ import type {
   FilmRunMode,
   FilmRunSettings,
   FilmRunStage,
+  PlatformLink,
+  PlatformName,
+  PlatformSnapshot,
   CreativeResult,
   LaunchPreset,
   InstantPageTemplate,
@@ -244,6 +248,16 @@ export type FilmRunStageInput = {
 export type NewFilmRunDecision = Omit<FilmRunDecision, "at" | "by"> & { by?: string };
 
 export { FILM_RUN_LEASE_MS } from "./film-runs";
+
+// ---- platform links and snapshots (decision 2026-09-23, "the crazydramas connection"; migration 0017) ----
+
+/** The link the first 200 read makes: which drama on the platform the title is. */
+export type NewPlatformLink = NewPlatformLinkInput;
+
+/** One public read of one slug, as the sweep or Check now records it; validated by lib/crazydramas/types.ts platformSnapshotRow. */
+export type NewPlatformSnapshot = NewPlatformSnapshotInput;
+
+export { PLATFORM_SNAPSHOTS_KEEP } from "@/lib/crazydramas/types";
 
 /** Storage paths (lib/data/storage.ts) of what the ingest route stored; both optional. */
 export type IngestFiles = {
@@ -806,6 +820,41 @@ export interface DataLayer {
   appendFilmRunDecision(session: Session, runId: string, decision: NewFilmRunDecision): Promise<FilmRun>;
   /** The lease holder (or anyone once it expired) gives the run back: lease cleared, revision bumped. Conflict when another live lease holds it. */
   releaseFilmRun(session: Session, runId: string, input: { owner: string }): Promise<FilmRun>;
+
+  // platform links and snapshots (decision 2026-09-23, "the crazydramas
+  // connection"; migration 0017). Public facts read back from a consumer
+  // platform: producers read the rows of their own titles (can_read_title), a
+  // series that matches no title is staff's to see, and every write is the
+  // system's (the sweep, Check now, the after-import check) or staff's. The
+  // same refusals in both backends: a foreign title is not_found, a producer
+  // write is forbidden, a bad slug or body is invalid, a drama id already
+  // linked to another title is a conflict.
+  /** The title's link on the platform, or null; whoever reads the title (a foreign title is not found). */
+  getPlatformLink(session: Session, titleId: string, platform: PlatformName): Promise<PlatformLink | null>;
+  /** Staff and the system: every link on the platform; a producer: their own titles'. */
+  listPlatformLinks(session: Session, platform: PlatformName): Promise<PlatformLink[]>;
+  /**
+   * System or staff: create the title's link, or move it to another drama id
+   * / slug (one link per title × platform). A drama id already linked to a
+   * different title is a conflict — one title per drama.
+   */
+  upsertPlatformLink(session: Session, input: NewPlatformLink): Promise<PlatformLink>;
+  /** System or staff: append one read; the row is the record of the check (there is no job kind for a public GET). */
+  recordPlatformSnapshot(session: Session, input: NewPlatformSnapshot): Promise<PlatformSnapshot>;
+  /**
+   * The reads of one slug, newest first, at most `limit` (PLATFORM_SNAPSHOTS_KEEP):
+   * staff and the system every row, a producer the rows of their own titles
+   * (an unmatched slug's rows read empty, never forbidden).
+   */
+  listPlatformSnapshots(session: Session, platform: PlatformName, slug: string, opts?: { limit?: number }): Promise<PlatformSnapshot[]>;
+  /** The newest read per slug the session may read (the staff mirror's "unmatched" list is the rows with no title). */
+  listLatestPlatformSnapshots(session: Session, platform: PlatformName): Promise<PlatformSnapshot[]>;
+  /** System or staff: keep the newest `keep` rows per slug (PLATFORM_SNAPSHOTS_KEEP); answers how many went. */
+  prunePlatformSnapshots(session: Session, platform: PlatformName, keep?: number): Promise<number>;
+  /** The titles carrying a slug on the platform (`crazydramas_slug`), the ones the session may read: staff and the system every company's, a producer their own. */
+  listTitlesWithPlatformSlug(session: Session, platform: PlatformName): Promise<Title[]>;
+  /** The full episode rows of a title by number (the import fields included), for whoever reads the title; a foreign title is not found. */
+  listTitleEpisodes(session: Session, titleId: string): Promise<Episode[]>;
 
   // partner portal
   getProducerTitles(session: Session): Promise<ProducerTitleSummary[]>;

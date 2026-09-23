@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { portalSession, producerLocale } from "@/components/producer/server";
 import { AdChip, PlatformChip, titleName } from "@/components/producer/TitleShell";
+import { CrazydramasChip } from "@/components/producer/CrazydramasChip";
 import { BandPill, ScoreDial } from "@/components/producer/research/workspace-ui";
 import { IconPlus } from "@/components/producer/icons";
 import { getData } from "@/lib/data";
@@ -8,14 +9,16 @@ import { t } from "@/lib/i18n";
 import { TropeChip } from "@/components/producer/research/ui";
 import { ASSESSMENT_VERSION, BAND_ORDER, type Band } from "@/lib/research/assessment";
 import { isTropeId, tropeLabel, type TropeId } from "@/lib/research/taxonomy";
+import { loadCrazydramasStatuses } from "@/lib/crazydramas";
 import { adStatus, platformStatus } from "@/lib/research/title-status";
 import { loadWorkspace } from "@/lib/research/workspace";
 
 // /producer/titles — My catalog, the landing page (decision 2026-09-08,
-// "status board"). One row per title answers three questions and nothing
-// else: is it on TikTok, is it being advertised, how much US potential does
-// it carry. Each cell opens the section that owns the answer. The numbers
-// live where they belong: TikTok performance and Ad campaigns.
+// "status board"). One row per title answers four questions and nothing
+// else: is it on TikTok, is it being advertised, is it live on crazydramas
+// (plan A4, a chip only), how much US potential does it carry. Each cell
+// opens the section that owns the answer. The numbers live where they
+// belong: TikTok performance, Ad campaigns and the CrazyDramas section.
 
 export const dynamic = "force-dynamic";
 
@@ -41,9 +44,12 @@ export default async function MyCatalog({ searchParams }: { searchParams: Search
   // What to make next links "N of your titles carry it" here with ?trope=, so the board's story type filters the catalog.
   const trope: TropeId | null = searchParams.trope && isTropeId(searchParams.trope) ? searchParams.trope : null;
   const byName = (a: string, b: string) => a.localeCompare(b, "zh");
+  // The crazydramas chip per title (plan A4): the workspace already read each title's row (its slug); the reading adds the
+  // link, the episode rows and the newest snapshots. A title whose detail could not be read shows no chip rather than a guess.
+  const cdById = await loadCrazydramasStatuses(session, ws.titles.flatMap((x) => (x.detail ? [x.detail.title] : [])));
 
   const rows = ws.titles
-    .map((x) => ({ x, tiktok: perfById.get(x.summary.id) ?? null, platform: platformStatus(perfById.get(x.summary.id)?.analytics_state), ads: adStatus(x.campaigns, x.results) }))
+    .map((x) => ({ x, tiktok: perfById.get(x.summary.id) ?? null, platform: platformStatus(perfById.get(x.summary.id)?.analytics_state), ads: adStatus(x.campaigns, x.results), cd: cdById.get(x.summary.id) ?? null }))
     .filter(({ x }) => (!band || x.assessment.band === band) && (!trope || x.assessment.tropes.includes(trope)) && (!q || x.summary.name_zh.toLowerCase().includes(q) || (x.summary.name_en ?? "").toLowerCase().includes(q)))
     .sort((a, b) => (sort === "name" ? byName(a.x.summary.name_zh, b.x.summary.name_zh) : b.x.assessment.score - a.x.assessment.score || byName(a.x.summary.name_zh, b.x.summary.name_zh)));
 
@@ -106,11 +112,12 @@ export default async function MyCatalog({ searchParams }: { searchParams: Search
               <th scope="col">{t(locale, "pf.col.title")}</th>
               <th scope="col">{t(locale, "pf.col.platform")}</th>
               <th scope="col">{t(locale, "pf.col.ads")}</th>
+              <th scope="col">{t(locale, "pf.col.crazydramas")}</th>
               <th scope="col">{t(locale, "ws.catalog.col.score")}</th>
               <th scope="col" />
             </tr></thead>
             <tbody>
-              {rows.map(({ x, platform, ads }) => {
+              {rows.map(({ x, platform, ads, cd }) => {
                 const id = x.summary.id;
                 const open = `/producer/titles/${id}`;
                 const { primary, secondary, lang } = titleName(locale, x.summary.name_zh, x.summary.name_en);
@@ -127,6 +134,10 @@ export default async function MyCatalog({ searchParams }: { searchParams: Search
                     <td className="pf-cell">
                       <AdChip status={ads.status} locale={locale} step={step} />
                       <a className="pf-cell-link" href={ads.status === "none" ? `/producer/launch` : `${open}/campaigns`}>{t(locale, ads.status === "none" ? "pf.cell.start" : "pf.cell.campaigns")}&nbsp;→</a>
+                    </td>
+                    <td className="pf-cell pf-cell-cd">
+                      {cd ? <CrazydramasChip state={cd.state} stale={cd.stale} locale={locale} /> : <span className="pf-missing">—</span>}
+                      <a className="pf-cell-link" href={`${open}/crazydramas`}>{t(locale, !cd || cd.state === "not_linked" ? "pf.cell.crazydramas.link" : "pf.cell.crazydramas.open")}&nbsp;→</a>
                     </td>
                     <td className="pf-cell pf-score">
                       <ScoreDial score={a.score} band={a.band} locale={locale} size="sm" />

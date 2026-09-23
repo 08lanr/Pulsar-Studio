@@ -1,17 +1,21 @@
 import { t, type Locale } from "@/lib/i18n";
 import type { AdStatus, PlatformStatus } from "@/lib/research/title-status";
+import type { CrazydramasState } from "@/lib/crazydramas/match";
+import { CrazydramasChip } from "./CrazydramasChip";
 
 // The one title workspace (decision 2026-09-09): every page about a title
-// shares this identity, its two statuses (TikTok publication, Pulsar
-// advertising), the section nav and the route back to the catalog. Sections
-// reuse the existing route implementations; the shell only frames them.
+// shares this identity, its statuses (TikTok publication, Pulsar
+// advertising and, since plan A4, the crazydramas series), the section nav
+// and the route back to the catalog. Sections reuse the existing route
+// implementations; the shell only frames them.
 
-export type TitleSection = "overview" | "tiktok" | "campaigns" | "preparation" | "materials";
+export type TitleSection = "overview" | "tiktok" | "campaigns" | "crazydramas" | "preparation" | "materials";
 
 const SECTIONS: { id: TitleSection; sub: string; key: string }[] = [
   { id: "overview", sub: "", key: "tw.nav.overview" },
   { id: "tiktok", sub: "/analytics", key: "tw.nav.tiktok" },
   { id: "campaigns", sub: "/campaigns", key: "tw.nav.campaigns" },
+  { id: "crazydramas", sub: "/crazydramas", key: "tw.nav.crazydramas" },
   { id: "preparation", sub: "/preparation", key: "tw.nav.preparation" },
   { id: "materials", sub: "/materials", key: "tw.nav.materials" },
 ];
@@ -37,7 +41,7 @@ export function sectionHref(titleId: string, section: TitleSection, query = ""):
   return `/producer/titles/${titleId}${SECTIONS.find((s) => s.id === section)?.sub ?? ""}${query}`;
 }
 
-export default function TitleShell({ locale, titleId, name_zh, name_en, platform, ads, adStep, section, actions, catalogHref = "/producer/titles", catalogLabel = "ws.nav.catalog", tiktokQuery = "", children }: {
+export default function TitleShell({ locale, titleId, name_zh, name_en, platform, ads, adStep, crazydramas, crazydramasStale = false, section, actions, catalogHref = "/producer/titles", catalogLabel = "ws.nav.catalog", tiktokQuery = "", children }: {
   locale: Locale;
   titleId: string;
   name_zh: string;
@@ -45,6 +49,9 @@ export default function TitleShell({ locale, titleId, name_zh, name_en, platform
   platform: PlatformStatus;
   ads: AdStatus;
   adStep?: string | null;
+  /** The crazydramas series state (`loadTitleWorkspace().crazydramas.state`); the third chip is drawn only when a page supplies it. */
+  crazydramas?: CrazydramasState | null;
+  crazydramasStale?: boolean;
   section: TitleSection;
   actions?: React.ReactNode;
   catalogHref?: string;
@@ -70,6 +77,7 @@ export default function TitleShell({ locale, titleId, name_zh, name_en, platform
           <div className="tw-chips">
             <PlatformChip status={platform} locale={locale} />
             <AdChip status={ads} locale={locale} step={adStep} />
+            {crazydramas && <CrazydramasChip state={crazydramas} stale={crazydramasStale} locale={locale} />}
           </div>
         </div>
         {actions && <div className="tw-actions">{actions}</div>}

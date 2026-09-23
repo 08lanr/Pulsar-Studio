@@ -14,6 +14,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiRequestError, getJson, postJson } from "@/lib/api-client";
 import { useT } from "@/components/locale";
 import type { FilmListing, FilmRow, ImportProgress, ImportStarted } from "@/lib/film-import/import";
+import type { CrazydramasState } from "@/lib/crazydramas/match";
+import { CrazydramasChip } from "./CrazydramasChip";
 
 type Props = {
   /** Which routes and title links to use. */
@@ -21,6 +23,12 @@ type Props = {
   canImport: boolean;
   /** Staff: the companies to import for. */
   producers?: { id: string; name: string }[];
+  /**
+   * The crazydramas chip state of each imported title, by title id (plan
+   * A4.3; `crazydramasStatesByTitle`). A film with no film-meta slug reads
+   * "Not linked: add a crazydramas slug" whether or not it is imported.
+   */
+  crazydramas?: Record<string, { state: CrazydramasState; stale: boolean }>;
 };
 
 type StartReply = Partial<ImportStarted> & { error?: string; code?: string };
@@ -36,8 +44,8 @@ function sizeText(tt: (k: string, v?: Record<string, string | number>) => string
   return tt("fi.size.mb", { n: Math.max(1, Math.round(bytes / 1024 ** 2)) });
 }
 
-export default function FilmImport({ portal, canImport, producers = [] }: Props) {
-  const { tt } = useT();
+export default function FilmImport({ portal, canImport, producers = [], crazydramas = {} }: Props) {
+  const { tt, locale } = useT();
   const [producerId, setProducerId] = useState<string>(producers[0]?.id ?? "");
   const [listing, setListing] = useState<FilmListing | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -171,7 +179,15 @@ export default function FilmImport({ portal, canImport, producers = [] }: Props)
     return open ?? <span className="gt-muted">—</span>;
   }
 
-  const cols = "56px minmax(220px,2fr) 70px 90px 130px 70px minmax(160px,1.4fr) 150px";
+  /** The crazydramas cell of a row: the chip for an imported title, the words for what is known before that. */
+  function crazydramasCell(film: FilmRow) {
+    if (!film.crazydramas_slug) return <CrazydramasChip state="not_linked" context="import" locale={locale} />;
+    const known = film.imported ? crazydramas[film.imported.title_id] : undefined;
+    if (known) return <CrazydramasChip state={known.state} stale={known.stale} locale={locale} />;
+    return <small className="gt-muted">{tt("cd.import.slug", { slug: film.crazydramas_slug })}</small>;
+  }
+
+  const cols = "56px minmax(220px,2fr) 70px 90px 130px 70px minmax(160px,1.4fr) 190px 150px";
 
   return (
     <section className="film-import" aria-label={tt("fi.title")}>
@@ -209,6 +225,7 @@ export default function FilmImport({ portal, canImport, producers = [] }: Props)
             <span>{tt("fi.col.video")}</span>
             <span>{tt("fi.col.language")}</span>
             <span>{tt("fi.col.state")}</span>
+            <span>{tt("pf.col.crazydramas")}</span>
             <span>{tt("fi.col.action")}</span>
           </div>
           {listing.films.map((film) => {
@@ -251,6 +268,7 @@ export default function FilmImport({ portal, canImport, producers = [] }: Props)
                   <span><span className={`pill ${statePill[film.state]}`}>{tt(`fi.state.${film.state}`)}</span></span>
                   {reason && <small className="gt-muted">{reason}</small>}
                 </span>
+                <span className="film-import-cd">{crazydramasCell(film)}</span>
                 <span className="film-import-action">{action(film)}</span>
               </div>
             );

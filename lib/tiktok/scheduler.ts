@@ -12,6 +12,8 @@
 //      stale heartbeat was orphaned by a dead process)
 //   2. poll TikTok's review for every launched campaign whose status can move
 //   3. read metrics back, at most hourly
+//   4. resume organic clip posts left open (lib/meta/publish.ts)
+//   5. read crazydramas back (lib/crazydramas/sweep.ts), on its own cadence
 //
 // State lives on globalThis (Next bundles lib/ per route). `tick()` is also
 // what the staff "Sync now" button runs, so the desk never waits five minutes.
@@ -104,6 +106,10 @@ export async function tick(opts: { metrics?: boolean } = {}): Promise<TickSummar
     // 4. resume organic clip posts a dead process or a rate limit left open
     try { await (await import("@/lib/meta/publish")).tickClipPosts(); }
     catch (e) { summary.errors.push(`clip post sweep: ${(e as Error).message}`); }
+    // 5. the crazydramas read-back (public, no credentials; decision 2026-09-23): hourly, every 15 minutes
+    //    while a title is partial or differs; skipped under SCHEDULER_DISABLED=1 and in tests
+    try { await (await import("@/lib/crazydramas/sweep")).tickCrazydramas(); }
+    catch (e) { summary.errors.push(`crazydramas sweep: ${(e as Error).message}`); }
   } finally {
     s.ticking = false;
     s.lastTickAt = Date.now();

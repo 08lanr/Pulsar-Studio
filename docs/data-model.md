@@ -1159,3 +1159,58 @@ the last sync of `cut/scripts/`, outside `scripts/` so `checks.py --strict`
 sees no drift. The data layer stays read-only against `WORKSPACE_ROOT`
 (`localPathOf` unchanged); results enter Studio only through the phase-1
 scanner and import.
+
+## 10. The crazydramas connection, read-only (migration `0017_crazydramas_link.sql`, decision 2026-09-23)
+
+Studio reads the public crazydramas.com API — the catalog and one series per
+slug — and keeps what it read. It writes nothing on crazydramas and holds no
+credential (`docs/crazydramas-connection.md`). Two tables in `core`, mirrored
+by `lib/data/fixture.ts` (`getPlatformLink`, `listPlatformLinks`,
+`upsertPlatformLink`, `recordPlatformSnapshot`, `listPlatformSnapshots`,
+`listLatestPlatformSnapshots`, `prunePlatformSnapshots`,
+`listTitlesWithPlatformSlug`, `listTitleEpisodes`) and validated by the one
+rule set in `lib/crazydramas/types.ts` (`platformLinkRow`,
+`platformSnapshotRow`) in both modes. The reading the screens show
+(`lib/crazydramas/match.ts` `crazydramasStatusFor`) is derived from these
+rows and the title's episodes, never stored.
+
+```
+core.platform_links                          -- which drama on the platform a title IS (plan A2)
+  id uuid pk, title_id uuid* references core.titles on delete cascade,
+  platform text* in ('crazydramas'),         -- checked, not an enum: a second platform needs no migration of the type
+  slug text* (^[a-z0-9]+(-[a-z0-9]+)*$),     -- the slug the link was made under (the title's crazydramas_slug at the time)
+  cd_drama_id uuid*,                         -- the platform's own id (crazydramas dramas.id): the match key from the first 200 on,
+                                             --   because a slug can be edited in the crazydramas CMS
+  linked_at timestamptz*, linked_by uuid references core.profiles on delete set null,   -- null for the system actor (the sweep)
+  unique (title_id, platform), unique (platform, cd_drama_id)                          -- one link per title; one title per drama
+  -- RLS: SELECT under core.can_read_title(title_id); no session write — the data layer writes as the service role after its
+  --   staff-or-system check, so a producer session is forbidden in both modes and a foreign title is not_found. Its own table,
+  --   not a core.analytics_links row: that table's listing_id must match ^lst_… (0007) and a crazydramas uuid never will.
+
+core.platform_snapshots                      -- one public read of one slug; append-only, the last twenty per slug kept
+  id uuid pk, platform text* in ('crazydramas'), slug text* (same rule), cd_drama_id uuid,
+  title_id uuid references core.titles on delete set null,   -- the title the slug belonged to at read time; null = matches no title
+  http_status int (100..599),                -- 200 or 404 for a read that answered; null when the request itself failed
+  drama jsonb (object),                      -- the WHITELISTED series fields: id, slug, title, status, language, free_episode_count,
+                                             --   series_price_cents, iap_product_id, poster_url, poster_blurhash, episode_count,
+                                             --   cta_mode — never playbackId, previewPlaybackId or thumbnailUrl (a paywall leak)
+  episodes jsonb (array),                    -- [{n, duration_s, status, is_published}] as the platform listed them (published only)
+  read_at timestamptz*, error text,          -- the sanitised failure (no URL, body, header or credential)
+  check ((http_status = 200) = (drama is not null and episodes is not null)),   -- a 200 carries a body; nothing else does
+  check (http_status is not null or error is not null)                          -- a read with no status is a failed read
+  -- indexes: (platform, slug, read_at desc); (title_id, read_at desc)
+  -- RLS: SELECT when core.is_staff() or (title_id is not null and core.can_read_title(title_id)): producers read their own
+  --   titles' rows, a series matching no title is staff's to see; no session write (service role after the staff/system check).
+  -- Future stats (revenue, funnels) do NOT go here — a staff-only table later.
+```
+
+**No job kind.** A public GET costs no model money, `studio.jobs.target_id`
+is NOT NULL, and producers cannot read jobs: the snapshot row is the record
+of the check (the hourly sweep, Check now, the after-import check;
+`lib/crazydramas/sweep.ts`). The link is made on the first 200 read of
+`core.titles.crazydramas_slug` (0015) with the drama id the platform
+returned; a CMS rename is followed through the catalog (the link's slug
+moves); a slug the person re-points in Studio moves the link to the drama it
+answers with, refused (in the snapshot's `error`) when another title holds
+that drama. `identical` and `local_newer` in the reading need the ledger of
+plan A6 (`studio.cd_publications`, the write path), which is not built.

@@ -1,0 +1,303 @@
+{
+ "drama": {
+  "id": "ad79296b-e500-4a7b-a53a-bf0af576bc46",
+  "slug": "he-mocked-her-crush-on-him-and-sent-her",
+  "title": "He Mocked Her Crush on Him and Sent Her",
+  "originalTitle": null,
+  "tagline": "He sent her to flirt with his rival as a joke. The rival had liked her all along.",
+  "description": "For years Ava waited for Lucas, the football captain next door who kept her close but never chose her. Then he tells her to go flirt with the rival quarterback so his team can win. She walks a bottle of water over to Ethan, the star who turns down every girl on campus, and he takes it. 25 episodes.",
+  "genre": [
+   "Romance",
+   "Campus",
+   "Sports"
+  ],
+  "posterUrl": "https://crazydramas.com/posters/he-mocked-her-crush-on-him-and-sent-her-placeholder.jpg",
+  "posterBlurhash": "L28W$y-n03af0aNL=:oc04j?~SR-",
+  "language": "en",
+  "status": "published",
+  "freeEpisodeCount": 5,
+  "ctaMode": "web_checkout",
+  "seriesPriceCents": 999,
+  "iapProductId": "crazydrama.series.he_mocked_her_crush_on_him_and_sent_her",
+  "episodeCount": 25,
+  "previewEpisodeNumber": 1,
+  "episodes": [
+   {
+    "id": "cc1b5468-bf43-4b46-93d9-824ede1948c9",
+    "dramaId": "ad79296b-e500-4a7b-a53a-bf0af576bc46",
+    "episodeNumber": 1,
+    "title": null,
+    "durationSeconds": 109.967,
+    "subtitleUrl": null,
+    "isFree": true,
+    "status": "ready",
+    "isPublished": true
+   },
+   {
+    "id": "0ceb704e-b29a-46d5-a09b-6d6685410372",
+    "dramaId": "ad79296b-e500-4a7b-a53a-bf0af576bc46",
+    "episodeNumber": 2,
+    "title": null,
+    "durationSeconds": 127.067,
+    "subtitleUrl": null,
+    "isFree": true,
+    "status": "ready",
+    "isPublished": true
+   },
+   {
+    "id": "f146fe09-2e7f-402c-bee8-c7d57d3b5745",
+    "dramaId": "ad79296b-e500-4a7b-a53a-bf0af576bc46",
+    "episodeNumber": 3,
+    "title": null,
+    "durationSeconds": 124.267,
+    "subtitleUrl": null,
+    "isFree": true,
+    "status": "ready",
+    "isPublished": true
+   },
+   {
+    "id": "5438d7ff-b74f-4c04-86a6-471f91db46c0",
+    "dramaId": "ad79296b-e500-4a7b-a53a-bf0af576bc46",
+    "episodeNumber": 4,
+    "title": null,
+    "durationSeconds": 118.3,
+    "subtitleUrl": null,
+    "isFree": true,
+    "status": "ready",
+    "isPublished": true
+   },
+   {
+    "id": "556dc7fc-ff60-4f17-93c8-8639697c9231",
+    "dramaId": "ad79296b-e500-4a7b-a53a-bf0af576bc46",
+    "episodeNumber": 5,
+    "title": null,
+    "durationSeconds": 108.433,
+    "subtitleUrl": null,
+    "isFree": true,
+    "status": "ready",
+    "isPublished": true
+   },
+   {
+    "id": "94093766-560b-4c8d-965e-dacbf0997fb8",
+    "dramaId": "ad79296b-e500-4a7b-a53a-bf0af576bc46",
+    "episodeNumber": 6,
+    "title": null,
+    "durationSeconds": 106.6,
+    "subtitleUrl": null,
+    "isFree": false,
+    "status": "ready",
+    "isPublished": true
+   },
+   {
+    "id": "129b12c4-ed25-4a85-a15d-5d3ed88786b2",
+    "dramaId": "ad79296b-e500-4a7b-a53a-bf0af576bc46",
+    "episodeNumber": 7,
+    "title": null,
+    "durationSeconds": 118.433,
+    "subtitleUrl": null,
+    "isFree": false,
+    "status": "ready",
+    "isPublished": true
+   },
+   {
+    "id": "d93d4b18-bf96-45eb-bef2-c574d484d944",
+    "dramaId": "ad79296b-e500-4a7b-a53a-bf0af576bc46",
+    "episodeNumber": 8,
+    "title": null,
+    "durationSeconds": 108.333,
+    "subtitleUrl": null,
+    "isFree": false,
+    "status": "ready",
+    "isPublished": true
+   },
+   {
+    "id": "06f82e91-360c-44f8-be00-d8727b78d2ef",
+    "dramaId": "ad79296b-e500-4a7b-a53a-bf0af576bc46",
+    "episodeNumber": 9,
+    "title": null,
+    "durationSeconds": 113.967,
+    "subtitleUrl": null,
+    "isFree": false,
+    "status": "ready",
+    "isPublished": true
+   },
+   {
+    "id": "c2537fa8-6291-4f93-9ccf-931199e0f8ed",
+    "dramaId": "ad79296b-e500-4a7b-a53a-bf0af576bc46",
+    "episodeNumber": 10,
+    "title": null,
+    "durationSeconds": 140.7,
+    "subtitleUrl": null,
+    "isFree": false,
+    "status": "ready",
+    "isPublished": true
+   },
+   {
+    "id": "4e840970-8d88-477c-88db-5eda7ad81e8b",
+    "dramaId": "ad79296b-e500-4a7b-a53a-bf0af576bc46",
+    "episodeNumber": 11,
+    "title": null,
+    "durationSeconds": 119.333,
+    "subtitleUrl": null,
+    "isFree": false,
+    "status": "ready",
+    "isPublished": true
+   },
+   {
+    "id": "1d155697-7368-4d12-8807-015e253e3342",
+    "dramaId": "ad79296b-e500-4a7b-a53a-bf0af576bc46",
+    "episodeNumber": 12,
+    "title": null,
+    "durationSeconds": 105.067,
+    "subtitleUrl": null,
+    "isFree": false,
+    "status": "ready",
+    "isPublished": true
+   },
+   {
+    "id": "8191fd2c-a910-4328-90a1-fa6a28581ad3",
+    "dramaId": "ad79296b-e500-4a7b-a53a-bf0af576bc46",
+    "episodeNumber": 13,
+    "title": null,
+    "durationSeconds": 123.3,
+    "subtitleUrl": null,
+    "isFree": false,
+    "status": "ready",
+    "isPublished": true
+   },
+   {
+    "id": "ab207ac4-da61-4434-bcdf-6f34377f35ff",
+    "dramaId": "ad79296b-e500-4a7b-a53a-bf0af576bc46",
+    "episodeNumber": 14,
+    "title": null,
+    "durationSeconds": 125.233,
+    "subtitleUrl": null,
+    "isFree": false,
+    "status": "ready",
+    "isPublished": true
+   },
+   {
+    "id": "c5baf7af-a426-4c68-ae94-9ddc6690097e",
+    "dramaId": "ad79296b-e500-4a7b-a53a-bf0af576bc46",
+    "episodeNumber": 15,
+    "title": null,
+    "durationSeconds": 116.067,
+    "subtitleUrl": null,
+    "isFree": false,
+    "status": "ready",
+    "isPublished": true
+   },
+   {
+    "id": "66637dc8-58ef-4bdd-ab74-3db9ae9fb749",
+    "dramaId": "ad79296b-e500-4a7b-a53a-bf0af576bc46",
+    "episodeNumber": 16,
+    "title": null,
+    "durationSeconds": 104.967,
+    "subtitleUrl": null,
+    "isFree": false,
+    "status": "ready",
+    "isPublished": true
+   },
+   {
+    "id": "d0443561-cdaf-4d1d-8fe7-0245167b8e97",
+    "dramaId": "ad79296b-e500-4a7b-a53a-bf0af576bc46",
+    "episodeNumber": 17,
+    "title": null,
+    "durationSeconds": 126.967,
+    "subtitleUrl": null,
+    "isFree": false,
+    "status": "ready",
+    "isPublished": true
+   },
+   {
+    "id": "36f45cb7-574f-4ebc-a2dd-4a4c515ae158",
+    "dramaId": "ad79296b-e500-4a7b-a53a-bf0af576bc46",
+    "episodeNumber": 18,
+    "title": null,
+    "durationSeconds": 124,
+    "subtitleUrl": null,
+    "isFree": false,
+    "status": "ready",
+    "isPublished": true
+   },
+   {
+    "id": "d8fe3b8c-412e-405f-81d4-5f79859dd652",
+    "dramaId": "ad79296b-e500-4a7b-a53a-bf0af576bc46",
+    "episodeNumber": 19,
+    "title": null,
+    "durationSeconds": 122.633,
+    "subtitleUrl": null,
+    "isFree": false,
+    "status": "ready",
+    "isPublished": true
+   },
+   {
+    "id": "4b90d900-d97d-439b-9790-2bd9d40dfa24",
+    "dramaId": "ad79296b-e500-4a7b-a53a-bf0af576bc46",
+    "episodeNumber": 20,
+    "title": null,
+    "durationSeconds": 121.8,
+    "subtitleUrl": null,
+    "isFree": false,
+    "status": "ready",
+    "isPublished": true
+   },
+   {
+    "id": "64a74559-2c48-46d6-b7ee-edf3b6968bd7",
+    "dramaId": "ad79296b-e500-4a7b-a53a-bf0af576bc46",
+    "episodeNumber": 21,
+    "title": null,
+    "durationSeconds": 126.733,
+    "subtitleUrl": null,
+    "isFree": false,
+    "status": "ready",
+    "isPublished": true
+   },
+   {
+    "id": "75364389-51e2-450b-928f-1e220df8b4b3",
+    "dramaId": "ad79296b-e500-4a7b-a53a-bf0af576bc46",
+    "episodeNumber": 22,
+    "title": null,
+    "durationSeconds": 131.367,
+    "subtitleUrl": null,
+    "isFree": false,
+    "status": "ready",
+    "isPublished": true
+   },
+   {
+    "id": "3c4004f1-3597-49f0-9449-1429e1051b4f",
+    "dramaId": "ad79296b-e500-4a7b-a53a-bf0af576bc46",
+    "episodeNumber": 23,
+    "title": null,
+    "durationSeconds": 137.1,
+    "subtitleUrl": null,
+    "isFree": false,
+    "status": "ready",
+    "isPublished": true
+   },
+   {
+    "id": "2625ca8e-2d75-4eb6-96fa-06da69148327",
+    "dramaId": "ad79296b-e500-4a7b-a53a-bf0af576bc46",
+    "episodeNumber": 24,
+    "title": null,
+    "durationSeconds": 145.333,
+    "subtitleUrl": null,
+    "isFree": false,
+    "status": "ready",
+    "isPublished": true
+   },
+   {
+    "id": "4b94374c-c1e6-4b3d-8781-4e1120da2711",
+    "dramaId": "ad79296b-e500-4a7b-a53a-bf0af576bc46",
+    "episodeNumber": 25,
+    "title": null,
+    "durationSeconds": 140.9,
+    "subtitleUrl": null,
+    "isFree": false,
+    "status": "ready",
+    "isPublished": true
+   }
+  ]
+ },
+ "entitled": false
+}

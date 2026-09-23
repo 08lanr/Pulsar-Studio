@@ -57,6 +57,9 @@ import type {
   Json,
   Line,
   LineAlternative,
+  PlatformLink,
+  PlatformName,
+  PlatformSnapshot,
   Producer,
   ProducerTitleSummary,
   PromoApproval,
@@ -75,6 +78,7 @@ import type {
 import { withHistoricalPromoSeed, legacyCampaignRetired, conflict, forbidden, frozen, invalid, notFound } from "./errors";
 import { episodeImportPatch, filmAssetRow, normalizeSourceRef, validateAdRules } from "./film-import";
 import { claimFields, decisionRow, filmRunRow, filmRunStageAudited, normalizeFilmRun, releaseFields, renewFields, stageFields } from "./film-runs";
+import { normalizePlatformSnapshot, platformLinkRow, platformSnapshotRow, PLATFORM_SNAPSHOTS_KEEP, PLATFORMS } from "@/lib/crazydramas/types";
 import type {
   ApproveOptions,
   DataLayer,
@@ -148,6 +152,8 @@ function store(): Store {
   s.db.instant_page_templates ??= [];
   s.db.film_assets ??= [];
   s.db.film_runs ??= [];
+  // The platform tables (migration 0017) live beside the seed's shape: persisted and merged like every other table, defaulted here.
+  platformTables(s.db);
   // Rows seeded or saved before the workspace import (migration 0015) lack its columns; a reader sees one shape.
   for (const t of s.db.titles) {
     t.source_ref ??= null;
@@ -607,6 +613,30 @@ function launchedRow(db: FixtureDb, campaign: PromoCampaign, any: boolean): { ca
 /** The engine and the scheduler (system) or Pulsar staff. */
 function requireSystemOrStaff(session: Session): void {
   if (!isSystemSession(session) && session.kind !== "staff") throw forbidden("Pulsar staff only");
+}
+
+// ---- platform links and snapshots (decision 2026-09-23; migration 0017) ----
+
+/** The two platform tables, kept on the store beside the seed's own shape (data/fixture/index.ts is not touched by this phase). */
+type PlatformTables = { platform_links: PlatformLink[]; platform_snapshots: PlatformSnapshot[] };
+
+function platformTables(db: FixtureDb): PlatformTables {
+  const ext = db as unknown as Partial<PlatformTables>;
+  ext.platform_links ??= [];
+  ext.platform_snapshots ??= [];
+  return ext as PlatformTables;
+}
+
+function requirePlatform(platform: PlatformName): void {
+  if (!PLATFORMS.includes(platform)) throw invalid(`unknown platform: ${String(platform)}`);
+}
+
+/** Mirrors the 0017 policy: staff and the system read every snapshot; a producer reads the rows of titles they can read (a row with no title is nobody's but staff's). */
+function canReadSnapshot(db: FixtureDb, session: Session, row: PlatformSnapshot): boolean {
+  if (session.kind === "staff") return true;
+  if (!row.title_id) return false;
+  const title = db.titles.find((t) => t.id === row.title_id);
+  return !!title && canReadTitle(session, title.producer_id);
 }
 
 /** A film run the session may read: staff and the system see every run, a producer their own company's; a foreign run is not found (never forbidden), as RLS answers. */
@@ -2493,6 +2523,122 @@ export const fixtureData: DataLayer = {
     const run = readableFilmRun(s.db, session, runId);
     Object.assign(run, releaseFields(run, input));
     return clone(run);
+  },
+
+  // ---- platform links and snapshots (decision 2026-09-23; migration 0017) ----
+
+  async getPlatformLink(session, titleId, platform) {
+    const { db } = store();
+    requirePlatform(platform);
+    readableTitle(db, session, titleId); // a foreign title is not found, never forbidden
+    const row = platformTables(db).platform_links.find((l) => l.title_id === titleId && l.platform === platform);
+    return row ? clone(row) : null;
+  },
+
+  async listPlatformLinks(session, platform) {
+    const { db } = store();
+    requirePlatform(platform);
+    requireMemberSession(session);
+    const rows = platformTables(db).platform_links.filter((l) => {
+      if (l.platform !== platform) return false;
+      const title = db.titles.find((t) => t.id === l.title_id);
+      return !!title && canReadTitle(session, title.producer_id);
+    });
+    return clone(rows.sort((a, b) => a.linked_at.localeCompare(b.linked_at)));
+  },
+
+  async upsertPlatformLink(session, input) {
+    const s = store();
+    const row = platformLinkRow(input);
+    readableTitle(s.db, session, row.title_id); // not_found before forbidden, like RLS
+    requireSystemOrStaff(session);
+    const { platform_links } = platformTables(s.db);
+    const holder = platform_links.find((l) => l.platform === row.platform && l.cd_drama_id === row.cd_drama_id && l.title_id !== row.title_id);
+    if (holder) throw conflict(`drama ${row.cd_drama_id} is already linked to another title`);
+    const existing = platform_links.find((l) => l.platform === row.platform && l.title_id === row.title_id);
+    const linkedBy = isSystemSession(session) ? null : session.userId;
+    if (existing) {
+      const before: Json = { slug: existing.slug, cd_drama_id: existing.cd_drama_id };
+      if (existing.slug === row.slug && existing.cd_drama_id === row.cd_drama_id) return clone(existing);
+      Object.assign(existing, { slug: row.slug, cd_drama_id: row.cd_drama_id, linked_at: now(), linked_by: linkedBy });
+      audit(s, session, "move_platform_link", "core.platform_links", existing.id, existing.title_id, before, { slug: existing.slug, cd_drama_id: existing.cd_drama_id });
+      return clone(existing);
+    }
+    const link: PlatformLink = { id: randomUUID(), ...row, linked_at: now(), linked_by: linkedBy };
+    platform_links.push(link);
+    audit(s, session, "create_platform_link", "core.platform_links", link.id, link.title_id, null, { platform: link.platform, slug: link.slug, cd_drama_id: link.cd_drama_id });
+    return clone(link);
+  },
+
+  async recordPlatformSnapshot(session, input) {
+    const s = store();
+    requireSystemOrStaff(session);
+    const row = platformSnapshotRow(input);
+    if (row.title_id) findTitle(s.db, row.title_id); // a snapshot names a title that exists, or none
+    const snapshot: PlatformSnapshot = { id: randomUUID(), ...row };
+    platformTables(s.db).platform_snapshots.push(snapshot);
+    return clone(snapshot);
+  },
+
+  async listPlatformSnapshots(session, platform, slug, opts = {}) {
+    const { db } = store();
+    requirePlatform(platform);
+    requireMemberSession(session);
+    const limit = Math.max(1, Math.min(opts.limit ?? PLATFORM_SNAPSHOTS_KEEP, 200));
+    // Newest first; two rows written in the same millisecond keep the later write first (the list is in write order).
+    const rows = platformTables(db)
+      .platform_snapshots.map((r, i) => ({ r, i }))
+      .filter(({ r }) => r.platform === platform && r.slug === slug && canReadSnapshot(db, session, r))
+      .sort((a, b) => b.r.read_at.localeCompare(a.r.read_at) || b.i - a.i)
+      .slice(0, limit)
+      .map(({ r }) => r);
+    return clone(rows.map(normalizePlatformSnapshot));
+  },
+
+  async listLatestPlatformSnapshots(session, platform) {
+    const { db } = store();
+    requirePlatform(platform);
+    requireMemberSession(session);
+    const newest = new Map<string, PlatformSnapshot>();
+    for (const r of platformTables(db).platform_snapshots) {
+      if (r.platform !== platform) continue;
+      const have = newest.get(r.slug);
+      if (!have || r.read_at >= have.read_at) newest.set(r.slug, r); // the later write wins a tie
+    }
+    // The newest row per slug decides who may see the slug: a series linked since its unmatched days is the title's now.
+    const rows = [...newest.values()].filter((r) => canReadSnapshot(db, session, r)).sort((a, b) => a.slug.localeCompare(b.slug));
+    return clone(rows.map(normalizePlatformSnapshot));
+  },
+
+  async prunePlatformSnapshots(session, platform, keep = PLATFORM_SNAPSHOTS_KEEP) {
+    const s = store();
+    requirePlatform(platform);
+    requireSystemOrStaff(session);
+    if (!Number.isInteger(keep) || keep < 1) throw invalid("keep must be a positive integer");
+    const tables = platformTables(s.db);
+    const bySlug = new Map<string, PlatformSnapshot[]>();
+    for (const r of tables.platform_snapshots) if (r.platform === platform) (bySlug.get(r.slug) ?? bySlug.set(r.slug, []).get(r.slug)!).push(r);
+    const gone = new Set<string>();
+    for (const rows of bySlug.values()) {
+      // Rows arrive in write order; a stable sort keeps a same-millisecond pair in it, so the reverse is newest first.
+      rows.reverse().sort((a, b) => b.read_at.localeCompare(a.read_at));
+      for (const r of rows.slice(keep)) gone.add(r.id);
+    }
+    tables.platform_snapshots = tables.platform_snapshots.filter((r) => !gone.has(r.id));
+    return gone.size;
+  },
+
+  async listTitlesWithPlatformSlug(session, platform) {
+    const { db } = store();
+    requirePlatform(platform);
+    requireMemberSession(session);
+    return clone(db.titles.filter((t) => !!t.crazydramas_slug?.trim() && canReadTitle(session, t.producer_id)).sort((a, b) => a.created_at.localeCompare(b.created_at)));
+  },
+
+  async listTitleEpisodes(session, titleId) {
+    const { db } = store();
+    readableTitle(db, session, titleId);
+    return clone(db.episodes.filter((e) => e.title_id === titleId).sort((a, b) => a.number - b.number));
   },
 
   // ---- partner portal ----

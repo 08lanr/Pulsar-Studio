@@ -7,6 +7,7 @@
 import { notFound } from "next/navigation";
 import type { Session } from "@/lib/auth";
 import { getData, isDataError } from "@/lib/data";
+import { loadCrazydramasStatus, loadCrazydramasStatuses, PLATFORM, type CrazydramasState, type CrazydramasStatus } from "@/lib/crazydramas";
 import type { AnalyticsRange, TitlePerformanceRow } from "@/lib/analytics/types";
 import type { TitleDetail } from "@/lib/types";
 import { adStatus, platformStatus, type AdReading, type PlatformStatus } from "./title-status";
@@ -18,8 +19,22 @@ export type TitleWorkspace = {
   tiktok: TitlePerformanceRow | null;
   platform: PlatformStatus;
   ads: AdReading;
+  /** The third status of the title (plan A3): where the series stands on crazydramas.com, the reading lib/crazydramas derives from the newest snapshots. */
+  crazydramas: CrazydramasStatus;
   range: AnalyticsRange;
 };
+
+/**
+ * The chip state of every slugged title the session can see, keyed by title
+ * id, for the Import films rows. A title without a slug is not in the map:
+ * its row reads "Not linked: add a crazydramas slug" from the film itself.
+ */
+export async function crazydramasStatesByTitle(session: Session): Promise<Record<string, { state: CrazydramasState; stale: boolean }>> {
+  const statuses = await loadCrazydramasStatuses(session, await getData().listTitlesWithPlatformSlug(session, PLATFORM));
+  const out: Record<string, { state: CrazydramasState; stale: boolean }> = {};
+  for (const [id, status] of statuses) out[id] = { state: status.state, stale: status.stale };
+  return out;
+}
 
 export async function loadTitleWorkspace(session: Session, titleId: string, range: AnalyticsRange = "30d"): Promise<TitleWorkspace> {
   const data = getData();
@@ -30,9 +45,9 @@ export async function loadTitleWorkspace(session: Session, titleId: string, rang
     if (isDataError(e) && (e.code === "not_found" || e.code === "forbidden")) notFound();
     throw e;
   }
-  const [ws, perf] = await Promise.all([loadWorkspace(session, { titleId }), data.listTitlePerformance(session, { range })]);
+  const [ws, perf, crazydramas] = await Promise.all([loadWorkspace(session, { titleId }), data.listTitlePerformance(session, { range }), loadCrazydramasStatus(session, detail.title)]);
   const title = ws.titles[0];
   if (!title) notFound();
   const tiktok = perf.find((r) => r.title_id === titleId) ?? null;
-  return { detail, title, tiktok, platform: platformStatus(tiktok?.analytics_state), ads: adStatus(title.campaigns, title.results), range };
+  return { detail, title, tiktok, platform: platformStatus(tiktok?.analytics_state), ads: adStatus(title.campaigns, title.results), crazydramas, range };
 }

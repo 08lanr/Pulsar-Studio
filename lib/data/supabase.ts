@@ -39,6 +39,9 @@ import type {
   Job,
   Line,
   LineAlternative,
+  PlatformLink,
+  PlatformName,
+  PlatformSnapshot,
   Producer,
   ProducerTitleSummary,
   PromoApproval,
@@ -71,6 +74,7 @@ import type { AccountRequest, InstantPageTemplate, LaunchPreset, PromoLaunch } f
 import { DataError, legacyCampaignRetired, conflict, invalid, notFound } from "./errors";
 import { episodeImportPatch, filmAssetRow, normalizeSourceRef, validateAdRules } from "./film-import";
 import { claimFields, decisionRow, filmRunRow, filmRunStageAudited, normalizeFilmRun, releaseFields, renewFields, stageFields } from "./film-runs";
+import { normalizePlatformSnapshot, platformLinkRow, platformSnapshotRow, PLATFORM_SNAPSHOTS_KEEP, PLATFORMS } from "@/lib/crazydramas/types";
 import type { DataLayer, ExportSnapshot, LaunchedCampaign } from "./index";
 import { mediaUrl } from "./storage";
 import {
@@ -245,6 +249,10 @@ async function launchBcOf(c: Db, producerId: string): Promise<CompanyAccount | n
 
 function requireSystemOrStaff(session: Session): void {
   if (!isSystemSession(session) && session.kind !== "staff") throw new DataError("forbidden", "Pulsar staff only");
+}
+
+function requirePlatform(platform: PlatformName): void {
+  if (!PLATFORMS.includes(platform)) throw invalid(`unknown platform: ${String(platform)}`);
 }
 
 /**
@@ -1498,6 +1506,110 @@ export const supabaseData: DataLayer = {
     if (error) throw mapError(error);
     if (!data) throw conflict(`run ${runId} changed under this write (revision ${run.revision} moved); re-read it`);
     return normalizeFilmRun(data as FilmRun);
+  },
+
+  // ---- platform links and snapshots (decision 2026-09-23; migration 0017) ----
+  // Reads go through the session's own client (RLS: a link and a snapshot
+  // follow can_read_title, a snapshot with no title is staff's); writes are
+  // checked here (staff or the system) and made as the service role, the
+  // same two doors the fixture store keeps.
+
+  async getPlatformLink(session, titleId, platform) {
+    requirePlatform(platform);
+    const c = dbFor(session);
+    await one<Pick<Title, "id">>(core(c).from("titles").select("id").eq("id", titleId).maybeSingle(), "title", titleId); // a foreign title is not found
+    const { data, error } = await core(c).from("platform_links").select("*").eq("title_id", titleId).eq("platform", platform).maybeSingle();
+    if (error) throw mapError(error);
+    return (data as PlatformLink | null) ?? null;
+  },
+
+  async listPlatformLinks(session, platform) {
+    requirePlatform(platform);
+    return many<PlatformLink>(core(dbFor(session)).from("platform_links").select("*").eq("platform", platform).order("linked_at"));
+  },
+
+  async upsertPlatformLink(session, input) {
+    const row = platformLinkRow(input);
+    const c = dbFor(session);
+    await one<Pick<Title, "id">>(core(c).from("titles").select("id").eq("id", row.title_id).maybeSingle(), "title", row.title_id); // not_found before forbidden
+    requireSystemOrStaff(session);
+    const svc = core(createServiceSupabase()).from("platform_links");
+    const { data: holder, error: holderError } = await svc.select("id, title_id").eq("platform", row.platform).eq("cd_drama_id", row.cd_drama_id).neq("title_id", row.title_id).maybeSingle();
+    if (holderError) throw mapError(holderError);
+    if (holder) throw conflict(`drama ${row.cd_drama_id} is already linked to another title`);
+    const { data: existing, error: existingError } = await svc.select("*").eq("platform", row.platform).eq("title_id", row.title_id).maybeSingle();
+    if (existingError) throw mapError(existingError);
+    const linkedBy = isSystemSession(session) ? null : session.userId;
+    if (existing) {
+      const have = existing as PlatformLink;
+      if (have.slug === row.slug && have.cd_drama_id === row.cd_drama_id) return have;
+      const { data, error } = await svc.update({ slug: row.slug, cd_drama_id: row.cd_drama_id, linked_at: now(), linked_by: linkedBy }).eq("id", have.id).select("*").single();
+      if (error) throw mapError(error);
+      await auditEvent(session, "move_platform_link", "core.platform_links", have.id, have.title_id, null, { slug: have.slug, cd_drama_id: have.cd_drama_id }, { slug: row.slug, cd_drama_id: row.cd_drama_id });
+      return data as PlatformLink;
+    }
+    const { data, error } = await svc.insert({ ...row, linked_by: linkedBy }).select("*").single();
+    if (error) throw mapError(error); // 23505 on (platform, cd_drama_id) is the conflict above, raced
+    const link = data as PlatformLink;
+    await auditEvent(session, "create_platform_link", "core.platform_links", link.id, link.title_id, null, null, { platform: link.platform, slug: link.slug, cd_drama_id: link.cd_drama_id });
+    return link;
+  },
+
+  async recordPlatformSnapshot(session, input) {
+    requireSystemOrStaff(session);
+    const row = platformSnapshotRow(input);
+    if (row.title_id) await one<Pick<Title, "id">>(core(dbFor(session)).from("titles").select("id").eq("id", row.title_id).maybeSingle(), "title", row.title_id);
+    const { data, error } = await core(createServiceSupabase()).from("platform_snapshots").insert(row).select("*").single();
+    if (error) throw mapError(error);
+    return normalizePlatformSnapshot(data as PlatformSnapshot);
+  },
+
+  async listPlatformSnapshots(session, platform, slug, opts = {}) {
+    requirePlatform(platform);
+    const limit = Math.max(1, Math.min(opts.limit ?? PLATFORM_SNAPSHOTS_KEEP, 200));
+    const rows = await many<PlatformSnapshot>(core(dbFor(session)).from("platform_snapshots").select("*").eq("platform", platform).eq("slug", slug).order("read_at", { ascending: false }).limit(limit));
+    return rows.map(normalizePlatformSnapshot);
+  },
+
+  async listLatestPlatformSnapshots(session, platform) {
+    requirePlatform(platform);
+    // Newest first under RLS, then the first row per slug: the newest row decides who may see the slug, as the fixture does.
+    const rows = await many<PlatformSnapshot>(core(dbFor(session)).from("platform_snapshots").select("*").eq("platform", platform).order("read_at", { ascending: false }).limit(2000));
+    const newest = new Map<string, PlatformSnapshot>();
+    for (const r of rows) if (!newest.has(r.slug)) newest.set(r.slug, r);
+    return [...newest.values()].sort((a, b) => a.slug.localeCompare(b.slug)).map(normalizePlatformSnapshot);
+  },
+
+  async prunePlatformSnapshots(session, platform, keep = PLATFORM_SNAPSHOTS_KEEP) {
+    requirePlatform(platform);
+    requireSystemOrStaff(session);
+    if (!Number.isInteger(keep) || keep < 1) throw invalid("keep must be a positive integer");
+    const svc = core(createServiceSupabase()).from("platform_snapshots");
+    const rows = await many<Pick<PlatformSnapshot, "id" | "slug" | "read_at">>(svc.select("id, slug, read_at").eq("platform", platform).order("read_at", { ascending: false }));
+    const seen = new Map<string, number>();
+    const gone: string[] = [];
+    for (const r of rows) {
+      const n = (seen.get(r.slug) ?? 0) + 1;
+      seen.set(r.slug, n);
+      if (n > keep) gone.push(r.id);
+    }
+    if (gone.length) {
+      const { error } = await svc.delete().in("id", gone);
+      if (error) throw mapError(error);
+    }
+    return gone.length;
+  },
+
+  async listTitlesWithPlatformSlug(session, platform) {
+    requirePlatform(platform);
+    // The one platform today keeps its slug on core.titles; a second one gets its own column or a link-first read.
+    return many<Title>(core(dbFor(session)).from("titles").select("*").not("crazydramas_slug", "is", null).neq("crazydramas_slug", "").order("created_at"));
+  },
+
+  async listTitleEpisodes(session, titleId) {
+    const c = dbFor(session);
+    await one<Pick<Title, "id">>(core(c).from("titles").select("id").eq("id", titleId).maybeSingle(), "title", titleId);
+    return many<Episode>(core(c).from("episodes").select("*").eq("title_id", titleId).order("number"));
   },
 
   // ---- partner portal ----

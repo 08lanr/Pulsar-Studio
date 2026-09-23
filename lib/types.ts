@@ -495,6 +495,76 @@ export type FilmRun = {
   updated_at: string;
 };
 
+// ---- core.platform_links / core.platform_snapshots (decision 2026-09-23, "the crazydramas connection"; migration 0017) ----
+
+/** The consumer platforms Studio reads back from. One value today; the column is checked, not an enum, so a second platform needs no migration of the type. */
+export type PlatformName = "crazydramas";
+
+/**
+ * core.platform_links — which drama on the platform a title IS. Written on
+ * the first 200 read of the title's slug with the drama id the platform
+ * returned; from then on the title is matched by that id, because a slug can
+ * be edited in the platform's CMS. One link per title × platform, one title
+ * per drama id.
+ */
+export type PlatformLink = {
+  id: string;
+  title_id: string;
+  platform: PlatformName;
+  /** The slug the link was made under (the title's `crazydramas_slug` at the time). */
+  slug: string;
+  /** The platform's own id of the drama (crazydramas `dramas.id`). */
+  cd_drama_id: string;
+  linked_at: string;
+  /** Null for the system actor (the sweep). */
+  linked_by: string | null;
+};
+
+/** The whitelisted series fields of one public read (`drama` jsonb); never a playback id or a thumbnail URL. */
+export type PlatformDrama = {
+  id: string;
+  slug: string;
+  title: string;
+  status: string;
+  language: string | null;
+  free_episode_count: number;
+  series_price_cents: number | null;
+  iap_product_id: string | null;
+  poster_url: string | null;
+  poster_blurhash: string | null;
+  episode_count: number;
+  cta_mode: string | null;
+};
+
+/** One episode as the public read listed it (`episodes` jsonb entries). */
+export type PlatformEpisode = {
+  n: number;
+  duration_s: number | null;
+  status: string;
+  is_published: boolean;
+};
+
+/**
+ * core.platform_snapshots — append-only: one row per public read of one
+ * slug (the sweep, Check now, the after-import check). The last twenty per
+ * slug are kept. `title_id` is null for a series that matches no title
+ * (staff read those; a producer reads the rows of their own titles). A
+ * failed read has `http_status` null (or the status) and `error` set, and
+ * the screens show the newest good row marked stale.
+ */
+export type PlatformSnapshot = {
+  id: string;
+  platform: PlatformName;
+  slug: string;
+  cd_drama_id: string | null;
+  title_id: string | null;
+  http_status: number | null;
+  drama: PlatformDrama | null;
+  episodes: PlatformEpisode[] | null;
+  read_at: string;
+  error: string | null;
+};
+
 export type AuditEvent = {
   id: number;
   at: string;

@@ -35,6 +35,7 @@ import path from "node:path";
 import { z } from "zod";
 import { cuesToVtt, restoreMachineLines, transcriptToCues, type AsrSegment, type AsrWord } from "@/lib/asr";
 import { systemSession, type Session } from "@/lib/auth";
+import { checkAfterImport } from "@/lib/crazydramas/sweep";
 import { DataError, getData, isDataError, type EpisodeImportInput, type NewJob } from "@/lib/data";
 import { normalizeSourceRef } from "@/lib/data/film-import";
 import { linkIntoLocalTier, localPathOf, localStoredPath, mediaUrl, putStoredBytes, uploadImport, workspaceRoot } from "@/lib/data/storage";
@@ -974,6 +975,9 @@ async function run(p: Prepared): Promise<ImportResult> {
   });
   touch(progress, { step: "done", result });
   log(`${ref} → ${title.external_id}: ${counts.added} added, ${counts.updated} updated, ${counts.unchanged} unchanged, ${counts.flagged} flagged, ${counts.transcripts} transcripts${changedDuringImport ? " (plan changed during the import)" : ""}`);
+  // One crazydramas check once the import set a slug (decision 2026-09-23, plan A5): the shared check function, failure-soft, after the job is done.
+  const cdSlug = (await data.getTitle(sys, title.id)).title.crazydramas_slug?.trim();
+  if (cdSlug) await checkAfterImport(title.id);
   return result;
 }
 
