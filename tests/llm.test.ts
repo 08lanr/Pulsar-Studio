@@ -20,6 +20,7 @@ import {
   LlmError,
   LlmUnavailableError,
   PRICES,
+  VISION_DEFAULT_MODELS,
   acceptsForcedToolChoice,
   adsTextProvider,
   anthropicRequestParams,
@@ -28,6 +29,7 @@ import {
   anthropicUserText,
   chatUserContent,
   costCents,
+  costUsd,
   deepSeekRequestBody,
   imageDataUri,
   isLlmAvailable,
@@ -40,7 +42,9 @@ import {
   resolveCall,
   responsesUserInput,
   toLlmError,
+  toolChoiceSetting,
   turnTraceOf,
+  visionModelFor,
   visionProviderStatus,
   type LlmProvider,
   type StructuredCall,
@@ -74,7 +78,15 @@ test("claude-opus-5-5 is priced at its own rate, not the Fable fallback that cha
   const z0 = { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0 };
   assert.equal(costCents("claude-opus-5-5", { ...z0, input_tokens: 1_000_000 }), 400);
   assert.equal(costCents("claude-opus-5-5", { ...z0, output_tokens: 1_000_000 }), 2000);
-  assert.equal(costCents("claude-sonnet-5", { ...z0, output_tokens: 1_000_000 }), 1000, "the judge's default");
+  assert.equal(costCents("claude-sonnet-5", { ...z0, output_tokens: 1_000_000 }), 1000);
+  assert.equal(VISION_DEFAULT_MODELS.anthropic, "claude-opus-5-5", "the judge's default on Anthropic, measured 2026-09-23: 16/20 and 17/20 against Sonnet 5's 14/20 and 12/20");
+  assert.equal(VISION_DEFAULT_MODELS.deepseek, "deepseek-flash");
+  assert.ok(PRICES[VISION_DEFAULT_MODELS.anthropic] && PRICES[VISION_DEFAULT_MODELS.openai] && PRICES[VISION_DEFAULT_MODELS.deepseek], "every vision default is priced");
+  // The exact price beside the rounded cents: a 0.3-cent call is a 1-cent row and $0.003 exactly.
+  const small = { ...z0, input_tokens: 1000, output_tokens: 100 };
+  assert.ok(Math.abs(costUsd("claude-sonnet-5", small) - 0.003) < 1e-12);
+  assert.equal(costCents("claude-sonnet-5", small), 1);
+  assert.ok(Math.abs(costUsd("claude-opus-5-5", { ...z0, input_tokens: 10_000, output_tokens: 1_500, cache_read_tokens: 2_300, cache_write_tokens: 100 }) - (10_000 * 4 + 1_500 * 20 + 2_300 * 0.2 + 100 * 5) / 1e6) < 1e-12);
 });
 
 // ---- the Anthropic request ---------------------------------------------------------------------
@@ -108,7 +120,17 @@ test("the Anthropic request: the thinking's room on top of the call's budget, a 
   assert.deepEqual(anthropicToolChoice("claude-opus-5-5", "probe", {}), { type: "auto", disable_parallel_tool_use: true });
   assert.deepEqual(anthropicRequestParams(probeCall, "claude-opus-5-5", {}).tool_choice, { type: "auto", disable_parallel_tool_use: true });
   assert.deepEqual(anthropicToolChoice("claude-sonnet-5", "probe", { ANTHROPIC_TOOL_CHOICE: "auto" }), { type: "auto", disable_parallel_tool_use: true }, "the probe's switch: every model on the auto path");
-  assert.deepEqual(anthropicToolChoice("claude-sonnet-5", "probe", { ANTHROPIC_TOOL_CHOICE: "forced" }), { type: "tool", name: "probe", disable_parallel_tool_use: true }, "anything but auto leaves the default");
+  assert.deepEqual(anthropicToolChoice("claude-sonnet-5", "probe", { ANTHROPIC_TOOL_CHOICE: "forced" }), { type: "tool", name: "probe", disable_parallel_tool_use: true }, "forced where the model accepts it");
+  assert.deepEqual(anthropicToolChoice("claude-sonnet-5", "probe", { ANTHROPIC_TOOL_CHOICE: "whatever" }), { type: "tool", name: "probe", disable_parallel_tool_use: true }, "an unrecognised setting leaves the default");
+  // The call's own preference when the environment says nothing (the frame judge asks for auto: a forced call skips the thinking, 0 of 40 turns against 41 of 41); the environment overrides it either way.
+  assert.deepEqual(anthropicToolChoice("claude-sonnet-5", "probe", {}, "auto"), { type: "auto", disable_parallel_tool_use: true });
+  assert.deepEqual(anthropicToolChoice("claude-sonnet-5", "probe", {}, "forced"), { type: "tool", name: "probe", disable_parallel_tool_use: true });
+  assert.deepEqual(anthropicToolChoice("claude-sonnet-5", "probe", { ANTHROPIC_TOOL_CHOICE: "forced" }, "auto"), { type: "tool", name: "probe", disable_parallel_tool_use: true }, "the cheap comparison arm: the environment forces the judge too");
+  assert.deepEqual(anthropicToolChoice("claude-opus-5-5", "probe", { ANTHROPIC_TOOL_CHOICE: "forced" }, "auto"), { type: "auto", disable_parallel_tool_use: true }, "never forced on a model that refuses it");
+  assert.deepEqual(toolChoiceSetting({ ANTHROPIC_TOOL_CHOICE: " Auto " }), "auto");
+  assert.equal(toolChoiceSetting({}), null);
+  assert.deepEqual(anthropicRequestParams({ ...probeCall, toolChoice: "auto" }, "claude-sonnet-5", {}).tool_choice, { type: "auto", disable_parallel_tool_use: true }, "the request carries the call's preference");
+  assert.deepEqual(anthropicRequestParams({ ...probeCall, toolChoice: "auto" }, "claude-sonnet-5", { ANTHROPIC_TOOL_CHOICE: "forced" }).tool_choice, { type: "tool", name: "probe", disable_parallel_tool_use: true });
   // On the auto path the user turn says which tool to answer with; on the forced path it is the call's own text.
   assert.equal(anthropicUserText("u", "probe", sonnet.tool_choice), "u");
   assert.equal(anthropicUserText("u", "probe", { type: "auto", disable_parallel_tool_use: true }), "u\n\nAnswer only by calling probe.");
@@ -198,9 +220,24 @@ test("the ad engine's text provider is DeepSeek unless the environment says othe
   assert.equal(adsTextProvider({ ADS_TEXT_PROVIDER: "gemini" }), "deepseek", "an unknown name falls back rather than crashing");
 });
 
-test("visionProviderStatus: anthropic by default, deepseek-flash when only that key exists, a named provider is never swapped", () => {
+test("visionProviderStatus: anthropic on claude-opus-5-5 by default, deepseek-flash when only that key exists, a named provider or model is never swapped", () => {
   const anthropic = visionProviderStatus({ ANTHROPIC_API_KEY: "k" });
-  assert.deepEqual(anthropic, { available: true, provider: "anthropic", model: "claude-sonnet-5", reason: null });
+  assert.deepEqual(anthropic, { available: true, provider: "anthropic", model: "claude-opus-5-5", reason: null });
+  // The judge's model is its own: LLM_MODEL_FAST moves the reading passes, never the judge; ADS_VISION_MODEL is the judge's override, and only within the provider's family.
+  assert.equal(visionProviderStatus({ ANTHROPIC_API_KEY: "k", LLM_MODEL_FAST: "claude-haiku-4-5" }).model, "claude-opus-5-5");
+  assert.equal(visionModelFor("anthropic", {}), "claude-opus-5-5");
+  assert.equal(visionModelFor("anthropic", { ADS_VISION_MODEL: " claude-sonnet-5 " }), "claude-sonnet-5");
+  assert.equal(visionModelFor("deepseek", { ADS_VISION_MODEL: "claude-sonnet-5" }), "deepseek-flash", "another family's model is not this provider's business");
+  assert.equal(visionModelFor("openai", { ADS_VISION_MODEL: "o5-mini" }), "o5-mini", "an id no family claims is the provider's");
+  assert.deepEqual(visionProviderStatus({ ANTHROPIC_API_KEY: "k", ADS_VISION_MODEL: "claude-sonnet-5" }), { available: true, provider: "anthropic", model: "claude-sonnet-5", reason: null });
+  const crossed = visionProviderStatus({ ANTHROPIC_API_KEY: "k", DEEPSEEK_API_KEY: "k", ADS_VISION_MODEL: "deepseek-flash" });
+  assert.equal(crossed.available, false, "a model of another vendor on the judge's provider is reported, not swapped");
+  assert.equal(crossed.provider, "anthropic");
+  assert.match(crossed.reason ?? "", /ADS_VISION_MODEL=deepseek-flash is a deepseek model and the judge's provider is anthropic; set ADS_VISION_PROVIDER=deepseek with DEEPSEEK_API_KEY, or clear ADS_VISION_MODEL/);
+  assert.deepEqual(visionProviderStatus({ DEEPSEEK_API_KEY: "k", ADS_VISION_PROVIDER: "deepseek", ADS_VISION_MODEL: "deepseek-flash" }), { available: true, provider: "deepseek", model: "deepseek-flash", reason: null });
+  const fallbackNamed = visionProviderStatus({ DEEPSEEK_API_KEY: "k", ADS_VISION_MODEL: "claude-sonnet-5" });
+  assert.deepEqual([fallbackNamed.available, fallbackNamed.provider, fallbackNamed.model], [true, "deepseek", "deepseek-flash"], "no ANTHROPIC_API_KEY: the fallback takes its own default; a Claude id is not DeepSeek's business");
+  assert.match(fallbackNamed.reason ?? "", /ANTHROPIC_API_KEY is not set; frames are judged by deepseek-flash/);
 
   const fallback = visionProviderStatus({ DEEPSEEK_API_KEY: "k" });
   assert.equal(fallback.available, true);
@@ -219,9 +256,10 @@ test("visionProviderStatus: anthropic by default, deepseek-flash when only that 
   assert.match(explicit.reason ?? "", /add ANTHROPIC_API_KEY/);
   assert.doesNotMatch(explicit.reason ?? "", /DEEPSEEK_API_KEY/);
 
-  const textOnly = visionProviderStatus({ ADS_VISION_PROVIDER: "deepseek", LLM_PROVIDER: "deepseek", LLM_MODEL_FAST: "deepseek-v4-pro", DEEPSEEK_API_KEY: "k" });
+  const textOnly = visionProviderStatus({ ADS_VISION_PROVIDER: "deepseek", ADS_VISION_MODEL: "deepseek-v4-pro", DEEPSEEK_API_KEY: "k" });
   assert.equal(textOnly.available, false);
-  assert.match(textOnly.reason ?? "", /deepseek-v4-pro does not read images/);
+  assert.match(textOnly.reason ?? "", /deepseek-v4-pro does not read images; point ADS_VISION_MODEL at a vision model of deepseek \(deepseek-flash\), or clear it/);
+  assert.equal(visionProviderStatus({ ADS_VISION_PROVIDER: "deepseek", LLM_PROVIDER: "deepseek", LLM_MODEL_FAST: "deepseek-v4-pro", DEEPSEEK_API_KEY: "k" }).available, true, "the fast-tier override no longer reaches the judge");
 
   const explicitDeepseek = visionProviderStatus({ ADS_VISION_PROVIDER: "deepseek", DEEPSEEK_API_KEY: "k", ANTHROPIC_API_KEY: "k" });
   assert.deepEqual(explicitDeepseek, { available: true, provider: "deepseek", model: "deepseek-flash", reason: null });

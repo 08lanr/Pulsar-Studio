@@ -21,7 +21,7 @@ import { LlmError, LlmUnavailableError, type StructuredCall, type StructuredResu
 import type { BoundaryPick } from "@/lib/prompts/boundary-review";
 import type { BoundaryVerdict } from "@/lib/prompts/boundary-skeptic";
 import type { TiebreakVerdict } from "@/lib/prompts/boundary-tiebreak";
-import { ANNOTATE_JPEG_OVER_BYTES, HEADER_PX, annotateArgs, annotateFilter, annotateFont, annotateStrip, cutIndexOf, filterQuote, fontfileArg, jpegArgs, pngSize, tileBoxes } from "@/lib/segment/annotate";
+import { ANNOTATE_JPEG_OVER_BYTES, ANNOTATE_TIMEOUT_MS, HEADER_PX, annotateArgs, annotateFilter, annotateFont, annotateStrip, cutIndexOf, filterQuote, fontfileArg, jpegArgs, pngSize, tileBoxes } from "@/lib/segment/annotate";
 import { reviewState } from "@/lib/segment/plan";
 import {
   SEEN_TOLERANCE_S,
@@ -608,6 +608,9 @@ test("a call that failed after the API answered keeps its spend: the failed row 
   assert.deepEqual([r.jobs[0].role, r.jobs[0].status, r.jobs[0].cost_cents, r.jobs[0].output_tokens, r.jobs[0].skipped, r.jobs[0].trace], ["look", "failed", 24, 22000, false, []]);
   assert.ok(r.jobs[0].job_id);
   assert.equal(r.cost_cents, 24, "the bar's cost line counts it");
+  // The exact price beside the rounded row: the failed call's usage priced at the pass's model, claude-opus-5-5 ($4 in and $20 out per million).
+  assert.ok(Math.abs(r.jobs[0].cost_usd - (9000 * 4 + 22000 * 20) / 1e6) < 1e-9, `${r.jobs[0].cost_usd}: claude-opus-5-5 is the pass's model`);
+  assert.ok(Math.abs(r.cost_usd - r.jobs[0].cost_usd) < 1e-9);
   const file = readJson(r.file);
   assert.equal(file.agentCount, 1);
   assert.deepEqual([file.jobs[0].status, file.jobs[0].cost_cents], ["failed", 24]);
@@ -617,6 +620,9 @@ test("a call that failed after the API answered keeps its spend: the failed row 
   assert.ok(!isUnavailable(r2));
   assert.deepEqual(r2.jobs.map((j) => [j.role, j.status, j.cost_cents]), [["look", "done", 2], ["verify", "failed", 9]]);
   assert.equal(r2.cost_cents, 11);
+  // The done row's exact price is the call's (the fake answers as the pass's model, 1000 in and 200 out on claude-opus-5-5: $0.008); the failed row's is its usage at the pass's model.
+  assert.deepEqual(r2.jobs.map((j) => Math.round(j.cost_usd * 1e6)), [8000, 14000 * 4 + 2600 * 20]);
+  assert.equal(Math.round(r2.cost_usd * 1e6), 8000 + 14000 * 4 + 2600 * 20);
   assert.equal(readGuard(r2.records[0].verdict)?.outcome, "skeptic_failed");
   // A transport failure that spent, then the retry that answered: both entries are listed. The fixture retries a failed row in place, so
   // the two share a job_id and the row holds the last attempt's spend; the pass's cost_cents is what was really paid.
@@ -637,7 +643,8 @@ test("a call that failed after the API answered keeps its spend: the failed row 
 
 test("the model override: a model of the provider's family that reads images runs; another family's or a text-only model is refused before any call", async () => {
   const env = { ANTHROPIC_API_KEY: "k", DEEPSEEK_API_KEY: "d" };
-  assert.deepEqual(resolveJudgeModel(env, undefined), { provider: "anthropic", model: "claude-sonnet-5" });
+  assert.deepEqual(resolveJudgeModel(env, undefined), { provider: "anthropic", model: "claude-opus-5-5" }, "the judge's own default, measured on 2026-09-23");
+  assert.deepEqual(resolveJudgeModel({ ...env, ADS_VISION_MODEL: "claude-sonnet-5" }, undefined), { provider: "anthropic", model: "claude-sonnet-5" }, "ADS_VISION_MODEL is the judge's override");
   assert.deepEqual(resolveJudgeModel(env, "claude-opus-5"), { provider: "anthropic", model: "claude-opus-5" });
   assert.deepEqual(resolveJudgeModel(env, "deepseek-flash"), { provider: "deepseek", model: "deepseek-flash" }, "the model names its family; the key is there");
   assert.deepEqual(resolveJudgeModel(env, "deepseek-v4-pro"), { unavailable: "vision provider unavailable: deepseek-v4-pro does not read images" });
@@ -721,9 +728,30 @@ test("annotateStrip writes the copy once under the work dir with the pipeline's 
   utimesSync(strip.path, later, later);
   await annotateStrip(strip, 424.433, outDir, { run });
   assert.equal(runs.length, 2, "a newer source PNG is annotated again");
-  const failing = async (args: string[]) => ({ code: 1, stderr: `ffmpeg: ${args.length} args\nno such filter` });
+  // A failed step is run once more before the boundary is errored; the message says so and carries the reason.
+  let failures = 0;
+  const failing = async (args: string[]) => {
+    failures += 1;
+    return { code: 1, stderr: `ffmpeg: ${args.length} args\nno such filter` };
+  };
   rmSync(out.path);
-  await assert.rejects(annotateStrip(strip, 424.433, outDir, { run: failing }), /ffmpeg could not annotate b424_opt1.png: ffmpeg: \d+ args \| no such filter/);
+  await assert.rejects(annotateStrip(strip, 424.433, outDir, { run: failing }), /ffmpeg could not annotate b424_opt1.png \(twice\): ffmpeg: \d+ args \| no such filter/);
+  assert.equal(failures, 2, "retried once");
+  // The starved run of 2026-09-23 errored with an empty reason: a timeout now says so, with the priority it waited at.
+  const starved = async () => ({ code: null, stderr: "", timedOut: true });
+  await assert.rejects(annotateStrip(strip, 424.433, outDir, { run: starved }), /ffmpeg could not annotate b424_opt1.png \(twice\): timed out after 900 s at BelowNormal priority \(the CPU was taken by other work\)/);
+  assert.equal(ANNOTATE_TIMEOUT_MS, 15 * 60 * 1000, "waiting time, not work: a one-second job behind a session's OCR");
+  // A step that fails once and then answers is not an error.
+  let flaky = 0;
+  const onceFlaky = async (args: string[]) => {
+    flaky += 1;
+    if (flaky === 1) return { code: null, stderr: "", timedOut: true };
+    writeFileSync(args[args.length - 1], readFileSync(strip.path));
+    return { code: 0, stderr: "" };
+  };
+  const recovered = await annotateStrip(strip, 424.433, outDir, { run: onceFlaky });
+  assert.equal(recovered.path, out.path);
+  assert.equal(flaky, 2);
 });
 
 test("annotateStrip re-encodes a copy over the size line as JPEG, says so in media_type, keeps it fresh like the PNG, and goes back to PNG under the line", async () => {
@@ -767,7 +795,7 @@ test("annotateStrip re-encodes a copy over the size line as JPEG, says so in med
     writeFileSync(args[args.length - 1], readFileSync(strip.path));
     return { code: 0, stderr: "" };
   };
-  await assert.rejects(annotateStrip(strip, 424.433, path.join(tempDir(), "annotated-jpeg-fail"), { run: jpegFails, jpeg_over_bytes: 1 }), /^SegmentError: ffmpeg could not re-encode b424_opt1.png as JPEG \(\d+ bytes, over 1\): jpeg: no$/);
+  await assert.rejects(annotateStrip(strip, 424.433, path.join(tempDir(), "annotated-jpeg-fail"), { run: jpegFails, jpeg_over_bytes: 1 }), /^SegmentError: ffmpeg could not re-encode b424_opt1.png as JPEG \(\d+ bytes, over 1; twice\): jpeg: no$/);
 });
 
 // ---- scoring against the delivered cuts -----------------------------------------------------------------
@@ -894,7 +922,13 @@ test("the eval selects boundaries by index range, index or time, reads the film 
   assert.match(errored[3].line, /^person reviews 3 = hand-offs 2 \(faults, unverified fixes; 1 of them false: [^)]+\) \+ picks under 0.65 confidence 0 \+ errors 1 \(bar at most 2 per 20/);
   assert.equal(errored[3].pass, false);
   assert.match(errored[4].line, /\(bar 9 of 10; card spans NOT in the prompt, as a by-eye run in production\)$/);
-  assert.match(errored[5].line, /^cost 0.350 \$ per boundary/, "the cost is per boundary asked");
+  assert.match(errored[5].line, /^cost 0.350 \$ per boundary \(bar 0.40; rows rounded up to the cent\)$/, "the cost is per boundary asked");
+  // The band fix the eval runs after the pass: its unresolved groups are reviews, and the exact spend prints beside the rounded rows.
+  const fixed = calibrationBar(score, indices20, 700, { band_fix: { groups: 2, faults: 1 }, cost_usd: 6.2 });
+  assert.match(fixed[3].line, /^person reviews 3 = hand-offs 2 \([^)]+\) \+ picks under 0.65 confidence 0 \+ errors 0 \+ band-fix groups a person decides 1 \(of 2 run after the pass\) \(bar at most 2 per 20/);
+  assert.equal(fixed[3].pass, false, "a group a person decides is a review");
+  assert.match(fixed[5].line, /^cost 0.350 \$ per boundary \(bar 0.40; rows rounded up to the cent; exact from the rows' usage 0.310 \$ per boundary, 6.20 \$ in all\)$/);
+  assert.equal(calibrationBar(score, indices20, 700, { band_fix: { groups: 1, faults: 0 } })[3].pass, true, "a fixed group is a model pass, not a review");
   assert.match(calibrationBar(score, indices20, 700, { card_prompt: true })[4].line, /; card spans were in the prompt\)$/);
   assert.equal(calibrationBar({ ...score, n: 19 } as typeof score, [], 700, { errors })[0].line.startsWith("applied agreement 15/20"), true, "no indices: the selection is the scored plus the errored");
   // Nothing scored (the smoke of 2026-09-23: 0 judged, 1 errored): no line passes, and each says so, instead of PASS on hard rules, overrides and cost over an empty set.

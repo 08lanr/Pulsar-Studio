@@ -38,6 +38,18 @@
 // and attached before the call, so a blank refusal is a repair, not an
 // answer.
 //
+// The Claude arms (by-eye-v5, "The frame judge on Claude, measured") found
+// two more holes. The reviewer chose an option whose own entry showed no
+// card while another option's entry showed the source's card (3276.333:
+// Sonnet's cut put the confession and the card ten seconds into the next
+// episode, unflagged; 4313.4: Opus buried the card eighteen seconds inside
+// the episode), so selfContradiction refuses a chosen `none` beside any
+// other entry's card and says which way the card lands; and a document
+// handed between two men was called "a grab" by Sonnet's skeptic and
+// tie-break (3983.433, the only bad override of the Claude arms), so the
+// reading block defines a grab. The judge's calls ask for tool_choice auto
+// (`toolChoice`): a forced call skips the thinking.
+//
 // Schemas use .nullable(), never .optional(): lib/llm.ts emits strict JSON
 // schema where every key is required.
 
@@ -46,7 +58,7 @@ import type { LlmProvider, LlmSystemBlock } from "@/lib/llm";
 import { asLlmImage, cutIndexOf, cutTileOf, inCardSpan, type CardSpan, type OptionsBoundary, type StripImage, type StripLayout } from "@/lib/segment/strips";
 
 /** Bumped when the rules, the prompt text or a schema changes; part of every verify_boundaries idempotency key. */
-export const BOUNDARY_RULE_VERSION = "by-eye-v4";
+export const BOUNDARY_RULE_VERSION = "by-eye-v5";
 
 /** The standing decisions: 1-6 verbatim from pick_by_eye.workflow.js, 7-8 from the second pass. Not preferences. */
 export const BOUNDARY_RULES = [
@@ -60,6 +72,12 @@ export const BOUNDARY_RULES = [
   '7. If the source shows its own episode break - a flare or light leak with a vertical "TO BE CONTINUED" card, or a fade to black - that is where the original episode ended. The best cut is the FIRST frame after the source\'s card: the option whose END tiles finish on the card and whose cut tile is already the next shot. The card belongs at the END of this episode, so a card before the cut is the target, not a fault. Only two things are faults: a cut tile that still shows the card, flare or fade (the next episode opens on it), and a cut a second or more after the card ends (the card is buried inside an episode with more story after it).',
   "8. If the SAME subtitle line (the same words) shows on the last tile before the cut AND on the cut tile, the cut splits a spoken line; do not choose it, whatever the dialogue list says: the transcript misses voice-overs and shouted lines, the burned captions do not. One line ending before the cut and a different line starting after it is not a split.",
 ].join("\n");
+
+/** What a grab is for rules 2-4, in the reading block and every schema that asks for a physical action: Sonnet 5's skeptic and tie-break called a document handed between two men "a grab/pass action" and overrode the right cut (3983.433). */
+export const GRAB_DEFINITION = "A grab means seizing a person (an arm, a collar, hair) or snatching something by force; handing over, receiving, holding or reading an object is not a physical action for rules 2-4.";
+
+/** The physical actions an options_seen entry or a verdict may name across the cut, with the grab defined. */
+export const ACTION_LIST = "a punch, slap, push, grab, throw, fall, collision or something flying (a grab seizes a person - an arm, a collar, hair - or snatches something by force; handing over, receiving, holding or reading an object is not one)";
 
 /** Film-specific facts a reviewer must know (the Workflow's `film_notes`), e.g. how the source marks its own episode breaks. */
 export function filmNotesBlock(notes: string | null | undefined): string {
@@ -117,7 +135,7 @@ export function readingBlock(layout: Pick<StripLayout, "window" | "step" | "cols
           "- Every strip is labelled: the header names the option and its cut time, each tile carries its own time in the top-left corner, tiles before the cut are marked END and tiles from the cut on are marked NEXT, and the cut tile has a red frame. Read the times off the tiles; the option list repeats them.",
         ]
       : []),
-    '- "motion" comes from a motion detector, not a person. It also fires on flares, card transitions, fades, camera moves and walking. Only a punch, slap, push, grab, throw, fall, collision or something flying counts as a physical action for rules 2-4; a blink, a head turn, a hand gesture, a walk or a camera move does not. Judge from the frames; the motion numbers are never the time of an impact.',
+    `- "motion" comes from a motion detector, not a person. It also fires on flares, card transitions, fades, camera moves and walking. Only a punch, slap, push, grab, throw, fall, collision or something flying counts as a physical action for rules 2-4; a blink, a head turn, a hand gesture, a walk or a camera move does not. ${GRAB_DEFINITION} Judge from the frames; the motion numbers are never the time of an impact.`,
     "- The dialogue list is whisper's transcript: times are where lines START, it misses voice-overs and shouting, and a line can be many seconds from the cut. It is never evidence of what is on screen.",
   ].join("\n");
 }
@@ -145,7 +163,7 @@ export const OptionSeenSchema = z.object({
     .describe(
       "where a flare, light leak, fade to black or TO BE CONTINUED card appears in this image, if at all (rule 7): none; before_cut = the card ends before the cut and the cut tile is the next shot (what rule 7 asks for); across_cut = the cut tile still shows the card, flare or fade (the next episode would open on it); after_cut = the card shows on tiles after the cut (the cut comes before the source's break)"
     ),
-  physical_action_across_cut: z.string().nullable().describe("a punch, slap, push, grab, throw, fall, collision or something flying that is in progress on the cut tile; null when none"),
+  physical_action_across_cut: z.string().nullable().describe(`a physical action in progress on the cut tile - ${ACTION_LIST}; null when none`),
 });
 
 /** True when an options_seen entry names a physical action across the cut (a model sometimes writes "none" for null). */
@@ -167,9 +185,14 @@ export type ChoosableOption = { key: string; t: number };
  * choosable option is marked the same, clean of captions and actions, is
  * refused too: rule 7's target is the FIRST frame after the card, and the
  * later one buries it (2324.933 chose opt6 two seconds after the card over
- * opt5, both marked before_cut in its own entries).
+ * opt5, both marked before_cut in its own entries). And a chosen option
+ * marked `none` while ANOTHER option's entry shows the card is on the
+ * wrong side of the source's break (3276.333: the card ten seconds into the
+ * next episode; 4313.4: the card buried eighteen seconds inside the
+ * episode): refused, with the way the card lands named from the listed
+ * times (`listed`, every option with its time) when they are given.
  */
-export function selfContradiction(out: Pick<BoundaryPick, "options_seen" | "chosen_key">, choosable?: ChoosableOption[]): string | null {
+export function selfContradiction(out: Pick<BoundaryPick, "options_seen" | "chosen_key">, choosable?: ChoosableOption[], listed?: ChoosableOption[]): string | null {
   const own = out.options_seen.find((s) => s.key === out.chosen_key);
   if (!own) return null;
   const close = "; choose another option or refuse with confidence 0";
@@ -189,7 +212,34 @@ export function selfContradiction(out: Pick<BoundaryPick, "options_seen" | "chos
     const first = out.options_seen.find((s) => s.key !== own.key && s.card_or_flare === "before_cut" && !s.caption_across_cut && !namesAction(s) && earlier(s));
     if (first) return `your own options_seen says ${first.key} is also after the card and earlier; rule 7's target is the FIRST frame after the card; choose it or explain with confidence 0`;
   }
+  if (own.card_or_flare === "none") {
+    const showing = out.options_seen.filter((s) => s.key !== own.key && s.card_or_flare !== "none");
+    if (showing.length) return cardElsewhere(own, showing, listed ?? choosable);
+  }
   return null;
+}
+
+/** The refusal for a chosen option that shows no card while other entries do, naming which way the card lands against the chosen time when the option times are known. */
+function cardElsewhere(own: OptionSeen, showing: OptionSeen[], times: ChoosableOption[] | undefined): string {
+  const timeOf = (key: string) => times?.find((c) => c.key === key)?.t;
+  const ownT = timeOf(own.key);
+  const keys = showing.map((s) => `${s.key} (${s.card_or_flare})`).join(", ");
+  let where = "near your cut";
+  if (ownT !== undefined) {
+    const before = showing.some((s) => {
+      const t = timeOf(s.key);
+      return t !== undefined && t < ownT - 1e-9 && (s.card_or_flare === "before_cut" || s.card_or_flare === "across_cut");
+    });
+    const after = showing.some((s) => {
+      const t = timeOf(s.key);
+      return t !== undefined && t > ownT + 1e-9 && (s.card_or_flare === "after_cut" || s.card_or_flare === "across_cut");
+    });
+    if (before && !after) where = `before your cut at ${ownT}s, so the card would be buried inside this episode with more story after it`;
+    else if (after && !before) where = `after your cut at ${ownT}s, so the source's break would play inside the next episode`;
+  }
+  const target = showing.find((s) => s.card_or_flare === "before_cut" && !s.caption_across_cut && !namesAction(s));
+  const ask = target ? `choose ${target.key}, which your entries mark as the first frame after the card` : `no listed option is marked as the first frame after the card, so refuse with confidence 0 and name the option whose strip shows the card and where the card ends`;
+  return `your own options_seen says ${keys} show${showing.length === 1 ? "s" : ""} the source's card, flare or fade while ${own.key} shows none: the card lands ${where} (rule 7: the best cut is the first frame after the card); ${ask}`;
 }
 
 const PLACEHOLDER_WHY = /^(placeholder|n\/?a|none|null|tbd|todo|refused?|no|-+|\.+)$/i;
@@ -199,13 +249,15 @@ const PLACEHOLDER_WHY = /^(placeholder|n\/?a|none|null|tbd|todo|refused?|no|-+|\
  * calibration recorded a why of "placeholder" as a refusal and handed it
  * to a person. Studio renders and attaches every strip before the call,
  * so a refusal must name the image that is missing or unreadable, in at
- * least 20 characters of real content.
+ * least 20 characters of real content; or, the other honest refusal, the
+ * option whose strip shows the source's card when no listed option is the
+ * first frame after it (4313.4: the right cut was between two options).
  */
 export function refusalProblem(why: string): string | null {
   const text = why.trim();
-  const names = /\b(image|strip|opt\d+|tile|unreadable|missing|blank|corrupt|garbled)/i.test(text);
+  const names = /\b(image|strip|opt\d+|tile|unreadable|missing|blank|corrupt|garbled|card|flare|fade)/i.test(text);
   if (text.length < 20 || PLACEHOLDER_WHY.test(text) || !names) {
-    return 'confidence 0 is a refusal to judge: every option strip was rendered and attached to this call before it was made, so why must say which image is missing or unreadable and what is wrong with it (at least 20 characters naming the image, e.g. "image 3 (opt3) shows no tiles"), or else judge the strips and choose an option';
+    return 'confidence 0 is a refusal to judge: every option strip was rendered and attached to this call before it was made, so why must say which image is missing or unreadable and what is wrong with it (at least 20 characters naming the image, e.g. "image 3 (opt3) shows no tiles"), or which option\'s strip shows the source\'s card when no listed option is the first frame after it; or else judge the strips and choose an option';
   }
   return null;
 }
@@ -313,7 +365,8 @@ export function buildBoundaryReview(input: BoundaryReviewInput) {
         "",
         "First fill options_seen: one entry per option, from that option's own image only, before you choose.",
         "Your choice must agree with your own entry for it: an option whose entry shows the same caption on both sides of the cut, the card on or after its cut tile, or a physical action across the cut cannot be chosen. When more than one option's entry says the card ends before its cut (before_cut), rule 7's target is the EARLIEST of them: the first frame after the card; a later one buries the card inside the episode.",
-        "A refusal (confidence 0) is for a strip that is missing or unreadable, and its why names that image and what is wrong with it; every strip was rendered and attached before this call, so a refusal with no such image is not an answer.",
+        "When ANY option's entry shows the card, flare or fade, the source's break is at this boundary and the cut belongs on the first frame after it: an option whose own entry shows none is on the wrong side of the break (the card buried inside this episode, or playing inside the next) and cannot be chosen. Choose the earliest option marked before_cut; when no listed option is the first frame after the card, refuse with confidence 0 and name the option whose strip shows the card and where the card ends.",
+        "A refusal (confidence 0) is for a strip that is missing or unreadable, or for a card that no listed option follows, and its why names that image and what is wrong with it; every strip was rendered and attached before this call, so a refusal with no such image is not an answer.",
         "Judge the options as PAIRS: what the episode ends on, and what the next one opens on. In ends_on and",
         "opens_on describe what you SEE in the frames, physically and concretely - not what the dialogue says.",
         "Set payoff_in_episode true only if the nearest physical payoff completes inside this episode.",
@@ -340,9 +393,8 @@ export function buildBoundaryReview(input: BoundaryReviewInput) {
     `Choose one of ${keys.join(", ")}.`,
   ].join("\n");
   const range = input.range;
-  const choosable: ChoosableOption[] = boundary.options
-    .filter((o) => !(range && (o.t < range.lo - 1e-9 || o.t > range.hi + 1e-9)) && !(input.card_spans && inCardSpan(o.t, input.card_spans)))
-    .map((o) => ({ key: o.key, t: o.t }));
+  const listed: ChoosableOption[] = boundary.options.map((o) => ({ key: o.key, t: o.t }));
+  const choosable: ChoosableOption[] = listed.filter((o) => !(range && (o.t < range.lo - 1e-9 || o.t > range.hi + 1e-9)) && !(input.card_spans && inCardSpan(o.t, input.card_spans)));
   return {
     name: "verify_boundaries_look",
     description: "Record what each option's strip shows, then which option ends this episode, what the viewer sees on either side of the cut, and why.",
@@ -354,6 +406,8 @@ export function buildBoundaryReview(input: BoundaryReviewInput) {
     model: input.model,
     maxTokens: 6000,
     effort: "medium" as const,
+    // The judge thinks before it answers: a forced tool call skips the thinking (the probe of 2026-09-23).
+    toolChoice: "auto" as const,
     cacheSystem: true,
     prompt_version: BOUNDARY_RULE_VERSION,
     check: (out: BoundaryPick) => {
@@ -371,7 +425,7 @@ export function buildBoundaryReview(input: BoundaryReviewInput) {
       if (range && (o.t < range.lo - 1e-9 || o.t > range.hi + 1e-9)) return `${o.key} at ${o.t}s is outside the allowed range ${range.lo}-${range.hi}s (an episode would leave the ${input.band[0]}-${input.band[1]} s band); choose an option inside it, or refuse with confidence 0 and say why`;
       const card = input.card_spans ? inCardSpan(o.t, input.card_spans) : null;
       if (card) return `${o.key} at ${o.t}s is inside the source's own card ${card.from_s}-${card.to_s}s: the next episode would open on the card (rule 7); choose the first frame after it or another option, or refuse with confidence 0 and say why`;
-      return selfContradiction(out, choosable);
+      return selfContradiction(out, choosable, listed);
     },
   };
 }

@@ -214,6 +214,7 @@ export function buildBandFixJudge(input: BandFixInput) {
     model: input.model,
     maxTokens: 4000,
     effort: "medium" as const,
+    toolChoice: "auto" as const,
     cacheSystem: true,
     prompt_version: BAND_FIX_RULE_VERSION,
     check: (out: BandFixPick) => {
@@ -255,6 +256,7 @@ export function buildBandFixSkeptic(input: BandFixInput, pick: BandFixPick, lens
     model: input.model,
     maxTokens: 4000,
     effort: "medium" as const,
+    toolChoice: "auto" as const,
     cacheSystem: true,
     prompt_version: BAND_FIX_RULE_VERSION,
     check: (out: BandFixVerdict) => {

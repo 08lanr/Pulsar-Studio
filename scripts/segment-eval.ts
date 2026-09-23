@@ -6,7 +6,14 @@
 // what was rendered, after the band fix and the QA re-pins), with the
 // skeptic's effect reported on its own and the hard-rule checks that need
 // no model. Dense strips, annotated strips and the film notes are always on,
-// as in production; each has an opt-out for an A/B arm.
+// as in production; each has an opt-out for an A/B arm. After the pass the
+// band proof runs as the stage runs it (lib/segment/plan.ts runReviewStage):
+// each boundary is judged against the planner's neighbours, so two right
+// picks can leave an episode out of band (Opus 5.5 on 1-20: 640.733 then
+// 729.633, an 88.9 s episode), and production then re-judges those groups
+// (judgeBandFix) before it renders; the eval scores the fixed plan, with the
+// boundaries it did not judge pinned where the film delivered them, and
+// prints the band fix as its own line beside the bar.
 //
 //   npx tsx scripts/segment-eval.ts --film low-quality/he-hated-all-women --boundaries 1-20
 //   npx tsx scripts/segment-eval.ts --film low-quality/he-hated-all-women --boundaries 21-40 --model deepseek-flash
@@ -53,10 +60,11 @@ import path from "node:path";
 import { mergeVisionRecords, pickNewestDelivered } from "@/lib/film-import/manifest";
 import { nodeScanFs } from "@/lib/film-import/scan";
 import { visionProviderStatus } from "@/lib/llm";
+import { findBandConflicts, type FirstPassRecord } from "@/lib/prompts/band-fix";
 import { annotateStrip } from "@/lib/segment/annotate";
 import { calibrationBar, filmNotesFromState, selectBoundaries } from "@/lib/segment/calibration";
 import { loadCardSpans, loadOptionsDoc, renderDenseStrip, type StripImage } from "@/lib/segment/strips";
-import { deliveredTruth, evaluate, isUnavailable, judgeBoundaries, scoreAgainstTruth, type AnnotateFn, type DenseStripFn, type EvalRecord } from "@/lib/segment/vision";
+import { applyVision, deliveredTruth, evaluate, isUnavailable, judgeBandFix, judgeBoundaries, mergeVisionPasses, scoreAgainstTruth, type AnnotateFn, type BandFixResult, type DenseStripFn, type EvalRecord, type WorkflowRecord } from "@/lib/segment/vision";
 
 function arg(name: string): string | null {
   const i = process.argv.indexOf(`--${name}`);
@@ -146,8 +154,9 @@ async function main() {
 
   console.log(`${selection.boundaries.length} of ${all.length} boundaries (indices ${selection.indices[0]}..${selection.indices[selection.indices.length - 1]}) -> ${outFile}`);
   const t0 = Date.now();
+  const run = { id: randomUUID(), cut_dir: cutDir, film_notes: filmNotes };
   const result = await judgeBoundaries(
-    { id: randomUUID(), cut_dir: cutDir, film_notes: filmNotes },
+    run,
     doc,
     {
       label,
@@ -175,15 +184,8 @@ async function main() {
     console.error(result.unavailable);
     process.exit(3);
   }
-  const wall = Math.round((Date.now() - t0) / 1000);
-  console.log(`\n${result.records.length} judged, ${result.errors.length} failed, ${result.retries.length} retried, ${result.jobs.length} job rows, ${result.cost_cents} cents, ${wall} s wall (${result.provider} ${result.model})`);
-  // What the rows say of the model's work: the output tokens (thinking included), the failed rows whose spend is kept, and per turn how it stopped and whether it thought first.
-  const failedRows = result.jobs.filter((j) => j.status === "failed");
-  const outputTokens = result.jobs.reduce((s, j) => s + j.output_tokens, 0);
-  const turns = result.jobs.flatMap((j) => j.trace);
-  const stops = new Map<string, number>();
-  for (const t of turns) stops.set(t.stop_reason ?? "none", (stops.get(t.stop_reason ?? "none") ?? 0) + 1);
-  console.log(`  ${outputTokens} output tokens over ${result.jobs.length} rows; ${failedRows.length} failed rows (${failedRows.reduce((s, j) => s + j.cost_cents, 0)} cents kept on them); ${turns.length} turns traced, ${turns.filter((t) => t.thinking_blocks > 0).length} thought first; stop reasons: ${turns.length ? [...stops].map(([k, v]) => `${k} ${v}`).join(", ") : "none traced (reused rows, or a gateway that traces none)"}`);
+  const passWall = Math.round((Date.now() - t0) / 1000);
+  console.log(`\n${result.records.length} judged, ${result.errors.length} failed, ${result.retries.length} retried, ${result.jobs.length} job rows, ${result.cost_cents} cents (${result.cost_usd.toFixed(3)} $ exact), ${passWall} s wall (${result.provider} ${result.model})`);
   for (const e of result.errors) console.log(`  FAILED ${e.boundary_s}s: ${e.error}`);
   for (const r of result.retries) console.log(`  RETRIED ${r.boundary_s}s ${r.role}: ${r.error}`);
   // A check that failed after its repair turn is a record now (a refusal, skeptic_failed, no_tiebreak), never a lost boundary: say so.
@@ -193,10 +195,55 @@ async function main() {
     if (g?.outcome === "skeptic_failed") console.log(`  UNVERIFIED ${r.boundary_s}s: the skeptic's call failed twice, the reviewer's pick stands (${g.detail})`);
   }
 
-  const score = scoreAgainstTruth({ doc, truth, judged: result.records, card_spans: cardSpans, fixed_start: 0, selection: selection.boundaries, errors: result.errors });
+  // The band proof, as the stage runs it after the review: the applied picks against each other, the boundaries this eval did not
+  // judge (and the faulted ones a person decides) pinned where the film delivered them, and one band-fix round on every group
+  // whose episodes left the band. The fixed plan is what production renders, so it is what the bar scores; the raw picks are
+  // printed beside it.
+  const rawScore = scoreAgainstTruth({ doc, truth, judged: result.records, card_spans: cardSpans, fixed_start: 0, selection: selection.boundaries, errors: result.errors });
+  const applied = applyVision(result.records).rows;
+  const movable = new Set(applied.map((r) => String(r.boundary_s)));
+  const choices = Object.fromEntries(applied.map((r) => [String(r.boundary_s), r.applied_t]));
+  const pins = doc.boundaries.filter((b) => !movable.has(String(b.boundary_s))).map((b) => truth[String(b.boundary_s)] ?? b.boundary_s);
+  const groups = findBandConflicts({ doc: { ...doc, boundaries: doc.boundaries.filter((b) => movable.has(String(b.boundary_s))) }, choices, pins, records: result.records as unknown as FirstPassRecord[] });
+  let records: WorkflowRecord[] = result.records;
+  let bandFix: BandFixResult | null = null;
+  let bandUnavailable: string | null = null;
+  if (groups.length) {
+    console.log(`\nband fix: ${groups.length} group${groups.length === 1 ? "" : "s"} out of band with the applied neighbours: ${groups.map((g) => `${g.label} ${JSON.stringify(g.episodes_out_of_band)} boundaries ${g.boundaries.map((b) => `${b.key}s (applied ${b.applied}s)`).join(", ")}`).join("; ")}`);
+    const fix = await judgeBandFix(run, doc, groups, { label, model: arg("model") ?? undefined, out_file: path.join(outDir, `${label}_band-fix.json`), first_pass: result.records as unknown as FirstPassRecord[] });
+    if (isUnavailable(fix)) {
+      bandUnavailable = fix.unavailable;
+      console.log(`  band fix not run: ${fix.unavailable}; the raw picks are scored`);
+    } else {
+      bandFix = fix;
+      records = mergeVisionPasses([result.records, fix.output.result]);
+      for (const g of fix.groups) {
+        const moves = g.group.boundaries.map((b, i) => (g.resolution.times ? `${b.key}s ${b.applied} -> ${g.resolution.times[i]}` : `${b.key}s ${b.applied} (unresolved)`)).join(", ");
+        console.log(`  ${g.group.label}: ${g.resolution.times ? `fixed by ${g.resolution.source}, lengths ${g.resolution.lengths?.join(" / ")}` : `NOT FIXED, a person decides (${g.resolution.faults.join("; ")})`}; ${moves}`);
+      }
+      console.log(`  ${fix.jobs.length} job rows, ${fix.cost_cents} cents (${fix.cost_usd.toFixed(3)} $ exact) -> ${fix.file}`);
+    }
+  } else {
+    console.log("\nband fix: no episode out of band with the applied neighbours; nothing to fix");
+  }
+  const jobs = [...result.jobs, ...(bandFix?.jobs ?? [])];
+  const costCents = result.cost_cents + (bandFix?.cost_cents ?? 0);
+  const costUsdTotal = result.cost_usd + (bandFix?.cost_usd ?? 0);
+  const wall = Math.round((Date.now() - t0) / 1000);
+  // What the rows say of the model's work: the output tokens (thinking included), the failed rows whose spend is kept, and per turn how it stopped and whether it thought first.
+  const failedRows = jobs.filter((j) => j.status === "failed");
+  const outputTokens = jobs.reduce((s, j) => s + j.output_tokens, 0);
+  const turns = jobs.flatMap((j) => j.trace);
+  const stops = new Map<string, number>();
+  for (const t of turns) stops.set(t.stop_reason ?? "none", (stops.get(t.stop_reason ?? "none") ?? 0) + 1);
+  console.log(`\n${outputTokens} output tokens over ${jobs.length} rows (the pass and the band fix); ${failedRows.length} failed rows (${failedRows.reduce((s, j) => s + j.cost_cents, 0)} cents kept on them); ${turns.length} turns traced, ${turns.filter((t) => t.thinking_blocks > 0).length} thought first; stop reasons: ${turns.length ? [...stops].map(([k, v]) => `${k} ${v}`).join(", ") : "none traced (reused rows, or a gateway that traces none)"}`);
+  console.log(`spend: ${costCents} cents by the rows (each rounded up to the cent), ${costUsdTotal.toFixed(3)} $ exact from their usage and the price table; ${wall} s wall in all`);
+
+  const score = scoreAgainstTruth({ doc, truth, judged: records, card_spans: cardSpans, fixed_start: 0, selection: selection.boundaries, errors: result.errors });
   const n = score.n;
   const asked = selection.boundaries.length;
-  console.log(`\nagainst the ${truthMode === "delivered" ? "DELIVERED cuts" : "recorded pass"} (±${score.tolerance_s} s), ${n} scored of ${asked} asked${result.errors.length ? ` (${result.errors.length} errored: ${result.errors.map((e) => `${e.boundary_s}s`).join(", ")})` : ""}:`);
+  console.log(`\nagainst the ${truthMode === "delivered" ? "DELIVERED cuts" : "recorded pass"} (±${score.tolerance_s} s), ${n} scored of ${asked} asked${result.errors.length ? ` (${result.errors.length} errored: ${result.errors.map((e) => `${e.boundary_s}s`).join(", ")})` : ""}${bandFix ? " - the plan AFTER the band fix" : ""}:`);
+  if (bandFix) console.log(`  before the band fix: applied ${rawScore.applied_agree}/${rawScore.n}, hard-rule failures ${rawScore.rule_failures.total} (band ${rawScore.rule_failures.band}), person reviews ${rawScore.person_reviews}`);
   console.log(`  applied time (with the guarded skeptic): ${score.applied_agree}/${n}${result.errors.length ? ` (${score.applied_agree}/${asked} with the errors as misses)` : ""}`);
   console.log(`  reviewer alone (skeptic switched off):   ${score.reviewer_only_agree}/${n}`);
   console.log(`  the measure: truth not a listed option   ${score.truth_not_option}; rule 7 vs the delivered cut ${score.rule7_vs_delivered} (the applied cut is the first frame after a card the delivered cut buries)`);
@@ -217,15 +264,25 @@ async function main() {
       `${String(r.boundary_s).padStart(10)} ${String(r.truth_t ?? "-").padStart(10)} ${String(r.reviewer_t).padStart(10)} ${String(r.applied_t ?? "fault").padStart(10)}  ${r.applied_agree ? "yes" : "NO "}    ${r.reviewer_agree ? "yes" : "NO "}  ${(r.guard ?? "-").padEnd(17)} ${r.effect.padEnd(14)} ${notes.length ? notes.join("; ") : ""}`
     );
   }
-  const evRecorded = evaluate(recorded, result.records);
+  const evRecorded = evaluate(recorded, records);
   console.log(`\nfor reference, against the recorded first-pass records: applied ${evRecorded.applied_agree}/${evRecorded.matched}, reviewer ${evRecorded.reviewer_agree}/${evRecorded.matched}`);
-  console.log(`\ncalibration bar (decision 2026-09-23; ${result.provider} ${result.model}; dense ${denseOn ? "on" : "off"}, annotated ${annotatedOn ? "on" : "off"}, tie-break ${tiebreak ? "on" : "off"}, card spans in the prompt ${cardPrompt ? "on" : "OFF"}):`);
-  const bar = calibrationBar(score, selection.indices, result.cost_cents, { errors: result.errors, card_prompt: cardPrompt });
+  const unresolved = bandFix ? bandFix.groups.filter((g) => g.resolution.times === null).length : 0;
+  const bandLine = bandFix ? { groups: bandFix.groups.length, faults: unresolved } : undefined;
+  console.log(`\ncalibration bar (decision 2026-09-23; ${result.provider} ${result.model}; dense ${denseOn ? "on" : "off"}, annotated ${annotatedOn ? "on" : "off"}, tie-break ${tiebreak ? "on" : "off"}, card spans in the prompt ${cardPrompt ? "on" : "OFF"}; scored after the band fix):`);
+  console.log(`  ${bandFix ? `band fixes ${bandFix.groups.length} group${bandFix.groups.length === 1 ? "" : "s"} (${bandFix.groups.reduce((s, g) => s + g.group.boundaries.length, 0)} boundaries re-judged, ${unresolved} unresolved for a person, ${bandFix.jobs.length} calls, ${bandFix.cost_cents} cents)` : bandUnavailable ? `band fix not run (${bandUnavailable})` : "band fixes 0 (no group out of band)"}; each fix is a model pass over its own strips and a possible review`);
+  const bar = calibrationBar(score, selection.indices, costCents, { errors: result.errors, card_prompt: cardPrompt, band_fix: bandLine, cost_usd: costUsdTotal });
   for (const b of bar) console.log(`  ${b.pass ? "PASS" : "FAIL"}  ${b.line}`);
-  console.log(`  ${bar.every((b) => b.pass) ? "ALL PASS" : `${bar.filter((b) => !b.pass).length} of ${bar.length} not met`}; wall ${wall} s`);
+  console.log(`  ${bar.every((b) => b.pass) ? "ALL PASS" : `${bar.filter((b) => !b.pass).length} of ${bar.length} not met`}; wall ${wall} s (the pass ${passWall} s)`);
 
   const evalFile = path.join(outDir, `${label}.eval.json`);
-  await fsp.writeFile(evalFile, `${JSON.stringify({ film, truth: truthMode, delivered_file: delivered?.file ?? null, provider: result.provider, model: result.model, dense: denseOn, annotated: annotatedOn, tiebreak, card_prompt: cardPrompt, film_notes: filmNotes, indices: selection.indices, errors: result.errors, retries: result.retries, cost_cents: result.cost_cents, output_tokens: outputTokens, failed_rows: failedRows.length, turns_thought_first: turns.filter((t) => t.thinking_blocks > 0).length, turns_traced: turns.length, wall_s: wall, score, recorded: evRecorded, bar }, null, 1)}\n`, "utf8");
+  const bandFixSummary = bandFix
+    ? { file: bandFix.file, groups: bandFix.groups.map((g) => ({ label: g.group.label, boundaries: g.group.boundaries.map((b) => b.key), applied_before: g.group.boundaries.map((b) => b.applied), times: g.resolution.times, source: g.resolution.source, faults: g.resolution.faults })), unresolved, jobs: bandFix.jobs.length, cost_cents: bandFix.cost_cents, cost_usd: bandFix.cost_usd }
+    : null;
+  await fsp.writeFile(
+    evalFile,
+    `${JSON.stringify({ film, truth: truthMode, delivered_file: delivered?.file ?? null, provider: result.provider, model: result.model, dense: denseOn, annotated: annotatedOn, tiebreak, card_prompt: cardPrompt, film_notes: filmNotes, indices: selection.indices, errors: result.errors, retries: result.retries, cost_cents: costCents, cost_usd: costUsdTotal, pass_cost_cents: result.cost_cents, output_tokens: outputTokens, failed_rows: failedRows.length, turns_thought_first: turns.filter((t) => t.thinking_blocks > 0).length, turns_traced: turns.length, wall_s: wall, pass_wall_s: passWall, band_fix: bandFixSummary, band_fix_unavailable: bandUnavailable, score, score_before_band_fix: bandFix ? { applied_agree: rawScore.applied_agree, n: rawScore.n, rule_failures: rawScore.rule_failures, person_reviews: rawScore.person_reviews } : null, recorded: evRecorded, bar }, null, 1)}\n`,
+    "utf8"
+  );
   console.log(`\nevaluation -> ${evalFile}`);
 }
 

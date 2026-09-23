@@ -293,7 +293,8 @@ test("the reviewer prompt is deterministic, carries the standing rules verbatim 
   assert.deepEqual({ system: a.system, user: a.user, images: a.images, name: a.name, model: a.model, provider: a.provider }, { system: b.system, user: b.user, images: b.images, name: b.name, model: b.model, provider: b.provider });
   assert.equal(a.name, "verify_boundaries_look");
   assert.equal(a.prompt_version, BOUNDARY_RULE_VERSION);
-  assert.equal(BOUNDARY_RULE_VERSION, "by-eye-v4", "the calibration fixes changed rules 7-8, the schema descriptions and the reading block, then the second round changed the skeptic's schema: a new rule version, new idempotency keys");
+  assert.equal(BOUNDARY_RULE_VERSION, "by-eye-v5", "the calibration fixes changed rules 7-8, the schema descriptions and the reading block, the second round the skeptic's schema, and the Claude arms the card-elsewhere rule and the grab definition: a new rule version, new idempotency keys");
+  assert.equal(a.toolChoice, "auto", "the judge thinks before it answers: a forced tool call skips the thinking");
   const system = a.system.map((s) => s.text).join("\n");
   assert.ok(system.includes(BOUNDARY_RULES), "the standing decisions, word for word");
   assert.ok(system.includes("NEVER cut inside a physical action - mid-punch, mid-throw, mid-fall."));
@@ -317,7 +318,9 @@ test("the reviewer prompt is deterministic, carries the standing rules verbatim 
   assert.ok(system.includes("Your choice must agree with your own entry for it"));
   assert.match(OptionSeenSchema.shape.card_or_flare.description ?? "", /before_cut = the card ends before the cut and the cut tile is the next shot \(what rule 7 asks for\)/);
   assert.match(OptionSeenSchema.shape.caption_across_cut.description ?? "", /the SAME burned-in subtitle line \(the same words\) shows on the last tile before the cut AND on the cut tile/);
-  assert.ok(system.includes('- "motion" comes from a motion detector, not a person. It also fires on flares, card transitions, fades, camera moves and walking. Only a punch, slap, push, grab, throw, fall, collision or something flying counts as a physical action for rules 2-4; a blink, a head turn, a hand gesture, a walk or a camera move does not. Judge from the frames; the motion numbers are never the time of an impact.'));
+  assert.ok(system.includes('- "motion" comes from a motion detector, not a person. It also fires on flares, card transitions, fades, camera moves and walking. Only a punch, slap, push, grab, throw, fall, collision or something flying counts as a physical action for rules 2-4; a blink, a head turn, a hand gesture, a walk or a camera move does not. A grab means seizing a person (an arm, a collar, hair) or snatching something by force; handing over, receiving, holding or reading an object is not a physical action for rules 2-4. Judge from the frames; the motion numbers are never the time of an impact.'));
+  assert.match(OptionSeenSchema.shape.physical_action_across_cut.description ?? "", /a grab seizes a person - an arm, a collar, hair - or snatches something by force; handing over, receiving, holding or reading an object is not one/, "the grab defined where the action is recorded (3983.433: a document handed over was called a grab)");
+  assert.ok(system.includes("When ANY option's entry shows the card, flare or fade, the source's break is at this boundary and the cut belongs on the first frame after it"));
   assert.ok(system.includes("- The dialogue list is whisper's transcript: times are where lines START, it misses voice-overs and shouting, and a line can be many seconds from the cut. It is never evidence of what is on screen."));
   assert.ok(!system.includes("Every strip is labelled"), "raw strips: no labelling note");
   assert.ok(system.includes("HARD PRECONDITION"));
@@ -394,6 +397,21 @@ test("the reviewer prompt is deterministic, carries the standing rules verbatim 
   assert.equal(selfContradiction({ ...shape, chosen_key: "opt5" }, seven), null);
   assert.equal(selfContradiction(shape, seven.filter((o) => o.key !== "opt5")), null, "opt5 not choosable (out of range or on a card): opt6 stands");
   assert.match(selfContradiction(shape)!, /opt5 is also after the card and earlier/, "without the times, option order is time order");
+  // The Claude arms' miss: the chosen option's entry shows no card while another option's does, so the cut is on the wrong side of the source's break.
+  // 3276.333 (Sonnet chose 3265.967; the card showed after the later options' cuts): the break plays inside the next episode.
+  const cardAfter = { options_seen: seven.map((o) => (o.key === "opt5" ? { ...seen(o.key), card_or_flare: "after_cut" as const } : seen(o.key))), chosen_key: "opt2" };
+  assert.match(selfContradiction(cardAfter, seven, seven)!, /^your own options_seen says opt5 \(after_cut\) shows the source's card, flare or fade while opt2 shows none: the card lands after your cut at 2313s, so the source's break would play inside the next episode \(rule 7: the best cut is the first frame after the card\); no listed option is marked as the first frame after the card, so refuse with confidence 0 and name the option whose strip shows the card and where the card ends$/);
+  // 4313.4 (Opus chose 4334.7, eighteen seconds after the card): the card buried inside this episode.
+  const cardBefore = { options_seen: seven.map((o) => (o.key === "opt2" ? { ...seen(o.key), card_or_flare: "across_cut" as const } : seen(o.key))), chosen_key: "opt7" };
+  assert.match(selfContradiction(cardBefore, seven, seven)!, /opt2 \(across_cut\) shows the source's card, flare or fade while opt7 shows none: the card lands before your cut at 2328s, so the card would be buried inside this episode with more story after it/);
+  // When an entry marks the first frame after the card, the message names it.
+  const target = { options_seen: seven.map((o) => (o.key === "opt3" ? afterCard(o.key) : o.key === "opt2" ? { ...seen(o.key), card_or_flare: "across_cut" as const } : seen(o.key))), chosen_key: "opt6" };
+  assert.match(selfContradiction(target, seven, seven)!, /the card lands before your cut at 2325s[^;]+; choose opt3, which your entries mark as the first frame after the card$/);
+  assert.match(selfContradiction(cardAfter)!, /the card lands near your cut/, "without the times the direction is left open");
+  assert.equal(selfContradiction({ ...target, chosen_key: "opt3" }, seven, seven), null, "the first frame after the card is the target");
+  assert.match(a.check({ ...good, options_seen: [{ ...seen("opt1"), card_or_flare: "across_cut" }, seen("opt2")] })!, /opt1 \(across_cut\) shows the source's card, flare or fade while opt2 shows none: the card lands before your cut at 433.1s/, "through the reviewer's check");
+  assert.equal(a.check({ ...good, options_seen: [{ ...seen("opt1"), card_or_flare: "across_cut" }, seen("opt2")], confidence: 0, chosen_key: "none", chosen_t: 0, why: "opt1's strip shows the card across its cut and it ends between opt1 and opt2: no listed option is the first frame after the card" }), null, "the honest refusal names the card");
+  assert.equal(refusalProblem("the card ends at 4316.9s, between the listed options"), null, "a refusal may name the card instead of an unreadable image");
   assert.ok(BoundaryPickSchema.safeParse(good).success);
   assert.deepEqual(Object.keys(BoundaryPickSchema.shape)[0], "options_seen", "what each strip shows is recorded before the choice");
   assert.throws(() => buildBoundaryReview({ ...input, strips: input.strips.slice(1) }), /1 strips for 2 options/);
@@ -528,7 +546,9 @@ test("the tie-break prompt shows both cuts blind, in the order the hash gives, w
   const range = { prev: 4450, next: 4680, ...allowedRange(4450, 4680, [95, 150]) };
   const a = buildBoundaryTiebreak({ boundary: input.boundary, sides, layout: input.layout, band: input.band, range, film_notes: "A card marks the breaks.", provider: "anthropic", model: "claude-sonnet-5" });
   assert.equal(a.name, "verify_boundaries_tiebreak");
-  assert.equal(a.prompt_version, `${BOUNDARY_RULE_VERSION}:tiebreak-v3`, "the fault tiles changed the schema, then the fault rules");
+  assert.equal(a.prompt_version, `${BOUNDARY_RULE_VERSION}:tiebreak-v4`, "the fault tiles changed the schema, then the fault rules, then the grab definition");
+  assert.equal(a.toolChoice, "auto");
+  assert.match(TiebreakSchema.shape.a_fault_tile_t.description ?? "", /grab of a person, throw or fall; handing over or holding an object is none/);
   const system = a.system.map((s) => s.text).join("\n");
   assert.ok(system.includes("You are not told who proposed which, and you are given no reasoning from either side."));
   assert.ok(system.includes(BOUNDARY_RULES));
@@ -628,16 +648,20 @@ test("judgeBoundaries writes the Workflow output shape, one job row per call, an
   assert.ok(!isUnavailable(r));
   assert.equal(r.file, path.join(cut, "review", "vision", "0-end.json"));
   assert.equal(r.provider, "anthropic");
-  assert.equal(r.model, "claude-sonnet-5");
+  assert.equal(r.model, "claude-opus-5-5", "the judge's own default (decision 2026-09-23, 'The frame judge on Claude, measured'), not the fast tier");
   assert.deepEqual(r.errors, []);
   assert.equal(fake.calls.length, 5, "reviewer + skeptic per boundary, and the tie-break where the skeptic's fix passed the guards");
   assert.deepEqual(r.jobs.map((j) => j.role).sort(), ["look", "look", "tiebreak", "verify", "verify"]);
   assert.ok(r.jobs.every((j) => !j.skipped && j.cost_cents === 2));
   assert.equal(r.cost_cents, 10);
+  // The exact price beside the rounded rows: the fake answers as the pass's model (claude-opus-5-5, $4 in and $20 out per million) with 1000 in and 200 out, $0.008 a call.
+  assert.ok(r.jobs.every((j) => Math.abs(j.cost_usd - 0.008) < 1e-9), JSON.stringify(r.jobs.map((j) => j.cost_usd)));
+  assert.ok(Math.abs(r.cost_usd - 0.04) < 1e-9);
   assert.deepEqual(seen.sort(), [102, 202]);
   for (const c of fake.calls) {
     assert.equal(c.provider, "anthropic");
-    assert.equal(c.model, "claude-sonnet-5");
+    assert.equal(c.model, "claude-opus-5-5");
+    assert.equal(c.toolChoice, "auto", "every call of the judge asks for tool_choice auto, so the model thinks first");
     assert.ok(c.images && c.images.length >= 2, "every call carries the strips");
   }
 

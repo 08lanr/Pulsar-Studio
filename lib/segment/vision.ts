@@ -23,7 +23,7 @@ import { z } from "zod";
 import { systemSession, type Session } from "@/lib/auth";
 import { demoReplayActive } from "@/lib/data-source";
 import { runJob, type RunJobResult, type RunJobSpec } from "@/lib/jobs";
-import { KEY_VAR, LlmError, LlmUnavailableError, callStructured, isLlmAvailable, modelFamily, modelSupportsVision, parseProvider, visionProviderStatus, type LlmProvider, type StructuredCall, type StructuredResult, type TurnTrace } from "@/lib/llm";
+import { KEY_VAR, LlmError, LlmUnavailableError, callStructured, costUsd, isLlmAvailable, modelFamily, modelSupportsVision, parseProvider, visionProviderStatus, type LlmProvider, type LlmUsage, type StructuredCall, type StructuredResult, type TurnTrace } from "@/lib/llm";
 import {
   BAND_FIX_RULE_VERSION,
   bandFixNote,
@@ -429,13 +429,32 @@ export const CANCELLED = "cancelled";
 /** The `errors[].error` text of a boundary the pass did not reach because the provider answered that it cannot run (the pass then returns `{unavailable}`). */
 export const UNAVAILABLE = "vision provider unavailable";
 
-/** One studio.jobs row of the pass: done (reused when `skipped`) or failed with the spend it kept; `output_tokens` from the row (thinking included), `trace` per turn on the Anthropic path. */
-export type JudgedJob = { boundary_s: number; role: "look" | "verify" | "tiebreak"; job_id: string; cost_cents: number; skipped: boolean; status: "done" | "failed"; output_tokens: number; trace: TurnTrace[] };
+/**
+ * One studio.jobs row of the pass: done (reused when `skipped`) or failed
+ * with the spend it kept; `output_tokens` from the row (thinking included),
+ * `trace` per turn on the Anthropic path. `cost_cents` is the row's, rounded
+ * up to the cent; `cost_usd` the exact price from the call's usage and PRICES
+ * (lib/llm costUsd), so the eval can report the spend without the rounding
+ * (204 rows of the Claude calibration read $12.09 in cents for $10.05-12.09
+ * spent). A reused row is priced from the row's own usage, whose cache
+ * writes are folded into the input tokens and so counted at the input rate.
+ */
+export type JudgedJob = { boundary_s: number; role: "look" | "verify" | "tiebreak"; job_id: string; cost_cents: number; cost_usd: number; skipped: boolean; status: "done" | "failed"; output_tokens: number; trace: TurnTrace[] };
 
-/** The `jobs` entry of a row that finished done (or was reused). */
-function doneRow(boundary_s: number, role: JudgedJob["role"], r: Pick<RunJobResult<unknown>, "job" | "skipped">, trace: TurnTrace[] = []): JudgedJob {
-  return { boundary_s, role, job_id: r.job.id, cost_cents: r.job.cost_cents ?? 0, skipped: r.skipped, status: "done", output_tokens: r.job.usage?.output_tokens ?? 0, trace };
+/** The exact price of a row from the usage the row kept (cache writes at the input rate: the row does not keep them apart). */
+function rowUsd(job: Pick<RunJobResult<unknown>["job"], "model" | "usage">): number {
+  const u = job.usage;
+  if (!u || !job.model) return 0;
+  return costUsd(job.model, { input_tokens: u.input_tokens ?? 0, output_tokens: u.output_tokens ?? 0, cache_read_tokens: u.cache_read_tokens ?? 0, cache_write_tokens: 0 });
 }
+
+/** The `jobs` entry of a row that finished done (or was reused): `usd` is the call's exact price when the call was made now, else the row's. */
+function doneRow(boundary_s: number, role: JudgedJob["role"], r: Pick<RunJobResult<unknown>, "job" | "skipped">, trace: TurnTrace[] = [], usd?: number): JudgedJob {
+  return { boundary_s, role, job_id: r.job.id, cost_cents: r.job.cost_cents ?? 0, cost_usd: r.skipped || usd === undefined ? rowUsd(r.job) : usd, skipped: r.skipped, status: "done", output_tokens: r.job.usage?.output_tokens ?? 0, trace };
+}
+
+/** The exact price of a failed call from the usage its error carried, or 0 when nothing reached the API. */
+const failedUsd = (model: string, usage: LlmUsage | undefined) => (usage ? costUsd(model, usage) : 0);
 
 export type JudgeResult = {
   file: string;
@@ -447,6 +466,8 @@ export type JudgeResult = {
   retries: { boundary_s: number; role: JudgedJob["role"]; error: string }[];
   jobs: JudgedJob[];
   cost_cents: number;
+  /** The exact spend in USD over every row (JudgedJob.cost_usd), beside the rounded-up cents. */
+  cost_usd: number;
   provider: LlmProvider;
   model: string;
 };
@@ -597,19 +618,21 @@ export async function judgeBoundaries(run: SegmentRun, doc: OptionsDoc, opts: Ju
   const callJob = async <T>(b: number, role: JudgedJob["role"], spec: Omit<RunJobSpec<T>, "run">, call: StructuredCall<T>): Promise<T> => {
     const once = async (): Promise<T> => {
       let trace: TurnTrace[] = [];
+      let usd: number | undefined;
       try {
         const r = await runJob<T>(session, {
           ...spec,
           run: async () => {
             const c = await llm(call);
             trace = c.trace ?? [];
+            usd = costUsd(c.model, c.usage);
             return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model, provider: c.provider };
           },
         });
-        jobs.push(doneRow(b, role, r, trace));
+        jobs.push(doneRow(b, role, r, trace, usd));
         return r.output;
       } catch (e) {
-        if (e instanceof LlmError && e.job_id) jobs.push({ boundary_s: b, role, job_id: e.job_id, cost_cents: e.cost_cents ?? 0, skipped: false, status: "failed", output_tokens: e.usage?.output_tokens ?? 0, trace });
+        if (e instanceof LlmError && e.job_id) jobs.push({ boundary_s: b, role, job_id: e.job_id, cost_cents: e.cost_cents ?? 0, cost_usd: failedUsd(model, e.usage), skipped: false, status: "failed", output_tokens: e.usage?.output_tokens ?? 0, trace });
         if (e instanceof LlmUnavailableError) stopUnavailable(e);
         throw e;
       }
@@ -781,6 +804,7 @@ export async function judgeBoundaries(run: SegmentRun, doc: OptionsDoc, opts: Ju
   if (unavailableHit) return { unavailable: unavailableHit };
   const records = judged.filter((r): r is WorkflowRecord => r !== null).sort((a, b) => a.boundary_s - b.boundary_s);
   const costCents = jobs.reduce((s, j) => s + j.cost_cents, 0);
+  const costUsdTotal = jobs.reduce((s, j) => s + j.cost_usd, 0);
   const output: WorkflowOutput = {
     summary: SUMMARY,
     source: "pulsar-studio",
@@ -804,16 +828,17 @@ export async function judgeBoundaries(run: SegmentRun, doc: OptionsDoc, opts: Ju
     retries,
     jobs: jobs.map((j) => ({ ...j })),
     cost_cents: costCents,
+    cost_usd: costUsdTotal,
     totalTokens: 0,
   };
   WorkflowOutputSchema.parse(output);
   await writeJson(outFile, output);
-  return { file: outFile, output, records, errors, retries, jobs, cost_cents: costCents, provider, model };
+  return { file: outFile, output, records, errors, retries, jobs, cost_cents: costCents, cost_usd: costUsdTotal, provider, model };
 }
 
 // ---- the band-fix path ----------------------------------------------------------------------------
 
-export type BandFixOptions = Pick<JudgeOptions, "label" | "llm" | "session" | "attempt" | "env" | "out_file" | "candidates" | "signal"> & {
+export type BandFixOptions = Pick<JudgeOptions, "label" | "llm" | "session" | "attempt" | "env" | "out_file" | "candidates" | "signal" | "model"> & {
   /** The first pass's records (the audit file), for the judge's context and the note. */
   first_pass?: FirstPassRecord[];
   /** The run's scratch folder (STUDIO_WORK_DIR/<run>), where anything the fix renders for itself must land; it renders nothing today, and the film folder takes only the record and the note. */
@@ -831,6 +856,7 @@ export type BandFixResult = {
   faults: string[];
   jobs: JudgedJob[];
   cost_cents: number;
+  cost_usd: number;
   provider: LlmProvider;
   model: string;
 };
@@ -840,13 +866,16 @@ export type BandFixResult = {
  * per judged group, resolved by the same rules as a boundary; the answer is
  * written as Workflow-shaped records (`<label>_band-fix.json`, for
  * `apply_vision.py --from <first pass> --from <this file>`) and a note in the
- * pipeline's phrasing (`<label>_band-fix.md`).
+ * pipeline's phrasing (`<label>_band-fix.md`). Runs on the judge's model
+ * (`opts.model`, as the pass, else the vision provider's own).
  */
 export async function judgeBandFix(run: SegmentRun, doc: OptionsDoc, groups: BandFixGroup[], opts: BandFixOptions): Promise<BandFixResult | JudgeUnavailable> {
   const env = opts.env ?? process.env;
   const unavailable = visionUnavailableReason(env);
   if (unavailable) return { unavailable };
-  const { provider, model } = visionProviderStatus(env);
+  const resolved = resolveJudgeModel(env, opts.model);
+  if (isUnavailable(resolved)) return resolved;
+  const { provider, model } = resolved;
   const llm = opts.llm ?? (callStructured as LlmFn);
   const session = opts.session ?? systemSession();
   const attempt = opts.attempt ?? 1;
@@ -876,6 +905,7 @@ export async function judgeBandFix(run: SegmentRun, doc: OptionsDoc, groups: Ban
     const input = { group, band: doc.band, boundaries, strips, layout, legal_cuts: legal, first_pass: records, film_notes: run.film_notes ?? null, provider, model };
     const judge = buildBandFixJudge(input);
     let judgeTrace: TurnTrace[] = [];
+    let judgeUsd: number | undefined;
     const judged = await runJob<BandFixPick>(session, {
       kind: JOB_KIND,
       title_id: NO_TITLE,
@@ -888,10 +918,11 @@ export async function judgeBandFix(run: SegmentRun, doc: OptionsDoc, groups: Ban
       run: async () => {
         const c = await llm(judge);
         judgeTrace = c.trace ?? [];
+        judgeUsd = costUsd(c.model, c.usage);
         return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model, provider: c.provider };
       },
     });
-    jobs.push(doneRow(group.boundaries[0]?.key ?? 0, "look", judged, judgeTrace));
+    jobs.push(doneRow(group.boundaries[0]?.key ?? 0, "look", judged, judgeTrace, judgeUsd));
     const pick = judged.output;
     const verdicts: BandFixVerdict[] = [];
     if (pick.confidence > 0) {
@@ -899,6 +930,7 @@ export async function judgeBandFix(run: SegmentRun, doc: OptionsDoc, groups: Ban
         checkCancelled();
         const verify = buildBandFixSkeptic(input, pick, lens);
         let verifyTrace: TurnTrace[] = [];
+        let verifyUsd: number | undefined;
         const r = await runJob<BandFixVerdict>(session, {
           kind: JOB_KIND,
           title_id: NO_TITLE,
@@ -911,10 +943,11 @@ export async function judgeBandFix(run: SegmentRun, doc: OptionsDoc, groups: Ban
           run: async () => {
             const c = await llm(verify);
             verifyTrace = c.trace ?? [];
+            verifyUsd = costUsd(c.model, c.usage);
             return { output: c.data, usage: c.usage, cost_cents: c.cost_cents, model: c.model, provider: c.provider };
           },
         });
-        jobs.push(doneRow(group.boundaries[0]?.key ?? 0, "verify", r, verifyTrace));
+        jobs.push(doneRow(group.boundaries[0]?.key ?? 0, "verify", r, verifyTrace, verifyUsd));
         verdicts.push(r.output);
       }
     }
@@ -928,6 +961,7 @@ export async function judgeBandFix(run: SegmentRun, doc: OptionsDoc, groups: Ban
   });
   const faults = results.flatMap((r) => r.resolution.faults);
   const costCents = jobs.reduce((s, j) => s + j.cost_cents, 0);
+  const costUsdTotal = jobs.reduce((s, j) => s + j.cost_usd, 0);
   const output: WorkflowOutput = {
     summary: "Re-judge groups of adjacent episode boundaries whose combined moves broke the length band; skeptics try to beat each answer",
     source: "pulsar-studio",
@@ -945,6 +979,7 @@ export async function judgeBandFix(run: SegmentRun, doc: OptionsDoc, groups: Ban
     faults,
     jobs: jobs.map((j) => ({ ...j })),
     cost_cents: costCents,
+    cost_usd: costUsdTotal,
     totalTokens: 0,
   };
   WorkflowOutputSchema.parse(output);
@@ -959,7 +994,7 @@ export async function judgeBandFix(run: SegmentRun, doc: OptionsDoc, groups: Ban
     ...results.map((r) => `${bandFixNote(r.group, r.resolution, r.judged)}\n`),
   ].join("\n");
   await fsp.writeFile(noteFile, note, "utf8");
-  return { file: outFile, note_file: noteFile, output, groups: results, faults, jobs, cost_cents: costCents, provider, model };
+  return { file: outFile, note_file: noteFile, output, groups: results, faults, jobs, cost_cents: costCents, cost_usd: costUsdTotal, provider, model };
 }
 
 // ---- evaluate: agreement with the recorded pass ------------------------------------------------------

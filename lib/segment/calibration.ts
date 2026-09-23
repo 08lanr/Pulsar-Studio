@@ -48,6 +48,14 @@ export type BarOptions = {
   errors?: { boundary_s: number; error: string }[];
   /** Whether the card spans went into the prompt (false is the production by-eye arm: `--no-card-prompt`); undefined leaves it unsaid. */
   card_prompt?: boolean;
+  /**
+   * The band fix the eval ran after the pass, as the stage does (lib/segment/plan.ts): the groups of neighbouring picks
+   * whose episodes left the band, and the groups it could not resolve, each of which a person decides and so counts
+   * as a review. The cost passed in already includes its calls.
+   */
+  band_fix?: { groups: number; faults: number };
+  /** The exact spend in USD from every row's usage and PRICES (lib/llm costUsd), beside the rounded-up cents the bar judges by. */
+  cost_usd?: number;
 };
 
 /**
@@ -76,8 +84,11 @@ export function calibrationBar(score: BarScore, indices: number[], costCents: nu
   const need = Math.ceil(((heldOut ? 14 : 15) / 20) * n);
   const per20 = (x: number) => (x * 20) / n;
   const errored = errors.length ? `; ${errors.length} errored, counted as missed: ${errors.map((e) => `${e.boundary_s}s ${e.error}`).join("; ")}` : "";
-  const reviews = score.person_reviews + errors.length;
+  const bandFaults = opts.band_fix?.faults ?? 0;
+  const reviews = score.person_reviews + errors.length + bandFaults;
   const lowConfidence = score.person_reviews - score.handoffs;
+  const bandNote = opts.band_fix ? ` + band-fix groups a person decides ${bandFaults} (of ${opts.band_fix.groups} run after the pass)` : "";
+  const exact = opts.cost_usd !== undefined ? `; exact from the rows' usage ${(opts.cost_usd / n).toFixed(3)} $ per boundary, ${opts.cost_usd.toFixed(2)} $ in all` : "";
   const cardArm = opts.card_prompt === undefined ? "" : opts.card_prompt ? "; card spans were in the prompt" : "; card spans NOT in the prompt, as a by-eye run in production";
   const notOption = score.truth_not_option ?? 0;
   const rule7 = score.rule7_vs_delivered ?? 0;
@@ -92,10 +103,10 @@ export function calibrationBar(score: BarScore, indices: number[], costCents: nu
     { line: `hard-rule failures ${score.rule_failures.total} (card ${score.rule_failures.card}, band ${score.rule_failures.band}, unseen ${score.rule_failures.unseen}; bar 0; rule 8, a split caption, is checked by eye only${unscored})`, pass: scored && score.rule_failures.total === 0 },
     { line: `bad overrides ${score.skeptic.bad_overrides} (bar at most 1 per 20${unscored})`, pass: scored && per20(score.skeptic.bad_overrides) <= 1 + 1e-9 },
     {
-      line: `person reviews ${reviews} = hand-offs ${score.handoffs} (faults, unverified fixes; ${falseHandoffs} of them false: the reviewer's pick matched and was handed off anyway) + picks under ${score.confidence_gate} confidence ${lowConfidence} + errors ${errors.length} (bar at most 2 per 20, every one reviewState sends to a person; each must be a real fault when checked by eye${unscored})`,
+      line: `person reviews ${reviews} = hand-offs ${score.handoffs} (faults, unverified fixes; ${falseHandoffs} of them false: the reviewer's pick matched and was handed off anyway) + picks under ${score.confidence_gate} confidence ${lowConfidence} + errors ${errors.length}${bandNote} (bar at most 2 per 20, every one reviewState sends to a person; each must be a real fault when checked by eye${unscored})`,
       pass: scored && per20(reviews) <= 2 + 1e-9,
     },
     { line: `card boundaries ${score.cards.agree}/${score.cards.boundaries} on the first frame after the card (bar 9 of 10${cardErrored ? `; ${cardErrored} errored, counted as missed` : ""}${cardArm}${unscored})`, pass: scored && (score.cards.boundaries === 0 || score.cards.agree >= Math.ceil(0.9 * score.cards.boundaries)) },
-    { line: `cost ${(costCents / 100 / n).toFixed(3)} $ per boundary (bar 0.40${unscored})`, pass: scored && costCents / 100 / n <= 0.4 },
+    { line: `cost ${(costCents / 100 / n).toFixed(3)} $ per boundary (bar 0.40; rows rounded up to the cent${exact}${unscored})`, pass: scored && costCents / 100 / n <= 0.4 },
   ];
 }

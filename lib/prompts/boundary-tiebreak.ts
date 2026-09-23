@@ -33,12 +33,12 @@ import { SEEN_TOLERANCE_S, asLlmImage, cutIndexOf, type CardSpan, type OptionsBo
 import { BOUNDARY_RULES, BOUNDARY_RULE_VERSION, cardMark, filmNotesBlock, motionReading, rangeLine, stripFacts, stripHowTo, type BoundaryRange } from "./boundary-review";
 import { FaultRuleSchema, faultRuleProblem, type FaultRule } from "./boundary-skeptic";
 
-export const TIEBREAK_RULE_VERSION = `${BOUNDARY_RULE_VERSION}:tiebreak-v3`;
+export const TIEBREAK_RULE_VERSION = `${BOUNDARY_RULE_VERSION}:tiebreak-v4`;
 
 export const TiebreakSchema = z.object({
   a_shows: z.string().describe("what cut A's images show: the tiles before the cut, then the cut tile and after"),
   b_shows: z.string().describe("what cut B's images show: the tiles before the cut, then the cut tile and after"),
-  a_fault_tile_t: z.number().nullable().describe("the tile time, copied from one of cut A's OWN images, where A breaks a rule (an action across the cut, no aftermath, the card or flare on the cut tile, the same caption on both sides); null when A breaks none"),
+  a_fault_tile_t: z.number().nullable().describe("the tile time, copied from one of cut A's OWN images, where A breaks a rule (a physical action across the cut - a punch, slap, push, grab of a person, throw or fall; handing over or holding an object is none - no aftermath, the card or flare on the cut tile, the same caption on both sides); null when A breaks none"),
   a_fault_rule: FaultRuleSchema.nullable().describe("the standing decision A's fault tile breaks: 2 (inside a physical action), 3 (the payoff lands in the next episode), 4 (no aftermath), 5 (no open question), 6 (tension already resolved), 7 (the card, flare or fade on the cut tile), 8 (the same caption on both sides); null when A breaks none"),
   b_fault_tile_t: z.number().nullable().describe("the same for cut B, from B's own images; null when B breaks none"),
   b_fault_rule: FaultRuleSchema.nullable().describe("the standing decision B's fault tile breaks; null when B breaks none"),
@@ -120,7 +120,7 @@ export function buildBoundaryTiebreak(input: BoundaryTiebreakInput) {
         "",
         "First write a_shows and b_shows from each side's own images: what the tiles before the cut show, then the cut tile and after.",
         "Then, for each side, the tile of its OWN images where it breaks a rule (a_fault_tile_t, b_fault_tile_t) and the rule it breaks (a_fault_rule, b_fault_rule), or null when it breaks none. A rule-7 fault is the card, flare or fade still on that side's cut tile or after it: an END tile under the card is rule 7's target, not a fault; a rule-8 fault cites the last tile before that side's cut or its cut tile; a rule-2 or rule-4 fault lies within 1.5 s of the cut.",
-        "Then answer which cut satisfies the payoff rule: the episode ends AFTER its physical payoff with about 1-1.5 s of aftermath (rules 3-4), never inside an action (rule 2), never opening the next episode on the source's card or the flare into it (rule 7; a card that ends before the cut is the target), never splitting one burned-in caption across the cut (rule 8; a different line on each side is not a split), and ending on an open question a cold viewer can enter (rules 5-6).",
+        "Then answer which cut satisfies the payoff rule: the episode ends AFTER its physical payoff with about 1-1.5 s of aftermath (rules 3-4), never inside a physical action (rule 2: a punch, slap, push, grab of a person, throw or fall; handing over, receiving or holding an object is none), never opening the next episode on the source's card or the flare into it (rule 7; a card that ends before the cut is the target), never splitting one burned-in caption across the cut (rule 8; a different line on each side is not a split), and ending on an open question a cold viewer can enter (rules 5-6).",
         "The losing side must carry a fault tile: a cut is not worse because the other is better, it is worse because a tile of its own images shows the rule it breaks. A cut that hands the payoff to the next episode (rule 3) or lands after the tension has resolved (rule 6) breaks a rule too: its fault tile is the one that shows the payoff still to come, or already over. The winner carries none: a cut whose own fault tile you have cited cannot win. Pick neither only when both cuts break a rule, each with its fault tile cited. Cite the image and tile that decide it.",
       ]
         .filter((line, i, arr) => !(line === "" && arr[i - 1] === ""))
@@ -152,6 +152,7 @@ export function buildBoundaryTiebreak(input: BoundaryTiebreakInput) {
     model: input.model,
     maxTokens: 4000,
     effort: "medium" as const,
+    toolChoice: "auto" as const,
     cacheSystem: true,
     prompt_version: TIEBREAK_RULE_VERSION,
     check: (out: TiebreakVerdict) => {

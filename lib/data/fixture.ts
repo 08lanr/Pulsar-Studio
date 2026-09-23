@@ -2424,8 +2424,12 @@ export const fixtureData: DataLayer = {
     const { db } = store();
     readableTitle(db, session, titleId);
     const episode = findEpisode(db, titleId, episodeNumber);
-    const jobs = db.jobs.filter((j) => j.episode_id === episode.id && j.kind === kind).sort((a, b) => b.created_at.localeCompare(a.created_at) || b.started_at!.localeCompare(a.started_at!));
-    return jobs.length ? clone(jobs[0]) : null;
+    // Two rows made in the same millisecond tie on both stamps, and a stable sort would then put the OLDER one first: the later insertion is the later row.
+    const jobs = db.jobs
+      .map((j, index) => ({ j, index }))
+      .filter(({ j }) => j.episode_id === episode.id && j.kind === kind)
+      .sort((a, b) => b.j.created_at.localeCompare(a.j.created_at) || b.j.started_at!.localeCompare(a.j.started_at!) || b.index - a.index);
+    return jobs.length ? clone(jobs[0].j) : null;
   },
 
   async heartbeatJob(session, jobId) {

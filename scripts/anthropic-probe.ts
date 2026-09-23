@@ -62,7 +62,7 @@ async function direct(model: string, env: NodeJS.ProcessEnv): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  console.log(`ANTHROPIC_API_KEY set: ${!!process.env.ANTHROPIC_API_KEY}; ANTHROPIC_WORKSPACE_ID set: ${!!process.env.ANTHROPIC_WORKSPACE_ID}; ANTHROPIC_TOOL_CHOICE: ${process.env.ANTHROPIC_TOOL_CHOICE || "(blank: forced where accepted)"}`);
+  console.log(`ANTHROPIC_API_KEY set: ${!!process.env.ANTHROPIC_API_KEY}; ANTHROPIC_WORKSPACE_ID set: ${!!process.env.ANTHROPIC_WORKSPACE_ID}; ANTHROPIC_TOOL_CHOICE: ${process.env.ANTHROPIC_TOOL_CHOICE || "(blank: the call's own preference; the probe's call has none, so forced where accepted)"}`);
   for (const model of ["claude-sonnet-5", "claude-opus-5", "claude-opus-5-5"]) await viaGateway(model);
   // The forced call as the gateway sends it, then the same call on the auto path, so the two thinking counts sit side by side.
   for (const model of ["claude-sonnet-5", "claude-opus-5"]) {

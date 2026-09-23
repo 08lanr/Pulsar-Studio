@@ -146,16 +146,37 @@ export function jpegArgs(src: string, out: string): string[] {
 
 export type AnnotateDeps = {
   env?: Env;
-  /** Runs ffmpeg; injected by the tests. Resolves with the exit code. */
-  run?: (args: string[]) => Promise<{ code: number | null; stderr: string }>;
+  /** Runs ffmpeg; injected by the tests. Resolves with the exit code, the stderr tail and whether the run hit the timeout. */
+  run?: (args: string[]) => Promise<AnnotateRun>;
   /** The PNG size above which the copy is re-encoded as JPEG (ANNOTATE_JPEG_OVER_BYTES); the tests lower it. */
   jpeg_over_bytes?: number;
 };
 
-const ffmpegRun = async (args: string[]) => {
-  const r = await runProcess(ffmpegBin(), args, { timeoutMs: 2 * 60 * 1000, priority: "below_normal" }).done;
-  return { code: r.code, stderr: r.stderrTail };
+export type AnnotateRun = { code: number | null; stderr: string; timedOut?: boolean };
+
+/**
+ * How long one annotate or JPEG step may take. The work is about a second;
+ * the time is waiting: ffmpeg runs at BelowNormal priority (Ruobin's rule
+ * for this machine) and a session's OCR at normal priority on most cores
+ * starved the two-minute timeout of 2026-09-23, which errored the boundary
+ * with an empty reason after the reviewer's call had been paid for.
+ */
+export const ANNOTATE_TIMEOUT_MS = 15 * 60 * 1000;
+
+const ffmpegRun = async (args: string[]): Promise<AnnotateRun> => {
+  const r = await runProcess(ffmpegBin(), args, { timeoutMs: ANNOTATE_TIMEOUT_MS, priority: "below_normal" }).done;
+  return { code: r.code, stderr: r.stderrTail, timedOut: r.timedOut };
 };
+
+/** Why a step failed, in words: the timeout named with its priority, else the last lines of stderr. */
+const failureOf = (r: AnnotateRun) => (r.timedOut ? `timed out after ${Math.round(ANNOTATE_TIMEOUT_MS / 1000)} s at BelowNormal priority (the CPU was taken by other work)` : stderrTail(r.stderr));
+
+/** One step, retried once when it fails: a starved or killed ffmpeg is cheaper to run again than a boundary is to lose. */
+async function runTwice(run: (args: string[]) => Promise<AnnotateRun>, args: string[]): Promise<AnnotateRun> {
+  const first = await run(args);
+  if (first.code === 0) return first;
+  return run(args);
+}
 
 /** True when SEGMENT_STRIP_ANNOTATE is not `off`: annotated copies are the default. */
 export function annotateEnabled(env: Env = process.env): boolean {
@@ -191,13 +212,13 @@ export async function annotateStrip(strip: StripImage, cutT: number, outDir: str
   const size = await pngSize(strip.path);
   const spec: AnnotateSpec = { tiles: strip.tiles, cols: strip.cols, cut_index: cutIndexOf(strip.tiles, cutT), label: strip.key, cut_t: cutT, size, font: annotateFont(env) };
   const part = `${outPng}.part.png`;
-  const r = await run(annotateArgs(strip.path, part, spec));
-  if (r.code !== 0) throw new SegmentError("python", `ffmpeg could not annotate ${path.basename(strip.path)}: ${stderrTail(r.stderr)}`);
+  const r = await runTwice(run, annotateArgs(strip.path, part, spec));
+  if (r.code !== 0) throw new SegmentError("python", `ffmpeg could not annotate ${path.basename(strip.path)} (twice): ${failureOf(r)}`);
   const bytes = (await fsp.stat(part)).size;
   if (bytes > jpegOver) {
     const partJpg = `${outJpg}.part.jpg`;
-    const j = await run(jpegArgs(part, partJpg));
-    if (j.code !== 0) throw new SegmentError("python", `ffmpeg could not re-encode ${path.basename(strip.path)} as JPEG (${bytes} bytes, over ${jpegOver}): ${stderrTail(j.stderr)}`);
+    const j = await runTwice(run, jpegArgs(part, partJpg));
+    if (j.code !== 0) throw new SegmentError("python", `ffmpeg could not re-encode ${path.basename(strip.path)} as JPEG (${bytes} bytes, over ${jpegOver}; twice): ${failureOf(j)}`);
     await fsp.rm(part, { force: true });
     await fsp.rm(outPng, { force: true });
     await fsp.rename(partJpg, outJpg);

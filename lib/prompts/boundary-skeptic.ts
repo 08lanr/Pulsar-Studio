@@ -34,7 +34,7 @@ import { z } from "zod";
 import type { LlmProvider, LlmSystemBlock } from "@/lib/llm";
 import type { CutCandidate } from "@/lib/film-import/types";
 import { SEEN_TOLERANCE_S, asLlmImage, cutIndexOf, inCardSpan, isListedTime, type CardSpan, type OptionsBoundary, type StripImage, type StripLayout } from "@/lib/segment/strips";
-import { BOUNDARY_RULES, BOUNDARY_RULE_VERSION, filmNotesBlock, namesAction, rangeLine, renderOptions, stripFacts, stripHowTo, type BoundaryPick, type BoundaryRange } from "./boundary-review";
+import { ACTION_LIST, BOUNDARY_RULES, BOUNDARY_RULE_VERSION, filmNotesBlock, namesAction, rangeLine, renderOptions, stripFacts, stripHowTo, type BoundaryPick, type BoundaryRange } from "./boundary-review";
 
 /** The standing decisions a cited fault can break, by number (rule 1 is the format, never a fault of one cut). */
 export const FAULT_RULES = ["2", "3", "4", "5", "6", "7", "8"] as const;
@@ -49,7 +49,7 @@ export const BoundaryVerdictSchema = z.object({
   chosen_card_or_flare: CardOrFlareSchema.describe(
     "where a flare, light leak, fade to black or TO BE CONTINUED card appears in the chosen cut's own images, if at all (rule 7): none; before_cut = the card ends before the cut and the cut tile is the next shot (what rule 7 asks for); across_cut = the cut tile still shows the card, flare or fade (the next episode would open on it); after_cut = the card shows on tiles after the cut (the cut comes before the source's break)"
   ),
-  chosen_action_across_cut: z.string().nullable().describe("a punch, slap, push, grab, throw, fall, collision or something flying that is in progress on the chosen cut's cut tile; null when none"),
+  chosen_action_across_cut: z.string().nullable().describe(`a physical action in progress on the chosen cut's cut tile - ${ACTION_LIST}; null when none`),
   agree: z.boolean(),
   fault: z.string().nullable().describe("the specific rule broken, in words, or null"),
   fault_rule: FaultRuleSchema.nullable().describe("the standing decision the cited tile breaks: 2 (inside a physical action), 3 (the payoff lands in the next episode), 4 (no aftermath after an impact), 5 (no open question, or a cold viewer cannot tell who is on screen), 6 (the tension had already resolved), 7 (the card, flare or fade on the cut tile), 8 (the same caption on both sides of the cut); null when you agree"),
@@ -220,7 +220,7 @@ export function buildBoundarySkeptic(input: BoundarySkepticInput) {
         "Your verdict must agree with those three: an observed split caption, a card on or after the cut tile, or an action across the cut is a fault you must dispute, never waive; and a rule-8 or rule-7 fault you did not observe there cannot be cited.",
         "",
         "Look at the chosen option's strip AND at every other option's strip yourself. Check specifically:",
-        "- does the chosen cut fall inside a physical action?",
+        "- does the chosen cut fall inside a physical action (a punch, slap, push, grab of a person, throw, fall; handing over or holding an object is none)?",
         "- does a payoff this episode set up actually land in the NEXT episode instead?",
         "- is the chosen cut less than about 1 second after an impact, so it never reads?",
         "- can a cold viewer starting at the chosen point tell who is on screen?",
@@ -271,6 +271,7 @@ export function buildBoundarySkeptic(input: BoundarySkepticInput) {
     model: input.model,
     maxTokens: 6000,
     effort: "medium" as const,
+    toolChoice: "auto" as const,
     cacheSystem: true,
     prompt_version: BOUNDARY_RULE_VERSION,
     check: (out: BoundaryVerdict) => {

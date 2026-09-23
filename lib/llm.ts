@@ -5,8 +5,9 @@
 // only says WHERE the result goes.
 //
 // Structured output is a tool call — forced where the model accepts it, `auto`
-// with an instruction on the models that refuse a forced choice (see "the
-// Anthropic request" below): one tool per call whose input_schema is derived
+// with an instruction on the models that refuse a forced choice and on the
+// calls that ask for it so the model thinks first (see "the Anthropic
+// request" below): one tool per call whose input_schema is derived
 // from the caller's zod schema, `strict: true` so the API guarantees
 // schema-valid arguments, and the same zod schema (plus an optional semantic
 // `check`) re-validates on our side; a failure gets exactly one repair turn.
@@ -51,9 +52,11 @@ export const KEY_VAR: Record<LlmProvider, string> = { anthropic: "ANTHROPIC_API_
 
 /**
  * Two tiers. FAST does the reading passes (title bible, scene context, clip
- * ranking, ad nomination, the frame judge); STRONG does the writing passes
- * (first pass, alternatives, rewrites, the creative pack). Both overridable
- * from the environment so a cheaper model can be tried without a code change.
+ * ranking, ad nomination); STRONG does the writing passes (first pass,
+ * alternatives, rewrites, the creative pack). Both overridable from the
+ * environment so a cheaper model can be tried without a code change. The
+ * frame judge is neither tier: it has its own model per provider
+ * (VISION_DEFAULT_MODELS, ADS_VISION_MODEL), measured on its own bar.
  *
  * DeepSeek ids are the V4.1 generation (api-docs.deepseek.com/quick_start/pricing,
  * read 2026-09-22): `deepseek-flash` reads images, `deepseek-v4-pro` does not.
@@ -216,32 +219,60 @@ export function adsTextProvider(env: Env = process.env): LlmProvider {
 export type VisionProviderStatus = {
   available: boolean;
   provider: LlmProvider;
-  /** The model the frame judge would run on (the provider's fast tier). */
+  /** The model the frame judge would run on (visionModelFor). */
   model: string;
   /** Why it is unavailable, or the note that a fallback was taken; null on the plain path. */
   reason: string | null;
 };
 
 /**
+ * The frame judge's model per provider. Anthropic: claude-opus-5-5, measured
+ * on He Hated All Women (decision 2026-09-23, "The frame judge on Claude,
+ * measured"): applied agreement 16/20 and 17/20 against claude-sonnet-5's
+ * 14/20 and 12/20, one wrong cut in forty through unflagged against eight,
+ * about $0.15 per boundary. The other providers judge on their fast tier.
+ * LLM_MODEL_FAST never moves the judge: it would move every reading pass
+ * with it; ADS_VISION_MODEL is the judge's own override.
+ */
+export const VISION_DEFAULT_MODELS: Record<LlmProvider, string> = {
+  anthropic: "claude-opus-5-5",
+  openai: DEFAULT_MODELS.openai.fast,
+  deepseek: DEFAULT_MODELS.deepseek.fast,
+};
+
+/** The frame judge's model on a provider: ADS_VISION_MODEL when it is that provider's (or claims no family), else the provider's vision default. Pure. */
+export function visionModelFor(provider: LlmProvider, env: Env = process.env): string {
+  const named = env.ADS_VISION_MODEL?.trim();
+  if (named && (modelFamily(named) ?? provider) === provider) return named;
+  return VISION_DEFAULT_MODELS[provider];
+}
+
+/**
  * The frame judge's provider (amendment 4, 2026-09-22): ADS_VISION_PROVIDER,
  * Anthropic by default. With no ADS_VISION_PROVIDER set, no ANTHROPIC_API_KEY
  * and a DEEPSEEK_API_KEY, the judge runs on deepseek-flash, which reads
- * images. An explicit provider is never swapped behind the operator's back:
- * its missing key or text-only model is reported, and the verify stage
- * refuses cleanly with this reason instead of guessing.
+ * images. An explicit provider or model is never swapped behind the
+ * operator's back: a missing key, a text-only model or an ADS_VISION_MODEL of
+ * another vendor is reported, and the verify stage refuses cleanly with this
+ * reason instead of guessing.
  */
 export function visionProviderStatus(env: Env = process.env): VisionProviderStatus {
   const requested = parseProvider(env.ADS_VISION_PROVIDER);
   const provider = requested ?? "anthropic";
-  const model = modelFor(provider, "fast", env);
+  const model = visionModelFor(provider, env);
+  const named = env.ADS_VISION_MODEL?.trim();
+  const namedFamily = named ? modelFamily(named) : null;
+  if (named && namedFamily && namedFamily !== provider) {
+    return { available: false, provider, model, reason: `vision provider unavailable: ADS_VISION_MODEL=${named} is a ${namedFamily} model and the judge's provider is ${provider}; set ADS_VISION_PROVIDER=${namedFamily} with ${KEY_VAR[namedFamily]}, or clear ADS_VISION_MODEL` };
+  }
   if (isLlmAvailable(provider, env)) {
     if (!modelSupportsVision(provider, model)) {
-      return { available: false, provider, model, reason: `vision provider unavailable: ${model} does not read images; point ADS_VISION_PROVIDER at a vision model (deepseek-flash, claude-sonnet-5)` };
+      return { available: false, provider, model, reason: `vision provider unavailable: ${model} does not read images; point ADS_VISION_MODEL at a vision model of ${provider} (${VISION_DEFAULT_MODELS[provider]}), or clear it` };
     }
     return { available: true, provider, model, reason: null };
   }
   if (!requested && isLlmAvailable("deepseek", env)) {
-    const fallback = modelFor("deepseek", "fast", env);
+    const fallback = visionModelFor("deepseek", env);
     if (modelSupportsVision("deepseek", fallback)) {
       return { available: true, provider: "deepseek", model: fallback, reason: `${KEY_VAR.anthropic} is not set; frames are judged by ${fallback} (${KEY_VAR.deepseek})` };
     }
@@ -291,15 +322,21 @@ function addChatUsage(
   into.cache_read_tokens += read;
 }
 
-/** Whole cents, rounded up: a 0.3-cent call is a 1-cent row, never a free one. */
-export function costCents(model: string, u: LlmUsage): number {
+/** The exact price of a call in USD, unrounded, from PRICES: what the eval sums for the spend it reports beside the rounded rows. */
+export function costUsd(model: string, u: LlmUsage): number {
   const p = priceFor(model);
-  const usd =
+  return (
     (u.input_tokens * p.input +
       u.output_tokens * p.output +
       u.cache_write_tokens * p.cache_write +
       u.cache_read_tokens * p.cache_read) /
-    1_000_000;
+    1_000_000
+  );
+}
+
+/** Whole cents, rounded up: a 0.3-cent call is a 1-cent row, never a free one (over 200 rows the sum overstates the spend by up to $2; costUsd is the exact figure). */
+export function costCents(model: string, u: LlmUsage): number {
+  const usd = costUsd(model, u);
   return usd <= 0 ? 0 : Math.ceil(usd * 100);
 }
 
@@ -631,6 +668,13 @@ export type StructuredCall<T> = {
   cacheSystem?: boolean;
   effort?: Effort;
   /**
+   * Anthropic only: how the tool call is asked for when ANTHROPIC_TOOL_CHOICE
+   * is blank. `auto` lets the model think before it answers (a forced call
+   * skips the thinking: the probe and the calibration of 2026-09-23); the
+   * frame judge's prompts set it. Absent = forced where the model accepts it.
+   */
+  toolChoice?: ToolChoicePreference;
+  /**
    * A semantic check the JSON schema cannot express (every seq present once,
    * exactly five titles). Return a message to trigger the repair turn, null
    * when the data is good.
@@ -667,14 +711,18 @@ export type CallContext = { provider: LlmProvider; model: string; images: Loaded
 // request streams, so the larger ceiling costs no timeout.
 //
 // The tool call is forced (`tool_choice: {type: "tool"}`) on the models that
-// accept it. Opus 5.5, Fable 5.1 and Mythos 5.1 answer a forced choice with
-// 400 (`tool_choice: type "tool" and "any" are not supported for this
-// model.`), so on those the choice is `auto` with one call at most, the user
-// turn ends with "Answer only by calling <tool>.", and a reply with no tool
-// call gets the nudge as its repair turn. ANTHROPIC_TOOL_CHOICE=auto takes
-// that path on every model: the switch for the calibration probe, which
-// checks whether a forced call still thinks first (decision 2026-09-23, "The
-// frame judge on Claude").
+// accept it, unless the call asks for `auto`. Opus 5.5, Fable 5.1 and Mythos
+// 5.1 answer a forced choice with 400 (`tool_choice: type "tool" and "any"
+// are not supported for this model.`), so on those the choice is always
+// `auto` with one call at most, the user turn ends with "Answer only by
+// calling <tool>.", and a reply with no tool call gets the nudge as its
+// repair turn. The probe and the calibration of 2026-09-23 ("The frame
+// judge on Claude, measured") showed that a FORCED call skips the thinking
+// (0 of 40 turns thought first) while `auto` thinks first (41 of 41), so a
+// prompt that needs the thinking (the frame judge) sets `toolChoice: "auto"`.
+// ANTHROPIC_TOOL_CHOICE overrides every call: `auto` sends every model that
+// way, `forced` forces where the model accepts it, the judge included (the
+// cheap comparison arm: on Sonnet 5, 14/20 either way).
 
 /** Tokens added to the call's maxTokens for the thinking the model does before its tool call. */
 export const ANTHROPIC_THINKING_TOKENS = 16_000;
@@ -686,9 +734,22 @@ export function acceptsForcedToolChoice(model: string): boolean {
 
 export type AnthropicToolChoice = Anthropic.ToolChoiceTool | Anthropic.ToolChoiceAuto;
 
-/** The tool_choice of one call: forced where the model accepts it and ANTHROPIC_TOOL_CHOICE is not `auto`; else auto with at most one call. Pure. */
-export function anthropicToolChoice(model: string, name: string, env: Env = process.env): AnthropicToolChoice {
-  const auto = (env.ANTHROPIC_TOOL_CHOICE ?? "").trim().toLowerCase() === "auto";
+/** A call's own preference when the environment says nothing: `auto` thinks first; `forced` (the default) is the cheaper direct call. */
+export type ToolChoicePreference = "auto" | "forced";
+
+/** What ANTHROPIC_TOOL_CHOICE says, or null when it is blank or unrecognised. */
+export function toolChoiceSetting(env: Env = process.env): ToolChoicePreference | null {
+  const s = (env.ANTHROPIC_TOOL_CHOICE ?? "").trim().toLowerCase();
+  return s === "auto" || s === "forced" ? s : null;
+}
+
+/**
+ * The tool_choice of one call: ANTHROPIC_TOOL_CHOICE when set (`auto` or
+ * `forced`), else the call's own preference, else forced; and forced only
+ * where the model accepts it. Auto is sent with at most one call. Pure.
+ */
+export function anthropicToolChoice(model: string, name: string, env: Env = process.env, prefer: ToolChoicePreference = "forced"): AnthropicToolChoice {
+  const auto = (toolChoiceSetting(env) ?? prefer) === "auto";
   if (!auto && acceptsForcedToolChoice(model)) return { type: "tool", name, disable_parallel_tool_use: true };
   return { type: "auto", disable_parallel_tool_use: true };
 }
@@ -714,7 +775,7 @@ export function anthropicRequestParams<T>(call: StructuredCall<T>, model: string
     max_tokens: call.maxTokens + ANTHROPIC_THINKING_TOKENS,
     system: systemParam(call.system, call.cacheSystem),
     tools: [tool],
-    tool_choice: anthropicToolChoice(model, call.name, env),
+    tool_choice: anthropicToolChoice(model, call.name, env, call.toolChoice),
     output_config: { effort: call.effort ?? "medium" },
   };
 }

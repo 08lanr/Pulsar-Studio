@@ -245,10 +245,10 @@ export class FakePipelineRunner implements PipelineRunner {
       await this.pause();
     }
     const outFile = req.opts.out_file ?? path.join(req.run.cut_dir, "review", "vision", `${req.opts.label}.json`);
-    const output = { summary: "fake vision pass", source: "pulsar-studio-fake", rule_version: "fake", provider: "fake", model: "fake-vision", run_id: req.run.id, label: req.opts.label, attempt, logs: [`${records.length} boundaries judged by the fake`], result: records, errors: [], retries: [], jobs: [], cost_cents: 0, totalTokens: 0 };
+    const output = { summary: "fake vision pass", source: "pulsar-studio-fake", rule_version: "fake", provider: "fake", model: "fake-vision", run_id: req.run.id, label: req.opts.label, attempt, logs: [`${records.length} boundaries judged by the fake`], result: records, errors: [], retries: [], jobs: [], cost_cents: 0, cost_usd: 0, totalTokens: 0 };
     WorkflowOutputSchema.parse(output);
     writeJson(outFile, output);
-    return { file: outFile, output, records, errors: [], retries: [], jobs: [], cost_cents: 0, provider: "deepseek", model: "fake-vision" };
+    return { file: outFile, output, records, errors: [], retries: [], jobs: [], cost_cents: 0, cost_usd: 0, provider: "deepseek", model: "fake-vision" };
   }
 
   async bandFix(_req: BandFixRequest): Promise<BandFixResult | JudgeUnavailable> {
