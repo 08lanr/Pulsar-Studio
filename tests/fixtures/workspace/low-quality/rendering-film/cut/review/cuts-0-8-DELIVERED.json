@@ -1,0 +1,31 @@
+{
+ "source_duration": 8.0,
+ "target": 4.0,
+ "fps": 30.0,
+ "band": [
+  3.0,
+  5.0
+ ],
+ "pinned": 0,
+ "pin_from": null,
+ "moves": [],
+ "final_end_is_boundary": false,
+ "episodes": [
+  {
+   "n": 1,
+   "start": 0.0,
+   "end": 4.0,
+   "dur": 4.0,
+   "ends_after_line": "Wait.",
+   "next_opens_on": "No."
+  },
+  {
+   "n": 2,
+   "start": 4.0,
+   "end": 8.0,
+   "dur": 4.0,
+   "ends_after_line": "No.",
+   "next_opens_on": ""
+  }
+ ]
+}

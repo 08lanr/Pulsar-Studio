@@ -1,0 +1,48 @@
+{
+ "summary": "first pass",
+ "agentCount": 4,
+ "logs": [],
+ "result": [
+  {
+   "boundary_s": 4.0,
+   "pick": {
+    "chosen_key": "opt2",
+    "chosen_t": 3.5,
+    "ends_on": "A close-up.",
+    "opens_on": "A wide shot.",
+    "why": "The only option after the payoff.",
+    "payoff_in_episode": true,
+    "confidence": 0.8,
+    "rejected": "opt1 cuts mid-action."
+   },
+   "verdict": {
+    "agree": true,
+    "reason": "Checked the strips; the pick holds.",
+    "fault": "",
+    "better_key": null
+   }
+  },
+  {
+   "boundary_s": 8.5,
+   "pick": {
+    "chosen_key": "opt2",
+    "chosen_t": 8.5,
+    "ends_on": "A close-up.",
+    "opens_on": "A wide shot.",
+    "why": "The only option after the payoff.",
+    "payoff_in_episode": false,
+    "confidence": 0.8,
+    "rejected": "opt1 cuts mid-action."
+   },
+   "verdict": {
+    "agree": true,
+    "reason": "Checked the strips; the pick holds.",
+    "fault": "",
+    "better_key": null
+   }
+  }
+ ],
+ "workflowProgress": [],
+ "totalTokens": 1000,
+ "totalToolCalls": 4
+}

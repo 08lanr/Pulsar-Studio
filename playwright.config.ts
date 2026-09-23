@@ -1,3 +1,4 @@
+import path from "node:path";
 import { defineConfig, devices } from "@playwright/test";
 
 // End-to-end tests own an isolated fixture server on port 3202. They reset
@@ -35,6 +36,10 @@ export default defineConfig({
       DATA_SOURCE: "fixture", TIKTOK_MODE: "sandbox", TIKTOK_LIVE: "",
       META_LIVE_WRITES: "", FIXTURE_PERSIST: "off", FIXTURE_SEED: "demo",
       NEXT_DIST_DIR: ".next-redesign-e2e", SCHEDULER_DISABLED: "1", PROMO_RENDER: "on",
+      // The workspace import (decision 2026-09-22): the checked-in fixture films, a local tier and scratch of the
+      // e2e server's own, and no quiet period (git just wrote the fixture files).
+      WORKSPACE_ROOT: path.resolve(__dirname, "tests", "fixtures", "workspace"),
+      STUDIO_LOCAL_MEDIA_DIR: ".uploads-e2e/local", STUDIO_WORK_DIR: ".uploads-e2e/work", STUDIO_IMPORT_QUIET_MS: "0",
     },
   },
 });

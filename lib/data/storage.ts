@@ -6,7 +6,21 @@
 // storage path — never a URL, never an absolute filesystem path — and
 // GET /api/media/[...path] turns it into bytes (fixture: Range streaming from
 // .uploads; supabase: 302 to a signed URL) after canReadTitle.
+//
+// The one exception (decision 2026-09-22, "imported films are hardlink
+// snapshots"): the LOCAL TIER. An imported episode is a hardlink from the
+// pipeline's cut/eps/epNN.mp4 into STUDIO_LOCAL_MEDIA_DIR, stored as
+// `local/<title_id>/ws/<slug>/epNN-<sha8>.mp4`, and that value resolves on
+// disk in BOTH modes (`localPathOf`): the media route streams it with Range,
+// ffmpeg reads it in place, nothing is copied into the bucket. The tier
+// marker comes first so no bucket path can be mistaken for it, the title id
+// second so the media route still authorizes on the title. `localPathOf`
+// refuses a value that would leave the tier or point into WORKSPACE_ROOT:
+// Studio never opens the pipeline's own files (a render holding the
+// original path open would crash the pipeline's os.replace), it reads the
+// link. Rendered ads and every upload still go to the bucket.
 
+import { copyFileSync, linkSync, mkdirSync, realpathSync, statSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { dataSource } from "@/lib/data-source";
@@ -17,6 +31,105 @@ export const MEDIA_BUCKET = "studio-media";
 /** Fixture-mode root; resolved per call so a script run from another cwd still lands in the repo. */
 export function uploadsDir(): string {
   return path.join(process.cwd(), ".uploads");
+}
+
+// ---- the local tier (decision 2026-09-22) ----------------------------------------------------------
+
+/** The first segment of a local-tier stored value. */
+export const LOCAL_TIER = "local";
+
+/** Where the local tier lives on disk: STUDIO_LOCAL_MEDIA_DIR, else .uploads/local (the same disk file the fixture route would serve). */
+export function localMediaDir(): string {
+  const configured = process.env.STUDIO_LOCAL_MEDIA_DIR?.trim();
+  return path.resolve(process.cwd(), configured || path.join(".uploads", LOCAL_TIER));
+}
+
+/** The pipeline's projects folder (read-only for Studio), or null when none is configured. */
+export function workspaceRoot(): string | null {
+  const configured = process.env.WORKSPACE_ROOT?.trim();
+  return configured ? path.resolve(configured) : null;
+}
+
+/** True for a stored value of the local tier (`local/...`). */
+export function isLocalTierPath(stored: string | null | undefined): boolean {
+  return typeof stored === "string" && stored.startsWith(`${LOCAL_TIER}/`);
+}
+
+/** The stored value for a workspace file linked under a title: `local/<title_id>/ws/<slug>/<file>`. */
+export function localStoredPath(titleId: string, slug: string, filename: string): string {
+  const safeSlug = slug.replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^\.+/, "") || "film";
+  return `${LOCAL_TIER}/${titleId}/ws/${safeSlug}/${safeFilename(filename)}`;
+}
+
+/** True when `abs` is WORKSPACE_ROOT or inside it (case as the OS compares it; another drive is never inside). */
+function underWorkspace(abs: string): boolean {
+  const ws = workspaceRoot();
+  if (!ws) return false;
+  const inside = (p: string) => {
+    const rel = path.relative(ws, p);
+    return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+  };
+  if (inside(abs)) return true;
+  // A junction or symlink under the tier that leads into the workspace counts too.
+  try {
+    return inside(realpathSync.native(abs));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The absolute disk file behind a local-tier value, in both modes. Refuses
+ * anything else: a bucket path, a value that would escape the tier (`..`,
+ * an absolute segment) or one that resolves into WORKSPACE_ROOT — the
+ * pipeline's files are read through their links only, never in place.
+ */
+export function localPathOf(stored: string): string {
+  if (!isLocalTierPath(stored)) throw invalid("not a local-tier media path");
+  const rest = stored.slice(LOCAL_TIER.length + 1);
+  const segments = rest.split("/");
+  if (segments.length < 2 || segments.some((s) => !s || s === "." || s === "..")) throw invalid("invalid media path");
+  const root = localMediaDir();
+  const abs = path.resolve(root, ...segments);
+  const rel = path.relative(root, abs);
+  if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) throw invalid("invalid media path");
+  if (underWorkspace(abs)) throw invalid("the workspace is read-only: a media path may not point into WORKSPACE_ROOT");
+  return abs;
+}
+
+export type LocalLink = { abs: string; how: "linked" | "copied" | "existing" };
+
+/**
+ * Snapshot a file into the local tier: a hardlink (the same volume; the
+ * pipeline's later os.replace leaves the link on the old bytes), a copy when
+ * the volumes differ. The source is only stat'ed here — never opened — unless
+ * the copy fallback runs. Idempotent: a target already there with the same
+ * size is the snapshot; one with another size is refused (the stored name
+ * carries the hash, so that is a caller's mistake, not a race to win).
+ */
+export function linkIntoLocalTier(srcAbs: string, stored: string): LocalLink {
+  const abs = localPathOf(stored);
+  const src = path.resolve(srcAbs);
+  const source = statSync(src, { throwIfNoEntry: false });
+  if (!source?.isFile()) throw invalid(`source file not found: ${path.basename(src)}`);
+  const existing = statSync(abs, { throwIfNoEntry: false });
+  if (existing) {
+    if (existing.isFile() && existing.size === source.size) return { abs, how: "existing" };
+    throw invalid(`${stored} already exists with a different size`);
+  }
+  mkdirSync(path.dirname(abs), { recursive: true });
+  try {
+    linkSync(src, abs);
+    return { abs, how: "linked" };
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "EEXIST") {
+      const raced = statSync(abs, { throwIfNoEntry: false });
+      if (raced?.isFile() && raced.size === source.size) return { abs, how: "existing" };
+      throw invalid(`${stored} already exists with a different size`);
+    }
+    copyFileSync(src, abs);
+    return { abs, how: "copied" };
+  }
 }
 
 const SIGNED_URL_SECONDS = 60 * 60;
@@ -41,9 +154,11 @@ export function mediaUrl(stored: string | null | undefined): string | null {
 /**
  * The absolute file under .uploads/ for a stored path. Rejects anything that
  * would escape the root (`..`, absolute segments) so the media route cannot
- * be pointed at the rest of the disk.
+ * be pointed at the rest of the disk. A local-tier value resolves through
+ * `localPathOf` instead (the tier may live outside .uploads/).
  */
 export function resolveUploadPath(stored: string): string {
+  if (isLocalTierPath(stored)) return localPathOf(stored);
   const root = uploadsDir();
   const abs = path.resolve(root, stored);
   const rel = path.relative(root, abs);
@@ -54,7 +169,8 @@ export function resolveUploadPath(stored: string): string {
 }
 
 async function putObject(stored: string, bytes: Uint8Array, contentType: string | undefined): Promise<string> {
-  if (dataSource() === "fixture") {
+  // The local tier is a disk folder in both modes (a Studio-made film asset lands beside the linked ones).
+  if (dataSource() === "fixture" || isLocalTierPath(stored)) {
     const abs = resolveUploadPath(stored);
     await mkdir(path.dirname(abs), { recursive: true });
     await writeFile(abs, bytes);
@@ -84,7 +200,7 @@ export function putStoredBytes(stored: string, bytes: Uint8Array, contentType: s
  * step reads the episode source through here.
  */
 export async function readStoredBytes(stored: string): Promise<Buffer> {
-  if (dataSource() === "fixture") {
+  if (dataSource() === "fixture" || isLocalTierPath(stored)) {
     const { readFile } = await import("node:fs/promises");
     return readFile(resolveUploadPath(stored));
   }
@@ -113,11 +229,11 @@ export function uploadMedia(
 
 /**
  * Where the bytes are right now: a one-hour signed URL in supabase mode (the
- * media route 302s to it), the /api/media path itself in fixture mode (the
- * route streams the file).
+ * media route 302s to it), the /api/media path itself in fixture mode and for
+ * a local-tier value in either mode (the route streams the file).
  */
 export async function signedMediaUrl(stored: string): Promise<string> {
-  if (dataSource() === "fixture") return mediaUrl(stored) as string;
+  if (dataSource() === "fixture" || isLocalTierPath(stored)) return mediaUrl(stored) as string;
   const { createServerSupabase } = await import("@/lib/supabase/server");
   const supabase = createServerSupabase();
   const { data, error } = await supabase.storage

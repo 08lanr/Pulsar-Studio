@@ -134,8 +134,23 @@ export type JobKind =
   | "find_clips"
   | "cut_clips"
   | "parse_subtitles"
-  | "transcribe_episode";
+  | "transcribe_episode"
+  | "import_film";
 export type JobStatus = "queued" | "running" | "done" | "failed" | "cancelled";
+
+/** studio.film_assets.kind: the pipeline files that come with an imported film (migration 0015). */
+export type FilmAssetKind =
+  | "transcript"
+  | "shots"
+  | "motion"
+  | "candidates"
+  | "source_facts"
+  | "delivered_plan"
+  | "vision_notes"
+  | "film_meta"
+  | "poster";
+/** Where a film asset came from: linked from the workspace, or made by Studio. */
+export type FilmAssetOrigin = "workspace" | "studio";
 
 /** Audit channel: how the recorded action reached us. */
 export type AuditChannel = "in_app" | "wechat" | "email" | "script";
@@ -274,6 +289,34 @@ export type Title = {
   license_end: string | null;
   created_at: string;
   updated_at: string;
+  // The workspace import (migration 0015). Optional in the type so the seeds
+  // written before it still compile; every row the data layer creates carries
+  // them (null / default) and the fixture store fills them on rows it loads,
+  // so a reader may treat `undefined` exactly like null.
+  /** The film this title was imported from (`<group>/<film>` under WORKSPACE_ROOT); unique per producer. Null = not imported. */
+  source_ref?: string | null;
+  /** Storage path of the cover art (the live poster, thumbnails only); served by GET /api/media/[...path]. */
+  cover_path?: string | null;
+  /** The crazydramas.com slug the title plays under. */
+  crazydramas_slug?: string | null;
+  /** The ad engine's rules for this title: the spoiler line and the review-added exclusions. */
+  ad_rules?: AdRules | null;
+};
+
+/** A window of the film (film time, seconds) an ad may never use, and why. */
+export type AdExclusion = {
+  from_s: number;
+  to_s: number;
+  why: string;
+  /** Who added it: the film's hand-written film-meta, or a person in review. */
+  source?: "film_meta" | "review";
+};
+
+/** core.titles.ad_rules (jsonb): what the ad engine must respect for the title. */
+export type AdRules = {
+  /** Film time (seconds) from which every moment is a spoiler; null = no line. */
+  spoiler_from_s: number | null;
+  exclusions: AdExclusion[];
 };
 
 export type Episode = {
@@ -287,9 +330,53 @@ export type Episode = {
   source_script_path: string | null;
   script_format: ScriptFormat | null;
   has_timecodes: boolean;
-  /** Storage path (bucket studio-media) or a path under .uploads/; served by GET /api/media/[...path]. */
+  /**
+   * Storage path (bucket studio-media), a path under .uploads/, or a local-tier
+   * path `local/<title_id>/ws/<slug>/<file>` (an imported episode's hardlink,
+   * lib/data/storage.ts localPathOf); served by GET /api/media/[...path].
+   */
   video_path: string | null;
   /** When video_path is a dub, the original it was mixed from — re-dubs read this, never the dub. */
+  created_at: string;
+  // The workspace import (migration 0015); optional in the type for the same
+  // reason as on Title. `auto_cut` absent reads as true.
+  /** The pipeline file this episode is (`<source_ref of the title>/cut/eps/epNN.mp4`). */
+  source_ref?: string | null;
+  /** SHA-256 of the imported file, streamed through the local-tier link. */
+  video_sha256?: string | null;
+  video_bytes?: number | null;
+  /** Frames counted by ffprobe on the link (Mafia King has +1 cases the plan must not see). */
+  video_frames?: number | null;
+  /** The episode's window in the film, film time. */
+  film_start_ms?: number | null;
+  film_end_ms?: number | null;
+  /** The pipeline's record of why the episode ends where it does (the vision pick, the skeptic, a band_fix flag). */
+  end_note?: Json | null;
+  /**
+   * False on an imported episode: the ad engine cuts it, the upload-time
+   * clip run (lib/clips/run.ts, the fixture's starter cuts) skips it. True
+   * (the default) for every uploaded episode.
+   */
+  auto_cut?: boolean;
+};
+
+/**
+ * studio.film_assets — a file that came with an imported film (origin
+ * 'workspace', linked into the local tier) or was made from it by Studio.
+ * Append-only; the newest row per (title, kind) is the one that counts.
+ */
+export type FilmAsset = {
+  id: string;
+  title_id: string;
+  kind: FilmAssetKind;
+  /** `local/<title_id>/ws/<slug>/<file>` for a linked workspace file; a bucket path for a Studio-made one. */
+  storage_path: string;
+  sha256: string;
+  bytes: number;
+  origin: FilmAssetOrigin;
+  /** The workspace file it was linked from (relative to WORKSPACE_ROOT), when origin is 'workspace'. */
+  source_ref: string | null;
+  meta: Json;
   created_at: string;
 };
 

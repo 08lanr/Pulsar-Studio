@@ -1,0 +1,51 @@
+{
+ "summary": "Choose each episode boundary by looking at contact strips",
+ "agentCount": 4,
+ "logs": [
+  "2 boundaries judged by eye"
+ ],
+ "result": [
+  {
+   "boundary_s": 4.0,
+   "pick": {
+    "chosen_key": "opt3",
+    "chosen_t": 4.0,
+    "ends_on": "A close-up.",
+    "opens_on": "A wide shot.",
+    "why": "The only option after the payoff.",
+    "payoff_in_episode": true,
+    "confidence": 0.8,
+    "rejected": "opt1 cuts mid-action."
+   },
+   "verdict": {
+    "agree": true,
+    "reason": "Checked the strips; the pick holds.",
+    "fault": "",
+    "better_key": null
+   }
+  },
+  {
+   "boundary_s": 8.5,
+   "pick": {
+    "chosen_key": "opt2",
+    "chosen_t": 8.5,
+    "ends_on": "A close-up.",
+    "opens_on": "A wide shot.",
+    "why": "The only option after the payoff.",
+    "payoff_in_episode": false,
+    "confidence": 0.6,
+    "rejected": "opt1 cuts mid-action."
+   },
+   "verdict": {
+    "agree": false,
+    "reason": "Checked the strips; a better cut exists.",
+    "fault": "Rule 3: the payoff lands in the next episode.",
+    "better_key": "opt5",
+    "better_t": 9.0
+   }
+  }
+ ],
+ "workflowProgress": [],
+ "totalTokens": 1234,
+ "totalToolCalls": 5
+}

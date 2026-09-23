@@ -1,0 +1,27 @@
+{
+ "duration": 15.0,
+ "band": [
+  4.0,
+  6.0
+ ],
+ "strips_stale": false,
+ "boundaries": [
+  {
+   "boundary_s": 4.0,
+   "dp_pick": 4.0,
+   "before": [],
+   "after": [],
+   "options": []
+  }
+ ],
+ "strip": {
+  "window": 3.0,
+  "step": 0.5,
+  "cols": 6
+ },
+ "applied": {
+  "label": "0-end",
+  "on": "2026-09-22",
+  "audit": "ok"
+ }
+}

@@ -1,0 +1,39 @@
+{
+ "source_duration": 15.0,
+ "target": 5.0,
+ "fps": 30.0,
+ "band": [
+  4.0,
+  6.0
+ ],
+ "pinned": 0,
+ "pin_from": null,
+ "moves": [],
+ "final_end_is_boundary": false,
+ "episodes": [
+  {
+   "n": 1,
+   "start": 0.0,
+   "end": 4.0,
+   "dur": 4.0,
+   "ends_after_line": "Where is she?",
+   "next_opens_on": "She is gone."
+  },
+  {
+   "n": 2,
+   "start": 4.0,
+   "end": 9.0,
+   "dur": 5.0,
+   "ends_after_line": "You knew.",
+   "next_opens_on": "I did not."
+  },
+  {
+   "n": 3,
+   "start": 9.0,
+   "end": 15.0,
+   "dur": 6.0,
+   "ends_after_line": "Run.",
+   "next_opens_on": ""
+  }
+ ]
+}

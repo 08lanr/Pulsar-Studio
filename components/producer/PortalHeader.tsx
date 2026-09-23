@@ -16,7 +16,7 @@ import { IconMenu } from "@/components/icons";
 import { containDialogFocus } from "@/components/dialog-focus";
 import { useT } from "@/components/locale";
 import type { Producer } from "@/lib/types";
-import { IconCompass, IconLibrary, IconLogout, IconMarket, IconPlus, IconPromote, IconSources } from "./icons";
+import { IconCompass, IconFilm, IconLibrary, IconLogout, IconMarket, IconPlus, IconPromote, IconSources } from "./icons";
 import DemoBadge from "./DemoBadge";
 
 type Item = { href: string; key: string; Icon: (p: { size?: number }) => JSX.Element; match: (path: string) => boolean };
@@ -32,6 +32,7 @@ const GROUPS: Group[] = [
       { href: "/producer/monitor", key: "lv2.monitor.title", Icon: IconMarket, match: (p) => p.startsWith("/producer/monitor") },
       { href: "/producer/promote", key: "lv2.legacyCampaigns", Icon: IconPromote, match: (p) => p.startsWith("/producer/promote") },
       { href: "/producer/tiktok", key: "ws.nav.tiktok", Icon: IconMarket, match: (p) => p.startsWith("/producer/tiktok") },
+      { href: "/producer/films/import", key: "fi.nav", Icon: IconFilm, match: (p) => p.startsWith("/producer/films") },
     ],
   },
   {

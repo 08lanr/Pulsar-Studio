@@ -1,0 +1,68 @@
+{
+ "source_whisper": "whisper.json",
+ "shot_cuts": 5,
+ "legal": 3,
+ "rejected": {
+  "inside_word": 1,
+  "too_tight": 1
+ },
+ "min_clear": 0.3,
+ "allowed": [
+  {
+   "t": 12.0,
+   "why": "test allow"
+  }
+ ],
+ "beats_used": 3,
+ "beat_pct": 0.0,
+ "still_threshold": 6.0,
+ "still_pct": 70.0,
+ "candidates": [
+  {
+   "t": 4.0,
+   "in_action": false,
+   "motion": 2.0,
+   "since_action": 1.0,
+   "until_action": 5.0,
+   "action_energy": 0.0,
+   "gap_before": 2.4,
+   "gap_after": 0.4,
+   "settle": 1.5,
+   "line_before": "Where is she?",
+   "line_after": "She is gone.",
+   "line_before_end": 1.6,
+   "line_after_start": 4.4
+  },
+  {
+   "t": 9.0,
+   "in_action": false,
+   "motion": 2.0,
+   "since_action": 1.0,
+   "until_action": 5.0,
+   "action_energy": 0.0,
+   "gap_before": 0.9,
+   "gap_after": 0.5,
+   "settle": 1.5,
+   "line_before": "You knew.",
+   "line_after": "I did not.",
+   "line_before_end": 8.1,
+   "line_after_start": 9.5
+  },
+  {
+   "t": 12.0,
+   "in_action": false,
+   "motion": 2.0,
+   "since_action": 1.0,
+   "until_action": 5.0,
+   "action_energy": 0.0,
+   "gap_before": 1.6,
+   "gap_after": 1.2,
+   "settle": 1.5,
+   "line_before": "I did not.",
+   "line_after": "Run.",
+   "line_before_end": 10.4,
+   "line_after_start": 13.2,
+   "exception": "test allow"
+  }
+ ]
+}

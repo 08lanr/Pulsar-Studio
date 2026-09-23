@@ -966,3 +966,72 @@ deletes beyond `superseded`/`dismissed`, full-text search, multi-locale
 adaptations beyond the `target_locale` column, an ingest status column on
 `episodes` (derived from jobs), a Reach UI or Reach write path inside
 Studio.
+
+## 8. The workspace import (migration `0015_film_import.sql`, decision 2026-09-22)
+
+A finished film from the mini-drama-system pipeline becomes a title with
+episodes. The pipeline's `projects/` folder (`WORKSPACE_ROOT`) is a read-only
+data contract; Studio hardlinks each episode into the LOCAL MEDIA TIER and
+reads, hashes and cuts only through the link. Mirrored by `lib/data/fixture.ts`
+(`createImportedTitle`, `setTitleImport`, `setTitleAdRules`, `setEpisodeImport`,
+`listFilmAssets`, `putFilmAsset`, `findTitleBySourceRef`) and validated by the
+one rule set in `lib/data/film-import.ts` in both modes.
+
+```
+core.titles  (added)
+  source_ref text,                           -- the film's folder under WORKSPACE_ROOT (`low-quality/mafia-king`);
+                                             --   UNIQUE (producer_id, source_ref) where not null. Null = not imported.
+  cover_path text,                           -- storage path of the live poster; thumbnails only, never an ad card
+  crazydramas_slug text,                     -- the slug the title plays under on crazydramas.com
+  ad_rules jsonb                             -- {spoiler_from_s: number|null, exclusions: [{from_s, to_s, why, source?}]}
+                                             --   (lib/types.ts AdRules): the spoiler line and the review-added exclusions
+
+core.episodes  (added)
+  source_ref text,                           -- `<title source_ref>/cut/eps/epNN.mp4`
+  video_sha256 text,                         -- check ^[0-9a-f]{64}$; streamed through the local-tier LINK, never the original
+  video_bytes bigint, video_frames int,      -- measured by stat / ffprobe on the link (Mafia King has +1-frame cases the
+                                             --   ad timeline must not see: the plan's frame count is what cuts)
+  film_start_ms int, film_end_ms int,        -- the episode's window in the film (film_end_ms >= film_start_ms)
+  end_note jsonb,                            -- the pipeline's vision record for the boundary plus a band_fix flag
+  auto_cut boolean not null default true     -- FALSE on an imported episode: lib/clips/run.ts and the fixture's starter
+                                             --   cuts skip it (the ad engine cuts imported films); uploads keep true.
+  -- authenticated UPDATE column grant (0011 narrowed it) extended to these columns; row rule can_edit_title.
+
+studio.film_assets                           -- the pipeline files that came with the film, linked into the local tier
+  id uuid pk, title_id uuid* references core.titles on delete cascade,
+  kind text* in ('transcript','shots','motion','candidates','source_facts','delivered_plan','vision_notes','film_meta','poster'),
+  storage_path text*,                        -- local/<title_id>/ws/<slug>/<file> for a linked workspace file; a bucket path
+                                             --   for a Studio-made one
+  sha256 text* (hex), bytes bigint*, origin text* in ('workspace','studio'),
+  source_ref text,                           -- the workspace file it was linked from, relative to WORKSPACE_ROOT
+  meta jsonb default '{}', created_at,
+  unique (title_id, kind, sha256)            -- append-only, idempotent on the hash; the NEWEST row per kind wins
+                                             -- the import's own record is a 'delivered_plan' row of origin 'studio' whose
+                                             --   meta.record carries the plan hash and each episode's size, mtime and hash
+                                             --   (lib/film-import/import.ts ImportRecord): IMPORTED / K_CHANGED are read
+                                             --   from it against a stat of the disk, never by hashing an original
+  -- RLS: select via can_read_title(title_id); INSERT/UPDATE/DELETE service role only (putFilmAsset checks the
+  --   caller's edit right, then writes as the service role).
+
+studio.job_kind  + 'import_film'             -- cost 0, one running per title, idempotency key import:<source_ref>:<delivered_sha>
+```
+
+**The local media tier** (`lib/data/storage.ts`). The one exception to "a
+stored value is a bucket path": a value `local/<title_id>/ws/<slug>/<file>`
+resolves on disk in BOTH modes, under `STUDIO_LOCAL_MEDIA_DIR` (default
+`.uploads/local`, so the fixture route's `.uploads/` + the stored value is the
+same file). The tier marker comes first so no bucket path can be mistaken for
+it; the title id second, so `GET /api/media/[...path]` authorizes on the title
+(`titleIdOfMediaPath`: first segment of a bucket path, second of a local one)
+and streams the file with Range in both modes — nothing of the tier is in the
+bucket, so there is no signed URL to redirect to. `localPathOf(stored)` is the
+only way from a stored value to a disk path; it refuses a bucket path, a
+value that would leave the tier (`..`, an absolute segment) and one that
+resolves into `WORKSPACE_ROOT` (the pipeline's own files are read through
+their links only: a render holding the original path open would crash the
+pipeline's `os.replace`). `linkIntoLocalTier(srcAbs, stored)` makes the
+snapshot: `fs.linkSync` on the same volume, `copyFileSync` across volumes,
+idempotent when the target exists with the same size; the source is stat'ed,
+never opened, unless the copy fallback runs. `withSourceFile` (the cutter)
+reads a local-tier source in place instead of buffering a copy per run.
+Rendered ads and every upload still go to `studio-media`.

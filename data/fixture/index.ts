@@ -19,6 +19,7 @@ import type {
   Character,
   Clip,
   Episode,
+  FilmAsset,
   Job,
   LaunchPreset,
   Line,
@@ -79,6 +80,8 @@ export type FixtureDb = {
   /** Pulsar-wide launch-settings presets (migration 0012). */
   launch_presets: LaunchPreset[];
   instant_page_templates: import("@/lib/types").InstantPageTemplate[];
+  /** The pipeline files that came with an imported film (migration 0015); append-only, newest per kind wins. */
+  film_assets: FilmAsset[];
 };
 
 export const fixtureDb: FixtureDb = {
@@ -112,6 +115,7 @@ export const fixtureDb: FixtureDb = {
   account_requests: [],
   launch_presets: [],
   instant_page_templates: [],
+  film_assets: [],
 };
 
 export type FixtureSeed = "demo" | "empty";

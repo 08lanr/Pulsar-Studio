@@ -28,7 +28,11 @@ import type { LaunchSettings } from "@/lib/tiktok/settings";
 import type {
   AccountRequest,
   AdAngle,
+  AdRules,
   CompanyAccount,
+  FilmAsset,
+  FilmAssetKind,
+  FilmAssetOrigin,
   CreativeResult,
   LaunchPreset,
   InstantPageTemplate,
@@ -124,6 +128,64 @@ export type CreateProducerInput = {
   name_en?: string | null;
   contact_email?: string | null;
   contact_wechat?: string | null;
+};
+
+// ---- the workspace import (decision 2026-09-22; migration 0015) ----------------------------------
+
+/** What the import creates a title from: a finished film of the pipeline. */
+export type ImportedTitleInput = {
+  producer_id: string;
+  /** `<group>/<film>` under WORKSPACE_ROOT (`low-quality/mafia-king`); unique per producer — a second import is a conflict. */
+  source_ref: string;
+  /** The film's English display title: name_en, name_zh (the column is NOT NULL) and adaptations.display_title_en all carry it. */
+  display_title_en: string;
+  crazydramas_slug?: string | null;
+  /** Storage path of the live poster (thumbnails only). */
+  cover_path?: string | null;
+  synopsis_en?: string | null;
+  genre?: string | null;
+  /** Who the adaptation records as its creator: the real caller when the job runs as the system actor. */
+  created_by?: string | null;
+};
+
+/** Update mode: what a re-import may refresh on an imported title. A missing key is left alone. */
+export type ImportedTitlePatch = {
+  display_title_en?: string;
+  crazydramas_slug?: string | null;
+  cover_path?: string | null;
+};
+
+/**
+ * The import fields of an episode (core.episodes, migration 0015). A missing
+ * key is left alone; `video_path` travels with them so a new file and its
+ * hash land in one write.
+ */
+export type EpisodeImportInput = {
+  video_path?: string;
+  source_ref?: string | null;
+  /** 64 hex chars, or invalid. */
+  video_sha256?: string | null;
+  video_bytes?: number | null;
+  video_frames?: number | null;
+  film_start_ms?: number | null;
+  film_end_ms?: number | null;
+  end_note?: Json | null;
+  /** False keeps the upload-time clip run away from the episode (the ad engine cuts it). */
+  auto_cut?: boolean;
+};
+
+/** One pipeline file (or a Studio-made one) recorded beside an imported title. */
+export type NewFilmAsset = {
+  title_id: string;
+  kind: FilmAssetKind;
+  /** `local/<title_id>/ws/<slug>/<file>` for a linked workspace file; a bucket path for a Studio-made one. */
+  storage_path: string;
+  /** 64 hex chars, or invalid. */
+  sha256: string;
+  bytes: number;
+  origin: FilmAssetOrigin;
+  source_ref?: string | null;
+  meta?: Json;
 };
 
 /** Storage paths (lib/data/storage.ts) of what the ingest route stored; both optional. */
@@ -489,8 +551,12 @@ export interface DataLayer {
     ingest: IngestResult,
     files: IngestFiles
   ): Promise<Episode>;
-  /** Promote intake: register a shared episode master before any subtitle/script exists. */
-  addVideoOnlyEpisode(session: Session, titleId: string, episodeNumber: number, videoPath: string): Promise<Episode>;
+  /**
+   * Promote intake: register a shared episode master before any subtitle/script
+   * exists. The workspace import passes its fields (`imported`) so the row is
+   * born with its hash, its film window and auto_cut false, in one write.
+   */
+  addVideoOnlyEpisode(session: Session, titleId: string, episodeNumber: number, videoPath: string, imported?: EpisodeImportInput): Promise<Episode>;
   /**
    * Attach a parsed script to an EXISTING episode that has none yet (the
    * video came first; the transcribe run or a later subtitle upload fills
@@ -527,6 +593,42 @@ export interface DataLayer {
   setSceneStatus(session: Session, sceneId: string, status: SceneStatus): Promise<Scene>;
   /** Point the episode at a (new) stored video (attach or replace). */
   setEpisodeVideo(session: Session, titleId: string, episodeNumber: number, storedPath: string): Promise<Episode>;
+
+  // the workspace import (decision 2026-09-22; migration 0015). The job runs as
+  // the system actor; the same calls work for a title editor's own session.
+  /**
+   * The producer's title for a film, or null. Staff and the system name any
+   * producer; a producer only their own company — another company's title
+   * reads null, never forbidden.
+   */
+  findTitleBySourceRef(session: Session, producerId: string, sourceRef: string): Promise<Title | null>;
+  /**
+   * A title for an imported film: source_locale en-US, name_en and name_zh
+   * both the display title (name_zh is NOT NULL), the adaptation's
+   * display_title_en the same, plus the slug, the cover and the source_ref.
+   * Conflict when the producer already has a title for that source_ref. The
+   * same rights as createTitle (a producer creates under their own company).
+   */
+  createImportedTitle(session: Session, input: ImportedTitleInput): Promise<Title>;
+  /** Update mode: refresh the display title, slug or cover of an imported title. Title editors; a foreign title is not found. */
+  setTitleImport(session: Session, titleId: string, patch: ImportedTitlePatch): Promise<Title>;
+  /** Title editors or the system: the ad engine's rules for the title (the spoiler line, the exclusions), replaced whole. */
+  setTitleAdRules(session: Session, titleId: string, rules: AdRules): Promise<Title>;
+  /**
+   * The import fields of an episode (and, with them, a new file): the sha256
+   * must be hex, auto_cut false keeps the upload-time clip run away. Title
+   * editors; a foreign title's episode is not found, a viewer is forbidden.
+   */
+  setEpisodeImport(session: Session, episodeId: string, patch: EpisodeImportInput): Promise<Episode>;
+  /** Every recorded file of the title, newest first; readable by whoever can read the title (a foreign title is not found). */
+  listFilmAssets(session: Session, titleId: string): Promise<FilmAsset[]>;
+  /**
+   * Append-only and idempotent: a row already recorded for (title, kind,
+   * sha256) is returned as is, so a resumed import never duplicates one.
+   * System, staff or a title editor; in supabase mode the insert goes through
+   * the service role after the edit check (the table takes no session writes).
+   */
+  putFilmAsset(session: Session, input: NewFilmAsset): Promise<FilmAsset>;
   /** Repair a pre-2026-09-05 ingest: lift [hh:mm:ss] stamps trapped in the
    * line text into real timecodes and mark the episode timed. */
   retimeEpisodeFromStamps(session: Session, titleId: string, episodeNumber: number): Promise<{ timed: number }>;

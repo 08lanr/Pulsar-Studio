@@ -8,14 +8,17 @@
 //
 // ffmpeg reads a local file, so the stored source is materialized into a
 // temp dir once per run (`withSourceFile`) and every cut of that run reads
-// it; the temp dir is removed afterwards whatever happened.
+// it; the temp dir is removed afterwards whatever happened. A local-tier
+// source (an imported episode's hardlink, decision 2026-09-22) is already a
+// disk file and is read in place through `localPathOf` — no copy of a film
+// per run, and never the pipeline's own path.
 
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { putStoredBytes, readStoredBytes } from "@/lib/data/storage";
+import { isLocalTierPath, localPathOf, putStoredBytes, readStoredBytes } from "@/lib/data/storage";
 
 export const AD_WIDTH = 1080;
 export const AD_HEIGHT = 1920;
@@ -28,13 +31,18 @@ export function ffmpegBin(): string {
   return process.env.FFMPEG_PATH?.trim() || "ffmpeg";
 }
 
-/** A temp copy of a stored video for ffmpeg; the dir is removed when `fn` settles. */
+/** A temp copy of a stored video for ffmpeg (a local-tier source is read in place); the dir is removed when `fn` settles. */
 export async function withSourceFile<T>(sourcePath: string, fn: (srcAbs: string, workDir: string) => Promise<T>): Promise<T> {
   const work = path.join(tmpdir(), `studio-cut-${randomUUID()}`);
   await mkdir(work, { recursive: true });
   try {
-    const src = path.join(work, `source${path.extname(sourcePath) || ".mp4"}`);
-    await writeFile(src, await readStoredBytes(sourcePath));
+    let src: string;
+    if (isLocalTierPath(sourcePath)) {
+      src = localPathOf(sourcePath);
+    } else {
+      src = path.join(work, `source${path.extname(sourcePath) || ".mp4"}`);
+      await writeFile(src, await readStoredBytes(sourcePath));
+    }
     return await fn(src, work);
   } finally {
     await rm(work, { recursive: true, force: true }).catch(() => undefined);

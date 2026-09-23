@@ -6,7 +6,7 @@ import { useT } from "./locale";
 import ThemeToggle from "./ThemeToggle";
 import { containDialogFocus } from "./dialog-focus";
 import LangToggle from "./LangToggle";
-import { IconLogout, IconMenu, IconPlus, IconProducers, IconProjects, IconSparkle } from "./icons";
+import { IconFilm, IconLogout, IconMenu, IconPlus, IconProducers, IconProjects, IconSparkle } from "./icons";
 
 // The admin portal's app shell: the fixed sidebar (brand, the one primary
 // CTA, the two nav rows, the identity block) and the sticky header (page
@@ -69,12 +69,13 @@ export default function Nav({ displayName, role }: NavProps) {
     { href: "/tiktok", label: tt("admin.nav.connections"), icon: <IconSparkle /> },
     { href: "/promote", label: tt("lv2.legacyCampaigns"), icon: <IconSparkle /> },
     { href: "/titles", label: tt("admin.nav.projects"), icon: <IconProjects /> },
+    { href: "/films/import", label: tt("fi.nav"), icon: <IconFilm /> },
     { href: "/producers", label: tt("admin.nav.producers"), icon: <IconProducers /> },
   ];
 
   // The header names the screen with the same word the rail uses; derived from
   // the path so no page threads a prop through. Deeper routes are matched first.
-  const title = pathname.startsWith("/clips") ? tt("lv2.clips.title") : pathname.startsWith("/meta") ? tt("lv2.meta.title") : pathname.startsWith("/promote/launches") ? tt("lv2.launch.title") : pathname.startsWith("/promote/monitor") ? tt("lv2.monitor.title") : pathname.startsWith("/tiktok")
+  const title = pathname.startsWith("/films") ? tt("fi.nav") : pathname.startsWith("/clips") ? tt("lv2.clips.title") : pathname.startsWith("/meta") ? tt("lv2.meta.title") : pathname.startsWith("/promote/launches") ? tt("lv2.launch.title") : pathname.startsWith("/promote/monitor") ? tt("lv2.monitor.title") : pathname.startsWith("/tiktok")
     ? tt("admin.nav.connections")
     : pathname.startsWith("/promote")
     ? tt("lv2.legacyCampaigns")

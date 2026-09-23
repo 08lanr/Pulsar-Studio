@@ -34,6 +34,7 @@ import type {
   Character,
   Clip,
   Episode,
+  FilmAsset,
   Job,
   Line,
   LineAlternative,
@@ -67,6 +68,7 @@ import { launchMode } from "@/lib/tiktok";
 import { launchSettingsSchema, LaunchSettingsError, normalizeLaunchSettings, validateLaunchSettings, type LaunchSettings } from "@/lib/tiktok/settings";
 import type { AccountRequest, InstantPageTemplate, LaunchPreset, PromoLaunch } from "@/lib/types";
 import { DataError, legacyCampaignRetired, conflict, invalid, notFound } from "./errors";
+import { episodeImportPatch, filmAssetRow, normalizeSourceRef, validateAdRules } from "./film-import";
 import type { DataLayer, ExportSnapshot, LaunchedCampaign } from "./index";
 import { mediaUrl } from "./storage";
 import {
@@ -530,12 +532,14 @@ export const supabaseData: DataLayer = {
     return episode;
   },
 
-  async addVideoOnlyEpisode(session, titleId, episodeNumber, videoPath) {
+  async addVideoOnlyEpisode(session, titleId, episodeNumber, videoPath, imported) {
     const c = dbFor(session);
     if (!Number.isInteger(episodeNumber) || episodeNumber < 1) throw invalid("episode_number must be a positive integer");
+    // The import's fields (hash, film window, auto_cut false) are validated before anything is written.
+    const fields = imported ? episodeImportPatch({ ...imported, video_path: undefined }) : {};
     const { data: dup } = await core(c).from("episodes").select("id").eq("title_id", titleId).eq("number", episodeNumber).maybeSingle();
     if (dup) throw conflict(`episode ${episodeNumber} already exists for this title`);
-    const episode = await one<Episode>(core(c).from("episodes").insert({ title_id: titleId, number: episodeNumber, video_path: videoPath, source_script_path: null, script_format: null, has_timecodes: false }).select("*").single(), "episode");
+    const episode = await one<Episode>(core(c).from("episodes").insert({ title_id: titleId, number: episodeNumber, video_path: videoPath, source_script_path: null, script_format: null, has_timecodes: false, ...fields }).select("*").single(), "episode");
     await core(c).from("titles").update({ status: "ingesting", updated_at: now() }).eq("id", titleId);
     return episode;
   },
@@ -965,6 +969,118 @@ export const supabaseData: DataLayer = {
       "episode",
       `${episodeNumber}`
     );
+  },
+
+  // ---- the workspace import (decision 2026-09-22; migration 0015) ----
+
+  async findTitleBySourceRef(session, producerId, sourceRef) {
+    const ref = normalizeSourceRef(sourceRef);
+    // A producer looks only inside their own company (RLS would answer the same: nothing, never forbidden).
+    if (session.kind === "producer" && session.producerId !== producerId) return null;
+    const { data, error } = await core(dbFor(session)).from("titles").select("*").eq("producer_id", producerId).eq("source_ref", ref).maybeSingle();
+    if (error) throw mapError(error);
+    return (data as Title | null) ?? null;
+  },
+
+  async createImportedTitle(session, input) {
+    // Mirrors createTitle (dbFor: the import runs as the system actor) with the
+    // import columns in the same insert, so the unique (producer_id, source_ref)
+    // index refuses a second import of the film atomically (23505 -> conflict).
+    const c = dbFor(session);
+    const display = input.display_title_en?.trim();
+    if (!display) throw invalid("display_title_en is required");
+    const ref = normalizeSourceRef(input.source_ref);
+    const producerId = session.kind === "producer" ? session.producerId! : input.producer_id;
+    const producer = await one<Producer>(core(c).from("producers").select("*").eq("id", producerId).maybeSingle(), "producer", producerId);
+    const { data: dup, error: dupError } = await core(c).from("titles").select("id").eq("producer_id", producer.id).eq("source_ref", ref).maybeSingle();
+    if (dupError) throw mapError(dupError);
+    if (dup) throw conflict(`this company already has a title for ${ref}`);
+    const title = await one<Title>(
+      core(c)
+        .from("titles")
+        .insert({
+          producer_id: producer.id,
+          name_zh: display,
+          name_en: display,
+          genre: input.genre?.trim() || null,
+          synopsis_en: input.synopsis_en?.trim() || null,
+          deliverables: producer.deliverables,
+          source_locale: "en-US",
+          source_ref: ref,
+          crazydramas_slug: input.crazydramas_slug?.trim() || null,
+          cover_path: input.cover_path?.trim() || null,
+        })
+        .select("*")
+        .single(),
+      "title"
+    );
+    const createdBy = input.created_by ?? (isSystemSession(session) ? null : session.userId);
+    await one<Adaptation>(
+      studio(c).from("adaptations").insert({ title_id: title.id, display_title_en: display, created_by: createdBy }).select("*").single(),
+      "adaptation"
+    );
+    return title;
+  },
+
+  async setTitleImport(session, titleId, patch) {
+    const c = dbFor(session);
+    await supabaseData.assertTitleEditable(session, titleId); // not_found for a foreign title, forbidden for a viewer
+    const update: Record<string, unknown> = { updated_at: now() };
+    if (patch.display_title_en !== undefined) {
+      const display = patch.display_title_en.trim();
+      if (!display) throw invalid("display_title_en must not be empty");
+      update.name_en = display;
+      update.name_zh = display;
+      await studio(c).from("adaptations").update({ display_title_en: display }).eq("title_id", titleId);
+    }
+    if (patch.crazydramas_slug !== undefined) update.crazydramas_slug = patch.crazydramas_slug?.trim() || null;
+    if (patch.cover_path !== undefined) update.cover_path = patch.cover_path?.trim() || null;
+    return one<Title>(core(c).from("titles").update(update).eq("id", titleId).select("*").maybeSingle(), "title", titleId);
+  },
+
+  async setTitleAdRules(session, titleId, rules) {
+    const c = dbFor(session);
+    await supabaseData.assertTitleEditable(session, titleId);
+    const clean = validateAdRules(rules);
+    return one<Title>(core(c).from("titles").update({ ad_rules: clean, updated_at: now() }).eq("id", titleId).select("*").maybeSingle(), "title", titleId);
+  },
+
+  async setEpisodeImport(session, episodeId, patch) {
+    const c = dbFor(session);
+    // Read under the caller's own client: RLS hides a foreign title's episode (not found); the role test refuses a viewer.
+    const episode = await one<Episode>(core(c).from("episodes").select("*").eq("id", episodeId).maybeSingle(), "episode", episodeId);
+    await supabaseData.assertTitleEditable(session, episode.title_id);
+    const fields = episodeImportPatch(patch, episode);
+    if (!Object.keys(fields).length) return episode;
+    return one<Episode>(core(c).from("episodes").update(fields).eq("id", episodeId).select("*").maybeSingle(), "episode", episodeId);
+  },
+
+  async listFilmAssets(session, titleId) {
+    const c = dbFor(session);
+    await one<Title>(core(c).from("titles").select("id").eq("id", titleId).maybeSingle(), "title", titleId); // a foreign title is not found
+    return many<FilmAsset>(studio(c).from("film_assets").select("*").eq("title_id", titleId).order("created_at", { ascending: false }));
+  },
+
+  async putFilmAsset(session, input) {
+    const row = filmAssetRow(input);
+    await supabaseData.assertTitleEditable(session, row.title_id); // the same door as every import write
+    // The table takes no session writes (0015: service role only); the caller's right was checked above.
+    const svc = studio(createServiceSupabase()).from("film_assets");
+    const find = () => svc.select("*").eq("title_id", row.title_id).eq("kind", row.kind).eq("sha256", row.sha256).maybeSingle();
+    const { data: existing, error } = await find();
+    if (error) throw mapError(error);
+    if (existing) return existing as FilmAsset;
+    const { data, error: insertError } = await svc.insert(row).select("*").single();
+    if (insertError) {
+      // Two resumed imports raced on the same file: the row that won is the answer.
+      if (insertError.code === "23505") {
+        const { data: raced, error: racedError } = await find();
+        if (racedError) throw mapError(racedError);
+        if (raced) return raced as FilmAsset;
+      }
+      throw mapError(insertError);
+    }
+    return data as FilmAsset;
   },
 
   async setSceneStatus(_session, sceneId, status) {

@@ -51,6 +51,7 @@ import type {
   Character,
   Clip,
   Episode,
+  FilmAsset,
   Job,
   Json,
   Line,
@@ -71,6 +72,7 @@ import type {
   VersionSnapshot,
 } from "@/lib/types";
 import { withHistoricalPromoSeed, legacyCampaignRetired, conflict, forbidden, frozen, invalid, notFound } from "./errors";
+import { episodeImportPatch, filmAssetRow, normalizeSourceRef, validateAdRules } from "./film-import";
 import type {
   ApproveOptions,
   DataLayer,
@@ -142,6 +144,24 @@ function store(): Store {
   s.db.account_requests ??= [];
   s.db.launch_presets ??= [];
   s.db.instant_page_templates ??= [];
+  s.db.film_assets ??= [];
+  // Rows seeded or saved before the workspace import (migration 0015) lack its columns; a reader sees one shape.
+  for (const t of s.db.titles) {
+    t.source_ref ??= null;
+    t.cover_path ??= null;
+    t.crazydramas_slug ??= null;
+    t.ad_rules ??= null;
+  }
+  for (const e of s.db.episodes) {
+    e.source_ref ??= null;
+    e.video_sha256 ??= null;
+    e.video_bytes ??= null;
+    e.video_frames ??= null;
+    e.film_start_ms ??= null;
+    e.film_end_ms ??= null;
+    e.end_note ??= null;
+    e.auto_cut ??= true;
+  }
   // Rows saved before 2026-09-16 predate the launch-settings fields; fill them so every reader sees one shape.
   for (const l of s.db.promo_launches) {
     l.settings ??= {} as PromoLaunch["settings"];
@@ -187,13 +207,15 @@ function ensureDemoMedia(db: FixtureDb): void {
  * engine cuts them (footage path, no subtitles) the first time the store
  * is built, one episode after another, exactly as an upload would. Skipped
  * when clips already exist (saved state), when a run is going, or with
- * PROMO_RENDER=off. Deferred a tick because the engine reads the store.
+ * PROMO_RENDER=off; an imported episode (auto_cut false) is never in the
+ * list — the ad engine cuts those. Deferred a tick because the engine reads
+ * the store.
  */
 function ensureStarterCuts(db: FixtureDb): void {
   if (process.env.PROMO_RENDER === "off") return;
   const starters = new Set(db.producers.filter((p) => p.id !== FIXTURE_PRODUCER_ID).map((p) => p.id));
   const titles = db.titles.filter((t) => starters.has(t.producer_id));
-  const pending = db.episodes.filter((e) => e.video_path && titles.some((t) => t.id === e.title_id) && !db.clips.some((c) => c.episode_id === e.id) && !db.jobs.some((j) => j.episode_id === e.id && j.kind === "cut_clips"));
+  const pending = db.episodes.filter((e) => e.video_path && e.auto_cut !== false && titles.some((t) => t.id === e.title_id) && !db.clips.some((c) => c.episode_id === e.id) && !db.jobs.some((j) => j.episode_id === e.id && j.kind === "cut_clips"));
   if (!pending.length) return;
   const g = globalThis as unknown as { __pulsarStarterCuts?: boolean };
   if (g.__pulsarStarterCuts) return;
@@ -427,6 +449,18 @@ function mergeOtherCompanies(fresh: FixtureDb, old: FixtureDb): FixtureDb {
 
 const clone = <T>(v: T): T => structuredClone(v);
 const now = () => new Date().toISOString();
+
+/** What an episode carries before any import touched it (the column defaults of migration 0015). */
+const EPISODE_IMPORT_DEFAULTS = {
+  source_ref: null,
+  video_sha256: null,
+  video_bytes: null,
+  video_frames: null,
+  film_start_ms: null,
+  film_end_ms: null,
+  end_note: null,
+  auto_cut: true,
+} as const satisfies Partial<Episode>;
 
 const BASE32 = "abcdefghijklmnopqrstuvwxyz234567";
 
@@ -872,6 +906,10 @@ export const fixtureData: DataLayer = {
       license_end: null,
       created_at: at,
       updated_at: at,
+      source_ref: null,
+      cover_path: null,
+      crazydramas_slug: null,
+      ad_rules: null,
     };
     // One adaptation per title in V1, created with the title (docs/data-model.md, studio.adaptations).
     const adaptation: Adaptation = {
@@ -959,6 +997,7 @@ export const fixtureData: DataLayer = {
       has_timecodes: ingest.hasTimecodes,
       video_path: files.videoPath,
       created_at: at,
+      ...EPISODE_IMPORT_DEFAULTS,
     };
 
     // Speakers become characters (understand_title refines name_en / notes later).
@@ -1076,16 +1115,18 @@ export const fixtureData: DataLayer = {
     return clone(episode);
   },
 
-  async addVideoOnlyEpisode(session, titleId, episodeNumber, videoPath) {
+  async addVideoOnlyEpisode(session, titleId, episodeNumber, videoPath, imported) {
     const s = store();
     const title = requireTitleEditor(s.db, session, titleId);
     if (!Number.isInteger(episodeNumber) || episodeNumber < 1) throw invalid("episode_number must be a positive integer");
     if (s.db.episodes.some((e) => e.title_id === titleId && e.number === episodeNumber)) throw conflict(`episode ${episodeNumber} already exists for this title`);
-    const episode: Episode = { id: randomUUID(), external_id: extId("ep"), title_id: titleId, number: episodeNumber, name_zh: null, name_en: null, duration_ms: null, source_script_path: null, script_format: null, has_timecodes: false, video_path: videoPath, created_at: now() };
+    // The import's fields (hash, film window, auto_cut false) are validated before the row exists, so a bad value creates nothing.
+    const fields = imported ? episodeImportPatch({ ...imported, video_path: undefined }) : {};
+    const episode: Episode = { id: randomUUID(), external_id: extId("ep"), title_id: titleId, number: episodeNumber, name_zh: null, name_en: null, duration_ms: null, source_script_path: null, script_format: null, has_timecodes: false, video_path: videoPath, created_at: now(), ...EPISODE_IMPORT_DEFAULTS, ...fields };
     s.db.episodes.push(episode);
     title.status = "ingesting";
     title.updated_at = now();
-    audit(s, session, "add_video_only_episode", "core.episodes", episode.id, title.id, null, { number: episodeNumber, video_path: videoPath });
+    audit(s, session, "add_video_only_episode", "core.episodes", episode.id, title.id, null, { number: episodeNumber, video_path: videoPath, ...(imported ? { source_ref: episode.source_ref ?? null, video_sha256: episode.video_sha256 ?? null, auto_cut: episode.auto_cut ?? true } : {}) });
     return clone(episode);
   },
 
@@ -1591,6 +1632,103 @@ export const fixtureData: DataLayer = {
     episode.video_path = storedPath;
     audit(s, session, "set_episode_video", "core.episodes", episode.id, titleId, { video_path: before }, { video_path: storedPath });
     return clone(episode);
+  },
+
+  // ---- the workspace import (decision 2026-09-22; migration 0015) ----
+
+  async findTitleBySourceRef(session, producerId, sourceRef) {
+    const { db } = store();
+    const ref = normalizeSourceRef(sourceRef);
+    // A producer looks only inside their own company: another company's film reads as nothing, never as forbidden.
+    if (session.kind === "producer" && session.producerId !== producerId) return null;
+    const title = db.titles.find((t) => t.producer_id === producerId && t.source_ref === ref);
+    return title && canReadTitle(session, title.producer_id) ? clone(title) : null;
+  },
+
+  async createImportedTitle(session, input) {
+    const s = store();
+    const display = input.display_title_en?.trim();
+    if (!display) throw invalid("display_title_en is required");
+    const ref = normalizeSourceRef(input.source_ref);
+    // The same company rule as createTitle, checked here first so a duplicate film creates nothing.
+    const producerId = session.kind === "producer" ? session.producerId! : input.producer_id;
+    if (s.db.titles.some((t) => t.producer_id === producerId && t.source_ref === ref)) throw conflict(`this company already has a title for ${ref}`);
+    const created = await fixtureData.createTitle(session, {
+      name_zh: display,
+      name_en: display,
+      producer_id: input.producer_id,
+      genre: input.genre ?? null,
+      synopsis_en: input.synopsis_en ?? null,
+      source_locale: "en-US",
+      created_by: input.created_by ?? null,
+    });
+    const title = findTitle(s.db, created.id);
+    title.source_ref = ref;
+    title.crazydramas_slug = input.crazydramas_slug?.trim() || null;
+    title.cover_path = input.cover_path?.trim() || null;
+    audit(s, session, "import_title", "core.titles", title.id, title.id, null, { source_ref: ref, crazydramas_slug: title.crazydramas_slug, cover_path: title.cover_path });
+    return clone(title);
+  },
+
+  async setTitleImport(session, titleId, patch) {
+    const s = store();
+    const title = requireTitleEditor(s.db, session, titleId);
+    const before = { name_en: title.name_en, crazydramas_slug: title.crazydramas_slug ?? null, cover_path: title.cover_path ?? null };
+    if (patch.display_title_en !== undefined) {
+      const display = patch.display_title_en.trim();
+      if (!display) throw invalid("display_title_en must not be empty");
+      title.name_en = display;
+      title.name_zh = display;
+      findAdaptation(s.db, titleId).display_title_en = display;
+    }
+    if (patch.crazydramas_slug !== undefined) title.crazydramas_slug = patch.crazydramas_slug?.trim() || null;
+    if (patch.cover_path !== undefined) title.cover_path = patch.cover_path?.trim() || null;
+    title.updated_at = now();
+    audit(s, session, "set_title_import", "core.titles", title.id, title.id, before, { name_en: title.name_en, crazydramas_slug: title.crazydramas_slug ?? null, cover_path: title.cover_path ?? null });
+    return clone(title);
+  },
+
+  async setTitleAdRules(session, titleId, rules) {
+    const s = store();
+    const title = requireTitleEditor(s.db, session, titleId);
+    const clean = validateAdRules(rules);
+    const before = (title.ad_rules ?? null) as Json;
+    title.ad_rules = clean;
+    title.updated_at = now();
+    audit(s, session, "set_title_ad_rules", "core.titles", title.id, title.id, before, clean as unknown as Json);
+    return clone(title);
+  },
+
+  async setEpisodeImport(session, episodeId, patch) {
+    const s = store();
+    const episode = s.db.episodes.find((e) => e.id === episodeId);
+    if (!episode) throw notFound("episode", episodeId);
+    requireTitleEditor(s.db, session, episode.title_id); // not_found for a foreign title, forbidden for a viewer
+    const fields = episodeImportPatch(patch, episode);
+    const before: Json = { video_path: episode.video_path, video_sha256: episode.video_sha256 ?? null, auto_cut: episode.auto_cut ?? true };
+    Object.assign(episode, fields);
+    audit(s, session, "set_episode_import", "core.episodes", episode.id, episode.title_id, before, { video_path: episode.video_path, video_sha256: episode.video_sha256 ?? null, auto_cut: episode.auto_cut ?? true, film_start_ms: episode.film_start_ms ?? null, film_end_ms: episode.film_end_ms ?? null });
+    return clone(episode);
+  },
+
+  async listFilmAssets(session, titleId) {
+    const { db } = store();
+    readableTitle(db, session, titleId); // a foreign title is not found, never forbidden
+    // Newest first; rows written in the same millisecond keep the later write first (a stable sort over the reversed list).
+    const rows = db.film_assets.filter((a) => a.title_id === titleId).reverse();
+    return clone(rows.sort((a, b) => b.created_at.localeCompare(a.created_at)));
+  },
+
+  async putFilmAsset(session, input) {
+    const s = store();
+    const row = filmAssetRow(input);
+    requireTitleEditor(s.db, session, row.title_id); // staff, the system, or the title's own editor
+    const existing = s.db.film_assets.find((a) => a.title_id === row.title_id && a.kind === row.kind && a.sha256 === row.sha256);
+    if (existing) return clone(existing);
+    const asset: FilmAsset = { id: randomUUID(), created_at: now(), ...row };
+    s.db.film_assets.push(asset);
+    audit(s, session, "put_film_asset", "studio.film_assets", asset.id, asset.title_id, null, { kind: asset.kind, sha256: asset.sha256, storage_path: asset.storage_path, origin: asset.origin });
+    return clone(asset);
   },
 
   // ---- the gate ----
