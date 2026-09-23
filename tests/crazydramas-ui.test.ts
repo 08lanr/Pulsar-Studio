@@ -10,13 +10,15 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
-import { VERDICT_PILL, checkedAtText, chipHintKey, chipKey, chipTone, fmtDelta, fmtPriceCents, fmtSeconds } from "@/components/producer/CrazydramasChip";
+import { VERDICT_PILL, checkedAtText, chipHintKey, chipKey, chipReading, chipTone, fmtDelta, fmtPriceCents, fmtSeconds } from "@/components/producer/CrazydramasChip";
 import { CRAZYDRAMAS_STATES, EPISODE_VERDICTS } from "@/lib/crazydramas/match";
 import en from "@/locales/en.json";
 import zh from "@/locales/zh.json";
 
 const EN = en as Record<string, string>;
 const ZH = zh as Record<string, string>;
+/** A complete three-episode reading's counts, for the chip-reading cases. */
+const COUNTS = { missing: 0, extra: 0, not_ready: 0, same_length: 3, close: 0, different_length: 0, unknown: 0, identical: 0, studio: 3, live: 3, ready: 3 };
 
 test("every chip state has a tone, words in both locales and no digit in them (a status board carries no numbers)", () => {
   const tones = new Set<string>();
@@ -38,7 +40,7 @@ test("every chip state has a tone, words in both locales and no digit in them (a
   assert.ok(tones.size >= 4, "the states are not one colour");
 });
 
-test("an unlinked film on the Import page says what to do; elsewhere it only says it is not linked", () => {
+test("an unlinked film on the Import page says what to do; elsewhere it only says it is not linked; a complete series with older renders says so in words", () => {
   assert.equal(chipKey("not_linked", "import"), "cd.chip.not_linked.import");
   assert.equal(chipKey("not_linked"), "cd.chip.not_linked");
   assert.equal(EN["cd.chip.not_linked.import"], "Not linked: add a crazydramas slug");
@@ -46,6 +48,14 @@ test("an unlinked film on the Import page says what to do; elsewhere it only say
   assert.equal(chipHintKey("not_live"), "cd.chip.not_live.hint");
   assert.equal(EN["cd.chip.not_live.hint"], "not uploaded, or draft");
   assert.equal(chipHintKey("live_complete"), null);
+  assert.equal(chipHintKey("live_complete", true), "cd.chip.live_complete.hint", "an episode that reads close: still complete, said with a qualifier");
+  assert.equal(EN["cd.chip.live_complete.hint"], "some older renders");
+  assert.doesNotMatch(EN["cd.chip.live_complete.hint"] + ZH["cd.chip.live_complete.hint"], /\d/, "no count on the chip");
+  assert.equal(chipHintKey("live_differs", true), null, "older is a qualifier of complete only");
+  assert.deepEqual(chipReading({ state: "live_complete", stale: false, counts: { ...COUNTS, close: 2 } }), { state: "live_complete", stale: false, older: true });
+  assert.deepEqual(chipReading({ state: "live_complete", stale: true, counts: COUNTS }), { state: "live_complete", stale: true, older: false });
+  assert.deepEqual(chipReading({ state: "live_differs", stale: false, counts: { ...COUNTS, close: 2 } }), { state: "live_differs", stale: false, older: false });
+  assert.ok(EN["cd.check.preview.link"] && ZH["cd.check.preview.link"], "the staff-preview note links to the staff page");
 });
 
 test("every verdict has a pill and words, and the evidence label on the checked time is the observed one", () => {

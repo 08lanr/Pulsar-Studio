@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 128" width="96" height="128" role="img" aria-label="">
+  <!-- The fixture placeholder poster: the stand-in art a series shows on crazydramas.com before its own poster is set. -->
+  <rect width="96" height="128" fill="#3a3a3a"/>
+  <rect x="12" y="20" width="72" height="88" rx="4" fill="none" stroke="#7a7a7a" stroke-width="2" stroke-dasharray="6 4"/>
+  <path d="M30 88 L46 66 L58 80 L66 72 L78 88 Z" fill="#7a7a7a"/>
+</svg>

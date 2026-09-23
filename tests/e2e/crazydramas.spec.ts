@@ -2,24 +2,31 @@ import { test, expect, type Page } from "@playwright/test";
 
 // The crazydramas connection, end to end on the fixture server (plan A8):
 // fixture mode always reads lib/crazydramas/fake.ts, so no request leaves
-// the machine. Five demo titles carry the fake's slugs (data/fixture/
-// demo-catalog.ts), one per series state, and the READY fixture film
-// imports as the complete one. The sweep is off on the e2e server
-// (SCHEDULER_DISABLED=1), so the first test runs the check itself on every
-// title that reads "not checked yet" through the same route Check now
+// the machine — every test routes the browser's requests and fails on one
+// to any host but the e2e server's (the fake's posters are same-origin
+// SVGs for that reason). Five demo titles carry the fake's slugs
+// (data/fixture/demo-catalog.ts), one per series state, and the READY
+// fixture film imports as the complete one. The sweep is off on the e2e
+// server (SCHEDULER_DISABLED=1), so the first test runs the check itself on
+// every title that reads "not checked yet" through the same route Check now
 // uses. Then: the catalog shows a chip per state and nothing else, the title
-// header carries the third chip and the CrazyDramas section shows the
-// series facts and the per-episode verdicts, Check now reads again and
-// refuses a second read inside 30 s, the Import films rows carry the chip
-// (an unlinked film says what to do), and only staff see the series that
-// match no Studio title. Rows are found by the chip's data-cd-state, never
-// by a title's name, so the seed may reorder titles without touching this
-// file.
+// header carries the third chip on the CrazyDramas section and on the
+// overview, the section shows the series facts and the per-episode
+// verdicts, Check now reads again and refuses a second read inside 30 s,
+// the Import films rows carry the chip (an unlinked film says what to do),
+// and only staff see the series that match no Studio title. Rows are found
+// by the chip's data-cd-state, never by a title's name, so the seed may
+// reorder titles without touching this file.
 
 const FILM = "low-quality/fixture-film";
 const SEEDED_STATES = ["live_partial", "live_differs", "live_unverified", "not_live", "read_failed", "not_linked"] as const;
+/** The company the fixture film is imported for on the producer side (data/fixture/title.ts), which the staff desk's picker must choose. */
+const DEMO_COMPANY = "Xinghai Pictures";
 
 test.describe.configure({ mode: "serial" });
+
+/** Requests the browser made to any host but the e2e server's, aborted as they were made; a test with one fails. */
+const foreign: string[] = [];
 
 async function signIn(page: Page, kind: "producer" | "staff" = "producer") {
   const base = test.info().project.use.baseURL ?? "http://localhost:3202";
@@ -59,7 +66,19 @@ async function check(page: Page, titleId: string): Promise<number> {
 }
 
 test.beforeEach(async ({ page }) => {
+  const own = new URL(test.info().project.use.baseURL ?? "http://localhost:3202").hostname;
+  await page.route("**/*", (route) => {
+    const host = new URL(route.request().url()).hostname;
+    if (host === own) return route.continue();
+    foreign.push(route.request().url());
+    return route.abort();
+  });
   await signIn(page);
+});
+
+test.afterEach(() => {
+  const seen = foreign.splice(0);
+  expect(seen, "fixture mode never fetches: no request left the e2e server").toEqual([]);
 });
 
 test("My catalog shows one chip per crazydramas state, in words only, each cell opening the section", async ({ page }) => {
@@ -90,7 +109,7 @@ test("My catalog shows one chip per crazydramas state, in words only, each cell 
   await page.screenshot({ path: `docs/demo/e2e/${test.info().project.name}/crazydramas-catalog.jpg`, type: "jpeg", quality: 72, fullPage: true });
 });
 
-test("the imported fixture film is live and complete: the header chip, the series facts, every episode the same length", async ({ page }) => {
+test("the imported fixture film is live and complete: the header chip on the section and the overview, the series facts, every episode the same length", async ({ page }) => {
   await page.goto("/producer/films/import");
   const ready = page.locator(`.gt-row[data-source-ref="${FILM}"]`);
   await ready.getByRole("button", { name: "Import", exact: true }).click();
@@ -124,7 +143,18 @@ test("the imported fixture film is live and complete: the header chip, the serie
   await expect(rows.first()).toContainText("Same length");
   await expect(rows.first()).toContainText("Free");
   await expect(page.locator(".cd-panel")).toContainText("Calibrated on one film only");
+  // The fake's poster is the app's own SVG: drawn for a producer session too (the middleware serves it like the fonts, not a
+  // redirect to /producer), and fetched from nowhere else (the route guard above would have failed the test).
+  const poster = page.locator(".cd-poster img");
+  await expect(poster).toHaveAttribute("src", /^\/crazydramas-fake\/poster\.svg$/);
+  await expect.poll(() => poster.evaluate((img) => (img as HTMLImageElement).complete && (img as HTMLImageElement).naturalWidth > 0), { message: "the poster image loaded" }).toBe(true);
   await page.screenshot({ path: `docs/demo/e2e/${test.info().project.name}/crazydramas-section.jpg`, type: "jpeg", quality: 72, fullPage: true });
+
+  // The third chip sits in the header of every section (plan A4.2), not only on the CrazyDramas one.
+  for (const sub of ["", "/campaigns", "/materials", "/preparation", "/analytics"]) {
+    await page.goto(`/producer/titles/${titleId}${sub}`);
+    await expect(page.locator(".tw-chips .tw-chip-cd"), `the chip on ${sub || "the overview"}`).toHaveAttribute("data-cd-state", "live_complete");
+  }
 });
 
 test("each other state's section shows the verdict or note that defines it, and an unlinked title has no Check now", async ({ page }) => {
@@ -188,6 +218,7 @@ test("the Import films rows carry the chip: an unlinked film says what to do, an
   await expect(page.locator('.gt-row[data-source-ref="low-quality/rendering-film"] .tw-chip-cd')).toHaveText("Not linked: add a crazydramas slug");
   await expect(page.locator('.gt-row[data-source-ref="low-quality/undelivered-film"] .tw-chip-cd')).toHaveText("Not linked: add a crazydramas slug");
   await expect(ready.locator(".film-import-cd .tw-chip-cd")).toHaveAttribute("data-cd-state", "live_complete");
+  await expect(ready.locator(".film-import-cd a")).toHaveAttribute("href", /^\/producer\/titles\/[0-9a-f-]{36}\/crazydramas$/);
   await expect(page.getByRole("heading", { name: "Unmatched on CrazyDramas" })).toHaveCount(0);
   await page.screenshot({ path: `docs/demo/e2e/${test.info().project.name}/crazydramas-import.jpg`, type: "jpeg", quality: 72, fullPage: true });
 });
@@ -211,11 +242,17 @@ test("staff see the series live on crazydramas that match no Studio title, and t
   } else {
     await expect(section).toContainText("has not been read yet");
   }
-  // The staff desk's own rows carry the chip too.
-  await expect(page.locator(`.gt-row[data-source-ref="${FILM}"] .film-import-cd .tw-chip-cd`)).toHaveAttribute("data-cd-state", "live_complete");
+  // The staff desk's own rows carry the chip too, once the picker names the company the film was imported for (it opens on
+  // the first company by name, whose row reads "import to check"), with the way into the staff mirror beside it.
+  await page.getByLabel("Company", { exact: true }).selectOption({ label: DEMO_COMPANY });
+  const staffRow = page.locator(`.gt-row[data-source-ref="${FILM}"]`);
+  await expect(staffRow.locator(".film-import-cd .tw-chip-cd")).toHaveAttribute("data-cd-state", "live_complete");
+  await expect(staffRow.locator(".film-import-cd a")).toHaveAttribute("href", `/titles/${titleId}/crazydramas`);
 
-  // The staff mirror shows the same panel with Check now for staff.
-  await page.goto(`/titles/${titleId}/crazydramas`);
+  // The staff title page links to the mirror, which shows the same panel with Check now for staff.
+  await page.goto(`/titles/${titleId}`);
+  await page.locator(".title-actions").getByRole("link", { name: "CrazyDramas check" }).click();
+  await expect(page).toHaveURL(new RegExp(`/titles/${titleId}/crazydramas$`));
   await expect(page.locator(".title-row .tw-chip-cd")).toHaveAttribute("data-cd-state", "live_complete");
   await expect(page.locator(".cd-episodes tbody tr")).toHaveCount(3);
   await expect(page.getByRole("button", { name: "Check now" })).toBeVisible();

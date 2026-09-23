@@ -1,3 +1,4 @@
+import { chipReading } from "@/components/producer/CrazydramasChip";
 import TitleShell from "@/components/producer/TitleShell";
 import { isStaffPreview, portalSession, producerLocale } from "@/components/producer/server";
 import { WorkflowBadge } from "@/components/producer/research/workspace-ui";
@@ -30,7 +31,7 @@ export default async function TitleCampaigns({ params }: { params: { id: string 
   const returnTo = encodeURIComponent(`/producer/titles/${params.id}/campaigns`);
 
   return (
-    <TitleShell locale={locale} titleId={params.id} name_zh={w.detail.title.name_zh} name_en={w.detail.title.name_en} platform={w.platform} ads={w.ads.status} adStep={adStep} section="campaigns"
+    <TitleShell locale={locale} titleId={params.id} name_zh={w.detail.title.name_zh} name_en={w.detail.title.name_en} platform={w.platform} ads={w.ads.status} adStep={adStep} crazydramas={chipReading(w.crazydramas)} section="campaigns"
       actions={canEdit ? <a className="btn btn-primary" href={`/producer/launch`}>{t(locale, "ws.exp.new")}</a> : undefined}>
       <div className="tw-strip">
         <div><span>{t(locale, "tw.ads.spendToDate")}</span><strong>{spend == null ? "–" : fmtUsd(spend, 2)}</strong></div>

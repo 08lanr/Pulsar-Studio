@@ -5,7 +5,8 @@ import type { Locale } from "@/lib/i18n";
 import { parseRange, parseWindow, type AnalyticsRange, type AnalyticsWindow, type TitleAnalytics } from "@/lib/analytics/types";
 import type { Session } from "@/lib/auth";
 import { adStatus, platformStatus, type AdReading, type PlatformStatus } from "@/lib/research/title-status";
-import { loadCrazydramasStatus, type CrazydramasState } from "@/lib/crazydramas";
+import { loadCrazydramasStatus } from "@/lib/crazydramas";
+import { chipReading, type CrazydramasChipReading } from "@/components/producer/CrazydramasChip";
 
 // What every analytics page needs in one call: the session, the locale, the
 // record for the range in the URL, and the base href the sub-views share.
@@ -23,10 +24,10 @@ export type AnalyticsPageData = {
   /** `?range=` suffix to keep on every link between the views. */
   query: string;
   canEdit: boolean;
-  /** The title workspace shell statuses: TikTok publication, Pulsar advertising and the crazydramas series (state and whether it is a stale read). */
+  /** The title workspace shell statuses: TikTok publication, Pulsar advertising and the crazydramas series chip (state, stale read, older renders). */
   platform: PlatformStatus;
   ads: AdReading;
-  crazydramas: { state: CrazydramasState; stale: boolean };
+  crazydramas: CrazydramasChipReading;
 };
 
 export type View = "overview" | "revenue" | "episodes" | "acquisition" | "link";
@@ -55,5 +56,5 @@ export async function loadAnalyticsPage(titleId: string, view: View, searchParam
     data.getTitle(session, titleId).then((detail) => loadCrazydramasStatus(session, detail.title)),
   ]);
   const query = window ? `?range=custom&from=${window.from}&to=${window.to}` : `?range=${range}`;
-  return { session, locale, record, range, window, base, query, canEdit, platform: platformStatus(record.analytics_state), ads: adStatus(campaigns.filter((c) => c.title_id === titleId), results), crazydramas: { state: cd.state, stale: cd.stale } };
+  return { session, locale, record, range, window, base, query, canEdit, platform: platformStatus(record.analytics_state), ads: adStatus(campaigns.filter((c) => c.title_id === titleId), results), crazydramas: chipReading(cd) };
 }

@@ -3964,5 +3964,7 @@
   "cd.slugReassigned.note": "这个 slug 现在指向另一部剧，不是当初关联的那部（CMS 里改过 slug）。按未上线处理。",
   "cd.unverified.note": "每一集都在 CrazyDramas 上且已就绪，但 Studio 没有其中某些分集的帧数，无法核对时长。从影片工作区导入的分集才有帧数。",
   "cd.delta": "差 {d} 帧",
-  "cd.checked.failed": "上次读取失败于 {time}，尚无成功读取"
+  "cd.checked.failed": "上次读取失败于 {time}，尚无成功读取",
+  "cd.chip.live_complete.hint": "部分分集为较早的渲染",
+  "cd.check.preview.link": "打开工作人员页面"
 }

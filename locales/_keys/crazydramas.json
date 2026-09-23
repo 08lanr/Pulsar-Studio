@@ -12,6 +12,7 @@
   "cd.chip.read_failed": { "zh": "CrazyDramas · 检查失败", "en": "CrazyDramas · check failed" },
   "cd.chip.read_failed.hint": { "zh": "显示上次成功读取", "en": "showing the last good read" },
   "cd.chip.live_complete": { "zh": "已上 CrazyDramas · 完整", "en": "On CrazyDramas · complete" },
+  "cd.chip.live_complete.hint": { "zh": "部分分集为较早的渲染", "en": "some older renders" },
   "cd.chip.live_partial": { "zh": "已上 CrazyDramas · 缺分集", "en": "On CrazyDramas · episodes missing" },
   "cd.chip.live_differs": { "zh": "已上 CrazyDramas · 时长不一致", "en": "On CrazyDramas · lengths differ" },
   "cd.chip.live_unverified": { "zh": "已上 CrazyDramas · 时长未核对", "en": "On CrazyDramas · lengths unverified" },
@@ -80,6 +81,7 @@
   "cd.check.tooSoon": { "zh": "30 秒内已检查过，请稍后再试。", "en": "Checked less than 30 s ago; try again shortly." },
   "cd.check.failed": { "zh": "检查失败：{detail}", "en": "Check failed: {detail}" },
   "cd.check.preview": { "zh": "工作人员预览模式下不能在此检查，请到工作人员页面操作。", "en": "Staff previewing the portal cannot run a check here; use the staff page." },
+  "cd.check.preview.link": { "zh": "打开工作人员页面", "en": "Open the staff page" },
   "cd.check.readOnly": { "zh": "只有审阅和审批角色可以发起检查；其他角色可以查看结果。", "en": "Only the reviewer and approver roles can run a check; everyone else can see the result." },
 
   "cd.import.slug": { "zh": "slug：{slug} · 导入后可检查", "en": "slug: {slug} · import to check" },

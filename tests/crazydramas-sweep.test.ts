@@ -23,7 +23,8 @@ import { importFilm, resetImportRegistry, type VideoFacts } from "@/lib/film-imp
 import type { Title } from "@/lib/types";
 import { producer, staff } from "./seed-minute";
 
-const FIXTURE_FRAMES: Record<number, number> = { 1: 120, 2: 151, 3: 180 };
+/** The fixture film's frame counts as the import's `ffprobe -count_packets` measures tests/fixtures/workspace/low-quality/fixture-film/cut/eps. */
+const FIXTURE_FRAMES: Record<number, number> = { 1: 120, 2: 150, 3: 180 };
 const temps: string[] = [];
 
 beforeEach(() => {
@@ -42,7 +43,7 @@ afterEach(() => {
 
 const viewer = () => ({ ...producer(), producerRole: "viewer" as const });
 
-/** An imported title carrying the fixture film's three episodes (120, 151, 180 frames at 30 fps) under a slug the fake knows. */
+/** An imported title carrying the fixture film's three episodes (120, 150, 180 frames at 30 fps) under a slug the fake knows. */
 async function fixtureTitle(slug: string | null, ref = `low-quality/${slug ?? "no-slug"}`): Promise<Title> {
   const who = producer();
   const title = await fixtureData.createImportedTitle(systemSession(), { producer_id: who.producerId!, source_ref: ref, display_title_en: `Fixture ${slug ?? ""}`.trim(), crazydramas_slug: slug, created_by: who.userId });
@@ -59,10 +60,12 @@ async function stranger() {
 
 // ---- one check ---------------------------------------------------------------------------------------------
 
-test("Check now on a complete series: the first 200 makes the link with the drama id, records the snapshot and answers live_complete with three same_length", async () => {
+test("Check now on a complete series: the first 200 makes the link with the drama id, records the snapshot and answers live_complete with three same_length; a viewer is refused", async () => {
   const title = await fixtureTitle(FAKE_SLUGS.complete);
   assert.equal((await loadCrazydramasStatus(producer(), title)).state, "not_checked");
-  const r = await checkCrazydramasTitle(viewer(), title.id);
+  await assert.rejects(checkCrazydramasTitle(viewer(), title.id), { code: "forbidden" }, "a viewer-role producer stays read-only: a check writes a row");
+  assert.equal((await loadCrazydramasStatus(viewer(), title)).state, "not_checked", "the refusal read nothing and wrote nothing");
+  const r = await checkCrazydramasTitle({ ...producer(), producerRole: "reviewer" }, title.id);
   assert.equal(r.outcome, "checked");
   if (r.outcome !== "checked") return;
   assert.equal(r.slug, FAKE_SLUGS.complete);
@@ -74,6 +77,7 @@ test("Check now on a complete series: the first 200 makes the link with the dram
   assert.deepEqual(r.status.free_paid, { free: 3, paid: 0 });
   const link = await fixtureData.getPlatformLink(producer(), title.id, PLATFORM);
   assert.equal(link?.cd_drama_id, "f1000000-0000-4000-8000-000000000001");
+  assert.equal(link?.title_slug, FAKE_SLUGS.complete, "the link records the title's own slug");
   assert.equal(link?.linked_by, null, "the sweep's writes are the system's, whoever pressed the button");
   assert.deepEqual(fakeCrazydramasTransport.calls, [{ what: "series", slug: FAKE_SLUGS.complete }], "no link yet: no catalog read");
   assert.equal((await loadCrazydramasStatus(producer(), title)).state, "live_complete");
@@ -142,7 +146,7 @@ test("every fake series answers its state: partial, differs, processing (partial
   await assert.rejects(checkCrazydramasTitle(them, complete.id), { code: "not_found" }, "a foreign title is nothing, never forbidden");
 });
 
-test("a CMS rename is followed through the catalog and the link moves with it; a slug re-pointed in Studio moves the link to the new drama, unless another title holds it", async () => {
+test("a CMS rename is followed through the catalog, the link moves with it and every later check keeps reading the platform's slug; a slug re-pointed in Studio moves the link to the new drama, unless another title holds it", async () => {
   const title = await fixtureTitle(FAKE_SLUGS.complete);
   const first = await checkCrazydramasTitle(staff(), title.id);
   assert.equal(first.outcome, "checked");
@@ -165,10 +169,28 @@ test("a CMS rename is followed through the catalog and the link moves with it; a
     assert.equal(followed.status.state, "live_complete");
     assert.equal(followed.status.slug, "fixture-film-renamed");
   }
-  assert.equal((await fixtureData.getPlatformLink(staff(), title.id, PLATFORM))?.slug, "fixture-film-renamed", "the link follows");
-  assert.equal((await fixtureData.getPlatformLink(staff(), title.id, PLATFORM))?.cd_drama_id, "f1000000-0000-4000-8000-000000000001", "the same drama");
+  const afterRename = await fixtureData.getPlatformLink(staff(), title.id, PLATFORM);
+  assert.equal(afterRename?.slug, "fixture-film-renamed", "the link follows");
+  assert.equal(afterRename?.title_slug, FAKE_SLUGS.complete, "and still knows the title's own slug, which film-meta still carries");
+  assert.equal(afterRename?.cd_drama_id, "f1000000-0000-4000-8000-000000000001", "the same drama");
 
-  // The person re-points the title at another series in Studio: the link moves to that drama.
+  // Checks three, four and five after the rename (film-meta unchanged, so the title's slug is still the old one): each reads
+  // the platform's slug, never the old one — the reviewer's probe found the third check reading `old-slug`, getting 404 and
+  // answering not_live while the screens froze on the second read.
+  for (let n = 3; n <= 5; n++) {
+    const again = await checkCrazydramasTitle(staff(), title.id, { force: true, transport: renamed });
+    assert.equal(again.outcome, "checked");
+    if (again.outcome !== "checked") return;
+    assert.equal(again.slug, "fixture-film-renamed", `check ${n} reads the platform's slug`);
+    assert.equal(again.http_status, 200);
+    assert.equal(again.status.state, "live_complete");
+    const shown = await loadCrazydramasStatus(staff(), (await fixtureData.getTitle(staff(), title.id)).title);
+    assert.equal(shown.state, "live_complete");
+    assert.equal(shown.checked_at, again.snapshot.read_at, `the screens show check ${n}'s read`);
+  }
+  assert.equal((await fixtureData.getPlatformLink(staff(), title.id, PLATFORM))?.title_slug, FAKE_SLUGS.complete, "a followed rename never rewrites title_slug");
+
+  // The person re-points the title at another series in Studio: the link moves to that drama and records the new slug as the title's own.
   await fixtureData.setTitleImport(staff(), title.id, { crazydramas_slug: FAKE_SLUGS.partial });
   const moved = await checkCrazydramasTitle(staff(), title.id, { force: true });
   assert.equal(moved.outcome, "checked");
@@ -177,20 +199,62 @@ test("a CMS rename is followed through the catalog and the link moves with it; a
     assert.equal(moved.linked, true);
     assert.equal(moved.status.state, "live_partial");
   }
-  assert.equal((await fixtureData.getPlatformLink(staff(), title.id, PLATFORM))?.cd_drama_id, "f1000000-0000-4000-8000-000000000002");
+  const movedLink = await fixtureData.getPlatformLink(staff(), title.id, PLATFORM);
+  assert.equal(movedLink?.cd_drama_id, "f1000000-0000-4000-8000-000000000002");
+  assert.equal(movedLink?.title_slug, FAKE_SLUGS.partial);
 
-  // Another title already linked to that drama: the read is recorded with the refusal, the link stays.
+  // Another title already linked to that drama: the read is recorded with the refusal, the link stays, and the words name no
+  // other title (it may be another company's) and no drama id.
   const other = await fixtureTitle(FAKE_SLUGS.differs, "low-quality/other");
   await checkCrazydramasTitle(staff(), other.id);
   await fixtureData.setTitleImport(staff(), title.id, { crazydramas_slug: FAKE_SLUGS.differs });
   const refused = await checkCrazydramasTitle(staff(), title.id, { force: true });
   assert.equal(refused.outcome, "checked");
   if (refused.outcome === "checked") {
-    assert.match(refused.error ?? "", /another title is linked to/);
+    assert.match(refused.error ?? "", /linked to a different title/);
+    assert.doesNotMatch(refused.error ?? "", /f1000000|another title/);
     assert.equal(refused.status.state, "read_failed", "the reading says why in words");
     assert.equal(refused.linked, false);
   }
   assert.equal((await fixtureData.getPlatformLink(staff(), title.id, PLATFORM))?.cd_drama_id, "f1000000-0000-4000-8000-000000000002", "not moved");
+});
+
+test("two companies' titles on one slug: each title's reading is its own reads, so the other company's refusal never shows on this title, for its producer or for staff", async () => {
+  const mine = await fixtureTitle(FAKE_SLUGS.complete);
+  const first = await checkCrazydramasTitle(producer(), mine.id);
+  assert.equal(first.outcome, "checked");
+  // Company B imports the same film ("one film is one title per company"): its check answers 200 for the drama company A's
+  // title holds, so the link is refused and B's row carries the refusal on B's title.
+  const { other, session: them } = await stranger();
+  const theirs = await fixtureData.createImportedTitle(them, { producer_id: other.id, source_ref: "low-quality/fixture-film", display_title_en: "Theirs", crazydramas_slug: FAKE_SLUGS.complete });
+  const b = await checkCrazydramasTitle(them, theirs.id, { force: true });
+  assert.equal(b.outcome, "checked");
+  if (b.outcome === "checked") {
+    assert.equal(b.status.state, "read_failed");
+    assert.match(b.error ?? "", /linked to a different title/);
+    assert.doesNotMatch(JSON.stringify(b.status), new RegExp(mine.id), "nothing of company A's title reaches company B");
+  }
+  assert.equal(await fixtureData.getPlatformLink(them, theirs.id, PLATFORM), null);
+
+  // Company A's reading, by its producer and by staff, is its own last read: complete, no error, no stale mark — although B's
+  // refusal is now the newest row of the slug.
+  for (const who of [producer(), staff()]) {
+    const shown = await loadCrazydramasStatus(who, mine);
+    assert.equal(shown.state, "live_complete");
+    assert.equal(shown.error, null);
+    assert.equal(shown.stale, false);
+  }
+  // The 30-second rule is judged on every read of the slug, and the refusal still answers company A's own reading.
+  const soon = await checkCrazydramasTitle(producer(), mine.id);
+  assert.equal(soon.outcome, "too_soon");
+  if (soon.outcome === "too_soon") assert.equal(soon.status.state, "live_complete", "the refusal answers company A's own reading");
+  const a = await checkCrazydramasTitle(producer(), mine.id, { force: true });
+  assert.equal(a.outcome, "checked");
+  if (a.outcome === "checked") assert.equal(a.status.state, "live_complete");
+  // B's own reading stays its refusal, marked as a failed read with no earlier good one.
+  const bShown = await loadCrazydramasStatus(them, (await fixtureData.getTitle(them, theirs.id)).title);
+  assert.equal(bShown.state, "read_failed");
+  assert.equal(bShown.stale, false);
 });
 
 // ---- the sweep ---------------------------------------------------------------------------------------------

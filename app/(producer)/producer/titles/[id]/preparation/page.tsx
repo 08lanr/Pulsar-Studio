@@ -1,3 +1,4 @@
+import { chipReading } from "@/components/producer/CrazydramasChip";
 import TitleShell from "@/components/producer/TitleShell";
 import { portalSession, producerLocale } from "@/components/producer/server";
 import { BandPill, ComponentCard, ScoreDial, WorkflowBadge } from "@/components/producer/research/workspace-ui";
@@ -26,7 +27,7 @@ export default async function Preparation({ params }: { params: { id: string } }
   const adStep = w.ads.flow ? t(locale, `workflow.step.${w.ads.flow.step}`) : null;
 
   return (
-    <TitleShell locale={locale} titleId={params.id} name_zh={w.detail.title.name_zh} name_en={w.detail.title.name_en} platform={w.platform} ads={w.ads.status} adStep={adStep} section="preparation"
+    <TitleShell locale={locale} titleId={params.id} name_zh={w.detail.title.name_zh} name_en={w.detail.title.name_en} platform={w.platform} ads={w.ads.status} adStep={adStep} crazydramas={chipReading(w.crazydramas)} section="preparation"
       actions={!x.campaigns.length ? <a className="btn btn-primary" href={`/producer/launch`}>{t(locale, "ws.actions.test")}</a> : <a className="btn btn-outline" href={campaignWorkflow(x.campaigns[0], w.title.results).href}>{t(locale, "tw.nav.campaigns")}&nbsp;→</a>}>
       <section className="ws-hero tw-hero">
         <ScoreDial score={a.score} band={a.band} locale={locale} />

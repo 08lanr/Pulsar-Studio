@@ -11,6 +11,10 @@ import type { CrazydramasState, EpisodeVerdict } from "@/lib/crazydramas/match";
 
 export type ChipTone = "is-live" | "is-warn" | "is-bad" | "is-wait" | "is-none";
 
+/** The chip's input, derived from a status by the core (state, stale, older renders); re-exported so the pages ask one module for the chip and its reading. */
+export { chipReading } from "@/lib/crazydramas/match";
+export type { CrazydramasChipReading } from "@/lib/crazydramas/match";
+
 const TONE: Record<CrazydramasState, ChipTone> = {
   not_linked: "is-none",
   not_checked: "is-wait",
@@ -33,8 +37,9 @@ export function chipKey(state: CrazydramasState, context: "catalog" | "import" =
   return state === "not_linked" && context === "import" ? "cd.chip.not_linked.import" : `cd.chip.${state}`;
 }
 
-/** The small qualifier some states carry ("not uploaded, or draft"); null for the rest. */
-export function chipHintKey(state: CrazydramasState): string | null {
+/** The small qualifier some states carry ("not uploaded, or draft"; "some older renders" on a complete series with close lengths); null for the rest. */
+export function chipHintKey(state: CrazydramasState, older = false): string | null {
+  if (state === "live_complete") return older ? "cd.chip.live_complete.hint" : null;
   return state === "not_live" || state === "read_failed" || state === "live_unverified" ? `cd.chip.${state}.hint` : null;
 }
 
@@ -74,9 +79,9 @@ export const VERDICT_PILL: Record<EpisodeVerdict, string> = {
   identical: "pill-success",
 };
 
-export function CrazydramasChip({ state, locale, stale = false, context = "catalog" }: { state: CrazydramasState; locale: Locale; stale?: boolean; context?: "catalog" | "import" }) {
+export function CrazydramasChip({ state, locale, stale = false, older = false, context = "catalog" }: { state: CrazydramasState; locale: Locale; stale?: boolean; older?: boolean; context?: "catalog" | "import" }) {
   // A failed read says "showing the last good read" only when there is one (stale); with none, the words stop at the failure.
-  const hint = state === "read_failed" && !stale ? null : chipHintKey(state);
+  const hint = state === "read_failed" && !stale ? null : chipHintKey(state, older);
   return (
     <span className={`tw-chip tw-chip-cd ${chipTone(state)}`} data-cd-state={state}>
       <i aria-hidden="true" />

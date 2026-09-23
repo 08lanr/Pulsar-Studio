@@ -19,9 +19,10 @@
 
 import { systemSession, type Session } from "@/lib/auth";
 import { getData, isDataError } from "@/lib/data";
+import { forbidden } from "@/lib/data/errors";
 import type { Episode, PlatformLink, PlatformSnapshot, Title } from "@/lib/types";
-import { crazydramasTransport } from "./index";
 import { crazydramasStatusFor, isHotState, type CrazydramasStatus } from "./match";
+import { crazydramasTransport } from "./pick";
 import { CrazydramasApiError, crazydramasPublicUrl, type CrazydramasTransport } from "./transport";
 import { type CatalogEntry, PLATFORM } from "./types";
 
@@ -36,10 +37,22 @@ const log = (m: string) => console.log(`[crazydramas] ${m}`);
 // ---- the reading the screens load -------------------------------------------------------------------
 
 /**
+ * The title's own reads of a slug, newest first, as the session may see
+ * them. "One film is one title per company", so two companies' titles can
+ * carry one slug and each check records a row on its own title: the other
+ * title's rows (its refusal, say) are never this title's reading, whoever
+ * reads — and a producer's session lists only its own company's rows anyway.
+ */
+async function titleSnapshots(session: Session, titleId: string, slug: string): Promise<PlatformSnapshot[]> {
+  const rows = await getData().listPlatformSnapshots(session, PLATFORM, slug);
+  return rows.filter((s) => s.title_id === titleId);
+}
+
+/**
  * A title's crazydramas status from what the data layer holds: the link,
- * the slug's snapshots (newest first) and the episode rows. The caller's
- * session decides what it may read (a foreign title is not found). Pass the
- * episodes when a page already has them.
+ * the title's snapshots of the slug (newest first) and the episode rows.
+ * The caller's session decides what it may read (a foreign title is not
+ * found). Pass the episodes when a page already has them.
  */
 export async function loadCrazydramasStatus(session: Session, title: Title, episodes?: readonly Episode[]): Promise<CrazydramasStatus> {
   const data = getData();
@@ -47,15 +60,14 @@ export async function loadCrazydramasStatus(session: Session, title: Title, epis
   const link = slug ? await data.getPlatformLink(session, title.id, PLATFORM) : null;
   if (!slug && !link) return crazydramasStatusFor(title, episodes ?? [], null, null);
   const eps = episodes ?? (await data.listTitleEpisodes(session, title.id));
-  const snapshots = await data.listPlatformSnapshots(session, PLATFORM, link?.slug ?? slug!);
+  const snapshots = await titleSnapshots(session, title.id, link?.slug ?? slug!);
   return crazydramasStatusFor(title, eps, snapshots, link);
 }
 
-/** The statuses of many titles (the catalog page), one map by title id; titles with no slug read `not_linked` without a query. */
+/** The statuses of many titles (the catalog page, the Import rows), one map by title id, read side by side; titles with no slug read `not_linked` without a query. */
 export async function loadCrazydramasStatuses(session: Session, titles: readonly Title[]): Promise<Map<string, CrazydramasStatus>> {
-  const out = new Map<string, CrazydramasStatus>();
-  for (const title of titles) out.set(title.id, await loadCrazydramasStatus(session, title));
-  return out;
+  const statuses = await Promise.all(titles.map((title) => loadCrazydramasStatus(session, title)));
+  return new Map(titles.map((title, i) => [title.id, statuses[i]]));
 }
 
 // ---- which slug to read -------------------------------------------------------------------------------
@@ -66,16 +78,22 @@ export type ReadSlug = { slug: string; reason: "title" | "link" | "catalog" | "t
  * Which slug a check reads, pure (plan A2: after the first 200 the title is
  * matched by the drama id, because the CMS can rename a slug):
  *   no link                      the title's own slug
+ *   link, Studio's slug is not the one the link was made under (title_slug), nor the link's, nor the platform's
+ *                                Studio's slug (the person re-pointed the title)
  *   link, the catalog lists the drama id under another slug   that slug (a CMS rename, followed)
- *   link, Studio's slug edited away from the link's and the platform's   Studio's slug (the person re-pointed the title)
  *   link, otherwise              the link's slug
+ * The link's title_slug is what tells a re-point from a film-meta that still
+ * carries the pre-rename slug: after a followed rename the link's slug is
+ * the platform's and its title_slug is still the title's own, so the title's
+ * unchanged slug is not an edit and every later check keeps reading the
+ * platform's slug (the phase 3a review).
  */
 export function resolveReadSlug(title: Pick<Title, "crazydramas_slug">, link: PlatformLink | null, catalog: readonly CatalogEntry[] | null): ReadSlug | null {
   const own = title.crazydramas_slug?.trim() || null;
   if (!link) return own ? { slug: own, reason: "title" } : null;
   const listed = catalog?.find((d) => d.id === link.cd_drama_id) ?? null;
   const platformSlug = listed?.slug ?? link.slug;
-  if (own && own !== link.slug && own !== platformSlug) return { slug: own, reason: "title_edited" };
+  if (own && own !== link.title_slug && own !== link.slug && own !== platformSlug) return { slug: own, reason: "title_edited" };
   if (listed && listed.slug !== link.slug) return { slug: listed.slug, reason: "catalog" };
   return { slug: link.slug, reason: "link" };
 }
@@ -105,33 +123,37 @@ function errorText(e: unknown): string {
 
 /**
  * One title, one read: the caller's session says whether the title is
- * theirs to see; the system records. On a 200 with no link yet, the link is
- * made with the drama id the platform returned; a link whose slug the
- * platform renamed follows the catalog; a title whose slug the person
- * re-pointed in Studio moves its link to the drama that slug now answers
- * with (refused, in the snapshot's error, when another title holds that
- * drama). A failed request is a snapshot with its error and no body — the
- * screens show the last good read marked stale.
+ * theirs to see (a foreign title is not found; a viewer-role producer is
+ * refused, as CLAUDE.md keeps viewers read-only and a check writes a row);
+ * the system records. On a 200 with no link yet, the link is made with the
+ * drama id the platform returned; a link whose slug the platform renamed
+ * follows the catalog; a title whose slug the person re-pointed in Studio
+ * moves its link to the drama that slug now answers with (refused, in the
+ * snapshot's error, when another title holds that drama). A failed request
+ * is a snapshot with its error and no body — the screens show the last good
+ * read marked stale. The status answered is read as the caller: the rows
+ * their session may see, never another company's reads of the same slug.
  */
 export async function checkCrazydramasTitle(session: Session, titleId: string, opts: CheckOptions = {}): Promise<CheckResult> {
   const data = getData();
   const sys = systemSession();
   const now = opts.now ?? Date.now;
   const detail = await data.getTitle(session, titleId); // not_found for a foreign title, before anything is read or written
+  if (session.kind === "producer" && (session.producerRole ?? "viewer") === "viewer") throw forbidden("Requires the reviewer role");
   const title = detail.title;
   const link = await data.getPlatformLink(sys, titleId, PLATFORM);
   const episodes = await data.listTitleEpisodes(sys, titleId);
   const transport = opts.transport ?? crazydramasTransport();
+  const statusOf = async (slug: string, current: PlatformLink | null) => crazydramasStatusFor(title, episodes, await titleSnapshots(session, titleId, slug), current);
 
-  /** The 30-second rule on one slug: the seconds to wait, or null. */
+  /** The 30-second rule on one slug: the seconds to wait, or null. Judged on every read of the slug (the system's view), so two companies cannot hammer one slug together. */
   const tooSoon = async (slug: string): Promise<CheckResult | null> => {
     if (opts.force) return null;
     const newest = (await data.listPlatformSnapshots(sys, PLATFORM, slug, { limit: 1 }))[0];
     if (!newest) return null;
     const age = now() - Date.parse(newest.read_at);
     if (!(age >= 0 && age < CHECK_MIN_AGE_MS)) return null;
-    const status = crazydramasStatusFor(title, episodes, await data.listPlatformSnapshots(sys, PLATFORM, slug), link);
-    return { outcome: "too_soon", title_id: titleId, slug, retry_after_s: Math.ceil((CHECK_MIN_AGE_MS - age) / 1000), status };
+    return { outcome: "too_soon", title_id: titleId, slug, retry_after_s: Math.ceil((CHECK_MIN_AGE_MS - age) / 1000), status: await statusOf(slug, link) };
   };
 
   // The rule first, on the slug known before any request, so a refused Check now costs nothing.
@@ -164,13 +186,16 @@ export async function checkCrazydramasTitle(session: Session, titleId: string, o
       let error: string | null = null;
       const sameDrama = !!link && link.cd_drama_id === answer.drama.id;
       if (!link || read.reason === "title_edited" || (sameDrama && read.slug !== link.slug)) {
-        // The first 200 makes the link; a re-pointed title moves it; a followed rename updates its slug.
+        // The first 200 makes the link; a re-pointed title moves it (title_slug becomes the slug the person set); a followed
+        // rename updates its slug and keeps title_slug, so the next check still knows the title's own slug is not an edit.
         try {
-          currentLink = await data.upsertPlatformLink(sys, { title_id: titleId, platform: PLATFORM, slug: read.slug, cd_drama_id: answer.drama.id });
+          const titleSlug = link && read.reason !== "title_edited" ? link.title_slug : read.slug;
+          currentLink = await data.upsertPlatformLink(sys, { title_id: titleId, platform: PLATFORM, slug: read.slug, title_slug: titleSlug, cd_drama_id: answer.drama.id });
           linked = !link || currentLink.cd_drama_id !== link.cd_drama_id;
         } catch (e) {
           if (!isDataError(e) || e.code !== "conflict") throw e;
-          error = `${read.slug} is drama ${answer.drama.id}, which another title is linked to; the link was not moved`;
+          // Said without naming the other title: "one film is one title per company" means it may be another company's.
+          error = `${read.slug} is a series linked to a different title, so the link was not moved; staff can resolve it`;
         }
       }
       // A 200 that could not be linked keeps its body AND the refusal: the reading shows it as a failed read with that sentence.
@@ -183,8 +208,7 @@ export async function checkCrazydramasTitle(session: Session, titleId: string, o
     const status = e instanceof CrazydramasApiError ? e.status ?? null : null;
     snapshot = await data.recordPlatformSnapshot(sys, { platform: PLATFORM, slug: read.slug, cd_drama_id: link?.cd_drama_id ?? null, title_id: titleId, http_status: status === 200 ? null : status, error: errorText(e) });
   }
-  const snapshots = await data.listPlatformSnapshots(sys, PLATFORM, read.slug);
-  const status = crazydramasStatusFor(title, episodes, snapshots, currentLink);
+  const status = await statusOf(read.slug, currentLink);
   return { outcome: "checked", title_id: titleId, slug: read.slug, http_status: snapshot.http_status, error: snapshot.error, linked, snapshot, status };
 }
 

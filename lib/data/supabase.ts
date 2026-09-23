@@ -1542,16 +1542,16 @@ export const supabaseData: DataLayer = {
     const linkedBy = isSystemSession(session) ? null : session.userId;
     if (existing) {
       const have = existing as PlatformLink;
-      if (have.slug === row.slug && have.cd_drama_id === row.cd_drama_id) return have;
-      const { data, error } = await svc.update({ slug: row.slug, cd_drama_id: row.cd_drama_id, linked_at: now(), linked_by: linkedBy }).eq("id", have.id).select("*").single();
+      if (have.slug === row.slug && have.title_slug === row.title_slug && have.cd_drama_id === row.cd_drama_id) return have;
+      const { data, error } = await svc.update({ slug: row.slug, title_slug: row.title_slug, cd_drama_id: row.cd_drama_id, linked_at: now(), linked_by: linkedBy }).eq("id", have.id).select("*").single();
       if (error) throw mapError(error);
-      await auditEvent(session, "move_platform_link", "core.platform_links", have.id, have.title_id, null, { slug: have.slug, cd_drama_id: have.cd_drama_id }, { slug: row.slug, cd_drama_id: row.cd_drama_id });
+      await auditEvent(session, "move_platform_link", "core.platform_links", have.id, have.title_id, null, { slug: have.slug, title_slug: have.title_slug, cd_drama_id: have.cd_drama_id }, { slug: row.slug, title_slug: row.title_slug, cd_drama_id: row.cd_drama_id });
       return data as PlatformLink;
     }
     const { data, error } = await svc.insert({ ...row, linked_by: linkedBy }).select("*").single();
     if (error) throw mapError(error); // 23505 on (platform, cd_drama_id) is the conflict above, raced
     const link = data as PlatformLink;
-    await auditEvent(session, "create_platform_link", "core.platform_links", link.id, link.title_id, null, null, { platform: link.platform, slug: link.slug, cd_drama_id: link.cd_drama_id });
+    await auditEvent(session, "create_platform_link", "core.platform_links", link.id, link.title_id, null, null, { platform: link.platform, slug: link.slug, title_slug: link.title_slug, cd_drama_id: link.cd_drama_id });
     return link;
   },
 

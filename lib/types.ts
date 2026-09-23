@@ -511,8 +511,10 @@ export type PlatformLink = {
   id: string;
   title_id: string;
   platform: PlatformName;
-  /** The slug the link was made under (the title's `crazydramas_slug` at the time). */
+  /** The slug the drama is read under now: follows a CMS rename through the catalog. */
   slug: string;
+  /** The title's own `crazydramas_slug` when the link was made or last re-pointed in Studio; a followed rename never changes it, so film-meta still carrying the pre-rename slug is not "the person re-pointed the title". */
+  title_slug: string;
   /** The platform's own id of the drama (crazydramas `dramas.id`). */
   cd_drama_id: string;
   linked_at: string;

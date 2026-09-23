@@ -7,7 +7,7 @@
 import { notFound } from "next/navigation";
 import type { Session } from "@/lib/auth";
 import { getData, isDataError } from "@/lib/data";
-import { loadCrazydramasStatus, loadCrazydramasStatuses, PLATFORM, type CrazydramasState, type CrazydramasStatus } from "@/lib/crazydramas";
+import { chipReading, loadCrazydramasStatus, loadCrazydramasStatuses, PLATFORM, type CrazydramasChipReading, type CrazydramasStatus } from "@/lib/crazydramas";
 import type { AnalyticsRange, TitlePerformanceRow } from "@/lib/analytics/types";
 import type { TitleDetail } from "@/lib/types";
 import { adStatus, platformStatus, type AdReading, type PlatformStatus } from "./title-status";
@@ -29,10 +29,10 @@ export type TitleWorkspace = {
  * id, for the Import films rows. A title without a slug is not in the map:
  * its row reads "Not linked: add a crazydramas slug" from the film itself.
  */
-export async function crazydramasStatesByTitle(session: Session): Promise<Record<string, { state: CrazydramasState; stale: boolean }>> {
+export async function crazydramasStatesByTitle(session: Session): Promise<Record<string, CrazydramasChipReading>> {
   const statuses = await loadCrazydramasStatuses(session, await getData().listTitlesWithPlatformSlug(session, PLATFORM));
-  const out: Record<string, { state: CrazydramasState; stale: boolean }> = {};
-  for (const [id, status] of statuses) out[id] = { state: status.state, stale: status.stale };
+  const out: Record<string, CrazydramasChipReading> = {};
+  for (const [id, status] of statuses) out[id] = chipReading(status);
   return out;
 }
 

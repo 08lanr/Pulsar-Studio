@@ -14,7 +14,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useT } from "@/components/locale";
 import type { CrazydramasStatus } from "@/lib/crazydramas/match";
-import { checkedAtText, fmtDelta, fmtPriceCents, fmtSeconds, CrazydramasChip, VERDICT_PILL } from "./CrazydramasChip";
+import { checkedAtText, chipReading, fmtDelta, fmtPriceCents, fmtSeconds, CrazydramasChip, VERDICT_PILL } from "./CrazydramasChip";
 
 type Props = {
   titleId: string;
@@ -81,13 +81,13 @@ export default function CrazydramasPanel({ titleId, status, publicUrl, imported,
       <section className="card cd-series" aria-label={tt("cd.title")}>
         <div style={{ display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
           <span className="cd-poster" style={{ width: 96, aspectRatio: "3 / 4", borderRadius: 6, overflow: "hidden", background: "var(--surface-3)", flexShrink: 0 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element -- the poster as crazydramas.com serves it; a plain <img>, nothing proxied */}
+            {/* eslint-disable-next-line @next/next/no-img-element -- the poster as crazydramas.com serves it (in fixture mode the fake's same-origin SVG); a plain <img>, nothing proxied */}
             {series?.poster_url ? <img src={series.poster_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null}
           </span>
           <dl className="tw-facts" style={{ flex: "1 1 320px" }}>
             <div>
               <dt>{tt("cd.series.live")}</dt>
-              <dd><CrazydramasChip state={status.state} stale={status.stale} locale={locale} /></dd>
+              <dd><CrazydramasChip {...chipReading(status)} locale={locale} /></dd>
             </div>
             <div>
               <dt>{tt("cd.series.slug")}</dt>
@@ -137,8 +137,11 @@ export default function CrazydramasPanel({ titleId, status, publicUrl, imported,
             <button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => void check()}>
               {busy ? <><span className="spinner" /> {tt("cd.check.busy")}</> : tt("cd.check")}
             </button>
+          ) : reason === "preview" ? (
+            // Staff previewing the portal: the staff mirror is the one place they may press Check now, so the note is the way there.
+            <span className="hint">{tt("cd.check.preview")} <a href={`/titles/${titleId}/crazydramas`}>{tt("cd.check.preview.link")}&nbsp;→</a></span>
           ) : reason ? (
-            <span className="hint">{tt(reason === "preview" ? "cd.check.preview" : "cd.check.readOnly")}</span>
+            <span className="hint">{tt("cd.check.readOnly")}</span>
           ) : null
         )}
         {note && <span className={note.error ? "err" : "hint"} role={note.error ? "alert" : "status"}>{note.text}</span>}

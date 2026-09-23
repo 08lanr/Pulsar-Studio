@@ -1,10 +1,12 @@
 // Check now (decision 2026-09-23, "the crazydramas connection"; plan A5):
 // one public read of the title's series, recorded as a snapshot, answered
-// as the reading the screens show. Same-origin guard, staff or any producer
-// role (a foreign title is not found, never forbidden), zod, the shared
-// check function, JSON. Refused with 429 while a snapshot of that slug is
-// younger than 30 seconds (`retry_after_s` says how long), 409 when the
-// title has no slug to read. No credential is involved and none is printed.
+// as the reading the screens show. Same-origin guard, staff or a producer
+// reviewer / approver — a viewer stays read-only (CLAUDE.md) and gets 403,
+// the same rule the page's Check now follows; a foreign title is not found,
+// never forbidden — zod, the shared check function, JSON. Refused with 429
+// while a snapshot of that slug is younger than 30 seconds (`retry_after_s`
+// says how long), 409 when the title has no slug to read. No credential is
+// involved and none is printed.
 
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
@@ -19,7 +21,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   return handle(req, async () => {
     const who = await requireSession();
     if (who.response) return who.response;
-    const g = who.session.kind === "staff" ? await requireStaff() : await requireProducer();
+    const g = who.session.kind === "staff" ? await requireStaff() : await requireProducer({ minRole: "reviewer" });
     if (g.response) return g.response;
     const p = await parseJson(req, Body);
     if (p.response) return p.response;

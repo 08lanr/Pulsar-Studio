@@ -46,17 +46,21 @@ test("a link is made by the system or staff, one per title and one title per dra
   const link = await fixtureData.upsertPlatformLink(systemSession(), { title_id: title.id, platform: "crazydramas", slug: "forced-to-marry-the-mafia-boss", cd_drama_id: DRAMA_A.toUpperCase() });
   assert.equal(link.title_id, title.id);
   assert.equal(link.cd_drama_id, DRAMA_A, "the drama id is kept lowercase");
+  assert.equal(link.title_slug, "forced-to-marry-the-mafia-boss", "the title's own slug at link time is the slug, when none is given");
   assert.equal(link.linked_by, null, "the system actor has no profile row");
   assert.match(link.linked_at, /^\d{4}-/);
   assert.equal((await fixtureData.getPlatformLink(producer(), title.id, "crazydramas"))?.id, link.id, "the title's producer reads it");
   assert.equal((await fixtureData.getPlatformLink(viewer(), title.id, "crazydramas"))?.id, link.id);
   assert.equal((await fixtureData.upsertPlatformLink(staff(), { title_id: title.id, platform: "crazydramas", slug: "forced-to-marry-the-mafia-boss", cd_drama_id: DRAMA_A })).id, link.id, "the same link again is the same row");
 
-  const moved = await fixtureData.upsertPlatformLink(staff(), { title_id: title.id, platform: "crazydramas", slug: "forced-to-marry-renamed", cd_drama_id: DRAMA_A });
+  // A followed CMS rename moves the slug and passes the title's own slug through, so it stays; a re-point leaves it out and it becomes the new slug.
+  const moved = await fixtureData.upsertPlatformLink(staff(), { title_id: title.id, platform: "crazydramas", slug: "forced-to-marry-renamed", title_slug: link.title_slug, cd_drama_id: DRAMA_A });
   assert.equal(moved.id, link.id, "one link per title: a rename moves it");
   assert.equal(moved.slug, "forced-to-marry-renamed");
+  assert.equal(moved.title_slug, "forced-to-marry-the-mafia-boss", "a followed rename keeps the title's own slug");
   assert.equal(moved.linked_by, staff().userId);
   assert.equal((await fixtureData.listPlatformLinks(staff(), "crazydramas")).length, 1);
+  await assert.rejects(fixtureData.upsertPlatformLink(staff(), { title_id: title.id, platform: "crazydramas", slug: "forced-to-marry-renamed", title_slug: "Not A Slug", cd_drama_id: DRAMA_A }), { code: "invalid" });
 
   const second = await importedTitle("my-new-billionaire-husband", "low-quality/reclaiming-her-world");
   await assert.rejects(fixtureData.upsertPlatformLink(systemSession(), { title_id: second.id, platform: "crazydramas", slug: "my-new-billionaire-husband", cd_drama_id: DRAMA_A }), { code: "conflict" }, "one title per drama");

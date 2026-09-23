@@ -1,7 +1,6 @@
 import { t, type Locale } from "@/lib/i18n";
 import type { AdStatus, PlatformStatus } from "@/lib/research/title-status";
-import type { CrazydramasState } from "@/lib/crazydramas/match";
-import { CrazydramasChip } from "./CrazydramasChip";
+import { CrazydramasChip, type CrazydramasChipReading } from "./CrazydramasChip";
 
 // The one title workspace (decision 2026-09-09): every page about a title
 // shares this identity, its statuses (TikTok publication, Pulsar
@@ -41,7 +40,7 @@ export function sectionHref(titleId: string, section: TitleSection, query = ""):
   return `/producer/titles/${titleId}${SECTIONS.find((s) => s.id === section)?.sub ?? ""}${query}`;
 }
 
-export default function TitleShell({ locale, titleId, name_zh, name_en, platform, ads, adStep, crazydramas, crazydramasStale = false, section, actions, catalogHref = "/producer/titles", catalogLabel = "ws.nav.catalog", tiktokQuery = "", children }: {
+export default function TitleShell({ locale, titleId, name_zh, name_en, platform, ads, adStep, crazydramas, section, actions, catalogHref = "/producer/titles", catalogLabel = "ws.nav.catalog", tiktokQuery = "", children }: {
   locale: Locale;
   titleId: string;
   name_zh: string;
@@ -49,9 +48,8 @@ export default function TitleShell({ locale, titleId, name_zh, name_en, platform
   platform: PlatformStatus;
   ads: AdStatus;
   adStep?: string | null;
-  /** The crazydramas series state (`loadTitleWorkspace().crazydramas.state`); the third chip is drawn only when a page supplies it. */
-  crazydramas?: CrazydramasState | null;
-  crazydramasStale?: boolean;
+  /** The crazydramas series chip (`chipReading(loadTitleWorkspace().crazydramas)`, `loadAnalyticsPage().crazydramas`): every section page supplies it (plan A4.2). */
+  crazydramas?: CrazydramasChipReading | null;
   section: TitleSection;
   actions?: React.ReactNode;
   catalogHref?: string;
@@ -77,7 +75,7 @@ export default function TitleShell({ locale, titleId, name_zh, name_en, platform
           <div className="tw-chips">
             <PlatformChip status={platform} locale={locale} />
             <AdChip status={ads} locale={locale} step={adStep} />
-            {crazydramas && <CrazydramasChip state={crazydramas} stale={crazydramasStale} locale={locale} />}
+            {crazydramas && <CrazydramasChip {...crazydramas} locale={locale} />}
           </div>
         </div>
         {actions && <div className="tw-actions">{actions}</div>}

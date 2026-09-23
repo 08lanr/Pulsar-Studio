@@ -14,8 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiRequestError, getJson, postJson } from "@/lib/api-client";
 import { useT } from "@/components/locale";
 import type { FilmListing, FilmRow, ImportProgress, ImportStarted } from "@/lib/film-import/import";
-import type { CrazydramasState } from "@/lib/crazydramas/match";
-import { CrazydramasChip } from "./CrazydramasChip";
+import { CrazydramasChip, type CrazydramasChipReading } from "./CrazydramasChip";
 
 type Props = {
   /** Which routes and title links to use. */
@@ -24,11 +23,11 @@ type Props = {
   /** Staff: the companies to import for. */
   producers?: { id: string; name: string }[];
   /**
-   * The crazydramas chip state of each imported title, by title id (plan
-   * A4.3; `crazydramasStatesByTitle`). A film with no film-meta slug reads
-   * "Not linked: add a crazydramas slug" whether or not it is imported.
+   * The crazydramas chip of each imported title, by title id (plan A4.3;
+   * `crazydramasStatesByTitle`). A film with no film-meta slug reads "Not
+   * linked: add a crazydramas slug" whether or not it is imported.
    */
-  crazydramas?: Record<string, { state: CrazydramasState; stale: boolean }>;
+  crazydramas?: Record<string, CrazydramasChipReading>;
 };
 
 type StartReply = Partial<ImportStarted> & { error?: string; code?: string };
@@ -59,21 +58,27 @@ export default function FilmImport({ portal, canImport, producers = [], crazydra
   const importUrl = portal === "admin" ? "/api/admin/films/import" : "/api/producer/films/import";
   const posterUrl = (ref: string) => `${portal === "admin" ? "/api/admin/films/poster" : "/api/producer/films/poster"}?ref=${encodeURIComponent(ref)}`;
   const openUrl = (titleId: string) => (portal === "admin" ? `/titles/${titleId}` : `/producer/titles/${titleId}`);
+  /** The list the desk is showing now: an answer for another company (the picker moved while it was in flight) is dropped, not shown under the new name. */
+  const current = useRef(listUrl);
 
   const load = useCallback(async () => {
+    const url = listUrl;
     try {
-      const next = await getJson<FilmListing>(listUrl);
+      const next = await getJson<FilmListing>(url);
+      if (current.current !== url) return;
       setListing(next);
       setLoadError(null);
     } catch (e) {
+      if (current.current !== url) return;
       setLoadError(e instanceof ApiRequestError ? e.message : (e as Error).message);
     }
   }, [listUrl]);
 
   useEffect(() => {
+    current.current = listUrl;
     setListing(null);
     void load();
-  }, [load]);
+  }, [load, listUrl]);
 
   const anyRunning = useMemo(() => !!listing?.films.some((f) => running(f.progress)), [listing]);
   useEffect(() => {
@@ -179,11 +184,18 @@ export default function FilmImport({ portal, canImport, producers = [], crazydra
     return open ?? <span className="gt-muted">—</span>;
   }
 
-  /** The crazydramas cell of a row: the chip for an imported title, the words for what is known before that. */
+  /** The crazydramas cell of a row: the chip for an imported title with the way into its series check (the section, or the staff mirror), the words for what is known before that. */
   function crazydramasCell(film: FilmRow) {
     if (!film.crazydramas_slug) return <CrazydramasChip state="not_linked" context="import" locale={locale} />;
     const known = film.imported ? crazydramas[film.imported.title_id] : undefined;
-    if (known) return <CrazydramasChip state={known.state} stale={known.stale} locale={locale} />;
+    if (known && film.imported) {
+      return (
+        <span style={{ display: "grid", gap: 2, justifyItems: "start" }}>
+          <CrazydramasChip {...known} locale={locale} />
+          <a className="pf-cell-link" href={`${openUrl(film.imported.title_id)}/crazydramas`}>{tt("pf.cell.crazydramas.open")}&nbsp;→</a>
+        </span>
+      );
+    }
     return <small className="gt-muted">{tt("cd.import.slug", { slug: film.crazydramas_slug })}</small>;
   }
 

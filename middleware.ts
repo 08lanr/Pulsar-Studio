@@ -34,7 +34,9 @@ import { dataSource } from "@/lib/data-source";
 // persona and there is nothing to refresh.
 
 const PUBLIC_PATHS = new Set(["/login", "/auth/callback", "/favicon.ico", "/robots.txt"]);
-const PUBLIC_PREFIXES = ["/api/auth/", "/_next/", "/fonts/"];
+// /crazydramas-fake/ holds the two stand-in poster SVGs the crazydramas fake names in fixture mode (lib/crazydramas/fake.ts):
+// static art with nothing in it, served like the fonts, so a producer session's <img> is not redirected to /producer.
+const PUBLIC_PREFIXES = ["/api/auth/", "/_next/", "/fonts/", "/crazydramas-fake/"];
 
 function isPublic(pathname: string): boolean {
   if (PUBLIC_PATHS.has(pathname)) return true;
@@ -150,8 +152,8 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Everything except Next's own static assets and the self-hosted fonts.
-  // The favicon is public only because browsers fetch it before anyone can
-  // log in.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|fonts/).*)"],
+  // Everything except Next's own static assets, the self-hosted fonts and
+  // the fixture's stand-in posters. The favicon is public only because
+  // browsers fetch it before anyone can log in.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|fonts/|crazydramas-fake/).*)"],
 };

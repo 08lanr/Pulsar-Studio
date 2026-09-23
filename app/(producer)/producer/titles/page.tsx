@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { portalSession, producerLocale } from "@/components/producer/server";
 import { AdChip, PlatformChip, titleName } from "@/components/producer/TitleShell";
-import { CrazydramasChip } from "@/components/producer/CrazydramasChip";
+import { chipReading, CrazydramasChip } from "@/components/producer/CrazydramasChip";
 import { BandPill, ScoreDial } from "@/components/producer/research/workspace-ui";
 import { IconPlus } from "@/components/producer/icons";
 import { getData } from "@/lib/data";
@@ -136,7 +136,7 @@ export default async function MyCatalog({ searchParams }: { searchParams: Search
                       <a className="pf-cell-link" href={ads.status === "none" ? `/producer/launch` : `${open}/campaigns`}>{t(locale, ads.status === "none" ? "pf.cell.start" : "pf.cell.campaigns")}&nbsp;→</a>
                     </td>
                     <td className="pf-cell pf-cell-cd">
-                      {cd ? <CrazydramasChip state={cd.state} stale={cd.stale} locale={locale} /> : <span className="pf-missing">—</span>}
+                      {cd ? <CrazydramasChip {...chipReading(cd)} locale={locale} /> : <span className="pf-missing">—</span>}
                       <a className="pf-cell-link" href={`${open}/crazydramas`}>{t(locale, !cd || cd.state === "not_linked" ? "pf.cell.crazydramas.link" : "pf.cell.crazydramas.open")}&nbsp;→</a>
                     </td>
                     <td className="pf-cell pf-score">

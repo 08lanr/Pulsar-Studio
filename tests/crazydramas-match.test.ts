@@ -17,6 +17,7 @@ import {
   EPISODE_VERDICTS,
   FRAME_RULE,
   MUX_FRAME_OFFSET,
+  chipReading,
   crazydramasStatusFor,
   frameDelta,
   inferFps,
@@ -163,8 +164,9 @@ test("the rule is frames, never ±0.1 s: a file within a tenth of a second but o
 // ---- the per-episode verdicts and every series state ----------------------------------------------------------
 
 test("missing, extra, not_ready and unknown pair by number; not_ready and missing read partial, extra and a gap read differs, unknown reads unverified", () => {
-  const studio = studioRows([[1, 120], [2, 151], [3, 180]]);
-  const complete: PlatformEpisode[] = [{ n: 1, duration_s: 4.067, status: "ready", is_published: true }, { n: 2, duration_s: 5.1, status: "ready", is_published: true }, { n: 3, duration_s: 6.067, status: "ready", is_published: true }];
+  // The fixture film's own counts (ffprobe on tests/fixtures/workspace: 120, 150, 180 at 30 fps) against the lengths Mux would report.
+  const studio = studioRows([[1, 120], [2, 150], [3, 180]]);
+  const complete: PlatformEpisode[] = [{ n: 1, duration_s: 4.067, status: "ready", is_published: true }, { n: 2, duration_s: 5.067, status: "ready", is_published: true }, { n: 3, duration_s: 6.067, status: "ready", is_published: true }];
   assert.equal(stateFromMatch(matchEpisodes(studio, complete)), "live_complete");
 
   const missing = matchEpisodes(studio, complete.slice(0, 2));
@@ -211,7 +213,7 @@ test("identical and local_newer exist only with a ledger (plan A6, not built): n
 
 test("crazydramasStatusFor: every chip state from what the data layer holds, the checked time as observed, the failed read shown stale over the last good one", () => {
   const studio = studioRows(FRAMES[MAFIA].zip!);
-  const link: PlatformLink = { id: "l1", title_id: "t1", platform: "crazydramas", slug: MAFIA, cd_drama_id: "01e0f703-725e-4b7c-8770-57a87cc75cff", linked_at: "2026-09-23T07:00:00.000Z", linked_by: null };
+  const link: PlatformLink = { id: "l1", title_id: "t1", platform: "crazydramas", slug: MAFIA, title_slug: MAFIA, cd_drama_id: "01e0f703-725e-4b7c-8770-57a87cc75cff", linked_at: "2026-09-23T07:00:00.000Z", linked_by: null };
   const good = snapshotOf(MAFIA);
   const notFound: PlatformSnapshot = { ...good, id: "s404", http_status: 404, drama: null, episodes: null, cd_drama_id: link.cd_drama_id };
   const failed: PlatformSnapshot = { ...good, id: "sfail", http_status: null, drama: null, episodes: null, error: "crazydramas did not answer (timeout, DNS or a refused connection).", read_at: "2026-09-23T08:00:00.000Z" };
@@ -281,12 +283,18 @@ test("crazydramasStatusFor: every chip state from what the data layer holds, the
   for (const state of CRAZYDRAMAS_STATES) if (state !== "local_newer") assert.ok(seen.has(state), `state ${state} is reachable`);
   assert.equal(EPISODE_VERDICTS.length, 8);
   assert.ok(isHotState("live_partial") && isHotState("live_differs") && !isHotState("live_complete") && !isHotState("not_live") && !isHotState("read_failed"));
+
+  // The chip's reading: "complete" carries "older renders" only when an episode reads close, and never a count.
+  assert.deepEqual(chipReading(live), { state: "live_complete", stale: false, older: false });
+  assert.deepEqual(chipReading(crazydramasStatusFor({ crazydramas_slug: MAFIA }, studioRows(FRAMES[MAFIA].current), [good], link)), { state: "live_complete", stale: false, older: true }, "the current Mafia King renders: 21 close");
+  assert.deepEqual(chipReading(stale), { state: "read_failed", stale: true, older: false });
+  assert.deepEqual(chipReading(crazydramasStatusFor({ crazydramas_slug: HHAW }, studioRows(FRAMES[HHAW].current), [snapshotOf(HHAW)], null)), { state: "live_differs", stale: false, older: false }, "older is said only of a complete series");
 });
 
 // ---- which slug a check reads -------------------------------------------------------------------------------
 
-test("resolveReadSlug: the title's slug before a link, the link's after; the catalog's slug follows a CMS rename; a slug the person re-pointed in Studio is read instead", () => {
-  const link: PlatformLink = { id: "l", title_id: "t", platform: "crazydramas", slug: "a-series", cd_drama_id: "01e0f703-725e-4b7c-8770-57a87cc75cff", linked_at: "2026-09-23T00:00:00.000Z", linked_by: null };
+test("resolveReadSlug: the title's slug before a link, the link's after; the catalog's slug follows a CMS rename and keeps following it; a slug the person re-pointed in Studio is read instead", () => {
+  const link: PlatformLink = { id: "l", title_id: "t", platform: "crazydramas", slug: "a-series", title_slug: "a-series", cd_drama_id: "01e0f703-725e-4b7c-8770-57a87cc75cff", linked_at: "2026-09-23T00:00:00.000Z", linked_by: null };
   const entry = (slug: string, id = link.cd_drama_id) => ({ id, slug, title: "A", status: "published", language: "en", free_episode_count: 5, series_price_cents: 999, iap_product_id: null, poster_url: null, poster_blurhash: null, episode_count: 1, cta_mode: null });
   assert.deepEqual(resolveReadSlug({ crazydramas_slug: "a-series" }, null, null), { slug: "a-series", reason: "title" });
   assert.equal(resolveReadSlug({ crazydramas_slug: null }, null, [entry("a-series")]), null);
@@ -296,6 +304,15 @@ test("resolveReadSlug: the title's slug before a link, the link's after; the cat
   assert.deepEqual(resolveReadSlug({ crazydramas_slug: "another-series" }, link, [entry("a-series")]), { slug: "another-series", reason: "title_edited" });
   assert.deepEqual(resolveReadSlug({ crazydramas_slug: null }, link, null), { slug: "a-series", reason: "link" }, "a cleared slug still reads the link's");
   assert.deepEqual(resolveReadSlug({ crazydramas_slug: "a-series" }, link, [entry("elsewhere", "b03e20e3-dac1-4c20-9903-5f37664aeda9")]), { slug: "a-series", reason: "link" }, "a catalog that no longer lists the drama changes nothing");
+
+  // After a followed rename the link reads the platform's slug and still records the title's own: film-meta carrying
+  // `a-series` is not a re-point, so the third check and every one after it keep reading `a-series-renamed`.
+  const followed: PlatformLink = { ...link, slug: "a-series-renamed" };
+  assert.deepEqual(resolveReadSlug({ crazydramas_slug: "a-series" }, followed, [entry("a-series-renamed")]), { slug: "a-series-renamed", reason: "link" });
+  assert.deepEqual(resolveReadSlug({ crazydramas_slug: "a-series" }, followed, null), { slug: "a-series-renamed", reason: "link" }, "with no catalog too");
+  assert.deepEqual(resolveReadSlug({ crazydramas_slug: "a-series-renamed" }, followed, null), { slug: "a-series-renamed", reason: "link" }, "film-meta updated to the new slug: still not an edit");
+  assert.deepEqual(resolveReadSlug({ crazydramas_slug: "another-series" }, followed, [entry("a-series-renamed")]), { slug: "another-series", reason: "title_edited" }, "a third slug is a re-point");
+  assert.deepEqual(resolveReadSlug({ crazydramas_slug: "a-series" }, followed, [entry("a-series")]), { slug: "a-series", reason: "catalog" }, "renamed back in the CMS: followed again");
 });
 
 // ---- the guards --------------------------------------------------------------------------------------------

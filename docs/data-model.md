@@ -1178,7 +1178,10 @@ rows and the title's episodes, never stored.
 core.platform_links                          -- which drama on the platform a title IS (plan A2)
   id uuid pk, title_id uuid* references core.titles on delete cascade,
   platform text* in ('crazydramas'),         -- checked, not an enum: a second platform needs no migration of the type
-  slug text* (^[a-z0-9]+(-[a-z0-9]+)*$),     -- the slug the link was made under (the title's crazydramas_slug at the time)
+  slug text* (^[a-z0-9]+(-[a-z0-9]+)*$),     -- the slug the drama is read under now: a CMS rename, followed through the catalog, moves it
+  title_slug text* (same rule),              -- the title's own crazydramas_slug when the link was made or last re-pointed in Studio;
+                                             --   a followed rename never changes it, so a film-meta still carrying the pre-rename slug
+                                             --   is not "the person re-pointed the title" (resolveReadSlug; the phase 3a review)
   cd_drama_id uuid*,                         -- the platform's own id (crazydramas dramas.id): the match key from the first 200 on,
                                              --   because a slug can be edited in the crazydramas CMS
   linked_at timestamptz*, linked_by uuid references core.profiles on delete set null,   -- null for the system actor (the sweep)
@@ -1209,8 +1212,12 @@ is NOT NULL, and producers cannot read jobs: the snapshot row is the record
 of the check (the hourly sweep, Check now, the after-import check;
 `lib/crazydramas/sweep.ts`). The link is made on the first 200 read of
 `core.titles.crazydramas_slug` (0015) with the drama id the platform
-returned; a CMS rename is followed through the catalog (the link's slug
-moves); a slug the person re-points in Studio moves the link to the drama it
-answers with, refused (in the snapshot's `error`) when another title holds
-that drama. `identical` and `local_newer` in the reading need the ledger of
-plan A6 (`studio.cd_publications`, the write path), which is not built.
+returned; a CMS rename is followed through the catalog (the link's `slug`
+moves, its `title_slug` stays); a slug the person re-points in Studio (none
+of `title_slug`, `slug` or the platform's) moves the link to the drama it
+answers with, refused (in the snapshot's `error`, naming no other title)
+when another title holds that drama. A title's reading is built from its own
+snapshot rows of the slug (`title_id`), never another title's, since two
+companies' titles can carry one slug. `identical` and `local_newer` in the
+reading need the ledger of plan A6 (`studio.cd_publications`, the write
+path), which is not built.

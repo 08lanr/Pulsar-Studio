@@ -3964,5 +3964,7 @@
   "cd.slugReassigned.note": "This slug now serves another series than the one linked (a rename in the CMS). It is read as not live.",
   "cd.unverified.note": "Every episode is on CrazyDramas and ready, but Studio holds no frame count for some of them, so their lengths cannot be checked. Frame counts come with an import from the film workspace.",
   "cd.delta": "{d} frames",
-  "cd.checked.failed": "Last read failed {time}; no good read yet"
+  "cd.checked.failed": "Last read failed {time}; no good read yet",
+  "cd.chip.live_complete.hint": "some older renders",
+  "cd.check.preview.link": "Open the staff page"
 }

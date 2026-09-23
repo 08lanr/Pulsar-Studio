@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { adminLocale, staffSession } from "@/components/admin/server";
-import { CrazydramasChip } from "@/components/producer/CrazydramasChip";
+import { chipReading, CrazydramasChip } from "@/components/producer/CrazydramasChip";
 import CrazydramasPanel from "@/components/producer/CrazydramasPanel";
 import { crazydramasPublicUrl, loadCrazydramasStatus } from "@/lib/crazydramas";
 import { getData, isDataError } from "@/lib/data";
@@ -25,7 +25,7 @@ export default async function StaffCrazydramasPage({ params }: { params: { id: s
           <div className="title-main">
             <div className="title-row">
               <h1 className="bilingual" lang="zh-CN">{detail.title.name_zh}</h1>
-              <CrazydramasChip state={status.state} stale={status.stale} locale={locale} />
+              <CrazydramasChip {...chipReading(status)} locale={locale} />
             </div>
             <div className="title-meta">
               {detail.title.name_en && <span>{detail.title.name_en}</span>}

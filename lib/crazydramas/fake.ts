@@ -1,8 +1,9 @@
 // The crazydramas fake (plan A2): a deterministic catalog that mirrors the
 // fixture workspace under tests/fixtures/workspace — the READY film there is
-// `fixture-film` (three episodes of 120, 151 and 180 frames at 30 fps, which
-// is what the import measures) — so fixture mode and the e2e server show
-// every chip state with no network. The six fixture slugs:
+// `fixture-film` (three episodes of 120, 150 and 180 frames at 30 fps, which
+// is what the import's `ffprobe -count_packets` measures on cut/eps) — so
+// fixture mode and the e2e server show every chip state with no network.
+// The six fixture slugs:
 //
 //   fixture-film              live, complete, every episode "same length"
 //   fixture-film-partial      episode 3 is not on crazydramas
@@ -13,8 +14,10 @@
 //
 // plus the three real series that match no Studio title today, with their
 // placeholder posters, so the staff mirror has something to list. Nothing
-// here is a credential and nothing reaches a network; the fake never holds a
-// playback id or a thumbnail URL either.
+// here is a credential and nothing reaches a network — the posters are two
+// SVGs under public/crazydramas-fake/, served by the app itself, so the
+// browser's <img> never asks crazydramas.com in fixture mode or e2e; the
+// fake never holds a playback id or a thumbnail URL either.
 
 import type { PlatformDrama, PlatformEpisode } from "@/lib/types";
 import { CrazydramasApiError, type CrazydramasTransport } from "./transport";
@@ -23,7 +26,12 @@ import { type CatalogEntry, isMockSlug, type SeriesRead } from "./types";
 /** (frames + MUX_FRAME_OFFSET) / fps to three decimals, the way Mux reports a length. */
 const muxLength = (frames: number, fps = 30, offset = 2) => Math.round(((frames + offset) / fps) * 1000) / 1000;
 
-const FIXTURE_FRAMES = [120, 151, 180];
+/** The fixture film's frame counts, as ffprobe counts them on tests/fixtures/workspace/low-quality/fixture-film/cut/eps. */
+const FIXTURE_FRAMES = [120, 150, 180];
+
+/** Same-origin stand-ins for the platform's poster art; the `-placeholder` name keeps `poster_placeholder` true for the three real series. */
+export const FAKE_POSTER_URL = "/crazydramas-fake/poster.svg";
+export const FAKE_PLACEHOLDER_POSTER_URL = "/crazydramas-fake/poster-placeholder.svg";
 
 function drama(id: string, slug: string, title: string, episodeCount: number, placeholder = false): PlatformDrama {
   return {
@@ -35,7 +43,7 @@ function drama(id: string, slug: string, title: string, episodeCount: number, pl
     free_episode_count: Math.min(5, episodeCount),
     series_price_cents: 999,
     iap_product_id: `crazydrama.series.${slug.replace(/-/g, "_")}`,
-    poster_url: `https://crazydramas.com/posters/${slug}${placeholder ? "-placeholder" : ""}.jpg`,
+    poster_url: placeholder ? FAKE_PLACEHOLDER_POSTER_URL : FAKE_POSTER_URL,
     poster_blurhash: "LIDuMMRk9G=_}=ay-QxZr;xZ={NG",
     episode_count: episodeCount,
     cta_mode: "web_checkout",

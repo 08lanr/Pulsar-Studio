@@ -255,6 +255,19 @@ export type CrazydramasStatus = {
 
 export type StatusOptions = Pick<MatchOptions, "fps" | "ledger">;
 
+/**
+ * What a chip needs of a status (the title header, the catalog cell, an
+ * Import row): the state, whether the read shown is a stale one, and whether
+ * a complete series has episodes that read "close" — older renders, still
+ * complete — the one qualifier "complete" carries, in words and never as a
+ * count (decision 2026-09-08, "status board").
+ */
+export type CrazydramasChipReading = { state: CrazydramasState; stale: boolean; older: boolean };
+
+export function chipReading(status: Pick<CrazydramasStatus, "state" | "stale" | "counts">): CrazydramasChipReading {
+  return { state: status.state, stale: status.stale, older: status.state === "live_complete" && status.counts.close > 0 };
+}
+
 const emptyCounts = (studio: number): MatchResult["counts"] => ({ ...zeroCounts(), studio, live: 0, ready: 0 });
 
 function seriesFacts(d: NonNullable<PlatformSnapshot["drama"]>): CrazydramasSeriesFacts {

@@ -624,6 +624,8 @@ function platformTables(db: FixtureDb): PlatformTables {
   const ext = db as unknown as Partial<PlatformTables>;
   ext.platform_links ??= [];
   ext.platform_snapshots ??= [];
+  // A link persisted before the review added title_slug (fixture-state.json) reads as made under its own slug, as the migration fills it.
+  for (const l of ext.platform_links) l.title_slug ??= l.slug;
   return ext as PlatformTables;
 }
 
@@ -2558,15 +2560,15 @@ export const fixtureData: DataLayer = {
     const existing = platform_links.find((l) => l.platform === row.platform && l.title_id === row.title_id);
     const linkedBy = isSystemSession(session) ? null : session.userId;
     if (existing) {
-      const before: Json = { slug: existing.slug, cd_drama_id: existing.cd_drama_id };
-      if (existing.slug === row.slug && existing.cd_drama_id === row.cd_drama_id) return clone(existing);
-      Object.assign(existing, { slug: row.slug, cd_drama_id: row.cd_drama_id, linked_at: now(), linked_by: linkedBy });
-      audit(s, session, "move_platform_link", "core.platform_links", existing.id, existing.title_id, before, { slug: existing.slug, cd_drama_id: existing.cd_drama_id });
+      const before: Json = { slug: existing.slug, title_slug: existing.title_slug, cd_drama_id: existing.cd_drama_id };
+      if (existing.slug === row.slug && existing.title_slug === row.title_slug && existing.cd_drama_id === row.cd_drama_id) return clone(existing);
+      Object.assign(existing, { slug: row.slug, title_slug: row.title_slug, cd_drama_id: row.cd_drama_id, linked_at: now(), linked_by: linkedBy });
+      audit(s, session, "move_platform_link", "core.platform_links", existing.id, existing.title_id, before, { slug: existing.slug, title_slug: existing.title_slug, cd_drama_id: existing.cd_drama_id });
       return clone(existing);
     }
     const link: PlatformLink = { id: randomUUID(), ...row, linked_at: now(), linked_by: linkedBy };
     platform_links.push(link);
-    audit(s, session, "create_platform_link", "core.platform_links", link.id, link.title_id, null, { platform: link.platform, slug: link.slug, cd_drama_id: link.cd_drama_id });
+    audit(s, session, "create_platform_link", "core.platform_links", link.id, link.title_id, null, { platform: link.platform, slug: link.slug, title_slug: link.title_slug, cd_drama_id: link.cd_drama_id });
     return clone(link);
   },
 

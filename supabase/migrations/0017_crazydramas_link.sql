@@ -35,8 +35,12 @@ create table if not exists core.platform_links (
   id          uuid primary key default gen_random_uuid(),
   title_id    uuid not null references core.titles (id) on delete cascade,
   platform    text not null check (platform in ('crazydramas')),
-  -- The slug the link was made under (the title's crazydramas_slug at the time); lowercase words joined by hyphens.
+  -- The slug the drama is read under now (lowercase words joined by hyphens): a CMS rename, followed through the catalog, moves it.
   slug        text not null check (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
+  -- The title's own crazydramas_slug when the link was made or last re-pointed in Studio. A followed rename never changes it,
+  -- so a film-meta that still carries the pre-rename slug reads as "unchanged", not as "the person re-pointed the title"
+  -- (lib/crazydramas/sweep.ts resolveReadSlug; the phase 3a review).
+  title_slug  text not null check (title_slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
   -- The platform's own id of the drama (crazydramas dramas.id).
   cd_drama_id uuid not null,
   linked_at   timestamptz not null default now(),
@@ -45,6 +49,17 @@ create table if not exists core.platform_links (
   unique (title_id, platform),
   unique (platform, cd_drama_id)
 );
+
+-- A table made from the first version of this file (before the review) gains the column, filled from the slug the link was made under.
+alter table core.platform_links add column if not exists title_slug text;
+update core.platform_links set title_slug = slug where title_slug is null;
+alter table core.platform_links alter column title_slug set not null;
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conrelid = 'core.platform_links'::regclass and conname = 'platform_links_title_slug_check') then
+    alter table core.platform_links add constraint platform_links_title_slug_check check (title_slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$');
+  end if;
+end $$;
 
 alter table core.platform_links enable row level security;
 drop policy if exists platform_links_read on core.platform_links;

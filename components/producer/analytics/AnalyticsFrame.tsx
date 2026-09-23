@@ -19,7 +19,7 @@ const VIEWS: { id: View; key: string; sub: string }[] = [
 ];
 
 export default function AnalyticsFrame({ data, view, children }: { data: AnalyticsPageData; view: View; children: React.ReactNode }) {
-  const { locale, record: a, range, window, base, query, canEdit, platform, ads } = data;
+  const { locale, record: a, range, window, base, query, canEdit, platform, ads, crazydramas } = data;
   const name = locale === "en" ? a.title.name_en || a.title.name_zh : a.title.name_zh;
   const lang = locale === "en" && a.title.name_en ? "en" : "zh-CN";
   const secondary = locale === "en" ? (a.title.name_en ? a.title.name_zh : null) : a.title.name_en;
@@ -31,7 +31,7 @@ export default function AnalyticsFrame({ data, view, children }: { data: Analyti
 
   const adStep = ads.flow ? t(locale, `workflow.step.${ads.flow.step}`) : null;
   return (
-    <TitleShell locale={locale} titleId={a.title.id} name_zh={a.title.name_zh} name_en={a.title.name_en} platform={platform} ads={ads.status} adStep={adStep} section="tiktok" tiktokQuery={query} catalogHref={`/producer/tiktok?range=${range === "custom" ? "30d" : range}`} catalogLabel="ws.nav.tiktok"
+    <TitleShell locale={locale} titleId={a.title.id} name_zh={a.title.name_zh} name_en={a.title.name_en} platform={platform} ads={ads.status} adStep={adStep} crazydramas={crazydramas} section="tiktok" tiktokQuery={query} catalogHref={`/producer/tiktok?range=${range === "custom" ? "30d" : range}`} catalogLabel="ws.nav.tiktok"
       actions={canEdit ? <a className="btn btn-outline btn-sm" href={linkHref}>{t(locale, a.listing ? "an.link.change" : "an.link.cta")}</a> : <span className="ev ev-inferred">{t(locale, "an.readOnly")}</span>}>
       <div className="rs-tool-row an-chips">
         <StateChip state={state} locale={locale} />

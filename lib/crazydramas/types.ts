@@ -120,7 +120,15 @@ export function parseSeries(body: unknown): Extract<SeriesRead, { http_status: 2
 
 // ---- the rows both backends write ---------------------------------------------------------------
 
-export type NewPlatformLinkInput = { title_id: string; platform: PlatformName; slug: string; cd_drama_id: string };
+export type NewPlatformLinkInput = {
+  title_id: string;
+  platform: PlatformName;
+  /** The slug the drama is read under. */
+  slug: string;
+  cd_drama_id: string;
+  /** The title's own slug at link time; `slug` when absent (a first link, a re-point). A followed CMS rename passes the existing link's so it stays. */
+  title_slug?: string | null;
+};
 
 /** The link an upsert writes, validated. */
 export function platformLinkRow(input: NewPlatformLinkInput): Omit<PlatformLink, "id" | "linked_at" | "linked_by"> {
@@ -128,9 +136,11 @@ export function platformLinkRow(input: NewPlatformLinkInput): Omit<PlatformLink,
   if (typeof input.title_id !== "string" || !input.title_id.trim()) throw invalid("title_id is required");
   const slug = typeof input.slug === "string" ? input.slug.trim() : "";
   if (!CRAZYDRAMAS_SLUG.test(slug)) throw invalid("slug must be lowercase words joined by hyphens");
+  const titleSlug = typeof input.title_slug === "string" && input.title_slug.trim() ? input.title_slug.trim() : slug;
+  if (!CRAZYDRAMAS_SLUG.test(titleSlug)) throw invalid("title_slug must be lowercase words joined by hyphens");
   const id = typeof input.cd_drama_id === "string" ? input.cd_drama_id.trim().toLowerCase() : "";
   if (!UUID.test(id)) throw invalid("cd_drama_id must be the platform's uuid");
-  return { title_id: input.title_id, platform: input.platform, slug, cd_drama_id: id };
+  return { title_id: input.title_id, platform: input.platform, slug, title_slug: titleSlug, cd_drama_id: id };
 }
 
 export type NewPlatformSnapshotInput = {

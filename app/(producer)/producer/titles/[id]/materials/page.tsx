@@ -1,3 +1,4 @@
+import { chipReading } from "@/components/producer/CrazydramasChip";
 import EpisodeClips from "@/components/producer/EpisodeClips";
 import TitleShell from "@/components/producer/TitleShell";
 import TranscribeEpisode from "@/components/producer/TranscribeEpisode";
@@ -54,7 +55,7 @@ export default async function MaterialsPage({ params }: { params: { id: string }
   const asr = asrAvailability();
 
   return (
-    <TitleShell locale={locale} titleId={params.id} name_zh={detail.title.name_zh} name_en={detail.title.name_en} platform={w.platform} ads={w.ads.status} adStep={adStep} section="materials"
+    <TitleShell locale={locale} titleId={params.id} name_zh={detail.title.name_zh} name_en={detail.title.name_en} platform={w.platform} ads={w.ads.status} adStep={adStep} crazydramas={chipReading(w.crazydramas)} section="materials"
       actions={canEdit ? <a className="btn btn-primary" href="#add-episodes">{t(locale, "v3.title.addEpisodes")}</a> : undefined}>
       <p className="page-sub">{t(locale, "review.materialsIntro")}</p>
       {detail.title.genre && <p className="tw-next-hint">{detail.title.genre}</p>}

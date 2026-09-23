@@ -1,3 +1,4 @@
+import { chipReading } from "@/components/producer/CrazydramasChip";
 import CrazydramasPanel from "@/components/producer/CrazydramasPanel";
 import TitleShell from "@/components/producer/TitleShell";
 import { isStaffPreview, portalSession, producerLocale } from "@/components/producer/server";
@@ -20,7 +21,7 @@ export default async function CrazydramasPage({ params }: { params: { id: string
   const canCheck = !preview && (session.producerRole === "approver" || session.producerRole === "reviewer");
   const adStep = w.ads.flow ? t(locale, `workflow.step.${w.ads.flow.step}`) : null;
   return (
-    <TitleShell locale={locale} titleId={params.id} name_zh={w.detail.title.name_zh} name_en={w.detail.title.name_en} platform={w.platform} ads={w.ads.status} adStep={adStep} crazydramas={w.crazydramas.state} crazydramasStale={w.crazydramas.stale} section="crazydramas">
+    <TitleShell locale={locale} titleId={params.id} name_zh={w.detail.title.name_zh} name_en={w.detail.title.name_en} platform={w.platform} ads={w.ads.status} adStep={adStep} crazydramas={chipReading(w.crazydramas)} section="crazydramas">
       <p className="page-sub">{t(locale, "cd.sub")}</p>
       <CrazydramasPanel
         titleId={params.id}
