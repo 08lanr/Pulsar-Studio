@@ -18,8 +18,8 @@
 -- The row is written by the build as the service role after the route's
 -- edit check (lib/data/supabase.ts addMontageClip, mirrored by the fixture);
 -- producers read it through the existing producer_select policy (0010).
--- Version 0021 follows 0020_draft_series_text.sql. Idempotent; the enum value
--- is added outside a transaction, as 0016, 0018 and 0020 do.
+-- Version 0021 follows 0020_uploaded_clips.sql (main). Idempotent; the enum
+-- value is added outside a transaction, as 0016 and 0018 do.
 
 alter type studio.job_kind add value if not exists 'build_montage';
 

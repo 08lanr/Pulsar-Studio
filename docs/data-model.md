@@ -1289,7 +1289,7 @@ revision and stops before its next chunk); a row nobody runs fails at once.
 **No job kind.** An upload costs no model money and the ledger row is the
 record, as the snapshot row is for a read (0017).
 
-## 12. Upload automation (migration `0020_draft_series_text.sql`, decision 2026-09-23 "Upload automation: poster, slug, series text")
+## 12. Upload automation (migration `0022_draft_series_text.sql`, decision 2026-09-23 "Upload automation: poster, slug, series text")
 
 ```
 studio.job_kind  + 'draft_series_text'       -- one row per draft of a title's crazydramas tagline, description and genres,

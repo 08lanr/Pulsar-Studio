@@ -170,7 +170,7 @@ export type JobKind =
   | "tts_line"
   | "jev_check"
   | "claude_session"
-  // The series text of "Upload to crazydramas" (decision 2026-09-23 "Upload automation"; migration 0020): one row per
+  // The series text of "Upload to crazydramas" (decision 2026-09-23 "Upload automation"; migration 0022): one row per
   // draft of a title's tagline, description and genres from its transcript, on ADS_TEXT_PROVIDER, keyed by title,
   // transcript hash and attempt ("Draft again" is a new attempt).
   | "draft_series_text"

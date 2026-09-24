@@ -1,4 +1,4 @@
--- 0020 · Upload automation: poster, slug, series text (decision 2026-09-23,
+-- 0022 · Upload automation: poster, slug, series text (decision 2026-09-23,
 -- "Upload automation: poster, slug, series text").
 --
 -- 1. studio.job_kind gains `draft_series_text`: one row per draft of a
@@ -16,7 +16,8 @@
 -- no SQL creates it. The slug Studio picks is written to the existing
 -- core.titles.crazydramas_slug (0015) and to the film's cut/film-meta.json.
 --
--- Version 0020 follows 0019_cd_publications.sql. Idempotent; the enum value
--- is added outside a transaction, as 0016 and 0018 do.
+-- Version 0022 follows 0021_ad_montage.sql (it was 0020 on the overnight
+-- branch until main's 0020_uploaded_clips.sql took that number). Idempotent;
+-- the enum value is added outside a transaction, as 0016 and 0018 do.
 
 alter type studio.job_kind add value if not exists 'draft_series_text';

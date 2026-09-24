@@ -195,7 +195,9 @@ export function planMontage(input: MontageInput, options: Partial<MontageOptions
   let total = 0;
   let held = 0;
   for (const clip of input.clips) {
-    if (clip.status === "dismissed" || clip.moment === "montage") continue;
+    // Neither another 60-second ad nor a finished ad a person uploaded (main's 0020_uploaded_clips, source "upload"):
+    // its file is its own, not a window of the episode it is filed under.
+    if (clip.status === "dismissed" || clip.moment === "montage" || (clip.source as string) === "upload") continue;
     const episode = episodes.get(clip.episode_id);
     if (!episode) continue;
     total += 1;
