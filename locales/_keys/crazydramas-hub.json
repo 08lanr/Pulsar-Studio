@@ -20,7 +20,7 @@
   "cdh.cd.draft.ready": { "en": "{n} ready to publish", "zh": "{n} 集可发布" },
   "cdh.cd.draft.uploading": { "en": "{n} uploading", "zh": "{n} 集上传中" },
   "cdh.cd.draft.failed": { "en": "{n} failed", "zh": "{n} 集失败" },
-  "cdh.cd.not_uploaded": { "en": "Not uploaded", "zh": "未上传" },
+  "cdh.cd.not_uploaded": { "en": "Not uploaded (checked)", "zh": "未上传（已检查）" },
   "cdh.cd.not_live": { "en": "Not live (not uploaded, or a draft)", "zh": "未上线（未上传，或仍是草稿）" },
   "cdh.cd.archived": { "en": "Archived", "zh": "已归档" },
   "cdh.cd.not_checked": { "en": "Not checked yet", "zh": "尚未检查" },

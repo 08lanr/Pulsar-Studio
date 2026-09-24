@@ -87,6 +87,20 @@
 @media (max-width: 1100px) {
   .title-flow { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+/* Phones: two steps a row, so the strip is three rows, not six screens of cards (UI sweep 2026-09-24). */
 @media (max-width: 560px) {
-  .title-flow { grid-template-columns: minmax(0, 1fr); }
+  .title-flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Import films on a phone (UI sweep 2026-09-24): each film is a card, its
+   facts labelled and its Import button on screen, instead of a table whose
+   only action sat off the right edge. */
+@media (max-width: 719.98px) {
+  .film-import-table { overflow-x: visible; }
+  .film-import-table .gt-head { display: none; }
+  .film-import-table .gt-row { grid-template-columns: 44px minmax(0, 1fr); row-gap: 6px; align-items: start; }
+  .film-import-table .gt-row > * { grid-column: 2; text-align: left; }
+  .film-import-table .gt-row > .film-import-poster { grid-column: 1; grid-row: 1 / span 4; }
+  .film-import-table .gt-row > [data-label]::before { content: attr(data-label) " · "; color: var(--text-muted); }
+  .film-import-table .film-import-action .btn { width: 100%; }
 }

@@ -18,7 +18,6 @@ import type { AccountFingerprint } from "@/lib/tiktok/fingerprint";
 import type { AccountRequest } from "@/lib/types";
 import { call } from "@/components/tiktok/api";
 import MetaSetup from "@/components/launch/MetaSetup";
-import PresetsPanel from "./PresetsPanel";
 
 type Bc = { bcId: string; bcName: string; company?: string; verified?: boolean };
 type BcAccount = { id: string; name?: string; status?: string; health: AccountHealth; statusLabel: string };
@@ -179,7 +178,7 @@ export default function TikTokSetup({ isAdmin, connect, connectDetail }: { isAdm
         </span>
       </div>
       <p className="pd-muted">{tt(c.mode === "fake" ? "tks.modeFake" : c.mode === "sandbox" ? "tks.modeSandbox" : "tks.modeProduction")}</p>
-      {c.reasons.length > 0 && <ul className="pd-list pd-muted">{c.reasons.map((r) => <li key={r}>{r}</li>)}</ul>}
+      {c.mode !== "fake" && c.reasons.length > 0 && <ul className="pd-list pd-muted">{c.reasons.map((r) => <li key={r}>{r}</li>)}</ul>}
       <dl className="pd-kv">
         <dt>{tt("tks.reachable")}</dt><dd>{tt("tks.reachableValue", { accounts: c.reachableAccounts, bcs: status?.businessCenters.length ?? 0 })}</dd>
         {typeof window !== "undefined" && c.mode === "production" && <><dt>{tt("admin.tiktok.redirectUri")}</dt><dd className="pd-mono">{`${window.location.origin}/api/tiktok/callback`}</dd></>}
@@ -286,7 +285,14 @@ export default function TikTokSetup({ isAdmin, connect, connectDetail }: { isAdm
       </div>)}
     </section>
 
-    <PresetsPanel isAdmin={isAdmin} />
+    {/* Presets and Instant Page templates have their own page (/tiktok/templates); one place for one job (UI sweep 2026-09-24). */}
+    <section className="card pd-panel">
+      <div className="pd-section-head tk-head-row">
+        <h2 className="section-title">{tt("tkp.title")}</h2>
+        <a className="btn btn-outline btn-sm" href="/tiktok/templates">{tt("launchRedesign.manageTemplates")}</a>
+      </div>
+      <p className="pd-muted">{tt("tks.presetsElsewhere")}</p>
+    </section>
 
     {/* Connections covers both providers (plan §5.3); /meta keeps working on its own. */}
     <section className="card pd-panel" id="meta">

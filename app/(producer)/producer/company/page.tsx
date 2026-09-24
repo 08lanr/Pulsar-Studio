@@ -70,7 +70,8 @@ export default async function CompanyPage({ searchParams }: { searchParams: { ta
       )}
 
       {tab === "accounts" && (
-        <>
+        // The three panels were stacked edge to edge (UI sweep 2026-09-24); a gap separates them.
+        <div style={{ display: "grid", gap: 16 }}>
           <LaunchAccountPanel account={launchAccount} businessCenter={launchBc} requests={requests} canAct={canAct} />
           {launchBc && <TikTokAccountPanel businessCenter={launchBc} canAct={canAct} />}
           <section className="rs-panel">
@@ -78,7 +79,7 @@ export default async function CompanyPage({ searchParams }: { searchParams: { ta
             <AccountsForm accounts={accounts} canAct={canAct} />
             <div className="rs-panel-foot">{t(locale, "ws.accounts.steps")} <a href="https://business.tiktok.com/" target="_blank" rel="noreferrer noopener">TikTok Business Center ↗</a></div>
           </section>
-        </>
+        </div>
       )}
 
       {tab === "access" && (

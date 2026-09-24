@@ -162,7 +162,7 @@ a { text-underline-offset: .2em; }
 .trope .ev { font-size: 11px; }
 .gt-head { font-size: 12px; letter-spacing: 0; text-transform: none; color: var(--text-muted); }
 .gt-head > span { white-space: normal; line-height: 1.3; }
-.rs-panel > .gtable-flush > :is(.gt-head, .gt-row) { padding-inline: 24px; }
+.rs-panel > .gtable-flush > :is(.gt-head, .gt-row), .rs-panel .ws-accounts > .gtable-flush > :is(.gt-head, .gt-row) { padding-inline: 24px; }
 .gt-row > span:last-child > .btn { max-width: 100%; }
 .gtable .gt-row { min-width: 0; }
 .rs-list li { padding: 14px 24px; gap: 10px; }
@@ -266,7 +266,7 @@ a { text-underline-offset: .2em; }
   .page-head h1, .page-head h2, .producer-main > .page-head :is(h1,h2) { font-size: 26px; }
   .rs-panel-head { padding: 18px 16px 14px; gap: 12px; flex-wrap: wrap; }
   .rs-panel-head .rs-panel-aside { max-width: 100%; text-align: left; }
-  .rs-panel-body, .rs-panel-foot, .rs-list li, .rs-panel > .gtable-flush > :is(.gt-head, .gt-row) { padding-inline: 16px; }
+  .rs-panel-body, .rs-panel-foot, .rs-list li, .rs-panel > .gtable-flush > :is(.gt-head, .gt-row), .rs-panel .ws-accounts > .gtable-flush > :is(.gt-head, .gt-row) { padding-inline: 16px; }
   .launch-shortlist-row { grid-template-columns: minmax(0,1fr); padding: 20px 16px; gap: 14px; }
   .launch-shortlist-status, .launch-shortlist-row > .btn { grid-column: 1; grid-row: auto; }
   .launch-shortlist-row > .btn { justify-self: start; }

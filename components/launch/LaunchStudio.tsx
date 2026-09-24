@@ -547,7 +547,7 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
           macros (lib/tiktok/ad-url.ts); the screen prints the exact string. */}
       {draft.provider === "tiktok" && <div className="launch-ad-link">
         {chosenTitle && chosenTitle.slug && <p className="hint" data-title-state={chosenTitle.state ?? ""}>{tt("lpx.titleState", { slug: chosenTitle.slug, state: titleStateWord(chosenTitle.state) })}</p>}
-        {!titles.length && workspace && <p className="hint">{tt("lpx.noTitles")}</p>}
+        {!titles.length && workspace && <p className="hint">{tt(staff && !producerId && !run?.producer_id ? "lpx.pickCompanyFirst" : "lpx.noTitles")}</p>}
         {shape === "instant_page"
           ? <><p className="hint">{tt("lpx.buttonLinkLabel")}</p>
             <code className="launch-ad-url" data-testid="tiktok-button-url">{buttonLink || "—"}</code></>

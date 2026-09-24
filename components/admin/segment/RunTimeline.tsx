@@ -34,7 +34,8 @@ export default function RunTimeline({ run }: { run: FilmRun }) {
                 {tt(`seg.stage.${s}`)}
                 {on && !failed && waiting ? <> <span className="pill pill-warning">{tt("seg.waiting")}</span></> : null}
               </span>
-              {on && !failed && progress ? <span className="tl-body" role="status">{progress}</span> : null}
+              {on && !failed && progress && run.stage !== "done" ? <span className="tl-body" role="status">{progress}</span> : null}
+              {on && !failed && run.stage === "done" ? <span className="tl-body">{tt("seg.stageHint.done")}</span> : null}
               {on && failed ? <span className="tl-body">{tt(`seg.stage.${run.stage}`)}</span> : null}
               {!on ? <span className="tl-body">{tt(`seg.stageHint.${s}`)}</span> : null}
             </span>

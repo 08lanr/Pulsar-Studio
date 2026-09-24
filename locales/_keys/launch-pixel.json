@@ -1,7 +1,7 @@
 {
   "lpx.title": { "en": "Title on crazydramas", "zh": "crazydramas 上的剧集" },
   "lpx.chooseTitle": { "en": "Choose the title these ads promote", "zh": "选择广告推广的剧集" },
-  "lpx.noTitles": { "en": "No title of this company has a crazydramas link yet. Add the slug in the title's crazydramas section; the title then appears here.", "zh": "这家公司还没有剧集关联 crazydramas。在剧集的 crazydramas 区域填写 slug 后，剧集会出现在这里。" },
+  "lpx.noTitles": { "en": "No title of this company is on CrazyDramas yet. Upload one from the CrazyDramas page; it then appears here.", "zh": "这家公司还没有剧集上传到 CrazyDramas。在 CrazyDramas 页面上传后，剧集会出现在这里。" },
   "lpx.titleState": { "en": "crazydramas.com/watch/{slug} · {state}", "zh": "crazydramas.com/watch/{slug} · {state}" },
   "lpx.state.live": { "en": "live", "zh": "已上线" },
   "lpx.state.notLive": { "en": "not live: preview will refuse it", "zh": "未上线：预览会拒绝" },
@@ -33,7 +33,7 @@
   "lpx.webUnavailable": { "en": "TikTok-attributed purchases are unavailable: {reason}", "zh": "暂时无法读取 TikTok 归因的购买数据：{reason}" },
   "lpx.defaultsTitle": { "en": "Launch account and pixel", "zh": "投放账户与像素" },
   "lpx.defaultAccount": { "en": "Default ad account", "zh": "默认广告账户" },
-  "lpx.defaultAccountNone": { "en": "Not set. Set TIKTOK_DEFAULT_ADVERTISER_ID in .env.local and Launch preselects that account.", "zh": "未设置。在 .env.local 中设置 TIKTOK_DEFAULT_ADVERTISER_ID 后，投放页会预先选中该账户。" },
+  "lpx.defaultAccountNone": { "en": "Not set: Launch starts with no ad account picked.", "zh": "未设置：投放页不会预先选中广告账户。" },
   "lpx.defaultAccountHint": { "en": "Launch preselects it for every company whose Business Center (or assigned account) reaches it. Other companies choose as before.", "zh": "对于 Business Center（或指定账户）能用到该账户的公司，投放页会预先选中它；其他公司照常自行选择。" },
   "lpx.reachedBy": { "en": "Reached by: {companies}", "zh": "可用的公司：{companies}" },
   "lpx.reachedByNone": { "en": "No company's assignment reaches it yet; link its Business Center to a company below.", "zh": "目前没有公司的分配能用到它；请在下方把它所在的 Business Center 关联到公司。" },

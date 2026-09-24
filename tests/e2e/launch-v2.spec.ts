@@ -158,7 +158,7 @@ test("Clips handoff, TikTok monitor, and Meta post plus finished-file paused lau
     const data = await response.json() as { runs: { draft: { content: { value: string }[] }; status: string }[] };
     return data.runs.find((r) => r.draft.content.some((c) => c.value === "TEST-LAUNCH-V2-SPARK"))?.status;
   }, { timeout: 20_000 }).toBe("done");
-  await page.getByRole("button", { name: "Refresh delivery" }).click();
+  await page.getByRole("button", { name: "Refresh results" }).click();
   const launchedCampaign = page.locator("tr[data-campaign-id]").first();
   // Round 2: the row names the account; the account id lives in the expanded row.
   await expect(launchedCampaign).toContainText("Demo TikTok 1");

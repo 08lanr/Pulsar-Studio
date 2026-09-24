@@ -313,7 +313,7 @@ export default function ClipsTable({ staff = false, titleId, montage }: Props) {
         {showProducer && <span>{row.producer_name}</span>}
         <span><strong>{row.title_name}</strong></span>
         <span>{row.montage ? row.montage.episodes : row.episode_label ?? "—"}</span>
-        <span className="clips-hook">{row.montage && <span className="pill pill-accent clips-montage-pill">{tt("montage.pill")}</span>}{row.label}</span>
+        <span className="clips-hook">{row.montage && <span className="pill pill-accent clips-montage-pill">{tt("montage.pill")}</span>}{row.text?.trim() ? row.label : <span className="gt-muted" title={row.external_id}>{tt("clipsPosting.noHook")}</span>}</span>
         <span className="gt-num">{duration(row.duration_ms)}</span>
         <span>{shortDate(row.rendered_at, locale)}</span>
         <span data-platform="facebook">{platformCell(row, "facebook")}</span>

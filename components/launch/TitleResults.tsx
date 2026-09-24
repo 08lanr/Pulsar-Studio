@@ -70,7 +70,8 @@ export default function TitleResults({ staff = false, titleId, titleName, crazyd
   return <div className="launch-flow lm tr" data-testid="title-results">
     <nav className="studio-crumbs" aria-label={tt("v3.breadcrumbs")}><Link href={monitor}>{tt("lv2.monitor.title")}</Link><span aria-hidden>›</span><Link href={`${monitor}?view=titles`}>{tt("mad.byTitle")}</Link><span aria-hidden>›</span><span>{titleName}</span></nav>
     <div className="page-head"><div><h1>{titleName}</h1><p className="page-sub">{tt("mad.titleSub")}</p></div>
-      <div className="rs-tool-row"><button type="button" className="btn btn-outline" disabled={refreshing || !runs} onClick={() => void refresh()}>{tt(refreshing ? "common.loading" : "lv2.refresh")}</button><Link className="btn btn-outline" href={launchPage}>{tt("launchFeedback.createLaunch")}</Link></div></div>
+      {/* Nothing launched yet: the empty state below carries the one Create a launch, and there is nothing to refresh (UI sweep 2026-09-24). */}
+      {!(results && results.campaigns.length === 0) && <div className="rs-tool-row"><button type="button" className="btn btn-outline" disabled={refreshing || !runs} onClick={() => void refresh()}>{tt(refreshing ? "common.loading" : "lv2.refresh")}</button><Link className="btn btn-outline" href={launchPage}>{tt("launchFeedback.createLaunch")}</Link></div>}</div>
     {error && <p className="note note-warn" role="alert">{error}</p>}
     {!results ? <p role="status">{tt("common.loading")}</p> : <>
       <div className="lm-summary tr-summary" aria-label={tt("mad.totals")} data-testid="title-totals">

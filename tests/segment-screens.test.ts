@@ -199,6 +199,8 @@ test("progress words: the worker's progress object, then the plain shapes, else 
   assert.equal(progressText({ file: "index/whisper.log" }), "index/whisper.log");
   assert.equal(progressText({ stage: "index", pid: 12 }), "stage: index · pid: 12");
   assert.equal(progressText({ waiting: { for: "review" } }), "");
+  // The worker's bookkeeping is not progress: a finished run's detail reads as nothing, not "started_at: … · worker: …".
+  assert.equal(progressText({ started_at: "2026-09-24T14:32:23.243Z", worker: "pc:16432:inproc", decisions_seen: 4 }), "");
   assert.equal(progressText(null), "");
   assert.equal(fmtT(7259.533), "2:00:59.5");
 });

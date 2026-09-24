@@ -130,7 +130,8 @@ export default function DeliveryPanel({ campaignId, status, launch, monitorUrl, 
       <button type="button" className="btn btn-ghost btn-sm tk-end" disabled={!!busy} onClick={() => { setForm(form === "end" ? null : "end"); setNote(""); }}>{tt("tk.end")}</button>
       {extra}
     </div>}
-    {!manageable && extra && <div className="tk-controls">{extra}</div>}
+    {/* The stop row above already carries `extra` (UI sweep 2026-09-24: staff saw Sync now twice). */}
+    {!manageable && extra && !(stopOnly && canAct && ["submitted", "live", "paused"].includes(status)) && <div className="tk-controls">{extra}</div>}
 
     {form && <form className="tk-form" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
       {form === "budget" && <>

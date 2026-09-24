@@ -170,7 +170,7 @@ test("the render and QA finish, the sheets show, film-meta ends the wait, and th
   await expect(page.getByRole("button", { name: "Move this join" }).first()).toBeEnabled();
 
   await page.goto(`/films/runs/${runId}`);
-  const form = page.getByRole("form", { name: "Film meta (film-meta.json)" });
+  const form = page.getByRole("form", { name: "Film details" });
   await expect(form.getByRole("textbox", { name: "Display title (English)" })).toHaveValue(/\S/);
   await form.getByRole("textbox", { name: "Display title (English)" }).fill("E2E Segmented Film");
   await form.getByRole("button", { name: "Save film meta" }).click();

@@ -866,6 +866,18 @@ a {
   white-space: nowrap;
   border: 0;
 }
+/* Anchored to the left edge: inside a table that scrolls sideways, a hidden
+   label sat at its column's place past the table's edge and, positioned from
+   outside the table, made the whole page scroll sideways on a phone (UI
+   sweep 2026-09-24: Clips, My catalog). */
+.sr-only {
+  left: 0;
+}
+/* A video never runs past its column (UI sweep 2026-09-24: a campaign's
+   finished ads showed at their full 1080 px on a phone). */
+video {
+  max-width: 100%;
+}
 
 /* ---- layout: the app shell ---------------------------------------------- */
 
@@ -1099,6 +1111,12 @@ a {
 .apphead .spacer {
   flex: 1;
 }
+/* Everywhere a .spacer sits in a flex row it pushes what follows to the end
+   (UI sweep 2026-09-24: outside the header it was an empty box that only
+   indented the button after it). */
+.spacer {
+  flex: 1;
+}
 .apphead .vsep {
   width: 1px;
   height: 20px;
@@ -1188,6 +1206,37 @@ a {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  white-space: nowrap;
+}
+/* The header's language toggle stays one row. */
+.apphead .seg {
+  flex-wrap: nowrap;
+  flex: none;
+}
+/* UI sweep 2026-09-24: the two rules above come after the ≥1024 block that
+   hides the hamburger and the wordmark, so they showed beside the sidebar on
+   a desktop; hide them again here, where the order holds. */
+@media (min-width: 1024px) {
+  .m-menu-btn,
+  .apphead .m-brand {
+    display: none;
+  }
+}
+/* Phones: hamburger, wordmark, language, theme and sign-out fit one 390 px
+   row (the toggle used to stack its two buttons and the wordmark wrapped). */
+@media (max-width: 479.98px) {
+  .apphead .m-brand {
+    font-size: var(--t-body);
+  }
+  .apphead .seg {
+    padding: 2px;
+  }
+  .apphead .seg-btn {
+    padding: 4px 8px;
+  }
+  .apphead .vsep {
+    display: none;
+  }
 }
 
 /* Off-canvas drawer below the sidebar breakpoint. The scrim separates the
@@ -1663,6 +1712,13 @@ button.stage {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
+/* A segmented control or a filter chip made of links reads as buttons, not
+   underlined links (UI sweep 2026-09-24: presets tabs, episode tabs, the
+   producer catalog's filters). */
+a.seg-btn,
+a.filter-chip {
+  text-decoration: none;
+}
 .seg-btn:hover {
   color: var(--text);
 }
@@ -1713,7 +1769,8 @@ button.stage {
 .tab:hover {
   color: var(--text);
 }
-.tab.on {
+.tab.on,
+.tab.is-active {
   color: var(--text);
   font-weight: var(--w-strong);
   border-bottom-color: var(--brand);
@@ -2673,6 +2730,10 @@ button.tl-step.selected {
 .title-back:hover {
   color: var(--text);
 }
+/* The workbench's back link draws a chevron: it points back (UI sweep 2026-09-24; it pointed forward). */
+.title-back .rotate {
+  transform: rotate(180deg);
+}
 .title-main {
   flex: 1 1 320px;
   min-width: 0;
@@ -3368,6 +3429,11 @@ button.tl-step.selected {
 .picker-row {
   display: grid;
   gap: 16px;
+}
+/* The grid's gap spaces the fields; `.field + .field` would push every field
+   after the first 12 px lower than its neighbour (UI sweep 2026-09-24). */
+.picker-row > .field + .field {
+  margin-top: 0;
 }
 @media (min-width: 768px) {
   .picker-row {
@@ -4526,10 +4592,18 @@ mark.key-phrase {
 .pd-count { padding: 1px 8px; border-radius: 999px; background: var(--surface-2, rgba(127,127,127,.15)); font-size: 11px; font-weight: 600; }
 .pd-next-action { font-weight: 600; }
 .pd-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
-@media (max-width: 1100px) { .pd-grid { grid-template-columns: 1fr; } }
+@media (max-width: 1100px) { .pd-grid { grid-template-columns: minmax(0, 1fr); } }
 .pd-main, .pd-side { display: grid; gap: 14px; }
+/* The 320 px rail holds the delivery panel: its cards stay in the rail (they
+   pushed the page to 1866 px at 1440, UI sweep 2026-09-24), its numbers go two
+   by two and its ad-group table scrolls inside the card. */
+.pd-main > *, .pd-side > *, .pd-panel > * { min-width: 0; }
+.pd-side .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.stat-value.pd-mono { overflow-wrap: anywhere; font-size: var(--t-lead); }
 .pd-section-head .page-sub { margin-top: 2px; }
 .pd-creative { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 18px; padding: 16px; }
+/* Phones: the ad's video above its facts, not beside them (UI sweep 2026-09-24). */
+@media (max-width: 560px) { .pd-creative { grid-template-columns: minmax(0, 1fr); } .pd-creative-body header { flex-wrap: wrap; } }
 .pd-creative.rejected { border-color: color-mix(in srgb, var(--warning, #d9a441) 55%, var(--line, transparent)); }
 .pd-creative-media video, .pd-placeholder { width: 150px; aspect-ratio: 9 / 16; border-radius: 8px; background: #0f1013; object-fit: cover; }
 .pd-placeholder { display: grid; place-items: center; color: var(--muted); font-size: 20px; font-weight: 600; }

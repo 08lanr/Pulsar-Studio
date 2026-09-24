@@ -25,6 +25,8 @@ type Props = {
   busy: boolean;
   /** The render is done and the worker can take a re-pin. */
   canMove: boolean;
+  /** The run is done (the film imported): its joins no longer move, and the page says so instead of "once the render has finished". */
+  done?: boolean;
   onMove: (d: JoinDecision) => void;
 };
 
@@ -37,7 +39,7 @@ function cutsNear(boundaries: BoundaryView[], at: number): Cut[] {
   return [...seen.values()].sort((a, b) => a.t - b.t);
 }
 
-export default function JoinReview({ joins, episodes, boundaries, band, busy, canMove, onMove }: Props) {
+export default function JoinReview({ joins, episodes, boundaries, band, busy, canMove, done = false, onMove }: Props) {
   const { tt } = useT();
   const [open, setOpen] = useState<number | null>(null);
   const [target, setTarget] = useState<number | null>(null);
@@ -94,7 +96,7 @@ export default function JoinReview({ joins, episodes, boundaries, band, busy, ca
             ) : (
               <div className="sgm-actions">
                 <button type="button" className="btn btn-outline btn-sm" disabled={busy || !canMove} onClick={() => { setOpen(k); setTarget(null); }}>{tt("seg.joins.move")}</button>
-                {!canMove && <span className="hint" style={{ margin: 0 }}>{tt("seg.joins.notYet")}</span>}
+                {!canMove && <span className="hint" style={{ margin: 0 }}>{tt(done ? "seg.joins.imported" : "seg.joins.notYet")}</span>}
               </div>
             )}
           </article>

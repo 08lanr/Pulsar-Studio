@@ -419,7 +419,16 @@ export function Workbench({
   const adaptedBusy: AdaptedBusy = { alternatives: busy.alternatives, rewrite: busy.rewrite, choosing: busy.choosing };
   const pct = lines.length ? Math.round((readyLineCount / lines.length) * 100) : 0;
   const episodeName = data.episode.name_en ?? data.episode.name_zh;
-  const workflow = !version || !hasFirstPass
+  // A video with no script (UI sweep 2026-09-24): nothing to translate, its ad clips cut themselves.
+  const videoOnly = !version && lines.length === 0 && hasVideo;
+  const workflow = videoOnly
+    ? {
+        tone: "done",
+        owner: tt("wb.workflow.owner.done"),
+        title: tt("wb.workflow.videoOnly.title"),
+        body: tt("wb.workflow.videoOnly.body"),
+      }
+    : !version || !hasFirstPass
     ? {
         tone: "next",
         owner: tt("wb.workflow.owner.staff"),

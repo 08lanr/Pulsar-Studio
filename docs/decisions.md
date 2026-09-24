@@ -6,6 +6,19 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-09-24 · The UI sweep
+
+Ruobin's overnight spec, phase 4 (item 17): every staff and producer page walked on a fixture server at 1440 and 390 wide (a crawler following every link, nothing pressed; the import pages and the CrazyDramas page also over the real workspace, read-only), each page's sideways overflow measured, every link fetched (all answer), and every issue fixed in plain words with the existing tokens. The list, page by page with each fix, is the sweep's ISSUES.md in the overnight notes; the rules it left behind:
+
+- **The header.** The hamburger and wordmark are phone-only again (a later rule had shown them beside the sidebar); on a phone the language toggle stays one row.
+- **Nothing scrolls the page sideways.** `.sr-only` is anchored left (a hidden column label inside a table that scrolls on its own had made Clips and My catalog scroll at 390); a `video` never runs past its column; the Earlier campaigns page and a film run's page are columns that may shrink. Tables still scroll inside their card.
+- **Words, not codes or files.** No page tells the reader to edit a file or set an env var for a routine step (the default ad account, the pack's AI note); film-run decisions and progress are words, not action codes or the worker's bookkeeping; the segment intake's hints are plain sentences; "slug" is 网址 in the Chinese portal; "Refresh delivery" is "Refresh results" (Monitor) or "Read accounts again" (Meta); "Grow campaign" is "TikTok campaign".
+- **One place, one name.** `/tiktok` is headed Connections (as the sidebar says) and links to its presets instead of repeating them; Earlier campaigns is headed so; Launch presets points back to Connections; a title's Clips page names its title with a breadcrumb.
+- **A title made from videos only** (made in Studio, every episode a video with no script) reads like an imported film: "Videos · N episodes", its episodes, videos, ad clips and cost, with Add episodes kept; its episodes no longer count as staff actions, and the workbench says "Video only: nothing to translate".
+- **Empty states say what to do** (Monitor, Segment a film, Instant Page templates), and an empty title results page keeps one Create a launch.
+
+No migration. Left as they are, with why, at the end of ISSUES.md (the fixture's demo company and data, `_studio-smoke`, the sidebar's New title, the strip counting Studio launches only).
+
 ## 2026-09-24 · The 60-second ad
 
 Ruobin's overnight spec, phase 3 (item 16): per title, "Build a 60 s ad" — a hook, two to four strong scenes and a cliff from the title's own clips, joined into one 9:16 file of at most 60.0 s. The capability, clean rather than clever; Ruobin improves the picking himself. In plain words:

@@ -308,12 +308,12 @@
     "zh": "广告花费通过投放账户上的支付方式结算，Studio 不会自行扣款。"
   },
   "admin.nav.tiktok": {
-    "en": "TikTok setup",
-    "zh": "TikTok 设置"
+    "en": "Connections",
+    "zh": "账户连接"
   },
   "admin.head.tiktok": {
-    "en": "TikTok setup",
-    "zh": "TikTok 设置"
+    "en": "Connections",
+    "zh": "账户连接"
   },
   "admin.promote.status.paused": {
     "en": "Paused",
@@ -444,12 +444,12 @@
     "zh": "TikTok 已接受请求但状态未变，下一次轮询会处理。"
   },
   "admin.tiktok.title": {
-    "en": "TikTok setup",
-    "zh": "TikTok 设置"
+    "en": "Connections",
+    "zh": "账户连接"
   },
   "admin.tiktok.sub": {
-    "en": "Pulsar's TikTok authorizations, the Business Centers they reach, and which producer each Business Center launches for. Ads run from an account inside the producer's Business Center.",
-    "zh": "Pulsar 的 TikTok 授权、可访问的商务中心，以及每个商务中心对应的制片方。广告从制片方商务中心内的账户投放。"
+    "en": "The TikTok and Meta accounts Pulsar launches with: the Business Center each company launches from, its ad accounts, and the Meta ad account and Page each company uses.",
+    "zh": "Pulsar 投放用的 TikTok 和 Meta 账户：每家公司从哪个商务中心投放、有哪些广告账户，以及每家公司使用的 Meta 广告账户和公共主页。"
   },
   "admin.tiktok.connection": {
     "en": "Connection",
@@ -600,8 +600,8 @@
     "zh": "已阻止"
   },
   "admin.promote.sub": {
-    "en": "Every producer ad campaign: what it needs from Pulsar, and how its TikTok launch is doing.",
-    "zh": "每个制片方的广告活动：需要 Pulsar 处理的事项，以及 TikTok 投放进展。"
+    "en": "The campaigns made with the earlier Promote flow: what each still needs from Pulsar and how its TikTok launch did. New launches start in Launch and are followed in Monitor.",
+    "zh": "用早期推广流程创建的广告活动：每个还需要 Pulsar 处理什么，以及它的 TikTok 投放结果。新的投放在“投放”里创建，在“投放监控”里跟进。"
   },
   "admin.promote.status.submitted": {
     "en": "On TikTok · in review",

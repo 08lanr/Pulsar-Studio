@@ -123,7 +123,7 @@ export default function BoundaryReview({ runId }: { runId: string }) {
         {head}
         {run.error_text && <pre className="sgm-refusal" role="alert">{run.error_text}</pre>}
         {actionError && <p className="err" role="alert">{tt("seg.run.actionFailed", { detail: actionError })}</p>}
-        <JoinReview joins={view.joins} episodes={episodes} boundaries={view.review?.boundaries ?? []} band={band} busy={busy} canMove={run.stage === "film_meta" || run.stage === "handoff"} onMove={(d) => void decide(d)} />
+        <JoinReview joins={view.joins} episodes={episodes} boundaries={view.review?.boundaries ?? []} band={band} busy={busy} canMove={run.stage === "film_meta" || run.stage === "handoff"} done={run.stage === "done"} onMove={(d) => void decide(d)} />
       </div>
     );
   }

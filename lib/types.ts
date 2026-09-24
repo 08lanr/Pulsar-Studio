@@ -1645,6 +1645,8 @@ export type TitleSummary = {
   episodes_with_video?: number;
   /** The translation workflow is in use: a line adapted, or an episode past `ingested` (`usesTranslationWorkflow`). */
   uses_translation?: boolean;
+  /** Every episode is a video with no script (`isVideoOnly`): nothing in the translation workflow. */
+  video_only?: boolean;
 };
 
 export type EpisodeSummary = {

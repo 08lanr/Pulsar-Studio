@@ -17,7 +17,7 @@ import { fakeCrazydramasTransport, FAKE_SLUGS } from "@/lib/crazydramas/fake";
 import { buildHub, ledgerCounts, loadCrazydramasHub, onCdOf, titleAction, type HubInput, type HubStatusInput, type HubTitleInput } from "@/lib/crazydramas/hub";
 import { checkPublicPage, PUBLIC_CHECK_MIN_MS, resetCrazydramasSweep, sweepCrazydramasNow, type UnmatchedSeries } from "@/lib/crazydramas/sweep";
 import { fixtureData, resetFixtureStore } from "@/lib/data/fixture";
-import { usesTranslationWorkflow } from "@/lib/data/views";
+import { isVideoOnly, usesTranslationWorkflow } from "@/lib/data/views";
 import { resetImportRegistry, type HubFilmRow } from "@/lib/film-import/import";
 import { titleFlow } from "@/lib/titles/flow";
 import { batches, batchSize, publicShows } from "@/components/producer/crazydramas/PublishProgress";
@@ -322,6 +322,13 @@ test("an imported film reads as imported until someone starts the translation wo
   assert.equal(usesTranslationWorkflow({ source_ref: "low-quality/x" }, [ep(), ep({ lines_adapted: 4 })]), true);
   assert.equal(usesTranslationWorkflow({ source_ref: "low-quality/x" }, [ep({ status: "in_review" })]), true);
   assert.equal(usesTranslationWorkflow({ source_ref: null }, []), true);
+  // A title made in Studio from videos alone (UI sweep): every episode a video with no script reads as videos, not a translation at 0%.
+  const v = (over: Record<string, unknown> = {}) => ({ status: "ingested" as const, lines_total: 0, has_video: true, ...over });
+  assert.equal(isVideoOnly([v(), v()]), true);
+  assert.equal(isVideoOnly([v(), v({ lines_total: 6 })]), false, "one episode with a script is the translation workflow");
+  assert.equal(isVideoOnly([v(), v({ has_video: false })]), false);
+  assert.equal(isVideoOnly([v({ status: "adapting" })]), false);
+  assert.equal(isVideoOnly([]), false);
 });
 
 test("the flow strip: done, next, not yet, not needed, each with its page", () => {

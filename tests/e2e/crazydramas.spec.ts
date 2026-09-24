@@ -130,7 +130,7 @@ test("the imported fixture film is live and complete: the header chip on the sec
   await expect(facts).toContainText("Studio 3 · CrazyDramas 3");
   await expect(facts).toContainText("Free 3 · paid 0");
   await expect(facts).toContainText("$9.99");
-  await expect(facts).toContainText("IAP product");
+  await expect(facts).toContainText("App store product");
   await expect(facts.locator(".pill", { hasText: "set" }).first()).toBeVisible();
   // The checked time carries the observed label; the table's verdicts are all "Same length" with the frame counts the import measured.
   await expect(page.locator(".cd-checked")).toContainText(/Checked \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC/);
@@ -142,7 +142,7 @@ test("the imported fixture film is live and complete: the header chip on the sec
   await expect(rows.first()).toContainText("4 s");
   await expect(rows.first()).toContainText("Same length");
   await expect(rows.first()).toContainText("Free");
-  await expect(page.locator(".cd-panel")).toContainText("Calibrated on one film only");
+  await expect(page.locator(".cd-panel")).toContainText("measured on one film only");
   // The fake's poster is the app's own SVG: drawn for a producer session too (the middleware serves it like the fonts, not a
   // redirect to /producer), and fetched from nowhere else (the route guard above would have failed the test).
   const poster = page.locator(".cd-poster img");
@@ -174,7 +174,7 @@ test("each other state's section shows the verdict or note that defines it, and 
 
   const notLive = await titleInState(page, "not_live");
   await page.goto(`/producer/titles/${notLive}/crazydramas`);
-  await expect(page.locator(".cd-panel .note")).toContainText("answers 404");
+  await expect(page.locator(".cd-panel .note")).toContainText("not even a draft");
   await expect(page.locator(".cd-checked")).toContainText(/Checked \d{4}-\d{2}-\d{2}/);
 
   const failed = await titleInState(page, "read_failed");

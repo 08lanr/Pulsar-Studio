@@ -53,7 +53,7 @@ export default async function PromoteDesk() {
       <div className="gtable" style={{ "--cols": "minmax(220px,2fr) minmax(140px,1fr) 130px 90px minmax(180px,1.4fr) minmax(160px,1.4fr) 110px" } as React.CSSProperties}>
         <div className="gt-head"><span>{t(locale, "admin.promote.col.campaign")}</span><span>{t(locale, "admin.promote.col.producer")}</span><span>{t(locale, "admin.promote.col.status")}</span><span>{t(locale, "admin.promote.col.creatives")}</span><span>{t(locale, "admin.promote.col.next")}</span><span>{t(locale, "admin.promote.col.note")}</span><span>{t(locale, "admin.promote.col.updated")}</span></div>
         {q.rows.map((c) => <Link key={c.id} className="gt-row clickable" href={`/promote/${c.id}`}>
-          <span><strong>{c.name}</strong><small className="gt-muted bilingual" lang="zh-CN">{c.title_name_en || c.title_name_zh} · {c.target_market}</small></span>
+          <span className="staff-title-name"><strong>{c.name}</strong><small className="gt-muted bilingual" lang="zh-CN">{c.title_name_en || c.title_name_zh} · {c.target_market}</small></span>
           <span>{c.producer_name_en || c.producer_name_zh}</span>
           <span><span className={`pill ${STATUS_CLASS[c.status]}`}>{t(locale, `admin.promote.status.${c.status}`)}</span></span>
           <span className="gt-num">{c.approved_count}/{c.creative_count}</span>

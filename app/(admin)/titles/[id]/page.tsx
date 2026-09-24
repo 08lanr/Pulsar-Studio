@@ -9,7 +9,7 @@ import TitleFlow from "@/components/TitleFlow";
 import { episodeClipsPayload } from "@/lib/clips/payload";
 import { loadCrazydramasStatus } from "@/lib/crazydramas";
 import { getData, isDataError } from "@/lib/data";
-import { usesTranslationWorkflow } from "@/lib/data/views";
+import { isVideoOnly, usesTranslationWorkflow } from "@/lib/data/views";
 import { t, type Locale } from "@/lib/i18n";
 import { loadTitleFlow } from "@/lib/titles/flow";
 import type { EpisodeSummary } from "@/lib/types";
@@ -112,12 +112,16 @@ export default async function TitlePage({ params }: { params: { id: string } }) 
     // An imported film that never entered the translation workflow reads as imported (2026-09-24): its episodes, their
     // videos and ad clips, and where it stands on crazydramas — not "ingesting", "needs staff" or "with producer".
     const translation = usesTranslationWorkflow(detail.title, detail.episodes);
+    // A title made in Studio whose every episode is a video with no script (UI sweep 2026-09-24) has nothing in the
+    // translation workflow either: it reads as its videos and ad clips, and keeps Add episodes for a later script.
+    const videoOnly = translation && isVideoOnly(detail.episodes);
+    const simple = !translation || videoOnly;
     const withVideo = detail.episodes.filter((e) => e.has_video).length;
     const clipsReady = [...clipStates.values()].reduce((n, c) => n + c.clips.filter((x) => x.render_status === "rendered").length, 0);
     const crazydramas = await loadCrazydramasStatus(session, detail.title);
     const flow = await loadTitleFlow(session, detail.title, withVideo, crazydramas.state, "admin");
     const staffActions = detail.episodes.filter((episode) =>
-      episode.status === "ingested" ||
+      (episode.status === "ingested" && !(episode.has_video && episode.lines_total === 0)) ||
       episode.status === "adapting" ||
       (episode.status === "in_review" &&
         episode.partner_scenes_needing_alternative > 0 &&
@@ -138,6 +142,7 @@ export default async function TitlePage({ params }: { params: { id: string } }) 
             <div className="title-row">
               <h1 className="bilingual" lang="zh-CN">{detail.title.name_zh}</h1>
               {!translation && <span className="pill pill-neutral" data-imported="true">{t(locale, "admin.titles.imported", { n: detail.episodes.length })}</span>}
+              {videoOnly && <span className="pill pill-neutral" data-video-only="true">{t(locale, "admin.titles.videoOnly", { n: detail.episodes.length })}</span>}
               <CrazydramasChip {...chipReading(crazydramas)} locale={locale} />
             </div>
             <div className="title-meta">
@@ -159,7 +164,7 @@ export default async function TitlePage({ params }: { params: { id: string } }) 
 
         <TitleFlow locale={locale} steps={flow} />
 
-        {!translation ? (
+        {simple ? (
           <div className="stat-grid">
             <div className="stat">
               <span className="stat-label">{t(locale, "admin.title.episodes")}</span>
@@ -199,10 +204,10 @@ export default async function TitlePage({ params }: { params: { id: string } }) 
         </div>
         )}
 
-        {!translation ? (
+        {simple ? (
           <section className="card">
             <h2 className="field-group-title">{t(locale, "admin.title.episodes")}</h2>
-            <p className="section-sub">{t(locale, "admin.title.importedHelp")}</p>
+            <p className="section-sub">{t(locale, videoOnly ? "admin.title.videoOnlyHelp" : "admin.title.importedHelp")}</p>
             <div className="gtable gtable-flush gt-resp episode-action-table" style={{ "--cols-lg": "72px minmax(140px, 1fr) 96px 150px 110px", "--cols-sm": "56px minmax(0, 1fr) 84px" } as React.CSSProperties}>
               <div className="gt-row gt-head" aria-hidden="true">
                 <span>{t(locale, "admin.title.col.episode")}</span>

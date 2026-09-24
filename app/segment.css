@@ -9,6 +9,8 @@
 
 .sgm-layout {
   display: grid;
+  /* One column that may shrink below its content on phones (UI sweep 2026-09-24: the run page was 550 px wide at 390). */
+  grid-template-columns: minmax(0, 1fr);
   gap: 24px;
   align-items: start;
 }
@@ -20,6 +22,9 @@
 .sgm-panel {
   display: grid;
   gap: 16px;
+  min-width: 0;
+}
+.sgm-panel > * {
   min-width: 0;
 }
 .sgm-facts {
@@ -90,6 +95,17 @@
   color: var(--text-muted);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+}
+/* Phones: a file's size and length go under its name, so the name keeps the
+   row's width instead of breaking a letter at a time (UI sweep 2026-09-24). */
+@media (max-width: 559.98px) {
+  .sgm-source-list .picker-item {
+    grid-template-columns: 16px minmax(0, 1fr);
+  }
+  .sgm-source-facts {
+    grid-column: 2;
+    white-space: normal;
+  }
 }
 .sgm-radio {
   display: flex;

@@ -4,7 +4,7 @@
   "monitorV2.showAll": { "en": "Show all launches", "zh": "查看全部投放" },
   "monitorV2.filters": { "en": "Filter launches", "zh": "筛选投放" },
   "monitorV2.search": { "en": "Search", "zh": "搜索" },
-  "monitorV2.searchPlaceholder": { "en": "Run, campaign or account", "zh": "投放、活动或账户" },
+  "monitorV2.searchPlaceholder": { "en": "Launch, campaign or account", "zh": "投放、活动或账户" },
   "monitorV2.provider": { "en": "Platform", "zh": "平台" },
   "monitorV2.status": { "en": "Status", "zh": "状态" },
   "monitorV2.all": { "en": "All", "zh": "全部" },

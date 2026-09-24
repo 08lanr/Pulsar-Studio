@@ -188,8 +188,7 @@ export default function FilmImport({ portal, canImport, producers = [], crazydra
             <span>{tt("fi.transcript")}</span>
           </label>
         )}
-        <span className="spacer" />
-        <button type="button" className="btn btn-outline btn-sm" onClick={() => void load()}>{tt("fi.refresh")}</button>
+        <button type="button" className="btn btn-outline btn-sm" style={{ marginLeft: "auto" }} onClick={() => void load()}>{tt("fi.refresh")}</button>
       </div>
       {portal === "admin" && !producerId && <p className="hint">{tt("fi.company.hint")}</p>}
       {loadError && <p className="err" role="alert">{tt("fi.loadFailed", { detail: loadError })}</p>}
@@ -202,8 +201,8 @@ export default function FilmImport({ portal, canImport, producers = [], crazydra
           <div className="gt-head">
             <span />
             <span>{tt("fi.col.film")}</span>
-            <span>{tt("fi.col.episodes")}</span>
-            <span>{tt("fi.col.size")}</span>
+            <span className="gt-num">{tt("fi.col.episodes")}</span>
+            <span className="gt-num">{tt("fi.col.size")}</span>
             <span>{tt("fi.col.video")}</span>
             <span>{tt("fi.col.language")}</span>
             <span>{tt("fi.col.state")}</span>
@@ -242,10 +241,10 @@ export default function FilmImport({ portal, canImport, producers = [], crazydra
                   {result && <small className={result.error ? "err" : "hint"} role="status">{result.text}{!result.error && p?.result?.flags.length ? <> · <span title={p.result.flags.join("\n")}>{tt("fi.result.flags", { n: p.result.flags.length })}</span></> : null}</small>}
                   {startError[film.source_ref] && <small className="err" role="alert">{tt("fi.startFailed", { detail: startError[film.source_ref] })}</small>}
                 </span>
-                <span className="gt-num">{film.episodes}</span>
-                <span className="gt-num">{sizeText(tt, film.bytes)}</span>
-                <span className="gt-muted">{film.video ? tt("fi.video.facts", { w: film.video.width, h: film.video.height, fps: film.video.fps }) : "—"}</span>
-                <span className="gt-muted">{film.language ?? "—"}</span>
+                <span className="gt-num" data-label={tt("fi.col.episodes")}>{film.episodes}</span>
+                <span className="gt-num" data-label={tt("fi.col.size")}>{sizeText(tt, film.bytes)}</span>
+                <span className="gt-muted" data-label={tt("fi.col.video")}>{film.video ? tt("fi.video.facts", { w: film.video.width, h: film.video.height, fps: film.video.fps }) : "—"}</span>
+                <span className="gt-muted" data-label={tt("fi.col.language")}>{film.language ?? "—"}</span>
                 <span style={{ display: "grid", gap: 2 }}>
                   <span><span className={`pill ${statePill[film.state]}`}>{tt(`fi.state.${film.state}`)}</span></span>
                   {reason && <small className="gt-muted">{reason}</small>}

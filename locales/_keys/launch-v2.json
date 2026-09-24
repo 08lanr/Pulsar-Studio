@@ -16,8 +16,8 @@
     "zh": "查看每次投放的状态、花费、点击和操作。"
   },
   "lv2.monitor.empty": {
-    "en": "No launches yet.",
-    "zh": "还没有投放。"
+    "en": "No launches yet. Press Create a launch to start one.",
+    "zh": "还没有投放。点“创建投放”开始第一次投放。"
   },
   "lv2.monitor.open": {
     "en": "Open monitor",
@@ -504,8 +504,8 @@
     "zh": "重试"
   },
   "lv2.refresh": {
-    "en": "Refresh delivery",
-    "zh": "刷新投放状态"
+    "en": "Refresh results",
+    "zh": "刷新结果"
   },
   "lv2.invalidAmount": {
     "en": "Enter a positive amount.",

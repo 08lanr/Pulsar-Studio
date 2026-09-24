@@ -1,0 +1,118 @@
+{
+  "admin.titles.videoOnly": {
+    "en": "Videos · {n} episodes",
+    "zh": "视频 · {n} 集"
+  },
+  "admin.title.videoOnlyHelp": {
+    "en": "Each episode's video with its ad clips. Nothing here needs translating; to translate an episode, add its subtitle or script file below.",
+    "zh": "每一集的视频和它的广告切片。这里没有需要翻译的内容；如果要翻译某一集，在下方添加它的字幕或剧本文件。"
+  },
+  "lv2.meta.refresh": {
+    "en": "Read accounts again",
+    "zh": "重新读取账户"
+  },
+  "lv2.meta.noBusiness": {
+    "en": "not in a Business Manager",
+    "zh": "不属于任何商务管理平台"
+  },
+  "tks.presetsElsewhere": {
+    "en": "Launch presets and Instant Page templates have their own page.",
+    "zh": "投放预设和即时页面模板在单独的页面管理。"
+  },
+  "lpx.pickCompanyFirst": {
+    "en": "Choose the producer first; its titles on CrazyDramas appear here.",
+    "zh": "先选择制片方，它在 CrazyDramas 上的剧集会出现在这里。"
+  },
+  "pack.aiUnavailable": {
+    "en": "AI is not set up on this server, so the pack cannot be made here.",
+    "zh": "这台服务器没有配置 AI，无法在这里生成素材包。"
+  },
+  "pack.clips.title": {
+    "en": "Clip finder",
+    "zh": "切片查找"
+  },
+  "pack.clips.sub": {
+    "en": "The strongest moments of each episode for short ads, best first: the same clips as the title's Ad clips page.",
+    "zh": "每一集最适合做短广告的片段，按强弱排序：和剧集“广告切片”页是同一批切片。"
+  },
+  "pack.clips.episode": {
+    "en": "Ep {n} · #{rank}",
+    "zh": "第 {n} 集 · #{rank}"
+  },
+  "wb.workflow.videoOnly.title": {
+    "en": "Video only: nothing to translate",
+    "zh": "只有视频：没有需要翻译的内容"
+  },
+  "wb.workflow.videoOnly.body": {
+    "en": "This episode's ad clips are cut automatically (Ad clips on the title page). To translate it, add its subtitle or script file on the title page.",
+    "zh": "这一集的广告切片会自动切好（见剧集页的“广告切片”）。如果要翻译它，在剧集页添加它的字幕或剧本文件。"
+  },
+  "clipsPosting.noHook": {
+    "en": "No ad text yet",
+    "zh": "还没有广告文案"
+  },
+  "seg.decision.watermark_accept": {
+    "en": "accepted the logo box",
+    "zh": "确认了台标框"
+  },
+  "seg.decision.watermark_region": {
+    "en": "asked for a new logo search",
+    "zh": "要求重新查找台标"
+  },
+  "seg.decision.watermark_no_delogo": {
+    "en": "said the film has no logo",
+    "zh": "确认影片没有台标"
+  },
+  "seg.decision.accept": {
+    "en": "accepted the end",
+    "zh": "确认了结束点"
+  },
+  "seg.decision.move": {
+    "en": "moved the end",
+    "zh": "移动了结束点"
+  },
+  "seg.decision.reject": {
+    "en": "rejected the end",
+    "zh": "否决了结束点"
+  },
+  "seg.decision.remove": {
+    "en": "removed the end",
+    "zh": "删除了结束点"
+  },
+  "seg.decision.apply_review": {
+    "en": "applied the review",
+    "zh": "应用了审阅结果"
+  },
+  "seg.decision.join": {
+    "en": "moved a join",
+    "zh": "移动了衔接点"
+  },
+  "seg.decision.cards": {
+    "en": "picked the “to be continued” cards",
+    "zh": "选定了“未完待续”卡片"
+  },
+  "seg.decision.film_meta": {
+    "en": "saved the film's details",
+    "zh": "保存了影片信息"
+  },
+  "seg.decision.import_now": {
+    "en": "imported the film",
+    "zh": "导入了影片"
+  },
+  "seg.decision.handoff_vision": {
+    "en": "handed the vision pass to Claude Code",
+    "zh": "把视觉判断交给了 Claude Code"
+  },
+  "seg.decision.retry": {
+    "en": "retried the stage",
+    "zh": "重试了这一步"
+  },
+  "seg.decision.note": {
+    "en": "left a note",
+    "zh": "留了备注"
+  },
+  "seg.joins.imported": {
+    "en": "The film is imported; its joins no longer move.",
+    "zh": "影片已经导入，衔接点不能再移动。"
+  }
+}

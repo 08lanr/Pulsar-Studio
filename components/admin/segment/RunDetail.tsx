@@ -40,6 +40,12 @@ function str(v: Json | undefined): string | null {
 
 export default function RunDetail({ runId }: { runId: string }) {
   const { tt, locale } = useT();
+  // A decision's action in words (UI sweep 2026-09-24: the log printed the codes, "watermark_accept", "import_now"); an unknown one reads with spaces.
+  const decisionLabel = (action: string) => {
+    const key = `seg.decision.${action}`;
+    const words = tt(key);
+    return words === key ? action.replaceAll("_", " ") : words;
+  };
   const [data, setData] = useState<RunDetailReply | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -356,7 +362,7 @@ export default function RunDetail({ runId }: { runId: string }) {
               <ul className="sgm-log">
                 {run.decisions.slice().reverse().map((d, i) => (
                   <li key={i}>
-                    <time dateTime={d.at}>{new Date(d.at).toLocaleString(locale === "zh" ? "zh-CN" : "en-GB", { hour12: false })}</time> · {d.by} · {d.action}
+                    <time dateTime={d.at}>{new Date(d.at).toLocaleString(locale === "zh" ? "zh-CN" : "en-GB", { hour12: false })}</time> · {d.by} · {decisionLabel(d.action)}
                     {d.boundary_s !== null && d.boundary_s !== undefined ? ` · ${fmtT(d.boundary_s)}` : ""}
                     {typeof d.to_s === "number" ? ` → ${fmtT(d.to_s)}` : ""}
                     {d.why ? ` · ${d.why}` : ""}

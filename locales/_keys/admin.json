@@ -48,8 +48,8 @@
     "zh": "剧集"
   },
   "admin.titles.sub": {
-    "en": "Adapt, review, approve and export every title.",
-    "zh": "管理每部剧集的改编、审核、批准与导出。"
+    "en": "Every title in Studio: imported films and titles translated here. Open one for its episodes, ad clips and where it stands on CrazyDramas.",
+    "zh": "Studio 里的全部剧集：导入的影片和在这里翻译的剧集。打开一部，查看分集、广告切片和在 CrazyDramas 上的状态。"
   },
   "admin.titles.new": {
     "en": "New title",
@@ -372,12 +372,12 @@
     "zh": "推广"
   },
   "admin.head.promote": {
-    "en": "Promote desk",
-    "zh": "推广工作台"
+    "en": "Earlier campaigns",
+    "zh": "早期广告活动"
   },
   "admin.promote.title": {
-    "en": "Promote desk",
-    "zh": "推广工作台"
+    "en": "Earlier campaigns",
+    "zh": "早期广告活动"
   },
   "admin.promote.queue.action": {
     "en": "Needs Pulsar",
@@ -460,8 +460,8 @@
     "zh": "修改要求"
   },
   "admin.promote.stat.grow": {
-    "en": "Grow campaign",
-    "zh": "Grow 活动"
+    "en": "TikTok campaign",
+    "zh": "TikTok 广告活动"
   },
   "admin.promote.brief": {
     "en": "Campaign brief",
@@ -500,8 +500,8 @@
     "zh": "暂无可投放内容——制片方尚未提交。"
   },
   "admin.promote.launch.growId": {
-    "en": "Grow campaign id",
-    "zh": "Grow 活动 ID"
+    "en": "TikTok campaign id",
+    "zh": "TikTok 广告活动 ID"
   },
   "admin.promote.launch.note": {
     "en": "Note for the audit trail",

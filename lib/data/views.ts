@@ -181,6 +181,14 @@ export function usesTranslationWorkflow(title: Pick<Title, "source_ref">, episod
   return episodes.some((e) => e.lines_adapted > 0 || e.status !== "ingested");
 }
 
+/**
+ * Every episode is a video with no script and nothing adapted (UI sweep 2026-09-24): a title made in Studio from
+ * videos alone reads as its videos and ad clips, not as a translation stuck at 0%.
+ */
+export function isVideoOnly(episodes: readonly Pick<EpisodeSummary, "status" | "lines_total" | "has_video">[]): boolean {
+  return episodes.length > 0 && episodes.every((e) => e.has_video && e.lines_total === 0 && e.status === "ingested");
+}
+
 export function buildTitleSummary(i: {
   title: Title;
   producer: Producer;
@@ -207,6 +215,7 @@ export function buildTitleSummary(i: {
     cover_path: i.title.cover_path ?? null,
     episodes_with_video: i.episodes.filter((e) => e.has_video).length,
     uses_translation: usesTranslationWorkflow(i.title, i.episodes),
+    video_only: isVideoOnly(i.episodes),
   };
 }
 

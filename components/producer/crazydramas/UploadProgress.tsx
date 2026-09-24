@@ -211,7 +211,7 @@ export default function UploadProgress({ episodes, seriesReady, canWrite, busy, 
         <div className="gtable cdp-table" role="region" aria-label={tt("cdp.step.upload")} tabIndex={0} style={{ "--cols": COLS } as React.CSSProperties}>
           <div className="gt-head">
             <span>{tt("cd.col.episode")}</span>
-            <span>{tt("cdp.col.file")}</span>
+            <span className="gt-num">{tt("cdp.col.file")}</span>
             <span>{tt("cd.col.access")}</span>
             <span>{tt("cdp.col.upload")}</span>
             <span>{tt("cdp.col.cd")}</span>

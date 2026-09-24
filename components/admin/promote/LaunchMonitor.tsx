@@ -55,7 +55,7 @@ export default function LaunchMonitor({ producers }: { producers: Record<string,
     {error && <p className="note note-warn" role="alert">{error}</p>}
     {info && <p className="note note-info" role="status">{info}</p>}
     {rows && !rows.length && <div className="empty"><p>{tt("tkm.empty")}</p></div>}
-    {rows && rows.length > 0 && <div className="gtable" style={{ "--cols": "92px minmax(200px,2fr) minmax(140px,1.2fr) 120px 96px 80px 80px 70px minmax(160px,1.4fr) 90px" } as React.CSSProperties}>
+    {rows && rows.length > 0 && <div className="gtable" style={{ "--cols": "92px minmax(170px,2fr) minmax(120px,1.2fr) 110px 90px 72px 72px 56px minmax(100px,1.4fr) 76px" } as React.CSSProperties}>
       <div className="gt-head"><span>{tt("tk.state")}</span><span>{tt("admin.promote.col.campaign")}</span><span>{tt("tkm.account")}</span><span>{tt("tkm.review")}</span><span className="gt-num">{tt("tk.spend")}</span><span className="gt-num">{tt("tk.clicks")}</span><span className="gt-num">{tt("tk.cpc")}</span><span className="gt-num">{tt("tkm.conv")}</span><span>{tt("admin.promote.col.note")}</span><span /></div>
       {rows.map((r) => {
         const switchable = ["submitted", "live", "paused"].includes(r.status) && !r.account.suspended;

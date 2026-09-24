@@ -64,8 +64,7 @@ export default function RunList() {
 
   return (
     <section aria-label={tt("seg.list.title")}>
-      <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 12 }}>
-        <span className="spacer" />
+      <div style={{ display: "flex", gap: 16, alignItems: "center", justifyContent: "flex-end", marginBottom: 12 }}>
         <button type="button" className="btn btn-outline btn-sm" onClick={() => void load()}>{tt("seg.refresh")}</button>
       </div>
       {error && <p className="err" role="alert">{tt("seg.list.loadFailed", { detail: error })}</p>}

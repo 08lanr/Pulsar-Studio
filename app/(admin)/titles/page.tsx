@@ -34,9 +34,9 @@ export default async function TitlesPage({ searchParams }: { searchParams?: { pr
       {titles.map((title) => <Link key={title.id} className="gt-row clickable" href={`/titles/${title.id}`}>
         <span className="staff-title-name"><strong className="bilingual" lang="zh-CN">{title.name_zh}</strong>{title.name_en && title.name_en !== title.name_zh && <small className="gt-muted bilingual" lang="en">{title.name_en}</small>}</span>
         <span>{title.producer_name_en || title.producer_name_zh}</span>
-        {title.uses_translation === false ? <>
-          {/* An imported film (2026-09-24): its state is the import and crazydramas, not the translation workflow it never entered. */}
-          <span><span className="pill pill-neutral" data-imported="true">{t(locale, "admin.titles.imported", { n: title.episodes_ingested })}</span></span>
+        {title.uses_translation === false || title.video_only ? <>
+          {/* An imported film (2026-09-24), or a title made from videos alone (UI sweep): its state is its episodes and crazydramas, not the translation workflow it never entered. */}
+          <span><span className="pill pill-neutral" data-imported={title.uses_translation === false ? "true" : undefined}>{t(locale, title.uses_translation === false ? "admin.titles.imported" : "admin.titles.videoOnly", { n: title.episodes_ingested })}</span></span>
           <span><CrazydramasChip {...(crazydramas[title.id] ?? { state: "not_linked", stale: false, older: false })} locale={locale} /></span>
         </> : <>
           <span><TitlePill status={title.status} label={t(locale,titleStatusKey(title.status))} /></span>

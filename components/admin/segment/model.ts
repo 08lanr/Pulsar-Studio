@@ -89,8 +89,9 @@ export function progressText(detail: Json | null | undefined): string {
   if (typeof d.message === "string") return d.message;
   if (step) return step;
   if (p) return "";
+  // The worker's own bookkeeping (when it started, which process, what it has seen) is not progress (UI sweep 2026-09-24).
   return Object.entries(d)
-    .filter(([k, v]) => v !== null && v !== undefined && typeof v !== "object" && k !== "ready")
+    .filter(([k, v]) => v !== null && v !== undefined && typeof v !== "object" && k !== "ready" && !k.endsWith("_at") && k !== "worker" && k !== "decisions_seen")
     .map(([k, v]) => `${k}: ${String(v)}`)
     .join(" · ");
 }

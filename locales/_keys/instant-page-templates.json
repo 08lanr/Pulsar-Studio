@@ -3,7 +3,7 @@
   "tipTemplates.title": { "en": "Instant Page templates", "zh": "即时页面模板" },
   "tipTemplates.new": { "en": "New template", "zh": "新建模板" },
   "tipTemplates.explainer": { "en": "Save a reusable page design here. Launch creates a separate TikTok Instant Page for each approved campaign and fills its tracking link.", "zh": "在这里保存可复用的页面样式。审批投放后，每个广告活动会单独创建 TikTok 即时页面，并填入对应的追踪链接。" },
-  "tipTemplates.empty": { "en": "No Instant Page templates yet.", "zh": "还没有即时页面模板。" },
+  "tipTemplates.empty": { "en": "No Instant Page templates yet. Press New template to make one.", "zh": "还没有即时页面模板。点“新建模板”创建一个。" },
   "tipTemplates.name": { "en": "Template name", "zh": "模板名称" },
   "tipTemplates.button": { "en": "Button text", "zh": "按钮文字" },
   "tipTemplates.background": { "en": "Background", "zh": "背景" },
