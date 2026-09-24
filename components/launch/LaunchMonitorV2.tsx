@@ -134,6 +134,11 @@ function AdNumbers({ totals, tt }: { totals: Totals; tt: (key: string, vars?: Re
       <span>{tt("lpx.roas")} <b>{totals.roas ?? "—"}</b></span>
       <span>{tt("lpx.costPerPurchase")} <b>{money(totals.cost_per_purchase_cents)}</b></span>
     </>}
+    {/* The number an InitiateCheckout-optimised ad is optimised on (2026-09-24). */}
+    {totals.checkouts !== null && <>
+      <span>{tt("lpx.checkouts")} <b>{int(totals.checkouts)}</b></span>
+      <span>{tt("mad.costPerCheckout")} <b>{money(totals.cost_per_checkout_cents)}</b></span>
+    </>}
   </span>;
 }
 
@@ -337,11 +342,15 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
     </div>
     {view === "titles" ? <section className="lm-by-title" aria-label={tt("mad.byTitle")}>
       <p className="hint">{tt("mad.byTitleHint")}</p>
+      {/* The one filter that applies here, shown where it narrows the totals (it is never a hidden filter). */}
+      <div className="lm-filters" aria-label={tt("monitorV2.filters")}>
+        <label>{tt("monitorV2.provider")}<select value={provider} onChange={(e) => setProvider(e.target.value)} data-testid="by-title-provider"><option value="all">{tt("monitorV2.all")}</option><option value="tiktok">TikTok</option><option value="meta">Meta</option></select></label>
+      </div>
       {loading ? <p>{tt("common.loading")}</p> : byTitle.length === 0 ? <div className="empty"><p>{tt("mad.byTitleEmpty")}</p></div> : <div className="lm-table-scroll"><table className="lm-table lm-title-table" data-testid="by-title-table">
         <colgroup><col className="lm-col-title" /><col className="lm-col-count" /><col className="lm-col-count" /><col className="lm-col-count" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /></colgroup>
         <thead><tr><th scope="col">{tt("mad.title")}</th><th scope="col">{tt("mad.launches")}</th><th scope="col">{tt("lv2.campaigns")}</th><th scope="col">{tt("mad.ads")}</th><th scope="col">{tt("lv2.spent")}</th><th scope="col">{tt("lv2.clicks")}</th><th scope="col">CTR</th><th scope="col">{tt("lv2.cpc")}</th><th scope="col">{tt("lpx.purchases")}</th><th scope="col">{tt("lpx.value")}</th><th scope="col">{tt("lpx.roas")}</th><th scope="col">{tt("lpx.costPerPurchase")}</th></tr></thead>
         <tbody>{byTitle.map((r) => <tr key={r.title_id} data-title-id={r.title_id}>
-          <td><Link href={titleHref(r.title_id)} className="lm-title-link">{titleName(r.title_id)}</Link>{r.unattributed > 0 && <small className="lm-title-note">{tt("mad.unattributed", { n: r.unattributed })}</small>}</td>
+          <td><Link href={titleHref(r.title_id)} className="lm-title-link">{titleName(r.title_id)}</Link>{r.unattributed > 0 && <small className="lm-title-note">{tt("mad.unattributed", { n: r.unattributed })}</small>}{r.unattributed_meta > 0 && <small className="lm-title-note">{tt("mad.unattributedMeta", { n: r.unattributed_meta })}</small>}</td>
           <td className="lm-number">{r.launches}</td><td className="lm-number">{r.campaigns.length}</td><td className="lm-number">{r.ads}</td>
           <td className="lm-number">{money(r.totals.spend_cents)}</td><td className="lm-number">{int(r.totals.clicks)}</td>
           <td className="lm-number">{r.totals.ctr === null ? "—" : `${(r.totals.ctr * 100).toFixed(2)}%`}</td><td className="lm-number">{money(r.totals.cpc_cents)}</td>
@@ -502,7 +511,7 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
                     // position ("Ad 1"), the same way the confirm dialog draws it.
                     const pictured = Boolean(card.thumbnail_url || card.media_url);
                     // Its own numbers, summed over its copies; its own title and link.
-                    const numbers = item ? contentNumbers(c, item) : null;
+                    const numbers = item ? contentNumbers(c, item, run.draft.provider === "meta" ? "meta" : "tiktok") : null;
                     const adTitle = item ? titleName(adTitleId(run, item)) : null;
                     const link = adLandingLink(item ? adLandingUrl(item, run.draft.destination_url) : run.draft.destination_url, { campaign: campaignId, adgroup: groups.length === 1 ? groups[0].id : null, ad: ad?.id ?? null });
                     return <div className="lm-ad" key={key}><div className="lm-ad-row">
@@ -530,6 +539,7 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
                 {c.snapshot?.web && <p className="hint lm-web-line" data-testid="web-conversions">{tt("lpx.webLine", { attribution: c.snapshot.web.attribution })}: {tt("lpx.purchases")} {int(c.snapshot.web.purchases)} · {tt("lpx.value")} {money(c.snapshot.web.purchase_value_cents)} · {tt("lpx.roas")} {c.snapshot.web.roas ?? "—"} · {tt("lpx.checkouts")} {int(c.snapshot.web.checkouts)}</p>}
                 {c.snapshot?.web_error && <p className="hint">{tt("lpx.webUnavailable", { reason: c.snapshot.web_error })}</p>}
                 {c.snapshot?.ad_stats_error && <p className="hint" data-testid="ad-stats-error">{tt("mad.adStatsUnavailable", { reason: c.snapshot.ad_stats_error })}</p>}
+                {c.snapshot?.ad_web_error && !c.snapshot.ad_stats_error && <p className="hint" data-testid="ad-web-error">{tt("mad.adWebUnavailable", { reason: c.snapshot.ad_web_error })}</p>}
                 {skippedOf(c).map((item, i) => <p className="note note-warn" key={i}>{typeof item === "string" ? item : JSON.stringify(item)}</p>)}
               </div></td></tr>}
               {menu === c.id && createPortal(<div data-monitor-menu className="lm-menu-list" style={{ top: menuPosition.top, left: menuPosition.left }}>{canControl && <><button onClick={() => openEdit(run, c, "budget")}>{tt("lv2.changeBudget")}</button>{c.daily_budget_cents != null && <button onClick={() => openEdit(run, c, "daily_budget")}>{tt("lv2.changeDaily")}</button>}<button onClick={() => openEdit(run, c, "bid")}>{tt("lv2.changeBid")}</button><button onClick={() => openEdit(run, c, "schedule")}>{tt("lv2.endDate")}</button>{run.draft.provider === "tiktok" && <button disabled={!!busy} onClick={() => void control(run, c, { action: "duplicate" })}>{tt("lv2.duplicate")}</button>}</>}{canEnd && <button className="lm-danger" onClick={() => openEdit(run, c, "end")}>{tt("monitorV2.endCampaign")}</button>}</div>, document.body)}

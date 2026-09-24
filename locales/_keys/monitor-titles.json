@@ -34,5 +34,9 @@
   "mad.fromLaunches": { "en": "Ad results from Studio launches", "zh": "Studio 投放的广告结果" },
   "mad.fromLaunchesSub": { "en": "{launches} launch(es), {campaigns} campaign(s), {ads} ad(s) promote this title.", "zh": "共有 {launches} 次投放、{campaigns} 个广告系列、{ads} 条广告推广此剧集。" },
   "mad.openResults": { "en": "Ad results", "zh": "广告结果" },
-  "mad.earlierRounds": { "en": "Earlier ad rounds", "zh": "早期广告轮次" }
+  "mad.earlierRounds": { "en": "Earlier ad rounds", "zh": "早期广告轮次" },
+  "mad.adWebUnavailable": { "en": "Per-ad purchases could not be read this time: {reason}. Each ad's cost and clicks above are not affected.", "zh": "这次未能读取单条广告的购买数据：{reason}。上方每条广告的花费和点击不受影响。" },
+  "mad.costPerCheckout": { "en": "Cost per checkout", "zh": "每次发起结账成本" },
+  "mad.unattributedMeta": { "en": "{n} Meta campaign(s) with several titles not added in", "zh": "{n} 个含多部剧集的 Meta 广告系列未计入" },
+  "mad.unattributedMetaLong": { "en": "{n} Meta campaign(s) promote this title alongside other titles. Meta reports numbers per campaign, not per ad, so their numbers are not added in here; the campaign's own numbers are on the Monitor.", "zh": "有 {n} 个 Meta 广告系列同时推广此剧集和其他剧集。Meta 只按广告系列报告数据，不按单条广告，因此这些数字没有计入这里；广告系列本身的数字见投放监控。" }
 }

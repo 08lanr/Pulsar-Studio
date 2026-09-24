@@ -231,3 +231,54 @@ test("results by title: whole campaigns count whole, mixed ones by their ads, un
   const list = resultsByTitle(runs);
   assert.deepEqual(list.map((x) => x.title_id), [A, B], "most spend first");
 });
+
+test("a Spark code TikTok never made into an ad counts as observed zero once the ad report read the others; Meta's mixed campaigns get their own note", () => {
+  const A = "11111111-1111-4111-8111-111111111111", B = "22222222-2222-4222-8222-222222222222";
+  // Two A codes and one B code; TikTok refused "a-skipped" for good when the ads were made, so it has no ad.
+  const mixed = campaignOf(1, [{ kind: "spark", value: "a1", title_id: A }, { kind: "spark", value: "a-skipped", title_id: A }, { kind: "spark", value: "b1", title_id: B }], {
+    spend_cents: 5000, impressions: 20000, clicks: 200, web: web(3, 2997),
+    ads: [
+      { id: "ad-a1", status: "approved", content_value: "a1", stats: { spend_cents: 2000, impressions: 8000, clicks: 80, ctr: 0.01, cpc_cents: 25, conversions: 0, web: { purchases: 1, purchase_value_cents: 999, cost_per_purchase_cents: 2000, roas: 0.5, checkouts: 4, cost_per_checkout_cents: 500 } } },
+      { id: "ad-b1", status: "approved", content_value: "b1", stats: { spend_cents: 3000, impressions: 12000, clicks: 120, ctr: 0.01, cpc_cents: 25, conversions: 0, web: { purchases: 2, purchase_value_cents: 1998, cost_per_purchase_cents: 1500, roas: 0.67, checkouts: 6, cost_per_checkout_cents: 500 } } },
+    ] });
+  const r = titleResults([runOf("1", A, [mixed])], A);
+  assert.equal(r.unattributed, 0, "the skipped code no longer keeps the campaign 'not added in' for good");
+  assert.equal(r.totals.spend_cents, 2000);
+  assert.equal(r.totals.purchases, 1);
+  assert.equal(r.totals.checkouts, 4);
+  assert.equal(r.totals.cost_per_checkout_cents, 500, "cost per checkout: spend that read purchases ÷ checkouts");
+  const skipped = r.campaigns[0].ads.find((ad) => ad.item.value === "a-skipped")!;
+  assert.equal(skipped.totals!.spend_cents, 0, "observed zero");
+  assert.equal(skipped.totals!.purchases, 0, "zero purchases on a campaign that reads purchases");
+
+  // The per-ad report failed: the skipped code is unknown again, and the campaign waits for a Refresh.
+  const failed = campaignOf(2, mixed.content, { ...mixed.snapshot!, ad_stats_error: "Invalid data_level", ads: mixed.snapshot!.ads!.map(({ stats: _s, ...ad }) => ad) });
+  assert.equal(titleResults([runOf("1", A, [failed])], A).unattributed, 1);
+
+  // Meta reports no ad separately: a Meta campaign with two titles is counted under its own note, never "TikTok has not reported yet".
+  const meta = campaignOf(3, [{ kind: "video", value: "clip-a", title_id: A }, { kind: "facebook_post", value: "123_456", title_id: B }], { spend_cents: 4000, ads: [{ id: "m1", status: "active" }, { id: "m2", status: "active" }] });
+  const rm = titleResults([runOf("m", null, [meta], "meta")], A);
+  assert.equal(rm.unattributed, 0);
+  assert.equal(rm.unattributed_meta, 1);
+  assert.equal(rm.totals.spend_cents, null);
+});
+
+test("a refused per-ad purchases read leaves the ads their delivery numbers and says only that", async () => {
+  const one = await account();
+  const a = await launchTitle(FAKE_SLUGS.complete);
+  const b = await launchTitle(FAKE_SLUGS.partial);
+  const saved = await getData().saveLaunchDraft(producer(), { ...draftOf(a.id, one.id, [{ kind: "spark", value: "code-a" }, { kind: "spark", value: "code-b", title_id: b.id }]),
+    tiktok_settings: { ...defaultLaunchDraft("tiktok").tiktok_settings, start_paused: true } });
+  await getData().previewLaunchRun(producer(), saved.id);
+  const approved = await getData().submitLaunchRun(producer(), saved.id, saved.revision);
+  const ctx = contextOf(approved, approved.campaigns[0]);
+  await tiktokSparkDriver.launch(ctx);
+  await tiktokSparkDriver.control(ctx, { action: "resume" });
+  await tiktokSparkDriver.monitor(ctx);
+  fakeTransport.get = async (p, token, params) => p === "/report/integrated/get/" && params?.data_level === "AUCTION_AD" && String(params?.metrics ?? "").includes("complete_payment")
+    ? { code: 40001, message: "No permission to read complete_payment" } : originalGet(p, token, params);
+  const soft = await tiktokSparkDriver.monitor(ctx);
+  assert.equal(soft.ad_stats_error, undefined, "the delivery read worked");
+  assert.match(soft.ad_web_error ?? "", /complete_payment/);
+  assert.equal(soft.ads?.every((ad) => ad.stats && typeof ad.stats.spend_cents === "number"), true, "each ad keeps its own numbers");
+});

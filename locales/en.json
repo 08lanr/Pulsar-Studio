@@ -4300,5 +4300,9 @@
   "cdp.slug.lockedBecause": "Locked: {reason}.",
   "cdp.slug.restoreHint": "This title's slug was changed away from the series it is on, {slug}, so every write to crazydramas is held.",
   "cdp.slug.restore": "Put the slug back to {slug}",
-  "seg.meta.cdSlugHint": "Leave it empty: Studio picks one when the film is imported and checks it on crazydramas. A slug typed here is used as it is."
+  "seg.meta.cdSlugHint": "Leave it empty: Studio picks one when the film is imported and checks it on crazydramas. A slug typed here is used as it is.",
+  "mad.adWebUnavailable": "Per-ad purchases could not be read this time: {reason}. Each ad's cost and clicks above are not affected.",
+  "mad.costPerCheckout": "Cost per checkout",
+  "mad.unattributedMeta": "{n} Meta campaign(s) with several titles not added in",
+  "mad.unattributedMetaLong": "{n} Meta campaign(s) promote this title alongside other titles. Meta reports numbers per campaign, not per ad, so their numbers are not added in here; the campaign's own numbers are on the Monitor."
 }

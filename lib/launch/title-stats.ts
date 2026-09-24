@@ -10,8 +10,11 @@
 //   - a campaign whose every ad promotes the title: the campaign's own numbers
 //     (the complete reading, TikTok-attributed purchases included);
 //   - a campaign that mixes titles: the sum of this title's ads' own numbers
-//     (TikTok's per-ad report); without them the campaign counts, its
-//     numbers do not, and `unattributed` says how many such campaigns there are.
+//     (TikTok's per-ad report; a Spark code that never became an ad delivered
+//     nothing once the report has read the others); without them the campaign
+//     counts, its numbers do not, and `unattributed` says how many such
+//     campaigns there are — `unattributed_meta` for Meta, which never reports
+//     ads separately.
 // Unknown stays null, never zero. Ratios are recomputed from sums, and ROAS
 // and cost per purchase only from the spend of campaigns that read purchases
 // (a Traffic campaign reads none: its spend is not "no purchases").
@@ -32,6 +35,8 @@ export type Numbers = {
 };
 export type Totals = Numbers & {
   ctr: number | null; cpc_cents: number | null; roas: number | null; cost_per_purchase_cents: number | null;
+  /** Spend that read purchases ÷ checkouts started: what an InitiateCheckout-optimised ad pays per checkout. */
+  cost_per_checkout_cents: number | null;
 };
 type AdStatus = NonNullable<DeliverySnapshot["ads"]>[number];
 
@@ -56,6 +61,7 @@ export function totalsOf(n: Numbers): Totals {
     cpc_cents: n.spend_cents !== null && n.clicks ? Math.round(n.spend_cents / n.clicks) : null,
     roas: n.web_spend_cents && n.value_cents !== null ? Math.round((n.value_cents / n.web_spend_cents) * 100) / 100 : null,
     cost_per_purchase_cents: n.web_spend_cents !== null && n.purchases ? Math.round(n.web_spend_cents / n.purchases) : null,
+    cost_per_checkout_cents: n.web_spend_cents !== null && n.checkouts ? Math.round(n.web_spend_cents / n.checkouts) : null,
   };
 }
 
@@ -108,10 +114,33 @@ export function adsOfContent(campaign: Pick<LaunchCampaign, "snapshot">, item: P
   return (campaign.snapshot?.ads ?? []).filter((ad) => ad.content_value === item.value);
 }
 
-/** One content item's numbers: its ads' own, summed; null when no ad of it has any. */
-export function contentNumbers(campaign: Pick<LaunchCampaign, "snapshot">, item: Pick<LaunchContent, "value">): Numbers | null {
-  const withStats = adsOfContent(campaign, item).filter((ad) => ad.stats);
-  return withStats.length ? sumNumbers(withStats.map((ad) => adNumbers(ad.stats))) : null;
+/**
+ * TikTok read this campaign's ads one by one: the sweep recorded the ads and
+ * the per-ad report did not fail. Only then is a content item with no ad at
+ * all (a Spark code TikTok refused for good when the ads were made) known to
+ * have delivered nothing.
+ */
+function adsReportRead(campaign: Pick<LaunchCampaign, "snapshot">): boolean {
+  return !!campaign.snapshot?.ads && !campaign.snapshot.ad_stats_error;
+}
+
+/** Observed zero delivery; the purchase fields are zero only on a campaign that reads purchases. */
+function observedZero(snapshot: DeliverySnapshot | null | undefined): Numbers {
+  const web = !!snapshot?.web;
+  return { spend_cents: 0, impressions: 0, clicks: 0, conversions: 0, purchases: web ? 0 : null, value_cents: web ? 0 : null, checkouts: web ? 0 : null, web_spend_cents: web ? 0 : null };
+}
+
+/**
+ * One content item's numbers: its ads' own, summed. A TikTok item that never
+ * became an ad, on a campaign whose ads TikTok did report, delivered nothing
+ * (observed zero). Null when no ad of it has numbers yet.
+ */
+export function contentNumbers(campaign: Pick<LaunchCampaign, "snapshot">, item: Pick<LaunchContent, "value">, provider: "tiktok" | "meta" = "tiktok"): Numbers | null {
+  const ads = adsOfContent(campaign, item);
+  const withStats = ads.filter((ad) => ad.stats);
+  if (withStats.length) return sumNumbers(withStats.map((ad) => adNumbers(ad.stats)));
+  if (provider === "tiktok" && ads.length === 0 && adsReportRead(campaign)) return observedZero(campaign.snapshot);
+  return null;
 }
 
 export type TitleAd = {
@@ -129,8 +158,10 @@ export type TitleCampaign = {
 export type TitleResults = {
   title_id: string; totals: Totals;
   launches: number; campaigns: TitleCampaign[]; ads: number;
-  /** Campaigns that mix titles whose ads have no numbers of their own yet: counted, not added up. */
+  /** TikTok campaigns that mix titles whose ads have no numbers of their own yet: counted, not added up (a Refresh may read them). */
   unattributed: number;
+  /** Meta campaigns that mix titles (or a clip and a Page post): Meta's numbers are per campaign, never per ad, so they are counted and never added up. */
+  unattributed_meta: number;
   /** When a campaign of this title was last read. */
   checked_at: string | null;
 };
@@ -145,8 +176,9 @@ export function titleResults(runs: readonly LaunchRun[], titleId: string): Title
       const own = campaign.content.map((item, i) => ({ item, position: i + 1 })).filter(({ item }) => adTitleId(run, item) === titleId);
       if (!own.length) continue;
       launches.add(run.id);
+      const provider = run.draft.provider === "meta" ? "meta" : "tiktok";
       const ads: TitleAd[] = own.map(({ item, position }) => {
-        const numbers = contentNumbers(campaign, item);
+        const numbers = contentNumbers(campaign, item, provider);
         return { run, campaign, item, position, ads: adsOfContent(campaign, item), totals: numbers ? totalsOf(numbers) : null };
       });
       const whole = own.length === campaign.content.length;
@@ -162,7 +194,9 @@ export function titleResults(runs: readonly LaunchRun[], titleId: string): Title
     title_id: titleId,
     totals: totalsOf(sumNumbers(campaigns.filter((c) => c.totals).map((c) => c.totals!))),
     launches: launches.size, campaigns, ads: campaigns.reduce((n, c) => n + c.ads.length, 0),
-    unattributed: campaigns.filter((c) => !c.totals).length, checked_at: checked,
+    unattributed: campaigns.filter((c) => !c.totals && c.run.draft.provider !== "meta").length,
+    unattributed_meta: campaigns.filter((c) => !c.totals && c.run.draft.provider === "meta").length,
+    checked_at: checked,
   };
 }
 

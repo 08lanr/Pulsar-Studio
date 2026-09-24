@@ -576,7 +576,7 @@ async function monitor(ctx: DriverContext): Promise<DeliverySnapshot> {
       let webRows: Row[] | null = null;
       if (settings && launchShape(settings) === "website_purchases") {
         try { webRows = await list(c, "/report/integrated/get/", { report_type: "BASIC", data_level: "AUCTION_AD", dimensions: JSON.stringify(["ad_id"]), metrics: JSON.stringify(WEB_METRICS), ...window }); }
-        catch (e) { out.ad_stats_error = (e as Error).message; }
+        catch (e) { out.ad_web_error = (e as Error).message; }
       }
       adStats = adStatsByAd(codeById.keys(), rows, webRows);
     } catch (e) { out.ad_stats_error = (e as Error).message; }

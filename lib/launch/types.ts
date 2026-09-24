@@ -94,6 +94,8 @@ export type DeliverySnapshot = {
   ads?: { id: string; status: string; note?: string; content_value?: string; stats?: AdStats }[];
   /** Why the per-ad numbers are missing when TikTok's ad report failed (fails soft: the campaign's numbers stand). */
   ad_stats_error?: string;
+  /** Why the per-ad PURCHASES are missing when that second read failed; the ads keep their delivery numbers (ad_stats_error is the first read's). */
+  ad_web_error?: string;
   /** One entry per ad set. Meta names the platform its ad set runs on; TikTok groups have none. */
   groups?: { id: string; status: string; budget_cents?: number; bid_cents?: number | null; end_time?: string; platform?: MetaPlatform }[];
   /**

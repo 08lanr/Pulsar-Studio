@@ -4300,5 +4300,9 @@
   "cdp.slug.lockedBecause": "已锁定：{reason}。",
   "cdp.slug.restoreHint": "此剧集的 slug 被改离了它所在的剧集 {slug}，因此所有写入 crazydramas 的操作都已暂停。",
   "cdp.slug.restore": "把 slug 改回 {slug}",
-  "seg.meta.cdSlugHint": "留空即可：导入影片时 Studio 会自动选择一个并在 crazydramas 上核对。在这里填写的 slug 会按原样使用。"
+  "seg.meta.cdSlugHint": "留空即可：导入影片时 Studio 会自动选择一个并在 crazydramas 上核对。在这里填写的 slug 会按原样使用。",
+  "mad.adWebUnavailable": "这次未能读取单条广告的购买数据：{reason}。上方每条广告的花费和点击不受影响。",
+  "mad.costPerCheckout": "每次发起结账成本",
+  "mad.unattributedMeta": "{n} 个含多部剧集的 Meta 广告系列未计入",
+  "mad.unattributedMetaLong": "有 {n} 个 Meta 广告系列同时推广此剧集和其他剧集。Meta 只按广告系列报告数据，不按单条广告，因此这些数字没有计入这里；广告系列本身的数字见投放监控。"
 }

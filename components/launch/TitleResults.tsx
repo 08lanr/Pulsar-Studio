@@ -33,7 +33,7 @@ function filledLink(template: string, ids: { campaign?: string | null; adgroup?:
 }
 
 function Numbers({ totals }: { totals: Totals | null }) {
-  if (!totals) return <><td className="lm-number" colSpan={8}>—</td></>;
+  if (!totals) return <><td className="lm-number" colSpan={9}>—</td></>;
   return <>
     <td className="lm-number">{money(totals.spend_cents)}</td>
     <td className="lm-number">{int(totals.clicks)}</td>
@@ -43,6 +43,7 @@ function Numbers({ totals }: { totals: Totals | null }) {
     <td className="lm-number">{money(totals.value_cents)}</td>
     <td className="lm-number">{totals.roas ?? "—"}</td>
     <td className="lm-number">{money(totals.cost_per_purchase_cents)}</td>
+    <td className="lm-number">{int(totals.checkouts)}</td>
   </>;
 }
 
@@ -67,7 +68,7 @@ export default function TitleResults({ staff = false, titleId, titleName, crazyd
   const t = results?.totals;
 
   return <div className="launch-flow lm tr" data-testid="title-results">
-    <nav className="studio-crumbs" aria-label={tt("v3.breadcrumbs")}><Link href={monitor}>{tt("lv2.monitor.title")}</Link><span aria-hidden>›</span><span>{tt("mad.byTitle")}</span></nav>
+    <nav className="studio-crumbs" aria-label={tt("v3.breadcrumbs")}><Link href={monitor}>{tt("lv2.monitor.title")}</Link><span aria-hidden>›</span><Link href={`${monitor}?view=titles`}>{tt("mad.byTitle")}</Link><span aria-hidden>›</span><span>{titleName}</span></nav>
     <div className="page-head"><div><h1>{titleName}</h1><p className="page-sub">{tt("mad.titleSub")}</p></div>
       <div className="rs-tool-row"><button type="button" className="btn btn-outline" disabled={refreshing || !runs} onClick={() => void refresh()}>{tt(refreshing ? "common.loading" : "lv2.refresh")}</button><Link className="btn btn-outline" href={launchPage}>{tt("launchFeedback.createLaunch")}</Link></div></div>
     {error && <p className="note note-warn" role="alert">{error}</p>}
@@ -89,6 +90,7 @@ export default function TitleResults({ staff = false, titleId, titleName, crazyd
         <div><small>{tt("lv2.lastChecked")}</small><span className="lm-stat-hint">{date(results.checked_at)}</span></div>
       </div>
       {results.unattributed > 0 && <p className="note" role="status">{tt("mad.unattributedLong", { n: results.unattributed })}</p>}
+      {results.unattributed_meta > 0 && <p className="note" role="status">{tt("mad.unattributedMetaLong", { n: results.unattributed_meta })}</p>}
       <section className="rs-panel tr-second" aria-labelledby="tr-second-h">
         <h2 id="tr-second-h">{tt("mad.secondSource")}</h2>
         <p className="hint">{tt("mad.secondSourceHint", { slug: crazydramasSlug ?? "—" })}</p>
@@ -97,8 +99,8 @@ export default function TitleResults({ staff = false, titleId, titleName, crazyd
       {results.campaigns.length === 0 ? <div className="empty"><p>{tt("mad.titleEmpty")}</p><Link className="btn btn-primary btn-sm" href={launchPage}>{tt("launchFeedback.createLaunch")}</Link></div> : <>
         <h2 className="tr-head">{tt("mad.campaignsHead")}</h2>
         <div className="lm-table-scroll"><table className="lm-table tr-table" data-testid="title-campaigns">
-          <colgroup><col className="lm-col-title" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /></colgroup>
-          <thead><tr><th scope="col">{tt("lv2.campaign")}</th><th scope="col">{tt("lv2.spent")}</th><th scope="col">{tt("lv2.clicks")}</th><th scope="col">CTR</th><th scope="col">{tt("lv2.cpc")}</th><th scope="col">{tt("lpx.purchases")}</th><th scope="col">{tt("lpx.value")}</th><th scope="col">{tt("lpx.roas")}</th><th scope="col">{tt("lpx.costPerPurchase")}</th></tr></thead>
+          <colgroup><col className="lm-col-title" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /></colgroup>
+          <thead><tr><th scope="col">{tt("lv2.campaign")}</th><th scope="col">{tt("lv2.spent")}</th><th scope="col">{tt("lv2.clicks")}</th><th scope="col">CTR</th><th scope="col">{tt("lv2.cpc")}</th><th scope="col">{tt("lpx.purchases")}</th><th scope="col">{tt("lpx.value")}</th><th scope="col">{tt("lpx.roas")}</th><th scope="col">{tt("lpx.costPerPurchase")}</th><th scope="col">{tt("lpx.checkouts")}</th></tr></thead>
           <tbody>{results.campaigns.map(({ run, campaign, whole, totals }) => <tr key={campaign.id}>
             <td><Link className="lm-title-link" href={`${monitor}?run=${encodeURIComponent(run.id)}`}>{run.draft.name} · {campaign.index}</Link>
               <small className="lm-title-note">{run.draft.provider === "meta" ? "Meta" : "TikTok"}{campaign.campid ? ` · ${campaign.campid}` : ""}{providerCampaignId(campaign) ? ` · ${tt("mad.campaignId")} ${providerCampaignId(campaign)}` : ""}</small>
@@ -108,8 +110,8 @@ export default function TitleResults({ staff = false, titleId, titleName, crazyd
         </table></div>
         <h2 className="tr-head">{tt("mad.ads")}</h2>
         <div className="lm-table-scroll"><table className="lm-table tr-table" data-testid="title-ads">
-          <colgroup><col className="lm-col-title" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /></colgroup>
-          <thead><tr><th scope="col">{tt("mad.ad")}</th><th scope="col">{tt("lv2.spent")}</th><th scope="col">{tt("lv2.clicks")}</th><th scope="col">CTR</th><th scope="col">{tt("lv2.cpc")}</th><th scope="col">{tt("lpx.purchases")}</th><th scope="col">{tt("lpx.value")}</th><th scope="col">{tt("lpx.roas")}</th><th scope="col">{tt("lpx.costPerPurchase")}</th></tr></thead>
+          <colgroup><col className="lm-col-title" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /></colgroup>
+          <thead><tr><th scope="col">{tt("mad.ad")}</th><th scope="col">{tt("lv2.spent")}</th><th scope="col">{tt("lv2.clicks")}</th><th scope="col">CTR</th><th scope="col">{tt("lv2.cpc")}</th><th scope="col">{tt("lpx.purchases")}</th><th scope="col">{tt("lpx.value")}</th><th scope="col">{tt("lpx.roas")}</th><th scope="col">{tt("lpx.costPerPurchase")}</th><th scope="col">{tt("lpx.checkouts")}</th></tr></thead>
           <tbody>{results.campaigns.flatMap(({ ads }) => ads).map(({ run, campaign, item, position, ads, totals }) => {
             const ad = ads[0];
             const groups = campaign.snapshot?.groups ?? [];

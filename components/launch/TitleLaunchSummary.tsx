@@ -28,5 +28,6 @@ export default function TitleLaunchSummary({ locale, results, resultsHref, launc
       <div><span>{t(locale, "lpx.roas")}</span><strong>{x.roas ?? "—"}</strong></div>
     </div>
     {results.unattributed > 0 && <p className="hint">{t(locale, "mad.unattributedLong", { n: results.unattributed })}</p>}
+    {results.unattributed_meta > 0 && <p className="hint">{t(locale, "mad.unattributedMetaLong", { n: results.unattributed_meta })}</p>}
   </section>;
 }

@@ -38,7 +38,8 @@ export default async function TitleCampaigns({ params }: { params: { id: string 
   return (
     <TitleShell locale={locale} titleId={params.id} name_zh={w.detail.title.name_zh} name_en={w.detail.title.name_en} platform={w.platform} ads={w.ads.status} adStep={adStep} crazydramas={chipReading(w.crazydramas)} section="campaigns"
       actions={canEdit ? <a className="btn btn-primary" href={`/producer/launch`}>{t(locale, "ws.exp.new")}</a> : undefined}>
-      <TitleLaunchSummary locale={locale} results={launched} resultsHref={`/producer/monitor/titles/${params.id}`} launchHref={canEdit ? "/producer/launch" : null} />
+      {/* The header's "New ad campaign" is the one way to Launch here; the empty summary does not repeat it. */}
+      <TitleLaunchSummary locale={locale} results={launched} resultsHref={`/producer/monitor/titles/${params.id}`} launchHref={null} />
       {rounds.length > 0 && <div className="tw-strip">
         <div><span>{t(locale, "tw.ads.spendToDate")}</span><strong>{spend == null ? "–" : fmtUsd(spend, 2)}</strong></div>
         <div><span>{t(locale, "tw.ads.ctrToDate")}</span><strong>{ctr ? <>{fmtPct(ctr.ctr, 2)} <small>{ctr.ctr >= BENCHMARK.ctr ? "✓" : "✗"} ≥ {(BENCHMARK.ctr * 100).toFixed(1)}%</small></> : "–"}</strong></div>
