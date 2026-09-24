@@ -365,6 +365,138 @@ test("a title re-pointed in Studio (film-meta's slug edited while a link exists)
   assert.equal((await fixtureData.getPlatformLink(sys, u.id, PLATFORM))?.slug, "uploaded-slug", "the link stays with the series the uploads went to");
 });
 
+test("a title linked to a show already on crazydramas stays on it when its slug is edited: the section shows that series, every write is refused before any write is sent, no second series is made and the link does not move", async () => {
+  // Mafia King's shape: the working name is not the live title, so no name check can tell the two are one show.
+  const live = "a-live-cms-show";
+  fake.addCmsSeries(live, "The Live Title Viewers Know", [90, 91, 92]);
+  const t = await seriesTitle(live, { name: "Working Name", ref: "low-quality/working-name-folder" });
+  await checkCrazydramasTitle(sys, t.id, { force: true });
+  const link = await fixtureData.getPlatformLink(sys, t.id, PLATFORM);
+  assert.equal(link?.managed_by, "cms");
+  await fixtureData.setTitleImport(staff(), t.id, { crazydramas_slug: "working-name" });
+
+  const state = await getPublishState(producer(), t.id);
+  assert.equal(state.series_state, "cms_managed", "the series the title is on, not a slug with nothing there");
+  assert.equal(state.series?.slug, live);
+  assert.equal(state.form_defaults.slug, live);
+  assert.equal(state.can_write, false, "Create is never offered");
+  PublishStateSchema.parse(state);
+  const calls = fake.requests.length;
+  for (const attempt of [
+    () => saveSeries(producer(), t.id, { title: "Working Name" }),
+    () => queueUploads(producer(), t.id, { episodes: "all" }, { schedule: false }),
+    () => publishEpisodes(producer(), t.id, { episodes: [1], publish_series: true }),
+    () => unpublishEpisodes(producer(), t.id, { episodes: [1] }),
+  ]) {
+    const body = await refusal(attempt(), 409, "repointed");
+    assert.match(String(body.error), /on crazydramas as "a-live-cms-show" \(a series made in the crazydramas CMS\)/);
+    assert.deepEqual((body.existing as { slug: string }).slug, live);
+  }
+  assert.equal(fake.requests.length, calls, "the link already said CMS: not one request reached crazydramas");
+  assert.equal(fake.seriesState("working-name"), null, "no second series of the live show");
+  assert.deepEqual(await fixtureData.getPlatformLink(sys, t.id, PLATFORM), link, "the link is unchanged");
+  // Set back, the title is the CMS series' again: read-only, as always.
+  await fixtureData.setTitleImport(staff(), t.id, { crazydramas_slug: live });
+  await refusal(saveSeries(producer(), t.id, { title: "Working Name" }), 403, "series_not_studio");
+
+  // A show handed over to Studio (managed_by studio) and live with the CMS's episodes: held the same way, after a read.
+  const handed = "handed-over-show";
+  fake.addCmsSeries(handed, "Handed Over Show", [60, 61]);
+  fake.setManagedBy(handed, "studio");
+  const h = await seriesTitle(handed, { name: "Handed Working Name", ref: "low-quality/handed-working-name" });
+  await checkCrazydramasTitle(sys, h.id, { force: true });
+  const hLink = await fixtureData.getPlatformLink(sys, h.id, PLATFORM);
+  assert.equal(hLink?.managed_by, "studio");
+  await fixtureData.setTitleImport(staff(), h.id, { crazydramas_slug: "handed-over-new" });
+  const shown = await getPublishState(producer(), h.id);
+  assert.equal(shown.series_state, "published");
+  assert.equal(shown.series?.slug, handed);
+  assert.equal(shown.can_write, false);
+  const before = writes().length;
+  const body = await refusal(saveSeries(producer(), h.id, { title: "Handed Working Name" }), 409, "repointed");
+  assert.match(String(body.error), /as "handed-over-show" \(a published series\)/);
+  await refusal(queueUploads(producer(), h.id, { episodes: "all", replace: true }, { schedule: false }), 409, "repointed");
+  assert.equal(writes().length, before, "nothing but reads reached crazydramas");
+  assert.equal(fake.seriesState("handed-over-new"), null);
+  assert.deepEqual(await fixtureData.getPlatformLink(sys, h.id, PLATFORM), hLink);
+});
+
+test("two companies' titles and a series no link holds: uploads, publishes and unpublishes go only to the series the title's own link holds, the series write alone claims one, and an orphan holding another title's uploads is foreign to every title but that one", async () => {
+  const a = producer();
+  // Company A's title T makes p-one, moves to p-two (its own empty draft is left behind), then names p-one again.
+  const t = await seriesTitle("p-one", { name: "Company A Film", episodes: [{ n: 1, bytes: Q + 11, frames: 120 }] });
+  const one = await saveSeries(a, t.id, { title: "Company A Film", tagline: "A's unreleased tagline" });
+  await fixtureData.setTitleImport(staff(), t.id, { crazydramas_slug: "p-two" });
+  const two = await saveSeries(a, t.id, { title: "Company A Film Two" });
+  assert.equal(two.created, true);
+  assert.equal((await fixtureData.getPlatformLink(sys, t.id, PLATFORM))?.cd_drama_id, two.series.id);
+  await fixtureData.setTitleImport(staff(), t.id, { crazydramas_slug: "p-one" });
+
+  // Its link still holds p-two: nothing goes to p-one until the series write moves the link.
+  const before = writes().length;
+  for (const attempt of [
+    () => queueUploads(a, t.id, { episodes: "all" }, { schedule: false }),
+    () => publishEpisodes(a, t.id, { episodes: [1], publish_series: true }),
+    () => unpublishEpisodes(a, t.id, { unpublish_series: true }),
+  ]) {
+    await refusal(attempt(), 409, "series_unlinked");
+  }
+  assert.equal(writes().length, before, "nothing reached crazydramas");
+  assert.equal((await fixtureData.getCdPublications(sys, t.id)).length, 0, "nothing was queued");
+  const claimed = await saveSeries(a, t.id, { title: "Company A Film", tagline: "A's unreleased tagline" });
+  assert.equal(claimed.created, false, "its own empty draft, taken back");
+  assert.equal(claimed.series.id, one.series.id);
+  assert.equal((await fixtureData.getPlatformLink(sys, t.id, PLATFORM))?.cd_drama_id, one.series.id);
+  await queueUploads(a, t.id, { episodes: "all" }, { schedule: false });
+  assert.deepEqual((await runTitleUploads(t.id, RUN)).verified, [1]);
+
+  // T's link moves off p-one while T's upload is there (as a check of a re-pointed title does on its new slug's 200):
+  // p-one is an orphan holding A's upload.
+  await fixtureData.setTitleImport(staff(), t.id, { crazydramas_slug: "p-two" });
+  await fixtureData.upsertPlatformLink(sys, { title_id: t.id, platform: PLATFORM, slug: "p-two", title_slug: "p-two", cd_drama_id: two.series.id, managed_by: "studio" });
+
+  // Company B's title on p-one: foreign — nothing of A's shown, nothing claimable, nothing written.
+  const other = await fixtureData.createProducer(staff(), { name_zh: "别家影视" });
+  const b = fixtureSession("producer", other.id);
+  const u = await fixtureData.createImportedTitle(sys, { producer_id: other.id, source_ref: "low-quality/company-b-film", display_title_en: "Company B Film", crazydramas_slug: "p-one", created_by: b.userId });
+  const buf = randomBytes(Q + 5);
+  const stored = `local/${u.id}/ws/p-one/ep01-${sha(buf).slice(0, 8)}.mp4`;
+  mkdirSync(path.dirname(localPathOf(stored)), { recursive: true });
+  writeFileSync(localPathOf(stored), buf);
+  await fixtureData.addVideoOnlyEpisode(sys, u.id, 1, stored, { video_sha256: sha(buf), video_bytes: buf.byteLength, video_frames: 120, duration_ms: 4000, auto_cut: false });
+  const seen = await getPublishState(b, u.id);
+  assert.equal(seen.series_state, "linked_elsewhere");
+  assert.equal(seen.series, null);
+  assert.equal(seen.can_write, false);
+  assert.equal(seen.episodes.find((e) => e.n === 1)?.cd_status, null);
+  assert.doesNotMatch(JSON.stringify(seen), new RegExp(`${one.series.id}|unreleased tagline|Company A|${t.id}`));
+  PublishStateSchema.parse(seen);
+  const quiet = writes().length;
+  for (const attempt of [
+    () => saveSeries(b, u.id, { title: "Company A Film" }),
+    () => queueUploads(b, u.id, { episodes: [1], replace: true }, { schedule: false }),
+    () => publishEpisodes(b, u.id, { episodes: [1], publish_series: true }),
+    () => unpublishEpisodes(b, u.id, { episodes: [1], unpublish_series: true }),
+  ]) {
+    const body = await refusal(attempt(), 409, "conflict");
+    assert.doesNotMatch(JSON.stringify(body), new RegExp(`${one.series.id}|${t.id}|Company A`));
+  }
+  assert.equal(writes().length, quiet, "nothing reached crazydramas");
+  assert.equal(await fixtureData.getPlatformLink(sys, u.id, PLATFORM), null, "B holds nothing");
+  assert.equal(fake.seriesState("p-one")!.drama.tagline, "A's unreleased tagline");
+  assert.equal(fake.uploadsFor("p-one", 1).length, 1, "A's one upload, nothing of B's");
+
+  // T, whose uploads are there, may take its orphan back: shown with its own rows, claimed by its series write, then published.
+  await fixtureData.setTitleImport(staff(), t.id, { crazydramas_slug: "p-one" });
+  const back = await getPublishState(a, t.id);
+  assert.equal(back.series?.id, one.series.id);
+  assert.equal(back.episodes.find((e) => e.n === 1)?.ledger_step, "verified");
+  assert.equal(back.can_write, true);
+  await refusal(publishEpisodes(a, t.id, { episodes: [1], publish_series: true }), 409, "series_unlinked");
+  await saveSeries(a, t.id, { title: "Company A Film" });
+  assert.deepEqual((await publishEpisodes(a, t.id, { episodes: [1], publish_series: true })).published, [1]);
+});
+
 test("writes disabled in fixture mode without the fake (CRAZYDRAMAS_LIVE_READ=1): every write refused with the setting's name, nothing sent anywhere", async () => {
   const t = await seriesTitle("disabled-series");
   process.env.CRAZYDRAMAS_LIVE_READ = "1";

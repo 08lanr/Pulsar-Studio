@@ -20,9 +20,12 @@
 // an episode that is ALREADY published goes live when its asset is ready —
 // the contract keeps is_published — and the ledger says so); write to a
 // series made in the CMS (refused before any call; a series taken back into
-// the CMS mid-upload gets no last chunk and no verified row); write to, or
-// show, a series another title's link holds (foreign: `conflict`); mix two
-// series in one title's ledger (a re-pointed title: `repointed`); write anything
+// the CMS gets no further write, from the fresh read before each one); write
+// to, or show, a series another title's link holds, or an orphan holding
+// anyone else's episodes (foreign: `conflict`); upload, publish or unpublish
+// on a series the title's own link does not hold (`series_unlinked`: only the
+// series write claims one); mix two series in one title's ledger, or move a
+// title off a show already on crazydramas (`repointed`); write anything
 // from fixture mode but the fake, or from Supabase mode without
 // CRAZYDRAMAS_LIVE_WRITES=enabled; create a series whose title is already on
 // the site (the working-name table and the public catalog are checked first;
@@ -161,22 +164,71 @@ export function titleKey(title: string | null | undefined): string {
   return (title ?? "").normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
 }
 
-/** The slug and link the publish flow works under; `repointed` when the title names another series than its link's. */
-type PublishTarget = { slug: string | null; link: PlatformLink | null; repointed: boolean };
+/**
+ * The slug and link the publish flow works under. `repointed`: the title
+ * left its own empty Studio draft for the slug it names now, and works there
+ * with no link. `held`: the title names another slug than its link's, but the
+ * link holds a show already on crazydramas, so the title stays on the link
+ * and every write is refused.
+ */
+type PublishTarget = { slug: string | null; link: PlatformLink | null; repointed: boolean; held: HeldLink | null };
+type HeldLink = { slug: string; title: string | null; why: string; names: string };
+
+/**
+ * Does a series hold media this title's uploads did not put there? Every
+ * episode it has must carry an upload id of this title's ledger (a current or
+ * a replaced one); an episode with no upload id (a CMS upload starting, an
+ * episode the CMS made) or another upload is someone else's.
+ */
+function foreignMedia(episodes: readonly StudioEpisode[], rows: readonly CdPublication[]): boolean {
+  const ours = new Set(rows.flatMap((r) => [r.upload_id, r.previous_upload_id]).filter((id): id is string => !!id));
+  return episodes.some((e) => !e.mux_upload_id || !ours.has(e.mux_upload_id));
+}
 
 /**
  * Read as the phase 3a section reads it (resolveReadSlug without a
- * catalog): the link's slug once a link exists; a title re-pointed in Studio
- * (film-meta's slug edited while a link exists: `title_edited`) works under
- * its own slug with no link, so both sections show the series the title now
- * names, and its series write moves the link there — as a check does on that
- * slug's first 200.
+ * catalog): the link's slug once a link exists. A title re-pointed in Studio
+ * (film-meta's slug edited while a link exists: `title_edited`) follows its
+ * own slug, with no link, only away from a series that is not a show on
+ * crazydramas yet: a Studio draft holding nothing but this title's own
+ * uploads (the typo fix; its series write then moves the link, and a title
+ * whose uploads went there still writes nothing, `repointed`). A link to a
+ * series made in the CMS, a published one or one holding anyone else's
+ * episodes is `held`: the title stays on it — both sections never disagree
+ * into a second series of a show that is already on the site — and every
+ * write is refused. The abandoned series is read (a GET) unless the link
+ * already says it is the CMS's; a read that fails holds the title (the
+ * screens' poll) or passes the failure through (a write, `onFail: "throw"`).
  */
-function publishTarget(title: Title, link: PlatformLink | null): PublishTarget {
-  const read = resolveReadSlug(title, link, null);
-  if (!read) return { slug: null, link: null, repointed: false };
-  if (read.reason === "title_edited") return { slug: read.slug, link: null, repointed: true };
-  return { slug: read.slug, link, repointed: false };
+async function publishTarget(client: StudioClient | null, title: Title, linked: PlatformLink | null, rows: readonly CdPublication[], opts: { fresh?: boolean; onFail: "hold" | "throw" }): Promise<PublishTarget> {
+  const read = resolveReadSlug(title, linked, null);
+  if (!read) return { slug: null, link: null, repointed: false, held: null };
+  if (read.reason !== "title_edited" || !linked) return { slug: read.slug, link: linked, repointed: false, held: null };
+  const stay = (why: string, name: string | null): PublishTarget => ({ slug: linked.slug, link: linked, repointed: false, held: { slug: linked.slug, title: name, why, names: read.slug } });
+  const follow: PublishTarget = { slug: read.slug, link: null, repointed: true, held: null };
+  if (linked.managed_by === "cms") return stay("a series made in the crazydramas CMS", null);
+  if (!client) return stay("a series Studio could not read now", null);
+  const old = await readSeries(client, linked.cd_drama_id, { fresh: opts.fresh });
+  if (!old.found) {
+    if (!old.fail) return follow; // the linked series is gone: nothing on the site to make a second one of
+    if (opts.onFail === "throw") throw passThrough(old.fail);
+    return stay("a series Studio could not read now", null);
+  }
+  const s = old.answer.series;
+  if (s.managed_by !== "studio") return stay("a series made in the crazydramas CMS", s.title);
+  if (s.status !== "draft") return stay(s.status === "published" ? "a published series" : `a series whose status is ${s.status}`, s.title);
+  if (foreignMedia(old.answer.episodes, rows)) return stay("a series holding episodes this title did not upload", s.title);
+  return follow;
+}
+
+/** A write for a `held` title: refused before any write is sent, naming the series the title is on. */
+function heldRefusal(held: HeldLink): CdPublishError {
+  return new CdPublishError(
+    409,
+    "repointed",
+    `This title's slug in film-meta.json now names "${held.names}", but the title is on crazydramas as "${held.slug}" (${held.why}); Studio does not make a second series of a show that is already on crazydramas, nor move the title off it. Set the slug back in the film's film-meta.json, or ask the operator. Nothing was sent.`,
+    { existing: { slug: held.slug, title: held.title } },
+  );
 }
 
 /**
@@ -186,12 +238,21 @@ function publishTarget(title: Title, link: PlatformLink | null): PublishTarget {
  * Studio writes nothing rather than mix two series in one title's uploads.
  * Refused before any write is sent.
  */
-async function requireOneSeriesLedger(titleId: string, dramaId: string | null): Promise<void> {
+function requireOneSeriesLedger(rows: readonly CdPublication[], dramaId: string | null): void {
   const id = dramaId?.toLowerCase() ?? null;
-  const rows = await getData().getCdPublications(systemSession(), titleId);
   if (rows.some((r) => r.cd_drama_id !== id)) {
     throw new CdPublishError(409, "repointed", "This title's uploads went to another crazydramas series than the one its slug names now; Studio does not mix two series in one title's uploads. Set the slug back in the film's film-meta.json, or ask staff to resolve it. Nothing was sent.");
   }
+}
+
+/**
+ * A Studio series no link holds (an orphan: a title's link moved off it) is
+ * claimable by a title's series write only while it holds nothing but that
+ * title's own uploads; with anyone else's episodes it is foreign, as a
+ * series another title holds is (`conflict`, in words that name no title).
+ */
+function orphanRefusal(slug: string): CdPublishError {
+  return new CdPublishError(409, "conflict", `${slug} holds episodes this title did not upload and no title is linked to it; Studio does not take it over. Staff can resolve it. Nothing was sent.`);
 }
 
 function languageOf(locale: string | null | undefined): string {
@@ -244,6 +305,19 @@ async function heldElsewhere(titleId: string, link: PlatformLink | null, dramaId
   const id = dramaId.toLowerCase();
   if (link && link.cd_drama_id.toLowerCase() !== id) return true;
   return (await getData().listPlatformLinks(systemSession(), PLATFORM)).some((l) => l.cd_drama_id.toLowerCase() === id && l.title_id !== titleId);
+}
+
+/**
+ * Is the answer a Studio series no link holds (not another title's — that is
+ * heldElsewhere — nor this title's own link's) holding episodes this title's
+ * uploads did not put there? Then it is foreign to this title as well: only an
+ * orphan with nothing but this title's own uploads (an empty draft included)
+ * may be shown to it and claimed by its series write.
+ */
+function orphanHeldByNobody(answer: GetSeriesAnswer, linked: PlatformLink | null, rows: readonly CdPublication[]): boolean {
+  if (answer.series.managed_by !== "studio") return false;
+  if (linked && linked.cd_drama_id.toLowerCase() === answer.series.id.toLowerCase()) return false;
+  return foreignMedia(answer.episodes, rows);
 }
 
 function heldElsewhereRefusal(): CdPublishError {
@@ -315,22 +389,23 @@ export async function getPublishState(session: Session, titleId: string, opts: {
   const title = detail.title;
   const sys = systemSession();
   const [episodes, allRows, linked] = await Promise.all([data.listTitleEpisodes(sys, titleId), data.getCdPublications(sys, titleId), data.getPlatformLink(sys, titleId, PLATFORM)]);
-  const { slug, link, repointed } = publishTarget(title, linked);
   const gate = cdWriteGate();
   const mode = crazydramasStudioMode();
   const client = opts.client ?? studioClient();
+  // A title held on its link (re-pointed away from a show already on crazydramas) shows that series, and no button is its.
+  const { slug, link, repointed, held } = await publishTarget(mode.read !== "off" ? client : null, title, linked, allRows, { onFail: "hold" });
 
   let series: CdSeries | null = null;
   let cdEpisodes: StudioEpisode[] | null = null;
   /** The live read answered: the series (found) or a 404 (nothing uploaded). Otherwise the phase 3a reading stands in. */
   let definite = false;
-  /** The series the slug answers is another title's: nothing of it (series, episodes, form values) is shown here. */
+  /** The series the slug answers is another title's, or an orphan holding anyone else's episodes: nothing of it (series, episodes, form values) is shown here. */
   let foreign = false;
   let readAt = 0;
   if (slug && mode.read !== "off") {
     const read = await readSeries(client, link?.cd_drama_id ?? slug);
     readAt = read.at;
-    if (read.found && (await heldElsewhere(titleId, link, read.answer.series.id))) {
+    if (read.found && ((await heldElsewhere(titleId, link, read.answer.series.id)) || orphanHeldByNobody(read.answer, linked, allRows))) {
       foreign = true;
       definite = true;
     } else if (read.found) {
@@ -345,11 +420,13 @@ export async function getPublishState(session: Session, titleId: string, opts: {
   let status: Awaited<ReturnType<typeof loadCrazydramasStatus>> | null = null;
   let known: { status: string; managed_by: string | null } | null = null;
   if (slug && !definite) {
-    status = await loadCrazydramasStatus(session, title, episodes);
+    // A held title's reading is its link's (the series it is on), not the edited slug's.
+    const reading: Title = held ? { ...title, crazydramas_slug: held.slug } : title;
+    status = await loadCrazydramasStatus(session, reading, episodes);
     if (status.state === "not_checked") {
       // Never read: one check now (the system records it; the 30-second rule stands), then the caller's own reading.
       await checkCrazydramasTitle(sys, titleId).catch(() => undefined);
-      status = await loadCrazydramasStatus(session, title, episodes);
+      status = await loadCrazydramasStatus(session, reading, episodes);
     }
     if (status.series) known = { status: status.series.status, managed_by: status.series.managed_by };
   }
@@ -423,7 +500,7 @@ export async function getPublishState(session: Session, titleId: string, opts: {
     ...(gate.enabled ? {} : { writes_disabled_reason: gate.reason ?? "Writes to crazydramas are disabled." }),
     paywall_live: paywallLive(),
     uploading: rows.some((r) => isActiveStep(r.step)),
-    can_write: canPublish(session) && !foreign,
+    can_write: canPublish(session) && !foreign && !held,
     frame_rule: FRAME_RULE,
     paid_warning: PAID_WARNING,
   };
@@ -477,12 +554,14 @@ export type SaveSeriesResult = { series: CdSeries; created: boolean; changed: st
 /**
  * Create the draft series (PUT, spec §1b), or update Studio's own draft. The
  * slug is the title's (film-meta's `crazydramas_slug`, or the link's once
- * linked; a re-pointed title's own, whose write moves the link); a title
- * without one is `not_linked`, and one whose uploads went to another series
- * is `repointed`. A series made in the CMS is refused before any call; a
- * poster must answer 200 image/* before it is sent (spec §4). On success the
- * link records the drama id and `managed_by: studio`, and one check refreshes
- * the section's reading.
+ * linked, whose series is read by its drama id; a re-pointed title's own,
+ * whose write moves the link); a title without one is `not_linked`, one
+ * whose uploads went to another series, or one held on a link to a show
+ * already on crazydramas, is `repointed`. A series made in the CMS is refused
+ * before any call, a series another title holds and an orphan holding anyone
+ * else's episodes are `conflict`; a poster must answer 200 image/* before it
+ * is sent (spec §4). On success the link records the drama id and
+ * `managed_by: studio`, and one check refreshes the section's reading.
  */
 export async function saveSeries(session: Session, titleId: string, input: unknown, opts: { client?: StudioClient } = {}): Promise<SaveSeriesResult> {
   const title = await requirePublisher(session, titleId);
@@ -492,22 +571,27 @@ export async function saveSeries(session: Session, titleId: string, input: unkno
   requireWrites();
   const data = getData();
   const sys = systemSession();
-  // A re-pointed title works under the slug it names now, with no link: its write creates (or updates) that series and moves the link.
-  const { slug, link } = publishTarget(title, await data.getPlatformLink(sys, titleId, PLATFORM));
+  const client = opts.client ?? studioClient();
+  const [linked, rows] = await Promise.all([data.getPlatformLink(sys, titleId, PLATFORM), data.getCdPublications(sys, titleId)]);
+  // A re-pointed title works under the slug it names now, with no link: its write creates (or updates) that series and moves
+  // the link. One held on its link (it is on crazydramas already, as a show a second series would duplicate) writes nothing.
+  const { slug, link, held } = await publishTarget(client, title, linked, rows, { fresh: true, onFail: "throw" });
   if (!slug) throw new CdPublishError(409, "not_linked", "This title has no crazydramas slug; add it to the film's film-meta.json and import the film again. Nothing was sent.");
+  if (held) throw heldRefusal(held);
   // The link already says the series is the CMS's (an authenticated read recorded it): refused before any call.
   if (link?.managed_by === "cms") throw cmsRefusal({ slug: link.slug, managed_by: "cms" });
-  const client = opts.client ?? studioClient();
 
-  const read = await readSeries(client, slug, { fresh: true });
+  // The link's series is read by its drama id (a CMS rename of the slug is then the same series, updated under its new slug).
+  const read = await readSeries(client, link?.cd_drama_id ?? slug, { fresh: true });
   if (!read.found && read.fail) throw passThrough(read.fail);
   const existing = read.found ? read.answer.series : null;
-  if (existing) {
+  if (read.found && existing) {
     if (existing.managed_by !== "studio") throw cmsRefusal(existing);
     const holder = (await data.listPlatformLinks(sys, PLATFORM)).find((l) => l.cd_drama_id === existing.id.toLowerCase() && l.title_id !== titleId);
-    if (holder) throw new CdPublishError(409, "conflict", `${slug} is a series linked to a different title; staff can resolve it. Nothing was sent.`);
+    if (holder) throw new CdPublishError(409, "conflict", `${existing.slug} is a series linked to a different title; staff can resolve it. Nothing was sent.`);
+    if (orphanHeldByNobody(read.answer, linked, rows)) throw orphanRefusal(existing.slug);
   }
-  await requireOneSeriesLedger(titleId, existing?.id ?? null);
+  requireOneSeriesLedger(rows, existing?.id ?? null);
   if (!existing) {
     const twin = await liveTwin(title, body.title, slug);
     if (twin) {
@@ -534,7 +618,7 @@ export async function saveSeries(session: Session, titleId: string, input: unkno
     // Plan A6: every series Studio makes sells through the web checkout; the contract's create default is "app".
     ...(existing ? {} : { cta_mode: "web_checkout" as const }),
   };
-  const r = await client.putSeries(slug, put, { managed_by: existing ? (existing.managed_by as "studio" | "cms") : null });
+  const r = await client.putSeries(existing?.slug ?? slug, put, { managed_by: existing ? (existing.managed_by as "studio" | "cms") : null });
   forgetSeriesRead();
   if (!r.ok) throw passThrough(r);
   const series = seriesOut(r.data.series);
@@ -549,13 +633,18 @@ export async function saveSeries(session: Session, titleId: string, input: unkno
  * The series Studio may write for this title, read fresh: missing →
  * series_missing, another title's → conflict (it is foreign to this one:
  * refused in words that name no other title), the CMS's → series_not_studio,
- * one while the title's ledger holds another series' rows → repointed; no
- * call is made to write. A re-pointed title reads the slug it names now.
- * `at` is when the read was asked.
+ * one the title's own link does not hold → series_unlinked (only the series
+ * write claims a series, after its checks for holders; an orphan holding
+ * anyone else's episodes is conflict), one while the title's ledger holds
+ * another series' rows, or a title held on a link to a show already on
+ * crazydramas → repointed; no call is made to write. A re-pointed title
+ * reads the slug it names now. `at` is when the read was asked.
  */
 async function writableSeries(client: StudioClient, title: Title, linked: PlatformLink | null): Promise<{ answer: GetSeriesAnswer; at: number }> {
-  const { slug, link } = publishTarget(title, linked);
+  const rows = await getData().getCdPublications(systemSession(), title.id);
+  const { slug, link, held } = await publishTarget(client, title, linked, rows, { fresh: true, onFail: "throw" });
   if (!slug) throw new CdPublishError(409, "not_linked", "This title has no crazydramas slug; add it to the film's film-meta.json and import the film again. Nothing was sent.");
+  if (held) throw heldRefusal(held);
   // The link already says the series is the CMS's (an authenticated read recorded it): refused before any call.
   if (link?.managed_by === "cms") throw cmsRefusal({ slug: link.slug, managed_by: "cms" });
   const read = await readSeries(client, link?.cd_drama_id ?? slug, { fresh: true });
@@ -563,9 +652,15 @@ async function writableSeries(client: StudioClient, title: Title, linked: Platfo
     if (read.fail) throw passThrough(read.fail);
     throw new CdPublishError(409, "series_missing", "Create the draft series on crazydramas first. Nothing was sent.");
   }
-  if (await heldElsewhere(title.id, link, read.answer.series.id)) throw heldElsewhereRefusal();
-  if (read.answer.series.managed_by !== "studio") throw cmsRefusal(read.answer.series);
-  await requireOneSeriesLedger(title.id, read.answer.series.id);
+  const series = read.answer.series;
+  if (await heldElsewhere(title.id, link, series.id)) throw heldElsewhereRefusal();
+  if (series.managed_by !== "studio") throw cmsRefusal(series);
+  // Every write goes to the series the title's own link holds: a re-pointed title's new series, or one no link holds, is
+  // claimed by the series write alone (which checks for holders first), never by an upload, a publish or an unpublish.
+  const linkHolds = !!linked && linked.cd_drama_id.toLowerCase() === series.id.toLowerCase();
+  if (!linkHolds && orphanHeldByNobody(read.answer, linked, rows)) throw orphanRefusal(series.slug);
+  requireOneSeriesLedger(rows, series.id);
+  if (!linkHolds) throw new CdPublishError(409, "series_unlinked", "Save the series details first; that moves this title's link to the series. Nothing was sent.");
   return { answer: read.answer, at: read.at };
 }
 
@@ -1058,6 +1153,10 @@ class Pass {
     await this.save({ attempted_at: new Date(this.now()).toISOString() });
     this.client.hintFileFacts(this.row.sha256, { fps: this.row.fps });
     for (let round = 0; round < 3; round++) {
+      // The fresh read before the write: a series taken back into the CMS since the queue (or since an earlier episode of
+      // this title) gets no upload call.
+      const theirs = await this.stillStudios("upload");
+      if (theirs) return theirs;
       const r = await this.client.createUpload(this.row.cd_drama_id, this.row.episode_number, { sha256: this.row.sha256, bytes: this.row.bytes, ...(this.row.frames ? { frames: this.row.frames } : {}), ...(this.row.replace ? { replace: true } : {}) }, { managed_by: "studio" });
       this.crash("after_upload_call");
       if (r.ok) {
@@ -1082,6 +1181,8 @@ class Pass {
       }
       if (r.code === "webhook_pending" && typeof r.body.upload_id === "string") {
         // This very file is ready in Mux but the row has not heard: sync, then repeat the call (it answers reused).
+        const back = await this.stillStudios("sync");
+        if (back) return back;
         await this.client.syncUpload(r.body.upload_id, { managed_by: "studio" });
         continue;
       }
@@ -1108,8 +1209,14 @@ class Pass {
     return st.ok && st.data.episode_is_current;
   }
 
-  /** STUDIO_API.md step 3: a CMS upload took the episode over before the last chunk. Do not send it; cancel ours; tell the operator. */
+  /**
+   * STUDIO_API.md step 3: a CMS upload took the episode over before the last
+   * chunk. Do not send it; cancel ours (unless the series is the CMS's now:
+   * then nothing is sent to it, not even the cancel); tell the operator.
+   */
   private async takenOverBeforeLast(): Promise<AdvanceOutcome> {
+    const theirs = await this.stillStudios("cancel");
+    if (theirs) return theirs;
     const c = await this.client.cancelUpload(this.row.upload_id!);
     const note = c.ok ? "Studio's upload was cancelled" : `cancelling Studio's upload answered ${c.code}`;
     return this.fail("taken_over", `A CMS upload took episode ${this.row.episode_number} over before Studio's last chunk; the last chunk was not sent and ${note}, so nothing of Studio's reaches the episode. Tell the operator.`);
@@ -1119,23 +1226,28 @@ class Pass {
    * Is the series still Studio's? A take-back (Jayden sets managed_by back
    * to cms, STUDIO_API.md) makes it a CMS series, which Studio never writes
    * to (spec §5), yet the upload's URL stays live for an hour and the webhook
-   * would put Studio's last chunk on the episode. Asked before the last
-   * chunk and before a row is marked verified: a GET, allowed in every mode.
-   * Null while the series is Studio's; otherwise the pass's outcome (a
-   * take-back fails the row `series_not_studio`; nothing is sent to the
-   * series, not even a cancel, which it would refuse).
+   * would put Studio's last chunk on the episode. Asked before every write
+   * the uploader sends to crazydramas (the upload call, a sync, the URL
+   * re-request of a resume, a cancel), before the last chunk and before a row
+   * is marked verified: a GET, allowed in every mode. Null while the series
+   * is Studio's; otherwise the pass's outcome (a take-back fails the row
+   * `series_not_studio`; nothing is sent to the series, not even a cancel,
+   * which it would refuse).
    */
-  private async stillStudios(when: "last_chunk" | "verify"): Promise<AdvanceOutcome | null> {
+  private async stillStudios(when: "upload" | "resume" | "cancel" | "last_chunk" | "sync" | "verify"): Promise<AdvanceOutcome | null> {
     const r = await this.client.getSeries(this.row.cd_drama_id);
     if (r.ok) {
       if (r.data.series.managed_by === "studio") return null;
       const n = this.row.episode_number;
-      return this.fail(
-        "series_not_studio",
-        when === "last_chunk"
-          ? `The series was taken back into the crazydramas CMS while Studio was sending episode ${n}; the last chunk was not sent, so nothing of Studio's reaches the episode, and the unfinished upload on crazydramas expires within the hour. Studio does not write to a CMS series. Tell the operator.`
-          : `The series was taken back into the crazydramas CMS after Studio's bytes of episode ${n} reached Mux, so the episode there may play Studio's file; Studio neither verifies nor publishes it on a CMS series. Tell the operator.`,
-      );
+      const said: Record<typeof when, string> = {
+        upload: `The series was taken back into the crazydramas CMS before Studio asked for episode ${n}'s upload; nothing was sent to the series. Studio does not write to a CMS series. Tell the operator.`,
+        resume: `The series was taken back into the crazydramas CMS while episode ${n} was uploading; Studio sent nothing more, so nothing of Studio's reaches the episode, and the unfinished upload on crazydramas expires within the hour. Studio does not write to a CMS series. Tell the operator.`,
+        cancel: `A CMS upload took episode ${n} over and the series was taken back into the crazydramas CMS; the last chunk was not sent and nothing more went to the series, not even a cancel, so nothing of Studio's reaches the episode, and the unfinished upload expires within the hour. Tell the operator.`,
+        last_chunk: `The series was taken back into the crazydramas CMS while Studio was sending episode ${n}; the last chunk was not sent, so nothing of Studio's reaches the episode, and the unfinished upload on crazydramas expires within the hour. Studio does not write to a CMS series. Tell the operator.`,
+        sync: `The series was taken back into the crazydramas CMS after Studio's bytes of episode ${n} reached Mux; Studio does not ask crazydramas to sync them, and neither verifies nor publishes the episode on a CMS series (it may play Studio's file once crazydramas hears from Mux). Tell the operator.`,
+        verify: `The series was taken back into the crazydramas CMS after Studio's bytes of episode ${n} reached Mux, so the episode there may play Studio's file; Studio neither verifies nor publishes it on a CMS series. Tell the operator.`,
+      };
+      return this.fail("series_not_studio", said[when]);
     }
     if (isTransient(r)) return this.wait(r.code, r.error);
     return this.fail(r.code, r.error);
@@ -1158,6 +1270,8 @@ class Pass {
       // URL. It only asks for the URL of an upload known to be waiting, so it never sends `replace`: if the upload died
       // since the status read (its hour ran out), crazydramas answers replace_required instead of creating a second
       // upload, and the dead upload goes the way every dead upload goes.
+      const theirs = await this.stillStudios("resume");
+      if (theirs) return theirs;
       const again = await this.client.createUpload(this.row.cd_drama_id, this.row.episode_number, { sha256: this.row.sha256, bytes: this.row.bytes, ...(this.row.frames ? { frames: this.row.frames } : {}) }, { managed_by: "studio" });
       if (!again.ok) {
         if (again.code === "replace_required") return this.dead("the upload is no longer waiting", await this.oursNow());
@@ -1274,6 +1388,8 @@ class Pass {
         this.pendingSince ??= this.now();
         // The row's own clock survives a restart: the first time this pass saw it pending, or the row's last attempt.
         if (this.now() - this.pendingSince >= syncAfter || (this.row.error_code === "webhook_pending" && this.row.attempted_at && this.now() - Date.parse(this.row.attempted_at) >= syncAfter)) {
+          const theirs = await this.stillStudios("sync");
+          if (theirs) return theirs;
           const s = await this.client.syncUpload(this.row.upload_id!, { managed_by: "studio" });
           if (!s.ok && !isTransient(s)) return this.fail(s.code, s.error);
           this.pendingSince = null;

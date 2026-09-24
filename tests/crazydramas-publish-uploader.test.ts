@@ -275,6 +275,50 @@ test("a take-back mid-upload (Jayden sets managed_by back to cms): the last chun
   assert.equal((await fixtureData.getCdPublications(sys, late.title.id)).filter((r) => r.step === "verified" || r.step === "published").length, 0);
 });
 
+test("after a take-back no write of the uploader reaches the series: the title's later episodes ask for no upload, a resume asks for no URL, and a missed webhook is not synced — each row fails series_not_studio from the fresh read before the write", async () => {
+  const writesNow = () => fake.requests.filter((r) => r.method !== "GET").length;
+  // Episode 1 verified; the series is taken back; the runner then meets episodes 2 and 3.
+  const many = await queued("take-back-many", [{ n: 1, bytes: Q + 11, frames: 120 }, { n: 2, bytes: Q + 12, frames: 120 }, { n: 3, bytes: Q + 13, frames: 120 }]);
+  const first = await advanceCdPublication(many.rows.find((r) => r.episode_number === 1)!.id, { ...RUN, owner: "w" });
+  assert.equal(first.row.step, "verified");
+  fake.setManagedBy(many.slug, "cms");
+  const quiet = writesNow();
+  const summary = await runTitleUploads(many.title.id, RUN);
+  assert.equal(writesNow(), quiet, "no upload call, sync or cancel reached the CMS series");
+  assert.deepEqual(summary.failed, [2, 3]);
+  for (const n of [2, 3]) {
+    const row = await rowOf(many.title.id, n);
+    assert.equal(row.error_code, "series_not_studio");
+    assert.match(row.error!, /nothing was sent to the series/);
+    assert.equal(fake.uploadsFor(many.slug, n).length, 0);
+  }
+
+  // A resume after a crash mid-file: the upload URL is gone, and re-asking for it is a write to the series.
+  const resume = await queued("take-back-resume", [{ n: 1, bytes: 2 * Q + 7, frames: 120 }]);
+  await assert.rejects(advanceCdPublication(resume.rows[0].id, { ...RUN, owner: "a", leaseMs: 1, crash: (p) => { if (p === "after_chunk") throw new SimulatedCrash(p); } }), SimulatedCrash);
+  fake.setManagedBy(resume.slug, "cms");
+  await pause(5);
+  const beforeResume = writesNow();
+  const resumed = await advanceCdPublication(resume.rows[0].id, { ...RUN, owner: "b" });
+  assert.equal(resumed.row.error_code, "series_not_studio");
+  assert.match(resumed.row.error!, /sent nothing more/);
+  assert.equal(writesNow(), beforeResume, "no URL re-request");
+  assert.equal(fake.uploadsFor(resume.slug, 1)[0].asset_id, null);
+
+  // Every byte in Mux, the webhook missed, the series taken back before the sync.
+  const pending = await queued("take-back-sync", [{ n: 1, bytes: Q + 9, frames: 120 }]);
+  fake.webhookMissed = true;
+  await assert.rejects(advanceCdPublication(pending.rows[0].id, { ...RUN, owner: "a", leaseMs: 1, crash: (p) => { if (p === "after_last_chunk") throw new SimulatedCrash(p); } }), SimulatedCrash);
+  fake.setManagedBy(pending.slug, "cms");
+  await pause(5);
+  const beforeSync = writesNow();
+  const synced = await advanceCdPublication(pending.rows[0].id, { ...RUN, owner: "b" });
+  assert.equal(synced.row.error_code, "series_not_studio");
+  assert.match(synced.row.error!, /does not ask crazydramas to sync/);
+  assert.equal(writesNow(), beforeSync, "no sync");
+  assert.ok(!fake.requests.some((r) => r.path.endsWith("/sync")));
+});
+
 test("a Retry replaces only Studio's own dead upload: after a takeover it fails replace_required instead of overwriting the CMS's upload; after an errored asset it uploads again with replace", async () => {
   const s = await queued("retry-series", [{ n: 1, bytes: 2 * Q + 1, frames: 120 }, { n: 2, bytes: Q + 2, frames: 150 }]);
   let taken = false;
