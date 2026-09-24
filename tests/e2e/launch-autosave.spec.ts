@@ -37,6 +37,42 @@ test("edits survive clicking away, the bare Launch page resumes them, and Start 
   expect((await old.json()).run.draft.name).toBe("Autosave check");
 });
 
+// The default name ("Xinghai Pictures · Sep 24") arrives with the workspace and
+// replaces the placeholder "Launch". It could land while the person was already
+// in the name field with "Launch" selected, and what they typed was then added
+// after it: the full e2e run of 2026-09-24 saw "Xinghai Pictures · Sep
+// 24Acceptance pacing" once, when Playwright's fill selected the field just
+// before the workspace answered. Being in the field is now enough to keep the
+// default out. The workspace is held until the field's text is selected, so the
+// race happens every time instead of now and then.
+test("the default launch name is offered on an untouched page, never in front of what is being typed", async ({ page }) => {
+  const base = test.info().project.use.baseURL ?? "http://localhost:3200";
+  const login = await page.request.post("/api/auth/dev", { form: { kind: "producer" }, maxRedirects: 0 });
+  expect([200, 303]).toContain(login.status());
+  await page.context().addCookies([{ name: "pulsar_studio_locale", value: "en", url: base }]);
+  expect((await page.request.post("/api/demo/reset", { data: { seed: "demo" } })).ok()).toBe(true);
+  const name = page.getByLabel("Launch name");
+  const workspaceShown = () => expect(page.getByText(/Demo TikTok 1/).first()).toBeAttached();
+
+  // Untouched: the page offers the company and the day.
+  await page.goto("/producer/launch");
+  await workspaceShown();
+  await expect(name).toHaveValue(/ · /);
+
+  // In the field before the workspace answers: only what is typed.
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  await page.route("**/api/producer/launch/workspace*", async (route) => { await gate; await route.continue(); });
+  await page.goto("/producer/launch");
+  await expect(name).toBeVisible();
+  await expect(name).not.toHaveValue(/ · /);
+  await name.selectText();
+  release();
+  await workspaceShown();
+  await page.keyboard.type("Typed while the workspace loaded");
+  await expect(name).toHaveValue("Typed while the workspace loaded");
+});
+
 // Phase 6 review, finding 1 (2026-09-24): a draft's first save moves the page to
 // /launch/<id>, a new page instance. An edit made while that first POST is still
 // on its way must reach the draft: the old instance flushes it as it unmounts,

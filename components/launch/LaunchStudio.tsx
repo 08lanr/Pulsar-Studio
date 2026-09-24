@@ -101,6 +101,9 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
   // in memory: a post preview never becomes a stored draft field.
   const [postMeta, setPostMeta] = useState<Record<string, MetaPagePost>>({});
   const mergePostMeta = useCallback((posts: Record<string, MetaPagePost>) => setPostMeta(current => ({ ...current, ...posts })), []);
+  // Set once the default name ("Company · Sep 24") has been offered, or once
+  // the person is in the name field: focusing it is enough, so a default that
+  // arrives with the workspace never lands in front of what they are typing.
   const namedOnce = useRef(false);
   // Quiet autosave: the draft as last written to the server, the draft as it
   // was when the page loaded (so an untouched page never creates a run), the
@@ -540,7 +543,7 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
           ? tt("lr2.runsOn", { platforms: campaignAdSets.map((set) => PLATFORM_WORD[set.platform]).join(" · ") })
           : tt("lr2.runsOnNone")}</p>
       </>}</section>
-      <section className="rs-panel"><h2>4. {tt("lv2.delivery")}</h2><div className="tk-field tk-row"><label htmlFor="lv2-name">{tt("lv2.name")}</label><input id="lv2-name" className="input" value={draft.name} onChange={(e) => { namedOnce.current = true; update("name", e.target.value); }} />{draft.provider === "tiktok"
+      <section className="rs-panel"><h2>4. {tt("lv2.delivery")}</h2><div className="tk-field tk-row"><label htmlFor="lv2-name">{tt("lv2.name")}</label><input id="lv2-name" className="input" value={draft.name} onFocus={() => { namedOnce.current = true; }} onChange={(e) => { namedOnce.current = true; update("name", e.target.value); }} />{draft.provider === "tiktok"
         ? <><label htmlFor="lv2-title">{tt("lpx.title")}</label><select id="lv2-title" className="select" value={draft.title_id ?? ""} onChange={(e) => chooseTitle(e.target.value)}><option value="">{tt("lpx.chooseTitle")}</option>{titles.map((t) => <option key={t.id} value={t.id} disabled={!t.ad_url}>{t.name}</option>)}</select></>
         : <><label htmlFor="lv2-dest">{tt("lv2.destination")}</label><input id="lv2-dest" className="input" type="url" value={draft.destination_url} onChange={(e) => update("destination_url", e.target.value)} placeholder="https://" /></>}</div>
       {/* Every TikTok ad carries the title's crazydramas link with TikTok's own
