@@ -10,6 +10,7 @@
 // (decision 2026-09-09) and refuses to launch without one.
 
 import { accessTokenFor, launchMode, tiktokTransport } from "./index";
+import { resolvePixel, tiktokPixelCode, type PixelResolution } from "./pixel";
 import { appConfigured, loadConnections, reachableAdvertiserIds } from "./tokens";
 
 export type PreflightState = "READY" | "ACTION_REQUIRED" | "BLOCKED";
@@ -159,4 +160,18 @@ export async function describeAdvertisers(ids: string[]): Promise<Array<{ advert
     }
   }
   return out;
+}
+
+/**
+ * "Can this ad account run a Website purchases launch?" — the pixel half
+ * (decision 2026-09-23): the configured pixel resolved on the account through
+ * /pixel/list/, read-only. The preview gate, the /tiktok card and the driver
+ * all answer with the same refusal sentences (lib/tiktok/pixel.ts): the pixel
+ * isn't shared with this ad account in Business Center, it was unbound, or
+ * the pixels could not be read.
+ */
+export async function probePixel(advertiserId: string, code: string = tiktokPixelCode()): Promise<PixelResolution> {
+  const token = accessTokenFor(advertiserId);
+  if (!token) return { ok: false, code, reason: "unreadable", message: `No TikTok authorization covers ad account ${advertiserId}.` };
+  return resolvePixel(tiktokTransport(), token, advertiserId, code);
 }

@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { defaultLaunchSettings } from "../../lib/tiktok/settings";
+import { chooseTikTokTitle, WAR_GOD_LINK } from "./tiktok-title";
 
 async function chooseAccount(page: Page, name: RegExp) {
   const picker = page.locator("details.launch-account-picker");
@@ -70,7 +71,7 @@ test("staff authorization and confirmation keep a preview intact when launch fai
   await chooseAccount(page, /Demo TikTok 1/);
   await page.getByLabel(/^(Items|Spark codes) per campaign$/).fill("1");
   await page.getByLabel("Paste all Spark codes, one per line").fill("STAFF-AUTH-SPARK");
-  await page.getByLabel("Destination URL").fill("https://example.com/watch");
+  await chooseTikTokTitle(page);
   await page.getByRole("button", { name: "Preview campaigns" }).click();
   const preview = page.locator(".launch-flow > .rs-panel").last();
   await expect(preview.getByText(/1 campaign across 1 ad account/)).toBeVisible();
@@ -120,7 +121,7 @@ test("Clips handoff, TikTok monitor, and Meta post plus finished-file paused lau
   await page.getByLabel(/^(Items|Spark codes) per campaign$/).fill("1");
   await chooseAccount(page, /Demo TikTok 1/);
   await page.getByLabel("Paste all Spark codes, one per line").fill("TEST-LAUNCH-V2-SPARK");
-  await page.getByLabel("Destination URL").fill("https://example.com/watch");
+  await chooseTikTokTitle(page);
   let providerLaunchPosts = 0;
   await page.route("**/api/producer/launch/*/launch", async route => { providerLaunchPosts++; await route.continue(); });
   await page.getByRole("button", { name: "Launch on TikTok", exact: true }).click();
@@ -132,7 +133,10 @@ test("Clips handoff, TikTok monitor, and Meta post plus finished-file paused lau
   await expect(primaryConfirm).not.toContainText("TEST-LAUNCH-V2-SPARK");
   await expect(primaryConfirm.locator(".ad-card[data-content-id='TEST-LAUNCH-V2-SPARK']")).toHaveCount(1);
   await expect(primaryConfirm.locator(".launch-confirm-money")).toContainText("Total billed");
-  await expect(primaryConfirm).toContainText("https://example.com/watch");
+  // The exact link TikTok receives, macros literal, and the one line on what they become.
+  await expect(primaryConfirm.getByTestId("confirm-destination")).toHaveText(WAR_GOD_LINK);
+  await expect(primaryConfirm).toContainText("TikTok replaces __CAMPAIGN_ID__, __AID__ and __CID__");
+  await expect(primaryConfirm.getByTestId("confirm-optimizes")).toContainText("Purchase on crazydramas.com");
   expect(providerLaunchPosts).toBe(0);
   mkdirSync("docs/demo/launch-v2", { recursive: true });
   await primaryConfirm.screenshot({ path: `docs/demo/launch-v2/2026-09-16-${test.info().project.name}-launch-confirmation.png` });
@@ -313,7 +317,7 @@ test("Multi-account plan assigns distinct Spark posts to every campaign and moni
   await page.getByLabel(/^(Items|Spark codes) per campaign$/).fill("2");
   const codes = Array.from({ length: 8 }, (_, i) => `TEST-MULTI-SPARK-${i + 1}`);
   await page.getByLabel("Paste all Spark codes, one per line").fill(codes.join("\n"));
-  await page.getByLabel("Destination URL").fill("https://example.com/watch");
+  await chooseTikTokTitle(page);
   await page.getByRole("button", { name: "Preview campaigns" }).click();
   await expect(page.getByText(/4 campaigns across 2 ad accounts/)).toBeVisible();
   for (let i = 0; i < 4; i++) {
@@ -349,6 +353,9 @@ test("Multi-account plan assigns distinct Spark posts to every campaign and moni
   await expect(launch.locator(".lm-summary")).toContainText("Conversions");
   await expect(launch.locator(".lm-summary")).toContainText("Approved total");
   await expect(launch.locator(".lm-summary")).toContainText("$500.00");
+  // Website purchases (the TikTok default) also reads TikTok-attributed purchases, labelled as such.
+  await expect(launch.getByTestId("web-summary")).toContainText("TikTok-attributed");
+  await expect(launch.getByTestId("web-summary")).toContainText("7-day click · 1-day view");
   await expect(launch.getByRole("columnheader", { name: "$/Conversion" })).toBeVisible();
   await expect(launch.getByRole("columnheader", { name: "CTR" })).toBeVisible();
   await expect(launch.locator("tr[data-campaign-id]").first()).toContainText("Demo TikTok 1");
@@ -413,7 +420,7 @@ test("Daily cost-cap launch, controls, staff monitor, and higher-budget round", 
   await page.getByLabel(/^(Items|Spark codes) per campaign$/).fill("2");
   const codes = Array.from({ length: 8 }, (_, i) => `TEST-PACING-SPARK-${i + 1}`);
   await page.getByLabel("Paste all Spark codes, one per line").fill(codes.join("\n"));
-  await page.getByLabel("Destination URL").fill("https://example.com/watch");
+  await chooseTikTokTitle(page);
   await page.getByLabel("Preset").selectOption({ label: presetName });
   await expect(page.getByLabel("Daily total per campaign (USD)")).toHaveValue("20");
   const firstPreview = page.waitForResponse((response) => response.url().endsWith("/preview") && response.request().method() === "POST");

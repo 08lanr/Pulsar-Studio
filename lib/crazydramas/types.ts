@@ -18,6 +18,7 @@
 import { z } from "zod";
 import type { PlatformDrama, PlatformEpisode, PlatformLink, PlatformManagedBy, PlatformName, PlatformReadVia, PlatformSnapshot } from "@/lib/types";
 import { invalid } from "@/lib/data/errors";
+import { CRAZYDRAMAS_SLUG, isMockSlug } from "./slug";
 
 const MANAGED_BY: readonly PlatformManagedBy[] = ["studio", "cms"];
 const READ_VIA: readonly PlatformReadVia[] = ["public", "studio"];
@@ -28,14 +29,9 @@ export const PLATFORMS: readonly PlatformName[] = ["crazydramas"];
 /** How many snapshot rows of a slug the sweep keeps (plan A2). */
 export const PLATFORM_SNAPSHOTS_KEEP = 20;
 
-/** A crazydramas slug: lowercase words joined by hyphens (`forced-to-marry-the-mafia-boss`). */
-export const CRAZYDRAMAS_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+// The slug rules live in ./slug (pure, so the launch screens share them).
+export { CRAZYDRAMAS_SLUG, isMockSlug };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** Series the edge cache mixes into the catalog for design work; never real. */
-export function isMockSlug(slug: string): boolean {
-  return slug.startsWith("mock-");
-}
 
 // ---- the public API, whitelisted -----------------------------------------------------------------
 

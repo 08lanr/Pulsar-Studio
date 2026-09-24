@@ -9,12 +9,25 @@ import { dataSource } from "@/lib/data-source";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { buildLaunchPlan, draftSchema, nextCampidStart } from "@/lib/launch/plan";
 import { launchEnvironment } from "@/lib/launch/environment";
-import { eligibleMetaAssignment, eligibleTikTokBcAccount } from "@/lib/launch/account-authority";
+import { defaultLaunchConnectionId, eligibleMetaAssignment, eligibleTikTokBcAccount } from "@/lib/launch/account-authority";
+import { launchShape } from "@/lib/tiktok/settings";
 import type { ClipLibraryFilter, ClipLibraryRow, ClipPost, ClipPostPlatform, ClipPostStatus, ClipPostStep } from "@/lib/launch/clip-posts";
 import type { ClipPostPatch, LaunchConnection, LaunchDataLayer, LaunchDraft, LaunchLibraryItem, LaunchRun, LaunchProvider, LaunchPlanRow } from "@/lib/launch/types";
 import type { DataLayer } from "./index";
-import { conflict, forbidden, invalid, notFound } from "./errors";
+import { conflict, forbidden, invalid, isDataError, notFound } from "./errors";
 import { mediaUrl } from "./storage";
+
+/**
+ * The TikTok gate (lib/launch/tiktok-gate.ts): the title, its live series and
+ * exact ad link, and on Website purchases the pixel on every chosen account.
+ * Loaded on demand, as the provider modules are, so the data layer's import
+ * graph never reaches lib/crazydramas or the TikTok transport at load time.
+ */
+async function tiktokGate(s: Session, draft: LaunchDraft, producerId: string, own: LaunchConnection[]) {
+  if (draft.provider !== "tiktok") return undefined;
+  const { tiktokLaunchGate } = await import("@/lib/launch/tiktok-gate");
+  return tiktokLaunchGate(s, draft, producerId, own);
+}
 
 /**
  * The campaign names already on the chosen Meta accounts, so a typed campid
@@ -362,6 +375,25 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
     if (!parsed.success) throw invalid(parsed.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; "));
     const safe = parsed.data;
     const own = safe.content.some(c => c.kind === "video" || c.clip_id) ? await library(s, producerId) : [];
+    if (safe.provider === "tiktok") {
+      // The server writes the link a TikTok ad carries: the chosen title's
+      // crazydramas ad link (its macros literal), never a typed URL; and the
+      // pixel code a Website purchases launch will use, so the approver signs
+      // both. A title whose slug cannot carry a link leaves the destination
+      // as it was, and preview says why.
+      if (safe.title_id) {
+        const { tiktokLandingFor } = await import("@/lib/launch/tiktok-gate");
+        // A draft saves leniently: a title this company cannot see keeps the
+        // draft as sent, and the preview refuses it as not found.
+        try { safe.destination_url = (await tiktokLandingFor(s, safe.title_id, producerId)) ?? safe.destination_url; }
+        catch (e) { if (!(isDataError(e) && e.code === "not_found")) throw e; }
+      }
+      const { pixel_code: _stale, ...settings } = safe.tiktok_settings;
+      if (launchShape(settings) === "website_purchases") {
+        const { tiktokPixelCode } = await import("@/lib/tiktok/pixel");
+        safe.tiktok_settings = { ...settings, pixel_code: tiktokPixelCode() };
+      } else safe.tiktok_settings = settings;
+    }
     return { ...safe, content: safe.content.map(c => {
       // Clip provenance is display only, so an unknown one is dropped rather
       // than refused; it never reaches the provider payload.
@@ -391,9 +423,17 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
         const ids = [...new Set(available.filter(c => c.provider === "tiktok" && c.business_id).map(c => c.business_id!))];
         for (const id of ids) businessCenters.push({ provider: "tiktok", business_id: id, name: bc?.external_ref === id ? bc.name : id, account_ids: available.filter(c => c.provider === "tiktok" && c.business_id === id).map(c => c.id) });
       }
+      // One TikTok account for now: the operator's default when this company's
+      // assignment reaches it, else the company's preferred account, else its
+      // only one (lib/launch/account-authority.ts).
+      const { tiktokDefaultAdvertiserId } = await import("@/lib/tiktok/defaults");
+      const assignedBc = producerId && available.some(c => c.provider === "tiktok") ? await base.getLaunchBusinessCenter(s, producerId) : null;
+      const tiktokDefault = defaultLaunchConnectionId(available, { defaultAdvertiserId: tiktokDefaultAdvertiserId(), preferredAdvertiserId: assignedBc?.preferred_advertiser_id ?? null });
+      const titles = producerId ? await (await import("@/lib/launch/tiktok-gate")).launchTitleOptions(s, producerId) : [];
       const metaIds = [...new Set(available.filter(c => c.provider === "meta" && c.business_id).map(c => c.business_id!))];
       for (const id of metaIds) businessCenters.push({ provider: "meta", business_id: id, name: available.find(c => c.provider === "meta" && c.business_id === id)?.business_name || id, account_ids: available.filter(c => c.provider === "meta" && c.business_id === id).map(c => c.id) });
       return { producer_id: producerId, runs, connections: available, business_centers: businessCenters, account_warnings: accountWarnings,
+        titles, tiktok_default_connection_id: tiktokDefault,
         library: producerId ? await clipLibrary(s, { producer_id: producerId }) : [],
         default_destination_url: runs.find(r => r.draft.destination_url)?.draft.destination_url || "", can_edit: s.kind === "staff" || ["reviewer", "approver"].includes(s.producerRole || ""),
         can_launch: s.kind === "staff" ? s.staffRole === "admin" : s.producerRole === "approver", producers };
@@ -418,7 +458,9 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
     },
     async previewLaunchRun(s, id) {
       const r = await find(s, id); const own = await connections(s, r.producer_id, r.draft.provider);
-      return buildLaunchPlan(r.draft, own, r.external_id, await takenCampaignNames(r.draft, own));
+      const pixel = await tiktokGate(s, r.draft, r.producer_id, own);
+      const plan = buildLaunchPlan(r.draft, own, r.external_id, await takenCampaignNames(r.draft, own));
+      return pixel ? { ...plan, tiktok_pixel: pixel } : plan;
     },
     async submitLaunchRun(s, id, revision, note) {
       const r = await find(s, id); authorize(s, r.producer_id, "launch");
@@ -427,8 +469,12 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
       if (r.mode !== launchEnvironment(r.draft.provider)) throw conflict("Launch environment changed. Create a new draft in the intended environment.");
       if (s.kind === "staff" && !note?.trim()) throw invalid("Explain the on-behalf authorization.");
       const currentDraft = await resolved(s, r.draft, r.producer_id);
+      if (currentDraft.destination_url !== r.draft.destination_url) throw conflict("The title's crazydramas link changed since this draft was saved. Save the draft and preview again.");
+      if (currentDraft.tiktok_settings.pixel_code !== r.draft.tiktok_settings.pixel_code) throw conflict("The TikTok pixel setting changed since this draft was saved. Save the draft and preview again.");
       if (launchHash(currentDraft, []) !== launchHash(r.draft, [])) throw conflict("A selected clip changed. Save and preview the draft again.");
-      const own = await connections(s, r.producer_id, r.draft.provider), plan = buildLaunchPlan(r.draft, own, r.external_id, await takenCampaignNames(r.draft, own));
+      const own = await connections(s, r.producer_id, r.draft.provider);
+      await tiktokGate(s, r.draft, r.producer_id, own);
+      const plan = buildLaunchPlan(r.draft, own, r.external_id, await takenCampaignNames(r.draft, own));
       if (r.connections && connectionSignature(r.connections) !== connectionSignature(own.filter(a => r.draft.account_ids.includes(a.id)))) throw conflict("Account assignment changed. Save and preview the draft again.");
       r.connections = own.filter(a => r.draft.account_ids.includes(a.id));
       r.snapshot_hash = launchHash(r.draft, r.connections, plan.rows); r.approved_by = s.userId; r.approved_at = now(); r.approval_note = note?.trim() || null;

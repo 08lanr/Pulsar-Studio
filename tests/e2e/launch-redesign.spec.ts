@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { chooseTikTokTitle } from "./tiktok-title";
 
 test("Launch keeps account, Spark, settings and validation decisions together", async ({ page }) => {
   const base = test.info().project.use.baseURL ?? "http://localhost:3202";
@@ -39,7 +40,7 @@ test("Launch keeps account, Spark, settings and validation decisions together", 
   await page.getByRole("button", { name: "Preview campaigns" }).click();
   const preview = page.locator(".launch-flow > .rs-panel").last();
   await expect(preview.getByRole("alert")).toBeVisible();
-  await page.getByLabel("Destination URL").fill("https://example.com/watch");
+  await chooseTikTokTitle(page);
   await page.getByRole("button", { name: "Preview campaigns" }).click();
   await expect(preview.getByText(/4 campaigns across 2 ad accounts/)).toBeVisible();
   await page.getByRole("button", { name: /Launch 4 campaigns/ }).click();

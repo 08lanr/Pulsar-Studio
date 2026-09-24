@@ -9,6 +9,7 @@ import { handleMcpMessage, MCP_VERSION, parseBearer } from "@/lib/launch/mcp";
 import { GET, POST } from "@/app/api/mcp/route";
 import { createServerSupabase, withUserSupabase } from "@/lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { launchTitle, LIVE_AD_URL } from "./launch-title";
 
 const initialMcpEnabled = process.env.STUDIO_LAUNCH_MCP_ENABLED;
 afterEach(() => {
@@ -38,7 +39,7 @@ test("MCP validates arguments, preserves role checks, and redacts Spark codes", 
     currency: "USD", timezone: "America/Los_Angeles", page_id: null, instagram_id: null, business_id: null, enabled: true,
   });
   draft.account_ids = [assigned.id];
-  draft.destination_url = "https://example.com/watch";
+  draft.title_id = (await launchTitle()).id;
   draft.content = [{ kind: "spark", value: "TOP-SECRET-SPARK-CODE" }];
   const saved = await getData().saveLaunchDraft(approver, draft);
   const read = await handleMcpMessage(approver, call("launch_get", { id: saved.id }));
@@ -47,7 +48,7 @@ test("MCP validates arguments, preserves role checks, and redacts Spark codes", 
   const plan = await handleMcpMessage(approver, call("launch_preview", { id: saved.id }));
   const shown = (plan?.result as { structuredContent: { revision: number; destination_url: string; rows: { account: { name: string }; content: { spark_code_suffix: string }[] }[] } }).structuredContent;
   assert.equal(shown.revision, saved.revision);
-  assert.equal(shown.destination_url, "https://example.com/watch");
+  assert.equal(shown.destination_url, LIVE_AD_URL, "the server wrote the title's crazydramas ad link");
   assert.equal(shown.rows[0].account.name, "Owned test account");
   assert.equal(shown.rows[0].content[0].spark_code_suffix, "CODE");
   assert.equal(JSON.stringify(plan).includes("TOP-SECRET-SPARK-CODE"), false);

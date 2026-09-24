@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { defaultLaunchDraft } from "../../lib/launch/plan";
+import { WAR_GOD_LINK, WAR_GOD_TITLE } from "./tiktok-title";
 
 test("monitor keeps newest launch visible, focuses a linked run, and survives workspace failure", async ({ page }) => {
   const base = test.info().project.use.baseURL ?? "http://localhost:3200";
@@ -70,14 +71,18 @@ test("campaign table scrolls within a narrow Monitor page", async ({ page }) => 
   expect((await page.request.post("/api/demo/reset", { data: { seed: "demo" } })).ok()).toBe(true);
   const workspaceResponse = await page.request.get("/api/producer/launch/workspace");
   expect(workspaceResponse.ok()).toBe(true);
-  const workspace = await workspaceResponse.json() as { workspace: { connections: { id: string; provider: string; name: string }[] } };
+  const workspace = await workspaceResponse.json() as { workspace: { connections: { id: string; provider: string; name: string }[]; titles: { id: string; name: string }[] } };
   const account = workspace.workspace.connections.find(connection => connection.provider === "tiktok" && /Demo TikTok 1/.test(connection.name));
   expect(account).toBeDefined();
+  // A TikTok launch names its title; the server writes that title's crazydramas ad link.
+  const title = workspace.workspace.titles.find(t => t.name === WAR_GOD_TITLE);
+  expect(title).toBeDefined();
   const draft = { ...defaultLaunchDraft("tiktok"), name: "Narrow monitor table", account_ids: [account!.id], content_per_campaign: 1,
-    content: [{ kind: "spark", value: "MOBILE-MONITOR-SPARK" }], destination_url: "https://example.com/watch" };
+    content: [{ kind: "spark", value: "MOBILE-MONITOR-SPARK" }], title_id: title!.id };
   const savedResponse = await page.request.post("/api/producer/launch", { data: { draft } });
   expect(savedResponse.ok()).toBe(true);
-  const saved = await savedResponse.json() as { run: { id: string; revision: number; external_id: string } };
+  const saved = await savedResponse.json() as { run: { id: string; revision: number; external_id: string; draft: { destination_url: string } } };
+  expect(saved.run.draft.destination_url).toBe(WAR_GOD_LINK);
   expect((await page.request.post(`/api/producer/launch/${saved.run.id}/preview`)).ok()).toBe(true);
   expect((await page.request.post(`/api/producer/launch/${saved.run.id}/launch`, { data: { revision: saved.run.revision } })).ok()).toBe(true);
   await page.setViewportSize({ width: 390, height: 844 });

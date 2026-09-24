@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { chooseTikTokTitle } from "./tiktok-title";
 
 test("built-in Sales preset and saved Instant Page design reach the launch preview", async ({ page }) => {
   const base = test.info().project.use.baseURL ?? "http://localhost:3202";
@@ -11,8 +12,10 @@ test("built-in Sales preset and saved Instant Page design reach the launch previ
     await staff.addCookies([{ name: "pulsar_studio_locale", value: "en", url: base }]);
     const templates = await staff.newPage();
     await templates.goto("/tiktok/templates");
-    const builtIn = templates.locator(".tk-presets li").first();
-    await expect(builtIn).toContainText("(default) · 1 Geo Sales · $0.20 cost cap");
+    // Website purchases is the TikTok default (decision 2026-09-23); the Instant Page built-in stays beside it.
+    await expect(templates.locator(".tk-presets li").first()).toContainText("(default) · Website purchases · Purchase · $30/day");
+    const builtIn = templates.locator(".tk-presets li").filter({ hasText: "(default) · 1 Geo Sales · $0.20 cost cap" });
+    await expect(builtIn).toHaveCount(1);
     await expect(builtIn.getByRole("button", { name: "Edit" })).toHaveCount(0);
     await templates.getByRole("link", { name: "Instant Page templates" }).click();
     await templates.getByRole("button", { name: "New template" }).click();
@@ -47,7 +50,7 @@ test("built-in Sales preset and saved Instant Page design reach the launch previ
     if (await accounts.getAttribute("open") === null) await accounts.locator("summary").click();
     await accounts.getByRole("checkbox", { name: /Demo TikTok 1/ }).check();
     await page.getByLabel("Paste all Spark codes, one per line").fill("TEMPLATE-ACCEPTANCE-SPARK");
-    await page.getByLabel("Destination URL").fill("https://example.com/watch");
+    await chooseTikTokTitle(page);
     const previewResponse = page.waitForResponse(response => response.url().endsWith("/preview") && response.request().method() === "POST");
     await page.getByRole("button", { name: "Preview campaigns" }).click();
     expect((await previewResponse).ok()).toBe(true);

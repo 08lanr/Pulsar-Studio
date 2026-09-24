@@ -22,6 +22,20 @@
 //                              launch, budget-bounded
 //   /tool/region/              a handful of countries for the location picker
 //   /bc/get/ /bc/asset/get/    one Business Center holding two ad accounts
+//   /pixel/list/               the configured pixel (TIKTOK_PIXEL_CODE, else
+//                              crazydramas.com's) SHARED with every account
+//
+// /adgroup/create/ enforces the documented pixel rules (docs?id=1739499616346114):
+// pixel_id only with CONVERT or VALUE; CONVERT on a website (not an Instant
+// Page) needs pixel_id; pixel_id never with TIKTOK_NATIVE_PAGE; an
+// optimization_event whenever pixel_id is sent, from the pixel events; the
+// billing event the goal forces; click and view attribution windows together
+// and from the WEB_CONVERSIONS + WEBSITE + CONVERT sets (docs?id=1777694366654465);
+// a pixel the account can use. /ad/create/ wants page_id in an Instant Page
+// group and landing_page_url in any other.
+//
+// TIKTOK_FAKE_PIXEL=missing lists no pixel, =unbound lists it UNBOUND and
+// =unreadable refuses the listing (a token without the pixel permission).
 //
 // TIKTOK_FAKE_ACCOUNT=suspended models a punished account: status
 // STATUS_DISABLE, campaigns report PUNISH, and a status update answers
@@ -31,6 +45,8 @@
 // process, like the fixture store.
 
 import type { TikTokResponse, TikTokTransport, UploadField } from "./transport";
+import { CLICK_WINDOWS, EVENT_COUNTS, VIEW_WINDOWS, WEB_EVENTS } from "./options";
+import { tiktokPixelCode } from "./pixel";
 
 /** The fake Business Center and the two ad accounts inside it (the seed assigns the BC to the demo studio). */
 export const FAKE_BC_ID = "7000000000000000000";
@@ -85,6 +101,40 @@ function seedDemoObjects(s: FakeState): void {
 }
 
 const DEMO_CAMPAIGN_IDS = ["1700000000000000001", "1700000000000000004"];
+
+/** The fake's pixel: one id for the configured code, shared with every ad account. */
+export const FAKE_PIXEL_ID = "1790000000000000001";
+function fakePixels(advertiserId: string, code: string): Record<string, unknown>[] {
+  const mode = process.env.TIKTOK_FAKE_PIXEL;
+  if (mode === "missing" || !advertiserId || code !== tiktokPixelCode()) return [];
+  return [{ pixel_id: FAKE_PIXEL_ID, pixel_code: code, pixel_name: "crazydramas.com (fake)", pixel_setup_mode: "STANDARD",
+    asset_ownership: { asset_relation_status: mode === "unbound" ? "UNBOUND" : "SHARED", ownership_status: false } }];
+}
+/** The optimization goal → billing event table of /adgroup/create/ for the goals Studio sends. */
+const GOAL_BILLING: Record<string, string> = { CLICK: "CPC", TRAFFIC_LANDING_PAGE_VIEW: "OCPM", CONVERT: "OCPM", VALUE: "OCPM" };
+/** The documented refusals of a pixel/attribution field set, or null. */
+function pixelRule(body: Record<string, unknown>, campaign: FakeCampaign): string | null {
+  const goal = String(body.optimization_goal ?? "");
+  const pixelId = body.pixel_id === undefined || body.pixel_id === null || body.pixel_id === "" ? null : String(body.pixel_id);
+  const nativePage = body.promotion_website_type === "TIKTOK_NATIVE_PAGE";
+  if (GOAL_BILLING[goal] && body.billing_event !== GOAL_BILLING[goal]) return `billing_event must be ${GOAL_BILLING[goal]} for optimization_goal ${goal}`;
+  if ((goal === "CONVERT" || goal === "VALUE") && campaign.objective !== "WEB_CONVERSIONS") return `optimization_goal ${goal} is not supported by objective ${campaign.objective}`;
+  if (pixelId && goal !== "CONVERT" && goal !== "VALUE") return "pixel_id is not supported when optimization_goal is not CONVERT or VALUE";
+  if (pixelId && nativePage) return "pixel_id is not supported when promotion_website_type is TIKTOK_NATIVE_PAGE";
+  if (!pixelId && !nativePage && (goal === "CONVERT" || goal === "VALUE")) return "pixel_id is required when optimization_goal is CONVERT or VALUE";
+  if (pixelId) {
+    if (!body.optimization_event) return "optimization_event is required when pixel_id is specified";
+    if (!(WEB_EVENTS as readonly string[]).includes(String(body.optimization_event))) return `optimization_event ${String(body.optimization_event)} is not a supported pixel event here`;
+    const usable = fakePixels(String(body.advertiser_id ?? ""), tiktokPixelCode()).find((p) => p.pixel_id === pixelId && (p.asset_ownership as { asset_relation_status?: string }).asset_relation_status !== "UNBOUND");
+    if (!usable) return "pixel_id is not available to this advertiser";
+  }
+  const click = body.click_attribution_window, view = body.view_attribution_window, count = body.attribution_event_count;
+  if ((click === undefined) !== (view === undefined)) return "click_attribution_window and view_attribution_window must be passed together";
+  if (click !== undefined && !(CLICK_WINDOWS as readonly unknown[]).includes(click)) return `click_attribution_window ${String(click)} is not supported`;
+  if (view !== undefined && !(VIEW_WINDOWS as readonly unknown[]).includes(view)) return `view_attribution_window ${String(view)} is not supported`;
+  if (count !== undefined && !(EVENT_COUNTS as readonly unknown[]).includes(count)) return `attribution_event_count ${String(count)} is not supported`;
+  return null;
+}
 
 /** Replay the demo hierarchy while retaining every other company's fake ads. */
 export function resetFakeTikTokForDemo(campaignIds: readonly string[], runIds: readonly string[], seed: "demo" | "empty"): void {
@@ -212,7 +262,25 @@ function reportRows(campaignIds: string[], adgroupIds: string[], start: string, 
       if (level === "AUCTION_CAMPAIGN" && byDay) rows.push({ dimensions: { campaign_id: cid, stat_time_day: `${dayKey} 00:00:00` }, metrics: byCampaign });
       for (const k of Object.keys(total) as Array<keyof typeof total>) total[k] += byCampaign[k];
     }
-    if (level === "AUCTION_CAMPAIGN" && !byDay) rows.push({ dimensions: { campaign_id: cid }, metrics: { ...total, spend: Math.round(total.spend * 100) / 100 } });
+    if (level === "AUCTION_CAMPAIGN" && !byDay) {
+      // A pixel campaign also reports TikTok-attributed website conversions:
+      // about one purchase in fifty clicks at $9.99, three checkouts per purchase.
+      const pixelGroup = [...s.adgroups.values()].find((g) => g.campaignId === cid && g.body.pixel_id);
+      const pixel = !!pixelGroup;
+      const spend = Math.round(total.spend * 100) / 100;
+      const purchases = pixel ? Math.floor(total.clicks / 50) : 0;
+      const value = Math.round(purchases * 999) / 100;
+      const checkouts = purchases * 3;
+      // `conversion` counts the optimization event, so on a pixel group it is the purchases (or the checkouts).
+      const web: Record<string, number> = pixel ? {
+        conversion: pixelGroup!.body.optimization_event === "INITIATE_ORDER" ? checkouts : purchases,
+        complete_payment: purchases, total_complete_payment_rate: value, initiate_checkout: checkouts,
+        cost_per_complete_payment: purchases ? Math.round((spend / purchases) * 100) / 100 : 0,
+        complete_payment_roas: spend ? Math.round((value / spend) * 100) / 100 : 0,
+        cost_per_initiate_checkout: checkouts ? Math.round((spend / checkouts) * 100) / 100 : 0,
+      } : {};
+      rows.push({ dimensions: { campaign_id: cid }, metrics: { ...total, spend, ...web } });
+    }
   }
   if (level === "AUCTION_ADGROUP") for (const [gid, spend] of byGroup) if (!adgroupIds.length || adgroupIds.includes(gid)) rows.push({ dimensions: { adgroup_id: gid }, metrics: { spend: Math.round(spend * 100) / 100 } });
   return rows;
@@ -262,6 +330,13 @@ const adgroupRow = (g: FakeAdGroup) => ({
   conversion_bid_price: g.conversionBidPrice ?? undefined,
   billing_event: g.billingEvent,
   schedule_end_time: g.scheduleEnd ?? undefined,
+  optimization_goal: g.body.optimization_goal,
+  promotion_website_type: g.body.promotion_website_type,
+  pixel_id: g.body.pixel_id,
+  optimization_event: g.body.optimization_event,
+  click_attribution_window: g.body.click_attribution_window,
+  view_attribution_window: g.body.view_attribution_window,
+  attribution_event_count: g.body.attribution_event_count,
 });
 
 export const fakeTransport: TikTokTransport = {
@@ -342,6 +417,13 @@ export const fakeTransport: TikTokTransport = {
         if (String(params.bc_id) !== FAKE_BC_ID) return refuse("Business Center not found");
         return ok({ list: FAKE_BC_ACCOUNTS.map((id, i) => ({ asset_id: id, asset_name: `Fake ad account ${i + 1}` })), page_info: { total_page: 1 } });
       }
+      case "/pixel/list/": {
+        if (process.env.TIKTOK_FAKE_PIXEL === "unreadable") return { code: 40001, message: "No permission to operate pixel of this advertiser" };
+        const size = Number(params.page_size ?? 10);
+        if (!Number.isInteger(size) || size < 1 || size > 20) return refuse("page_size must be between 1 and 20");
+        const pixels = fakePixels(String(params.advertiser_id ?? ""), String(params.code ?? tiktokPixelCode()));
+        return ok({ pixels, page_info: { page: 1, page_size: size, total_number: pixels.length, total_page: 1 } });
+      }
       case "/page/get/": {
         if (params.business_type !== "TIKTOK_INSTANT_PAGE") return ok({ list: [], page_info: { total_page: 1 } });
         const list = (pageStore.__studioFakeTikTokPages ?? []).filter((p) => p.advertiserId === String(params.advertiser_id));
@@ -384,6 +466,8 @@ export const fakeTransport: TikTokTransport = {
         if (Array.isArray(body.age_groups) && body.age_groups.length === 0) return refuse("age_groups must not be empty");
         if (body.schedule_type === "SCHEDULE_START_END" && !body.schedule_end_time) return refuse("schedule_end_time is required");
         if (body.bid_type === "BID_TYPE_CUSTOM" && num(body.bid_price) === null && num(body.conversion_bid_price) === null) return refuse("A custom bid needs bid_price or conversion_bid_price");
+        const pixelProblem = pixelRule(body, campaign);
+        if (pixelProblem) return refuse(pixelProblem);
         const adgroupId = nextId("171");
         s.adgroups.set(adgroupId, {
           adgroupId, campaignId: campaign.campaignId, advertiserId: String(body.advertiser_id), status: body.operation_status === "DISABLE" ? "DISABLE" : "ENABLE",
@@ -402,6 +486,9 @@ export const fakeTransport: TikTokTransport = {
           if (c.identity_type === "AUTH_CODE") {
             const post = [...s.sparks.values()].find((p) => p.advertiserId === String(body.advertiser_id) && p.itemId === c.tiktok_item_id && p.identityId === c.identity_id);
             if (!post || !(c.landing_page_url || c.page_id) || c.video_id || c.image_ids || c.ad_text) return refuse("Invalid Spark ad: use only the authorized post and identity");
+            // An Instant Page group's ads name the page; a website group's ads carry the landing page.
+            const instantPage = adgroup.body.promotion_website_type === "TIKTOK_NATIVE_PAGE";
+            if (instantPage ? !c.page_id || c.landing_page_url : !c.landing_page_url || c.page_id) return refuse(instantPage ? "An Instant Page ad group's ads need page_id and no landing_page_url" : "A website ad group's ads need landing_page_url and no page_id");
             if (/^reject-ad/i.test(post.code)) return refuse("Spark creative not valid");
           } else if (!c.identity_id || !c.video_id || !Array.isArray(c.image_ids) || !c.landing_page_url) {
             throw new Error("fake TikTok: incomplete ad payload");

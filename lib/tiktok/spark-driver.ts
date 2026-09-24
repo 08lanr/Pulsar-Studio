@@ -5,7 +5,10 @@ import type { DeliverySnapshot, DriverContext, LaunchControl, LaunchDriver } fro
 import { accessTokenFor, tiktokTransport, type TikTokResponse, type TikTokTransport } from "./index";
 import { normalizeReview } from "./review";
 import { accountHealth, accountStatusLabel } from "./account-health";
-import { adGroupBody, launchSettingsSchema, planAdGroup, validateLaunchSettings, type AdGroupPlan, type LaunchSettings } from "./settings";
+import { adGroupBody, attributionLabel, attributionOf, launchSettingsSchema, launchShape, planAdGroup, validateLaunchSettings, type AdGroupPlan, type LaunchSettings } from "./settings";
+import { isCrazydramasAdUrl } from "./ad-url";
+import { resolvePixel, tiktokPixelCode } from "./pixel";
+import { WEB_METRICS, webConversionsFromReport } from "./web-metrics";
 import { assertCampaignBudget } from "@/lib/launch/budget";
 import { createInstantPageDraft, InstantPageCreateNotSentError, InstantPageCreateRejectedError, loadSalesMasterSnapshot, publishInstantPage } from "./instant-page";
 import { SALES_MASTER_SHA256, SALES_MASTER_VERSION } from "./instant-page-master";
@@ -18,6 +21,8 @@ type SparkState = {
   settings?: LaunchSettings; plan?: AdGroupPlan; budget_cents?: number; daily_budget_cents?: number | null;
   planned_budgets?: number[];
   instant_page?: { name: string; phase: "creating" | "created" | "published"; id?: string } | null;
+  /** Website purchases: the pixel resolved on this ad account before anything was written (lib/tiktok/pixel.ts). */
+  pixel?: { code: string; pixel_id: string } | null;
   activated?: boolean; ended?: boolean; tiktok_mode?: string;
   pending_copy?: { key: string; allocations: Record<string, number>; new_budget: number; was_on: boolean } | null;
   pending_bid?: { bid_cents: number; was_on: boolean; replacements: { old_id: string; key: string; budget: number; enabled: boolean }[] } | null;
@@ -25,6 +30,9 @@ type SparkState = {
 type Client = { tt: TikTokTransport; token: string; advertiser: string };
 type Row = Record<string, unknown>;
 const state = (ctx: DriverContext) => ctx.campaign.state as SparkState;
+/** The approved link this campaign's website ads carry: the signed row's, or the draft's on rows approved before rows had one. */
+const landingUrl = (ctx: DriverContext) => ctx.campaign.tracking_url ?? ctx.run.draft.destination_url;
+const shapeOf = (s: SparkState) => (s.settings ? launchShape(s.settings) : "traffic");
 const str = (v: unknown) => v === undefined || v === null ? "" : String(v);
 const number = (v: unknown): number | null => v === undefined || v === null || v === "" || !Number.isFinite(Number(v)) ? null : Number(v);
 const cents = (v: unknown): number | null => { const n = number(v); return n === null ? null : Math.round(n * 100); };
@@ -162,9 +170,28 @@ async function findInstantPageByName(c: Client, name: string): Promise<{ id: str
   return { id: matches.length ? str(matches[0].page_id ?? matches[0].id) : null };
 }
 
+/**
+ * Website purchases: the pixel must be usable on this ad account before any
+ * TikTok write (the Spark authorizations included), so a launch on an account
+ * the pixel is not shared with creates nothing. The code is the signed one
+ * (stamped into the draft on save); the numeric id is resolved read-only and
+ * recorded, and a retry reuses the recorded id.
+ */
+async function ensurePixel(ctx: DriverContext, c: Client): Promise<void> {
+  const settings = state(ctx).settings;
+  if (!settings || launchShape(settings) !== "website_purchases") return;
+  if (!isCrazydramasAdUrl(landingUrl(ctx))) throw new Error("This Website purchases launch has no crazydramas ad link; create a new round from the title.");
+  const code = settings.pixel_code ?? tiktokPixelCode();
+  const recorded = state(ctx).pixel;
+  if (recorded?.code === code && recorded.pixel_id) return;
+  const found = await resolvePixel(c.tt, c.token, c.advertiser, code);
+  if (!found.ok) throw new Error(found.message);
+  await ctx.checkpoint({ pixel: { code, pixel_id: found.pixel_id } });
+}
+
 async function ensureSalesPage(ctx: DriverContext): Promise<void> {
   const settings = state(ctx).settings;
-  if (settings?.objective_type !== "WEB_CONVERSIONS") return;
+  if (!settings || launchShape(settings) !== "instant_page") return;
   const design = settings.instant_page_template;
   if (!design || design.master_version !== SALES_MASTER_VERSION || design.master_sha256 !== SALES_MASTER_SHA256)
     throw new Error("The approved Instant Page template or master version is unavailable.");
@@ -229,6 +256,11 @@ async function createGroup(ctx: DriverContext, c: Client, key: string, budgetCen
   const existing = candidates.find((g) => str(g.adgroup_name) === name && str(g.campaign_id) === s.campaign_id);
   let id = str(existing?.adgroup_id);
   if (existing && (cents(existing.budget) !== budgetCents || str(existing.budget_mode) !== s.plan!.budget_mode)) throw new Error("The existing ad group's budget differs from this approved launch; refusing adoption.");
+  // A website-purchase group optimizes toward one pixel event; a group of our
+  // name that carries another pixel or event is not the one we approved.
+  if (existing && shapeOf(s) === "website_purchases" && (str(existing.pixel_id) !== str(s.pixel?.pixel_id) || str(existing.optimization_event) !== str(s.settings!.optimization_event ?? "SHOPPING"))) {
+    throw new Error("The existing ad group optimizes toward a different pixel or event than this approved launch; refusing adoption.");
+  }
   if (!id) {
     const plan = { ...s.plan!, budget: budgetCents / 100 };
     const signedStart = Date.parse(`${plan.schedule_start_time.replace(" ", "T")}Z`);
@@ -238,7 +270,7 @@ async function createGroup(ctx: DriverContext, c: Client, key: string, budgetCen
     plan.schedule_start_time = new Date(start).toISOString().slice(0, 19).replace("T", " ");
     const result = await write(ctx, c, "/adgroup/create/", {
       campaign_id: s.campaign_id, adgroup_name: name,
-      ...adGroupBody(s.settings!, plan),
+      ...adGroupBody(s.settings!, plan, s.pixel),
       operation_status: "DISABLE",
     });
     id = str(result.data?.adgroup_id);
@@ -269,9 +301,11 @@ async function createAds(ctx: DriverContext, c: Client, group: SparkGroup): Prom
         ad_name: name, identity_type: "AUTH_CODE", identity_id: post.identity_id,
         tiktok_item_id: post.item_id, ad_format: post.item_type === "CAROUSEL" ? "CAROUSEL_ADS" : "SINGLE_VIDEO",
         call_to_action: state(ctx).settings!.call_to_action,
-        ...(state(ctx).settings!.objective_type === "WEB_CONVERSIONS"
+        // An Instant Page ad points at the page; every website ad (Traffic,
+        // Website purchases) carries the approved crazydramas link verbatim.
+        ...(shapeOf(state(ctx)) === "instant_page"
           ? { page_id: state(ctx).instant_page?.id }
-          : { landing_page_url: ctx.campaign.tracking_url ?? ctx.run.draft.destination_url }),
+          : { landing_page_url: landingUrl(ctx) }),
       }] });
       if (result.code !== 0) {
         if (result.code > 0 && result.code !== 40100 && !/QPS limit|too many requests|rate limit/i.test(result.message || "") && permanentAdRejection(result.message || "")) skipped.push({ code: post.code, reason: result.message });
@@ -383,6 +417,7 @@ async function launch(ctx: DriverContext): Promise<void> {
     await ctx.checkpoint({ settings, plan: planAdGroup(settings, ctx.campaign.budget_cents / 100), budget_cents: ctx.campaign.budget_cents, daily_budget_cents: daily,
       planned_budgets: split(daily ?? ctx.campaign.budget_cents, copies), tiktok_mode: c.tt.mode });
   }
+  await ensurePixel(ctx, c);
   if (!state(ctx).posts?.length) {
     const resolved = await redeemSparkCodes(c, ctx.campaign.content.map((v) => v.value), ctx.assertActive);
     await ctx.checkpoint(resolved);
@@ -500,6 +535,21 @@ async function monitor(ctx: DriverContext): Promise<DeliverySnapshot> {
     out.impressions = sum("impressions"); out.clicks = sum("clicks"); out.conversions = sum("conversion");
     out.cpc_cents = out.spend_cents !== null && out.clicks !== null && out.clicks > 0 ? Math.round(out.spend_cents / out.clicks) : null;
   } catch (e) { errors.push((e as Error).message); }
+  const settings = state(ctx).settings;
+  if (settings && launchShape(settings) === "website_purchases") {
+    // TikTok-attributed website conversions, a second read that fails soft:
+    // a refusal (an unknown metric, a missing permission) never costs the
+    // sweep its delivery state or the numbers above.
+    try {
+      const rows = await list(c, "/report/integrated/get/", {
+        report_type: "BASIC", data_level: "AUCTION_CAMPAIGN", dimensions: JSON.stringify(["campaign_id"]),
+        metrics: JSON.stringify(WEB_METRICS),
+        start_date: ctx.run.created_at.slice(0, 10), end_date: new Date().toISOString().slice(0, 10),
+        filtering: JSON.stringify([{ field_name: "campaign_ids", filter_type: "IN", filter_value: JSON.stringify([state(ctx).campaign_id]) }]),
+      });
+      out.web = { ...webConversionsFromReport(rows), event: settings.optimization_event ?? "SHOPPING", attribution: attributionLabel(attributionOf(settings)) };
+    } catch (e) { out.web = null; out.web_error = (e as Error).message; }
+  }
   out.configured_status = str(campaign?.operation_status) || undefined;
   out.effective_status = str(campaign?.secondary_status) || undefined;
   out.groups = groups.map((g) => ({ id: str(g.adgroup_id), status: str(g.operation_status), budget_cents: cents(g.budget) ?? undefined, bid_cents: cents(g.billing_event === "CPC" ? g.bid_price : g.conversion_bid_price), end_time: str(g.schedule_end_time) || undefined }));

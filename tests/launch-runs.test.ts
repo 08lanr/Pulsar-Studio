@@ -9,6 +9,7 @@ import { defaultLaunchSettings } from "@/lib/tiktok/settings";
 import { approvedCampaignBudget } from "@/lib/launch/budget";
 import type { LaunchConnection, LaunchDraft, LaunchRun } from "@/lib/launch/types";
 import { resetFakeTikTok } from "@/lib/tiktok/fake";
+import { launchTitle, LIVE_AD_URL } from "./launch-title";
 
 const producer = () => fixtureSession("producer");
 const admin = () => fixtureSession("staff");
@@ -17,12 +18,15 @@ const viewer = (): Session => ({ ...producer(), producerRole: "viewer" });
 const staffEditor = (): Session => ({ ...admin(), staffRole: "editor" });
 const hasCode = (code: string) => (error: unknown) => (error as { code?: string }).code === code;
 
-beforeEach(() => {
+// Every TikTok launch names a title whose crazydramas series is live; its ad link is the destination.
+let titleId = "";
+beforeEach(async () => {
   process.env.DATA_SOURCE = "fixture";
   process.env.FIXTURE_SEED = "empty";
   process.env.FIXTURE_PERSIST = "off";
   delete process.env.TIKTOK_LIVE;
   resetFixtureStore(); resetLaunchFixture(); resetFakeTikTok();
+  titleId = (await launchTitle()).id;
 });
 
 function connection(id: string, provider: "tiktok" | "meta" = "tiktok"): LaunchConnection {
@@ -33,7 +37,7 @@ function connection(id: string, provider: "tiktok" | "meta" = "tiktok"): LaunchC
 function draft(accounts = ["one", "two"]): LaunchDraft {
   return { ...defaultLaunchDraft(), tiktok_settings: defaultLaunchSettings(), daily_budget_cents: null, name: "Two-account test", account_ids: accounts, campaigns_per_account: 2, content_per_campaign: 2,
     content: Array.from({ length: accounts.length * 4 }, (_, i) => ({ kind: "spark", value: `spark-${i + 1}` })),
-    destination_url: "https://crazydramas.com/watch", total_budget_cents: 40003 };
+    destination_url: LIVE_AD_URL, title_id: titleId, total_budget_cents: 40003 };
 }
 test("new TikTok drafts suggest five Spark codes per campaign and Meta drafts one item", () => {
   assert.equal(defaultLaunchDraft("tiktok").content_per_campaign, 5);
@@ -71,19 +75,17 @@ test("unique allocation fans codes across accounts with an exact whole-cent laun
 test("saved preview campids are stable, unique across rounds, and frozen on approval", async () => {
   const { data, input } = await assignedDraft();
   input.name = "Xinghai Summer";
+  // A typed URL never reaches TikTok: the server writes the title's crazydramas ad link.
   input.destination_url = "https://example.com/watch?source=studio&campid=old#trailer";
   const saved = await data.saveLaunchDraft(producer(), input);
+  assert.equal(saved.draft.destination_url, LIVE_AD_URL);
   const preview = await data.previewLaunchRun(producer(), saved.id);
   const ids = preview.rows.map(row => row.campid);
   assert.equal(new Set(ids).size, preview.campaign_count);
   assert.ok(preview.rows.every(row => row.name === row.campid));
   assert.ok(preview.rows.every(row => row.campid?.startsWith("xinghai-summer-")));
-  for (const row of preview.rows) {
-    const url = new URL(row.tracking_url!);
-    assert.equal(url.searchParams.get("source"), "studio");
-    assert.equal(url.searchParams.get("campid"), row.campid);
-    assert.equal(url.hash, "#trailer");
-  }
+  // The campid names the TikTok campaign; the link carries the contract's four parameters and nothing else.
+  for (const row of preview.rows) assert.equal(row.tracking_url, LIVE_AD_URL);
   assert.deepEqual((await data.previewLaunchRun(producer(), saved.id)).rows.map(row => row.campid), ids);
   const approved = await data.submitLaunchRun(producer(), saved.id, saved.revision);
   assert.deepEqual(approved.campaigns.map(row => row.campid), ids);
@@ -131,7 +133,7 @@ test("planner refuses unassigned, disabled, foreign-platform and non-USD account
   }
   assert.throws(() => buildLaunchPlan(input, [{ ...connection("one"), currency: "EUR" }]), /USD/);
   assert.throws(() => buildLaunchPlan({ ...input, account_ids: ["one", "one"] }, [connection("one")]), /only once/);
-  assert.throws(() => buildLaunchPlan({ ...input, destination_url: "https://user:password@example.com" }, [connection("one")]), /without credentials/);
+  assert.throws(() => buildLaunchPlan({ ...input, destination_url: "https://user:password@example.com" }, [connection("one")]), /crazydramas page/);
   assert.throws(() => splitBudget(1.5, 1), /Invalid budget/);
 });
 

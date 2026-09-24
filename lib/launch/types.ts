@@ -1,6 +1,7 @@
 import type { Session } from "@/lib/auth";
 import type { ClipLibraryFilter, ClipLibraryRow, ClipPost, PublishClipInput } from "@/lib/launch/clip-posts";
 import type { LaunchSettings } from "@/lib/tiktok/settings";
+import type { WebConversions } from "@/lib/tiktok/web-metrics";
 
 export type LaunchProvider = "tiktok" | "meta";
 export type ContentKind = "spark" | "facebook_post" | "instagram_post" | "video";
@@ -28,6 +29,13 @@ export type LaunchDraft = {
    * Absent or empty keeps the identifier Studio derives from the saved run.
    */
   campid_start?: string | null;
+  /**
+   * TikTok: the title the ads promote. Its crazydramas slug decides the one
+   * link every TikTok ad carries (lib/tiktok/ad-url.ts); the server writes
+   * that link into `destination_url` on save, and preview refuses a title
+   * with no slug, a `mock-` slug or a series that is not live.
+   */
+  title_id?: string | null;
   tiktok_settings: LaunchSettings; meta_settings: MetaLaunchSettings;
 };
 export type LaunchConnection = {
@@ -60,6 +68,8 @@ export type LaunchPlanIssue = { code: string; message: string; vars?: Record<str
 export type LaunchPlan = {
   rows: LaunchPlanRow[]; total_budget_cents: number; daily_total_cents: number | null;
   campaign_count: number; account_count: number; content_count: number; warnings: string[];
+  /** TikTok Website purchases: the pixel the preview resolved on every chosen account, and what the ad groups optimize toward. */
+  tiktok_pixel?: { code: string; event: string; attribution: string; accounts: { connection_id: string; pixel_id: string }[] };
 };
 export type DeliveryState = "submitted" | "review" | "live" | "paused" | "ended" | "rejected" | "failed" | "suspended" | "unknown";
 export type DeliverySnapshot = {
@@ -70,6 +80,13 @@ export type DeliverySnapshot = {
   ads?: { id: string; status: string; note?: string; content_value?: string }[];
   /** One entry per ad set. Meta names the platform its ad set runs on; TikTok groups have none. */
   groups?: { id: string; status: string; budget_cents?: number; bid_cents?: number | null; end_time?: string; platform?: MetaPlatform }[];
+  /**
+   * TikTok Website purchases only: TikTok-attributed website conversions (its
+   * own click/view windows, never crazydramas' funnel). Read by a second
+   * report call that fails soft: `web_error` says why they are missing.
+   */
+  web?: (WebConversions & { event: string; attribution: string }) | null;
+  web_error?: string;
 };
 export type LaunchCampaign = LaunchPlanRow & {
   id: string; run_id: string; status: "pending" | "running" | "done" | "failed";
@@ -112,8 +129,24 @@ export type LaunchLibraryItem = LaunchContent & {
 export type ClipPostPatch = Partial<Pick<ClipPost,
   "status" | "step" | "external_video_id" | "external_post_id" | "permalink" | "caption" | "sha256" | "error" | "published_at"
   | "attempted_at" | "superseded_by" | "lease_owner" | "leased_until">>;
+/** A title a TikTok launch may promote: its crazydramas slug and the phase 3a reading of it. */
+export type LaunchTitleOption = {
+  id: string; name: string; slug: string | null;
+  /** The crazydramas status state (lib/crazydramas/match.ts), or null when the title has no slug. */
+  state: string | null;
+  /** The link its ads would carry, when the slug can carry one. */
+  ad_url: string | null;
+};
 export type LaunchWorkspace = {
   connections: LaunchConnection[]; library: ClipLibraryRow[]; runs: LaunchRun[];
+  /** The company's titles with their crazydramas slug, for the TikTok destination. */
+  titles?: LaunchTitleOption[];
+  /**
+   * The TikTok account a new launch starts on (one account for now):
+   * TIKTOK_DEFAULT_ADVERTISER_ID when this company's assignment reaches it,
+   * else the company's preferred account, else its only one. Null: choose.
+   */
+  tiktok_default_connection_id?: string | null;
   business_centers: { provider: LaunchProvider; business_id: string; name: string; account_ids: string[] }[];
   account_warnings?: string[];
   default_destination_url: string; producer_id: string; can_edit: boolean; can_launch: boolean;

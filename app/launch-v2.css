@@ -78,6 +78,13 @@
 .launch-confirm-facts dt { font-size:var(--t-label); font-weight:var(--w-strong); text-transform:uppercase; letter-spacing:var(--track-label); color:var(--text-faint); }
 .launch-confirm-facts dd { margin:2px 0 0; min-width:0; font-size:var(--t-body); overflow-wrap:anywhere; }
 .launch-confirm-url { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* A TikTok destination is shown whole (decision 2026-09-23): the macros are
+   the point, so the exact string wraps instead of truncating. */
+.launch-confirm-url-note { display:block; margin-top:4px; color:var(--text-muted); font-size:var(--t-small); line-height:var(--lh-body); }
+.launch-confirm-url.launch-confirm-url-full { white-space:normal; overflow-wrap:anywhere; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:var(--t-small); }
+.launch-flow .launch-ad-link { margin:8px 0 12px; }
+.launch-flow .launch-ad-link .hint { margin:4px 0; }
+.launch-flow .launch-ad-url { display:block; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; padding:8px 10px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface-2); font-size:var(--t-small); overflow-wrap:anywhere; white-space:normal; }
 
 /* The bill: three rows, right-aligned tabular numerals, the total at full
    strength just above the buttons. A number is never buried in a sentence. */

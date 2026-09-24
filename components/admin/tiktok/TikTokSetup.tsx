@@ -30,6 +30,9 @@ type Status = {
   producers: Array<{ id: string; name_zh: string; name_en: string | null }>;
   assignments: Record<string, { producerId: string; kind: "business_center" | "ad_account" }>;
   scheduler: { started: boolean; lastTickAt: string | null; lastSummary: { polled: number; synced: number; duplicated?: number; errors: string[] } | null };
+  /** The one account launches start on and the pixel read on it (decision 2026-09-23). */
+  launchDefaults?: { advertiserId: string | null; name: string | null; status: string | null; reachedBy: string[]; pixelCode: string;
+    pixel: { ok: true; pixel_id: string; relation: string } | { ok: false; reason: string; message: string } | null };
 };
 
 const HEALTH_CLASS: Record<AccountHealth, string> = { ready: "pill-success", blocked: "pill-error", pending: "pill-warning", unknown: "pill-neutral" };
@@ -168,6 +171,23 @@ export default function TikTokSetup({ isAdmin, connect, connectDetail }: { isAdm
         <dt>{tt("tks.reachable")}</dt><dd>{tt("tks.reachableValue", { accounts: c.reachableAccounts, bcs: status?.businessCenters.length ?? 0 })}</dd>
         {typeof window !== "undefined" && c.mode === "production" && <><dt>{tt("admin.tiktok.redirectUri")}</dt><dd className="pd-mono">{`${window.location.origin}/api/tiktok/callback`}</dd></>}
       </dl>
+    </section>}
+
+    {status?.launchDefaults && <section className="card pd-panel" data-testid="tiktok-launch-defaults">
+      <h2 className="section-title">{tt("lpx.defaultsTitle")}</h2>
+      <dl className="pd-kv">
+        <dt>{tt("lpx.defaultAccount")}</dt>
+        <dd>{status.launchDefaults.advertiserId
+          ? <><strong>{status.launchDefaults.name ?? "—"}</strong> <span className="pd-mono">{status.launchDefaults.advertiserId}</span>{status.launchDefaults.status ? <> · <span className="gt-muted">{status.launchDefaults.status}</span></> : null}<br />
+            <small className="pd-muted">{status.launchDefaults.reachedBy.length ? tt("lpx.reachedBy", { companies: status.launchDefaults.reachedBy.map(producerName).join(", ") }) : tt("lpx.reachedByNone")}</small><br />
+            <small className="pd-muted">{tt("lpx.defaultAccountHint")}</small></>
+          : <span className="pd-muted">{tt("lpx.defaultAccountNone")}</span>}</dd>
+        <dt>{tt("lpx.pixelCode")}</dt><dd className="pd-mono">{status.launchDefaults.pixelCode}</dd>
+        {status.launchDefaults.pixel && <><dt>{tt("lpx.pixelOnDefault")}</dt><dd>{status.launchDefaults.pixel.ok
+          ? <span className="pill pill-success">{tt("lpx.pixelOk", { id: status.launchDefaults.pixel.pixel_id, relation: status.launchDefaults.pixel.relation })}</span>
+          : <span className="note note-warn" role="status">{status.launchDefaults.pixel.message}</span>}</dd></>}
+      </dl>
+      <p className="pd-muted">{tt("lpx.pixelServer")}</p>
     </section>}
 
     <section className="card pd-panel">

@@ -32,8 +32,12 @@ function linkWord(url: string): string {
   try { return new URL(url).host; } catch { return url; }
 }
 
-export default function LaunchConfirmDialog({ name, plan, destination, startPaused, provider, mode, accountNames, cards, pageDesign, staff, note, onNoteChange, error, onClose, onConfirm }: {
+export default function LaunchConfirmDialog({ name, plan, destination, destinationNote, optimizes, startPaused, provider, mode, accountNames, cards, pageDesign, staff, note, onNoteChange, error, onClose, onConfirm }: {
   name: string; plan: LaunchPlan; destination: string; startPaused: boolean;
+  /** One line under the destination: for TikTok, what its literal macros become. */
+  destinationNote?: string;
+  /** TikTok Website purchases: the pixel event, pixel and attribution the ad groups are created with. */
+  optimizes?: string;
   provider: LaunchProvider; mode: LaunchRun["mode"]; accountNames: Record<string, string>;
   /** One resolved card per content entry, keyed `kind:value`, shared with step 3 and the preview. */
   cards?: Record<string, AdCardProps>;
@@ -101,7 +105,9 @@ export default function LaunchConfirmDialog({ name, plan, destination, startPaus
           <div><dt>{tt("lv2.provider")}</dt><dd>{providerWord}</dd></div>
           <div><dt>{tt("lv2.accounts")}</dt><dd>{accounts.join(" · ")}</dd></div>
           <div><dt>{tt("lr3.factCampaigns")}</dt><dd>{plan.campaign_count}</dd></div>
-          <div className="launch-confirm-fact-wide"><dt>{tt("lv2.destination")}</dt><dd><span className="launch-confirm-url" title={destination}>{destination}</span></dd></div>
+          {/* The exact string the provider receives (TikTok's macros literal), and one line on what they become. */}
+          <div className="launch-confirm-fact-wide"><dt>{tt("lv2.destination")}</dt><dd><span className={`launch-confirm-url${destinationNote ? " launch-confirm-url-full" : ""}`} title={destination} data-testid="confirm-destination">{destination}</span>{destinationNote && <small className="launch-confirm-url-note">{destinationNote}</small>}</dd></div>
+          {optimizes && <div className="launch-confirm-fact-wide"><dt>{tt("lpx.factOptimizes")}</dt><dd data-testid="confirm-optimizes">{optimizes}</dd></div>}
           {pageDesign && <div className="launch-confirm-fact-wide"><dt>{tt("lr3.factLandingPage")}</dt><dd title={pageDesign.name}>{tt("salesLaunch.sales")} · {pageDesign.button_text} · {tt(`tipTemplates.background.${pageDesign.background}`)}{pageDesign.hand_cursor ? ` · ${tt("tipTemplates.handCursor")}` : ""}</dd></div>}
         </dl>
         {/* One block per campaign: which account, how much, then the ads. An ad

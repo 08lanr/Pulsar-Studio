@@ -49,6 +49,8 @@ function summary(run: LaunchRun) {
     campaigns: run.campaigns.map(c => ({ id: c.id, name: c.name, status: c.status,
       delivery: c.snapshot?.delivery ?? null, spend_cents: c.snapshot?.spend_cents ?? null,
       clicks: c.snapshot?.clicks ?? null, conversions: c.snapshot?.conversions ?? null,
+      // TikTok-attributed website conversions (Website purchases launches only).
+      web: c.snapshot?.web ?? null,
       checked_at: c.snapshot?.checked_at ?? null, note: c.snapshot?.note ? redact(c.snapshot.note) : null,
       error: c.error ? redact(c.error) : null })),
     error: run.error ? redact(run.error) : null,
@@ -57,6 +59,7 @@ function summary(run: LaunchRun) {
 function preview(plan: LaunchPlan, run: LaunchRun, connections: LaunchConnection[]) {
   return { launch_id: run.id, revision: run.revision, name: run.draft.name,
     provider: run.draft.provider, destination_url: run.draft.destination_url,
+    title_id: run.draft.title_id ?? null, tiktok_pixel: plan.tiktok_pixel ? { code: plan.tiktok_pixel.code, event: plan.tiktok_pixel.event, attribution: plan.tiktok_pixel.attribution } : null,
     start_paused: run.draft.start_paused, allocation: run.draft.allocation,
     settings: run.draft.provider === "meta" ? run.draft.meta_settings : run.draft.tiktok_settings,
     total_budget_cents: plan.total_budget_cents, daily_total_cents: plan.daily_total_cents,

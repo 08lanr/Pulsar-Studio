@@ -28,6 +28,22 @@ const skippedOf = (c: LaunchCampaign): unknown[] => {
   return Array.isArray(value) ? value : [];
 };
 const ended = (c: LaunchCampaign) => c.snapshot?.delivery === "ended" || c.state.desired_status === "ended" || c.state.stop_applied === "ended";
+/**
+ * TikTok-attributed website conversions across the campaigns that read them
+ * (Website purchases launches): counts and value summed, ROAS and cost per
+ * purchase recomputed from the sums. Null when no campaign has them.
+ */
+function webTotals(campaigns: LaunchCampaign[]) {
+  const withWeb = campaigns.filter(c => c.snapshot?.web);
+  if (!withWeb.length) return null;
+  const sum = (pick: (w: NonNullable<DeliverySnapshot["web"]>) => number | null) =>
+    withWeb.every(c => pick(c.snapshot!.web!) != null) ? withWeb.reduce((n, c) => n + (pick(c.snapshot!.web!) ?? 0), 0) : null;
+  const purchases = sum(w => w.purchases), value = sum(w => w.purchase_value_cents), checkouts = sum(w => w.checkouts);
+  const spend = withWeb.every(c => c.snapshot?.spend_cents != null) ? withWeb.reduce((n, c) => n + (c.snapshot?.spend_cents ?? 0), 0) : null;
+  return { purchases, value, checkouts, attribution: withWeb[0].snapshot!.web!.attribution,
+    roas: spend && value != null ? (value / spend).toFixed(2) : null,
+    costPerPurchase: spend != null && purchases ? Math.round(spend / purchases) : null };
+}
 const total = (campaigns: LaunchCampaign[], field: "spend_cents" | "clicks" | "conversions") =>
   campaigns.length && campaigns.every(c => c.snapshot?.[field] != null)
     ? campaigns.reduce((sum, c) => sum + (c.snapshot?.[field] ?? 0), 0) : null;
@@ -282,6 +298,7 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
       const swept = run.campaigns.some(c => c.snapshot);
       const activeCount = run.campaigns.filter(c => switchState(c.snapshot?.configured_status) === true).length;
       const averageCpc = spend != null && clicks ? Math.round(spend / clicks) : null;
+      const web = webTotals(run.campaigns);
       const checked = run.campaigns.map(c => c.snapshot?.checked_at).filter((at): at is string => !!at).sort().at(-1);
       const renameBlocked = run.status === "running" || run.status === "pending";
       const providerName = run.draft.provider === "meta" ? "Meta" : "TikTok";
@@ -314,6 +331,16 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
           <div><small>{tt("lv2.cpc")}</small><strong>{money(averageCpc)}</strong></div>
           <div><small>{tt(run.approved_at ? "monitorV2.approvedBudget" : "monitorTable.plannedBudget")}</small><strong>{money(run.draft.total_budget_cents)}</strong></div>
         </div>
+        {/* TikTok's own attribution of crazydramas purchases, labelled as such:
+            it is not crazydramas' click_id funnel and the two will not match. */}
+        {web && <div className="lm-web-summary" data-testid="web-summary" aria-label={tt("lpx.attributed")} title={tt("lpx.webLine", { attribution: web.attribution })}>
+          <div><small>{tt("lpx.purchases")} · {tt("lpx.attributed")}</small><strong>{int(web.purchases)}</strong></div>
+          <div><small>{tt("lpx.value")}</small><strong>{money(web.value)}</strong></div>
+          <div><small>{tt("lpx.roas")}</small><strong>{web.roas ?? "—"}</strong></div>
+          <div><small>{tt("lpx.costPerPurchase")}</small><strong>{money(web.costPerPurchase)}</strong></div>
+          <div><small>{tt("lpx.checkouts")}</small><strong>{int(web.checkouts)}</strong></div>
+          <div><small>{tt("lpx.attribution")}</small><span className="lm-stat-hint">{web.attribution}</span></div>
+        </div>}
         {/* The run-level sentence only earns its place when no campaign row
             explains the problem itself; one problem, one message, one Retry. */}
         {(actionError[run.id] || (run.error && !run.campaigns.some(c => c.error && !ended(c)))) && <div className="lm-run-error">{failure(run, actionError[run.id] || run.error || "", `run-${run.external_id}`)}</div>}
@@ -420,6 +447,8 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
                   <span>{tt("mr3.ref.account")} <button className="lm-copy-id" title={tt("monitorTable.copyAccountId")} aria-label={tt("monitorTable.copyAccountIdValue", { id: c.advertiser_id })} onClick={() => void copyId(c.advertiser_id)}>{c.advertiser_id}{copied === c.advertiser_id ? <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m3 8 3.2 3.2L13 4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg> : <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="5" y="4" width="8" height="9" rx="1" stroke="currentColor" strokeWidth="1.3" /><path d="M3 11H2V3a1 1 0 0 1 1-1h7v1" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></svg>}</button></span>
                   {campaignId && <span title={tt("monitorTable.platformCampaignId")}>{tt("mr3.ref.campaign")} <span className="lm-ref-id">{campaignId}</span></span>}
                 </div>
+                {c.snapshot?.web && <p className="hint lm-web-line" data-testid="web-conversions">{tt("lpx.webLine", { attribution: c.snapshot.web.attribution })}: {tt("lpx.purchases")} {int(c.snapshot.web.purchases)} · {tt("lpx.value")} {money(c.snapshot.web.purchase_value_cents)} · {tt("lpx.roas")} {c.snapshot.web.roas ?? "—"} · {tt("lpx.checkouts")} {int(c.snapshot.web.checkouts)}</p>}
+                {c.snapshot?.web_error && <p className="hint">{tt("lpx.webUnavailable", { reason: c.snapshot.web_error })}</p>}
                 {skippedOf(c).map((item, i) => <p className="note note-warn" key={i}>{typeof item === "string" ? item : JSON.stringify(item)}</p>)}
               </div></td></tr>}
               {menu === c.id && createPortal(<div data-monitor-menu className="lm-menu-list" style={{ top: menuPosition.top, left: menuPosition.left }}>{canControl && <><button onClick={() => openEdit(run, c, "budget")}>{tt("lv2.changeBudget")}</button>{c.daily_budget_cents != null && <button onClick={() => openEdit(run, c, "daily_budget")}>{tt("lv2.changeDaily")}</button>}<button onClick={() => openEdit(run, c, "bid")}>{tt("lv2.changeBid")}</button><button onClick={() => openEdit(run, c, "schedule")}>{tt("lv2.endDate")}</button>{run.draft.provider === "tiktok" && <button disabled={!!busy} onClick={() => void control(run, c, { action: "duplicate" })}>{tt("lv2.duplicate")}</button>}</>}{canEnd && <button className="lm-danger" onClick={() => openEdit(run, c, "end")}>{tt("monitorV2.endCampaign")}</button>}</div>, document.body)}

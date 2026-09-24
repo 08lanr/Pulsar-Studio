@@ -14,3 +14,17 @@ export function eligibleMetaAssignment(saved: LaunchConnection, inventory: MetaI
   if (!page) return false;
   return !saved.instagram_id || inventory.instagram.some(i => i.id === saved.instagram_id && i.account_id === account.id);
 }
+
+/**
+ * The TikTok account a new launch starts on, so a one-account setup needs no
+ * click (decision 2026-09-23, "one TikTok account for now"): the operator's
+ * TIKTOK_DEFAULT_ADVERTISER_ID when the company's own assignment reaches it,
+ * else the company's preferred account inside its Business Center, else its
+ * only account. Null when there is a real choice to make. It never adds an
+ * account: only a connection the company was assigned can be the answer.
+ */
+export function defaultLaunchConnectionId(connections: readonly LaunchConnection[], opts: { defaultAdvertiserId?: string | null; preferredAdvertiserId?: string | null } = {}): string | null {
+  const tiktok = connections.filter(c => c.provider === "tiktok" && c.enabled && c.assigned_by);
+  const byAdvertiser = (id: string | null | undefined) => (id ? tiktok.find(c => c.advertiser_id === id)?.id ?? null : null);
+  return byAdvertiser(opts.defaultAdvertiserId) ?? byAdvertiser(opts.preferredAdvertiserId) ?? (tiktok.length === 1 ? tiktok[0].id : null);
+}

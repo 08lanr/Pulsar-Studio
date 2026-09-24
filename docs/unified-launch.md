@@ -11,7 +11,7 @@ Implemented locally September 16, 2026. This document records the user's final a
 - `/producer/monitor` shows stored delivery, review notes, spend, clicks, CPC, available conversions, freshness and supported controls. Staff use `/promote/launches`; account assignment is `/meta`. Missing measurements are unavailable, never fabricated zeroes.
 - New round copies content/settings into a fresh draft with no approval or external IDs. Meta schedules move forward with the original duration. The next budget must be reviewed and approved again.
 
-The initial objective is website traffic. Revenue tracking, Pixel, Conversions API, purchase optimization and mobile app measurement are deferred. Ask Ruobin about the Pixel and Conversions API before starting that phase.
+The initial objective was website traffic. Since 2026-09-23 (top of `decisions.md`) a TikTok launch names the title it promotes and every TikTok website ad links to that title's crazydramas page with TikTok's own macros (`https://crazydramas.com/watch/<slug>?source=tiktok&campaign=__CAMPAIGN_ID__&adgroup=__AID__&creative=__CID__`); the TikTok default is Website purchases, optimized toward the crazydramas.com pixel's Purchase event (InitiateCheckout as the fallback), with Traffic and the Sales Instant Page still available, and the monitor shows TikTok-attributed purchases. Studio sends no events (crazydramas.com does). A Meta pixel, revenue tracking beyond TikTok's attribution and mobile app measurement are not part of Studio.
 
 ## Money and authorization
 
@@ -52,4 +52,4 @@ The final acceptance passed 329/329 unit tests, 30/30 browser tests in one unint
 
 Regression tests cover the signed-budget bypass, transient Spark creation failures, remote budget drift and the saved-round loading race. Older creation paths are retired and covered by route/data/browser checks. Screen behavior and intentional differences from Overlord/Grow are recorded in [screen acceptance](launch-screen-acceptance.md).
 
-See [the acceptance report](launch-acceptance-2026-09-16.md) for exact results, artifacts and remaining live limits. Migrations `0010`, `0012` and `0013` are verified; corrected `0011` is pending separate approval. Read-only provider checks succeeded, but no real paused ad launch has been performed and official Meta MCP remains unauthenticated. Revenue, Pixel and Conversions API are deferred.
+See [the acceptance report](launch-acceptance-2026-09-16.md) for exact results, artifacts and remaining live limits. Migrations `0010`, `0012` and `0013` are verified; corrected `0011` is pending separate approval. Read-only provider checks succeeded, but no real paused ad launch has been performed and official Meta MCP remains unauthenticated. The TikTok pixel shape is built and fixture-verified (2026-09-23); its first real launch is a paused create checked with Ruobin.

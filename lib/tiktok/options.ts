@@ -8,7 +8,13 @@
 
 export type Option = { value: string; label: string };
 
-/** Studio launches are TRAFFIC campaigns to the campaign's destination link (decision 2026-09-09). */
+/**
+ * The objective the retired Promote engine (lib/tiktok/launch.ts) sends. The
+ * unified launch picks per launch from three shapes (lib/tiktok/settings.ts
+ * `launchShape`): Website purchases (WEB_CONVERSIONS optimized toward the
+ * crazydramas pixel, the default since 2026-09-23), Sales on an Instant Page
+ * (WEB_CONVERSIONS, button taps) and Traffic (TRAFFIC, clicks).
+ */
 export const OBJECTIVE = "TRAFFIC";
 
 export const AGE_OPTIONS: Option[] = [
@@ -59,19 +65,62 @@ export const PACING_OPTIONS: Option[] = [
 export type GoalOption = Option & { billing: "CPC" | "OCPM"; billingLabel: string };
 
 /**
- * Which optimization goals a TRAFFIC campaign may use, and the billing
- * event each forces (sandbox-verified in overlord). First entry = default.
+ * The optimization goals a launch may use, and the billing event each forces
+ * ("Corresponding billing event for an optimization goal", /adgroup/create/,
+ * docs?id=1739499616346114; sandbox-verified in overlord). CLICK and
+ * TRAFFIC_LANDING_PAGE_VIEW are the Traffic shape's; CONVERT belongs to the two
+ * WEB_CONVERSIONS shapes (Instant Page button taps, or a pixel event on
+ * crazydramas.com). First entry = default.
  * Cost caps live in `bid_price` under CPC and `conversion_bid_price` under
  * oCPM — writing the wrong field is accepted and ignored, so the goal decides.
  */
 export const GOAL_OPTIONS: GoalOption[] = [
   { value: "CLICK", label: "Clicks (CPC)", billing: "CPC", billingLabel: "CPC — cost per click" },
   { value: "TRAFFIC_LANDING_PAGE_VIEW", label: "Landing page views (oCPM)", billing: "OCPM", billingLabel: "oCPM — optimized cost per mille" },
-  { value: "CONVERT", label: "Instant Page button taps (oCPM)", billing: "OCPM", billingLabel: "oCPM — Instant Page button taps" },
+  { value: "CONVERT", label: "Conversions (oCPM)", billing: "OCPM", billingLabel: "oCPM — optimized toward the conversion event" },
 ];
 
 export function goalOption(value: string | null | undefined): GoalOption {
   return GOAL_OPTIONS.find((g) => g.value === value) ?? GOAL_OPTIONS[0];
+}
+
+/**
+ * The pixel events a Website purchases ad group may optimize toward, as
+ * /adgroup/create/ `optimization_event` values (Supported Pixel events,
+ * https://business-api.tiktok.com/portal/docs?id=1739585696931842: SHOPPING
+ * is the web Purchase event, INITIATE_ORDER is InitiateCheckout). First entry
+ * = default. crazydramas.com fires both (Purchase from browser and server,
+ * deduplicated; InitiateCheckout from the server).
+ */
+export const WEB_EVENT_OPTIONS: Option[] = [
+  { value: "SHOPPING", label: "Purchase" },
+  { value: "INITIATE_ORDER", label: "InitiateCheckout" },
+];
+export const WEB_EVENTS = ["SHOPPING", "INITIATE_ORDER"] as const;
+export type WebEvent = (typeof WEB_EVENTS)[number];
+
+/**
+ * Attribution settings a WEB_CONVERSIONS + WEBSITE (promotion_website_type
+ * UNSET) + CONVERT ad group accepts ("Attribution window and event count",
+ * https://business-api.tiktok.com/portal/docs?id=1777694366654465). Click and
+ * view must be passed together, and none of them can be updated once the ad
+ * group exists (/adgroup/create/, docs?id=1739499616346114) — so Studio always
+ * sends them rather than inheriting an account default.
+ */
+export const CLICK_WINDOWS = ["ONE_DAY", "SEVEN_DAYS", "FOURTEEN_DAYS", "TWENTY_EIGHT_DAYS"] as const;
+export const VIEW_WINDOWS = ["OFF", "ONE_DAY", "SEVEN_DAYS"] as const;
+export const EVENT_COUNTS = ["ONCE", "EVERY"] as const;
+/** 7-day click / 1-day view: TikTok's web default for pixel advertisers, sent explicitly. */
+export const DEFAULT_CLICK_WINDOW = "SEVEN_DAYS";
+export const DEFAULT_VIEW_WINDOW = "ONE_DAY";
+/**
+ * Every purchase counts (a viewer can unlock more than one series); a started
+ * checkout counts once per person. TikTok's Help Center maps "Every" to
+ * purchase optimization and "Once" to non-purchase optimization
+ * (ads.tiktok.com/help/article/attribution-settings-at-the-ad-group-level).
+ */
+export function defaultEventCount(event: string | null | undefined): (typeof EVENT_COUNTS)[number] {
+  return event === "SHOPPING" ? "EVERY" : "ONCE";
 }
 
 export const BID_STRATEGY_OPTIONS: Option[] = [

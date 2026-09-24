@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { chooseTikTokTitle, WAR_GOD_LINK } from "./tiktok-title";
 
 test("staff preview locks the selected company and draft until confirmation matches the saved run", async ({ page }) => {
   const base = test.info().project.use.baseURL ?? "http://localhost:3202";
@@ -15,7 +16,7 @@ test("staff preview locks the selected company and draft until confirmation matc
   await page.getByLabel("Launch name").fill("Preview consistency check");
   await page.getByLabel(/^(Items|Spark codes) per campaign$/).fill("1");
   await page.getByLabel("Paste all Spark codes, one per line").fill("PREVIEW-CONSISTENCY-SPARK");
-  await page.getByLabel("Destination URL").fill("https://example.com/preview-check");
+  await chooseTikTokTitle(page);
 
   let releasePreview!: () => void;
   const held = new Promise<void>(resolve => { releasePreview = resolve; });
@@ -35,7 +36,7 @@ test("staff preview locks the selected company and draft until confirmation matc
     await reached;
     await expect(producer).toBeDisabled();
     await expect(page.getByLabel("Launch name")).toBeDisabled();
-    await expect(page.getByLabel("Destination URL")).toBeDisabled();
+    await expect(page.getByLabel("Title on crazydramas")).toBeDisabled();
     await expect(page.getByLabel("Paste all Spark codes, one per line")).toBeDisabled();
   } finally {
     releasePreview();
@@ -48,7 +49,7 @@ test("staff preview locks the selected company and draft until confirmation matc
   const data = await saved.json() as { workspace: { runs: { draft: { name: string; destination_url: string; content: { value: string }[]; total_budget_cents: number }; revision: number }[] } };
   const run = data.workspace.runs.find(r => r.draft.name === "Preview consistency check");
   expect(run?.revision).toBeGreaterThan(0);
-  expect(run?.draft.destination_url).toBe("https://example.com/preview-check");
+  expect(run?.draft.destination_url).toBe(WAR_GOD_LINK);
   expect(run?.draft.content.map(c => c.value)).toEqual(["PREVIEW-CONSISTENCY-SPARK"]);
 
   await page.getByRole("button", { name: /Launch 1 campaign/ }).click();

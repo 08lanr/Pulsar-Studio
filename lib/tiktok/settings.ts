@@ -24,8 +24,12 @@ import { SALES_MASTER_SHA256, SALES_MASTER_VERSION } from "./instant-page-master
 import {
   AGE_OPTIONS,
   BUDGET_MODE_OPTIONS,
+  CLICK_WINDOWS,
   CTA_OPTIONS,
+  DEFAULT_CLICK_WINDOW,
   DEFAULT_LOCATION_IDS,
+  DEFAULT_VIEW_WINDOW,
+  EVENT_COUNTS,
   GENDER_OPTIONS,
   GOAL_OPTIONS,
   MAX_DURATION_DAYS,
@@ -34,15 +38,43 @@ import {
   MIN_CAMPAIGN_BUDGET_USD,
   OS_OPTIONS,
   PACING_OPTIONS,
+  VIEW_WINDOWS,
+  WEB_EVENTS,
+  WEB_EVENT_OPTIONS,
+  defaultEventCount,
   goalOption,
 } from "./options";
 
 const values = (opts: { value: string }[]) => opts.map((o) => o.value) as [string, ...string[]];
 const isoDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD");
 
+const attributionSchema = z.object({
+  click: z.enum(CLICK_WINDOWS),
+  view: z.enum(VIEW_WINDOWS),
+  event_count: z.enum(EVENT_COUNTS),
+});
+export type Attribution = z.infer<typeof attributionSchema>;
+
 export const launchSettingsSchema = z.object({
   /** Absent on old saved rows: preserve their Traffic/Clicks behavior. */
   objective_type: z.enum(["TRAFFIC", "WEB_CONVERSIONS"]).optional(),
+  /**
+   * WEB_CONVERSIONS only: where the sale happens. `website` is the Website
+   * purchases shape (the pixel on crazydramas.com); absent or `instant_page`
+   * is the Sales Instant Page, the only WEB_CONVERSIONS shape before 2026-09-23.
+   */
+  sales_destination: z.enum(["instant_page", "website"]).optional(),
+  /** Website purchases only: the pixel event TikTok optimizes toward (lib/tiktok/options.ts WEB_EVENT_OPTIONS). */
+  optimization_event: z.enum(WEB_EVENTS).optional(),
+  /** Website purchases only: the attribution TikTok counts results by, sent on create because it can never change afterwards. */
+  attribution: attributionSchema.optional(),
+  /**
+   * Website purchases only: the pixel code (Events Manager's id, TIKTOK_PIXEL_CODE)
+   * the server stamps into the draft on save, so the approver signs the pixel
+   * the launch will use. The numeric pixel_id is resolved per ad account at
+   * launch and recorded on the campaign, never typed here.
+   */
+  pixel_code: z.string().regex(/^[A-Z0-9]{8,40}$/, "A TikTok pixel code is 8–40 capital letters and digits").optional(),
   /** Frozen local design and immutable bundled master version for Sales. */
   instant_page_template: z.object({
     id: z.string().uuid(), name: z.string().min(1).max(60),
@@ -79,11 +111,66 @@ export const launchSettingsSchema = z.object({
 
 export type LaunchSettings = z.infer<typeof launchSettingsSchema>;
 
-/** The new 1 Geo Sales shape; the budget amount stays on the launch draft. */
+/**
+ * The three launch shapes, from the fields that decide them:
+ *   traffic             TRAFFIC; clicks (or landing page views) to crazydramas.com
+ *   instant_page        WEB_CONVERSIONS on a Sales Instant Page (button taps; no pixel)
+ *   website_purchases   WEB_CONVERSIONS to crazydramas.com, optimized toward a pixel event
+ */
+export type LaunchShape = "traffic" | "instant_page" | "website_purchases";
+export function launchShape(s: Pick<LaunchSettings, "objective_type" | "sales_destination">): LaunchShape {
+  if (s.objective_type !== "WEB_CONVERSIONS") return "traffic";
+  return s.sales_destination === "website" ? "website_purchases" : "instant_page";
+}
+
+/** The attribution a Website purchases ad group sends: its own, or 7-day click / 1-day view with the event's count. */
+export function attributionOf(s: Pick<LaunchSettings, "attribution" | "optimization_event">): Attribution {
+  return s.attribution ?? { click: DEFAULT_CLICK_WINDOW, view: DEFAULT_VIEW_WINDOW, event_count: defaultEventCount(s.optimization_event ?? "SHOPPING") };
+}
+
+/** "Purchase", "InitiateCheckout": the pixel event a person reads. */
+export function webEventLabel(event: string | null | undefined): string {
+  return WEB_EVENT_OPTIONS.find((o) => o.value === event)?.label ?? "Purchase";
+}
+
+/**
+ * Website purchases, the TikTok default since 2026-09-23: Sales to
+ * crazydramas.com, optimized toward the pixel's Purchase event (CONVERT,
+ * billed oCPM), 7-day click / 1-day view counting every purchase, lowest cost,
+ * $30 a day per ad group (TikTok's advice for a new web-conversion ad group;
+ * its hard floor stays $20), US, TikTok placement, comments off, no copies
+ * while the group learns. The budget amount stays on the launch draft.
+ */
+export function defaultWebsitePurchaseSettings(): LaunchSettings {
+  return {
+    ...defaultLaunchSettings(),
+    objective_type: "WEB_CONVERSIONS",
+    sales_destination: "website",
+    optimization_goal: "CONVERT",
+    optimization_event: "SHOPPING",
+    attribution: { click: DEFAULT_CLICK_WINDOW, view: DEFAULT_VIEW_WINDOW, event_count: defaultEventCount("SHOPPING") },
+    location_ids: ["6252001"],
+    placement: "tiktok",
+    bid_strategy: "LOWEST_COST",
+    bid_usd: null,
+    pacing: "PACING_MODE_SMOOTH",
+    comments_disabled: true,
+    budget_mode: "BUDGET_MODE_DAY",
+    daily_budget_usd: 30,
+  };
+}
+
+/** What a new TikTok launch starts from. */
+export function defaultTikTokLaunchSettings(): LaunchSettings {
+  return defaultWebsitePurchaseSettings();
+}
+
+/** The 1 Geo Sales Instant Page shape; the budget amount stays on the launch draft. */
 export function defaultSalesLaunchSettings(): LaunchSettings {
   return {
     ...defaultLaunchSettings(),
     objective_type: "WEB_CONVERSIONS",
+    sales_destination: "instant_page",
     location_ids: ["6252001"],
     placement: "tiktok",
     optimization_goal: "CONVERT",
@@ -137,8 +224,9 @@ export function normalizeLaunchSettings(raw: unknown): LaunchSettings {
     if (v !== undefined) merged[key] = v;
   }
   const source = raw as Record<string, unknown>;
-  if (source.objective_type !== undefined) merged.objective_type = source.objective_type;
-  if (source.instant_page_template !== undefined) merged.instant_page_template = source.instant_page_template;
+  for (const key of ["objective_type", "instant_page_template", "sales_destination", "optimization_event", "attribution", "pixel_code"] as const) {
+    if (source[key] !== undefined) merged[key] = source[key];
+  }
   const parsed = launchSettingsSchema.safeParse(merged);
   return parsed.success ? parsed.data : base;
 }
@@ -153,12 +241,24 @@ export class LaunchSettingsError extends Error {}
  */
 export function validateLaunchSettings(input: LaunchSettings, budgetUsd: number): LaunchSettings {
   const s = { ...input };
-  if (s.objective_type === "WEB_CONVERSIONS") {
-    if (s.optimization_goal !== "CONVERT") throw new LaunchSettingsError("Sales Instant Pages require button conversion optimization.");
-    if (!s.instant_page_template) throw new LaunchSettingsError("Choose an Instant Page template before previewing a Sales launch.");
-    if (s.instant_page_template.master_version !== SALES_MASTER_VERSION || s.instant_page_template.master_sha256 !== SALES_MASTER_SHA256) throw new LaunchSettingsError("The selected Instant Page master is unavailable; choose a current template and preview again.");
-  } else if (s.optimization_goal === "CONVERT" || s.instant_page_template) {
-    throw new LaunchSettingsError("Instant Page conversion settings require the Sales objective.");
+  const shape = launchShape(s);
+  if (shape === "website_purchases") {
+    if (s.optimization_goal !== "CONVERT") throw new LaunchSettingsError("Website purchases optimize toward a pixel event; the goal must be conversions.");
+    if (s.instant_page_template) throw new LaunchSettingsError("Website purchases send people to crazydramas.com, not to an Instant Page.");
+    s.optimization_event = s.optimization_event ?? "SHOPPING";
+    if (!(WEB_EVENTS as readonly string[]).includes(s.optimization_event)) throw new LaunchSettingsError("Choose Purchase or InitiateCheckout as the pixel event.");
+    s.attribution = attributionOf(s);
+  } else {
+    // Only the website shape carries a pixel; nothing of it rides along on another shape.
+    delete s.optimization_event; delete s.attribution; delete s.pixel_code;
+    if (shape === "instant_page") {
+      if (s.optimization_goal !== "CONVERT") throw new LaunchSettingsError("Sales Instant Pages require button conversion optimization.");
+      if (!s.instant_page_template) throw new LaunchSettingsError("Choose an Instant Page template before previewing a Sales launch.");
+      if (s.instant_page_template.master_version !== SALES_MASTER_VERSION || s.instant_page_template.master_sha256 !== SALES_MASTER_SHA256) throw new LaunchSettingsError("The selected Instant Page master is unavailable; choose a current template and preview again.");
+    } else {
+      delete s.sales_destination;
+      if (s.optimization_goal === "CONVERT" || s.instant_page_template) throw new LaunchSettingsError("Instant Page conversion settings require the Sales objective.");
+    }
   }
   const groups = s.duplicate_copies + 1;
   if (s.budget_mode === "BUDGET_MODE_TOTAL") {
@@ -242,7 +342,9 @@ export function biddingFields(s: LaunchSettings): Record<string, unknown> {
 
 /** The targeting and placement fields one ad group sends. Unrestricted knobs are omitted: TikTok rejects empty arrays. */
 export function targetingFields(s: LaunchSettings): Record<string, unknown> {
-  const nativePage = s.objective_type === "WEB_CONVERSIONS" ? { promotion_website_type: "TIKTOK_NATIVE_PAGE" } : {};
+  // An Instant Page is TIKTOK_NATIVE_PAGE; the website shapes leave the field
+  // out (UNSET), which is the only way /adgroup/create/ accepts a pixel_id.
+  const nativePage = launchShape(s) === "instant_page" ? { promotion_website_type: "TIKTOK_NATIVE_PAGE" } : {};
   return {
     ...(s.placement === "tiktok"
       ? { promotion_type: "WEBSITE", ...nativePage, placement_type: "PLACEMENT_TYPE_NORMAL", placements: ["PLACEMENT_TIKTOK"] }
@@ -255,14 +357,42 @@ export function targetingFields(s: LaunchSettings): Record<string, unknown> {
   };
 }
 
+/**
+ * What a Website purchases ad group adds to the body (POST /open_api/v1.3/adgroup/create/,
+ * https://business-api.tiktok.com/portal/docs?id=1739499616346114):
+ *   pixel_id                  "Required when optimization_goal is set to CONVERT or VALUE"; the id
+ *                             /pixel/list/ answers for the code, never the code itself
+ *   optimization_event        required whenever pixel_id is: SHOPPING (Purchase) or INITIATE_ORDER
+ *                             (InitiateCheckout), Supported Pixel events, docs?id=1739585696931842
+ *   click_attribution_window  passed together with the view window; "Once set, this field cannot be
+ *   view_attribution_window   updated". WEB_CONVERSIONS + WEBSITE + CONVERT allows click ONE_DAY /
+ *   attribution_event_count   SEVEN_DAYS / FOURTEEN_DAYS / TWENTY_EIGHT_DAYS, view OFF / ONE_DAY /
+ *                             SEVEN_DAYS, count ONCE / EVERY ("Attribution window and event count",
+ *                             docs?id=1777694366654465)
+ * with promotion_type WEBSITE and no promotion_website_type ("If this field is set to
+ * TIKTOK_NATIVE_PAGE ... pixel_id is not supported"), optimization_goal CONVERT and billing_event
+ * OCPM ("Corresponding billing event for an optimization goal", same page).
+ */
+export type AdGroupPixel = { pixel_id: string };
+
 /** The whole ad group create body, minus the ids and the name. Pure, so tests can assert on it. */
-export function adGroupBody(s: LaunchSettings, plan: AdGroupPlan): Record<string, unknown> {
+export function adGroupBody(s: LaunchSettings, plan: AdGroupPlan, pixel?: AdGroupPixel | null): Record<string, unknown> {
   const goal = goalOption(s.optimization_goal);
+  const shape = launchShape(s);
+  if (shape === "website_purchases" && !pixel?.pixel_id) throw new LaunchSettingsError("A Website purchases ad group needs the pixel's id; resolve the pixel on the ad account first.");
+  const attribution = attributionOf(s);
   return {
     ...targetingFields(s),
     optimization_goal: goal.value,
     billing_event: goal.billing,
-    ...(s.objective_type === "WEB_CONVERSIONS" ? { optimization_event: "BUTTON" } : {}),
+    ...(shape === "instant_page" ? { optimization_event: "BUTTON" } : {}),
+    ...(shape === "website_purchases" ? {
+      pixel_id: pixel!.pixel_id,
+      optimization_event: s.optimization_event ?? "SHOPPING",
+      click_attribution_window: attribution.click,
+      view_attribution_window: attribution.view,
+      attribution_event_count: attribution.event_count,
+    } : {}),
     budget_mode: plan.budget_mode,
     budget: plan.budget,
     schedule_type: plan.schedule_type,
@@ -281,18 +411,27 @@ export function adGroupBody(s: LaunchSettings, plan: AdGroupPlan): Record<string
 /** One line a person can read: "US · all ages · lifetime · clicks · lowest cost · live". */
 export function summarizeLaunchSettings(s: LaunchSettings, locationNames: Record<string, string> = {}): string[] {
   const loc = s.location_ids.map((id) => locationNames[id] ?? (id === "6252001" ? "United States" : id));
+  const shape = launchShape(s);
   const parts = [
-    s.objective_type === "WEB_CONVERSIONS" ? "Sales · Instant Page" : "Traffic · website",
+    shape === "website_purchases" ? "Website purchases · crazydramas.com" : shape === "instant_page" ? "Sales · Instant Page" : "Traffic · website",
     loc.length <= 3 ? loc.join(", ") : `${loc.length} locations`,
     s.age_groups.length ? `${s.age_groups.length} age band${s.age_groups.length === 1 ? "" : "s"}` : "all ages",
     s.gender === "GENDER_UNLIMITED" ? "everyone" : s.gender === "GENDER_MALE" ? "men" : "women",
     s.placement === "tiktok" ? "TikTok only" : "automatic placement",
     s.budget_mode === "BUDGET_MODE_TOTAL" ? "lifetime budget" : `$${s.daily_budget_usd ?? "?"}/day per ad group`,
-    goalOption(s.optimization_goal).label,
+    shape === "website_purchases" ? `optimizes for ${webEventLabel(s.optimization_event)} (pixel)` : shape === "instant_page" ? "Instant Page button taps (oCPM)" : goalOption(s.optimization_goal).label,
+    shape === "website_purchases" ? attributionLabel(attributionOf(s)) : null,
     s.bid_strategy === "COST_CAP" ? `cost cap $${s.bid_usd ?? "?"}` : "lowest cost",
     s.pacing === "PACING_MODE_FAST" ? "accelerated" : null,
     s.duplicate_copies > 0 ? `${s.duplicate_copies} auto-duplicate cop${s.duplicate_copies === 1 ? "y" : "ies"}` : null,
     s.start_paused ? "starts paused" : "live on approval",
   ];
   return parts.filter((p): p is string => !!p);
+}
+
+const WINDOW_WORDS: Record<string, string> = { OFF: "off", ONE_DAY: "1-day", SEVEN_DAYS: "7-day", FOURTEEN_DAYS: "14-day", TWENTY_EIGHT_DAYS: "28-day" };
+/** "7-day click · 1-day view · every conversion". */
+export function attributionLabel(a: Attribution): string {
+  const view = a.view === "OFF" ? "no view-through" : `${WINDOW_WORDS[a.view]} view`;
+  return `${WINDOW_WORDS[a.click]} click · ${view} · ${a.event_count === "EVERY" ? "every conversion" : "one per person"}`;
 }

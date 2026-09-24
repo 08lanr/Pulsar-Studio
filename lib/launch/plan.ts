@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { defaultLaunchSettings, defaultSalesLaunchSettings, launchSettingsSchema, validateLaunchSettings } from "@/lib/tiktok/settings";
+import { defaultLaunchSettings, defaultTikTokLaunchSettings, launchSettingsSchema, launchShape, validateLaunchSettings, type LaunchShape } from "@/lib/tiktok/settings";
+import { isCrazydramasAdUrl } from "@/lib/tiktok/ad-url";
 import type { LaunchAdSetPlan, LaunchConnection, LaunchContent, LaunchDraft, LaunchPlan, LaunchPlanIssue, LaunchProvider, MetaPlatform } from "./types";
 
 const cents = z.number().int().min(1).max(100_000_000);
@@ -28,15 +29,20 @@ export const draftSchema = z.object({
     start_time: z.string().datetime({ offset: true }), end_time: z.string().datetime({ offset: true }),
   }),
   campid_start: z.string().trim().max(60).nullable().optional(),
+  title_id: z.string().uuid().nullable().optional(),
 });
 
 export function defaultLaunchDraft(provider: LaunchProvider = "tiktok"): LaunchDraft {
   const start = new Date(Date.now() + 60 * 60 * 1000);
   const end = new Date(start.getTime() + 7 * 86400000);
+  // A TikTok launch starts as Website purchases at $30 a day per ad group
+  // (lib/tiktok/settings.ts defaultWebsitePurchaseSettings); the daily total
+  // here is that figure times the one ad group a new draft plans.
+  const tiktok = provider === "tiktok" ? defaultTikTokLaunchSettings() : null;
   return { provider, name: "Launch", account_ids: [], campaigns_per_account: 1, content_per_campaign: provider === "tiktok" ? 5 : 1,
     allocation: "unique", content: [], destination_url: "", total_budget_cents: 50000,
-    daily_budget_cents: provider === "tiktok" ? 2000 : null, start_paused: true, campid_start: null,
-    tiktok_settings: { ...(provider === "tiktok" ? defaultSalesLaunchSettings() : defaultLaunchSettings()), start_paused: true },
+    daily_budget_cents: tiktok ? Math.round((tiktok.daily_budget_usd ?? 20) * 100) : null, start_paused: true, campid_start: null, title_id: null,
+    tiktok_settings: { ...(tiktok ?? defaultLaunchSettings()), start_paused: true },
     meta_settings: { countries: ["US"], placements: ["facebook"], optimization_goal: "LINK_CLICKS",
       bid_strategy: "LOWEST_COST_WITHOUT_CAP", bid_cents: null, call_to_action: "LEARN_MORE",
       start_time: start.toISOString(), end_time: end.toISOString() } };
@@ -214,11 +220,31 @@ export function metaDraftIssues(draft: LaunchDraft, connections: LaunchConnectio
   return list.issues;
 }
 
-export function trackingUrlForCampaign(destination: string, campid: string): string {
+/**
+ * The link one campaign's ads carry.
+ *
+ * TikTok (decision 2026-09-23): the destination is the crazydramas ad link
+ * (lib/tiktok/ad-url.ts crazydramasAdUrl), and a website ad (Traffic,
+ * Website purchases) carries it exactly — TikTok's macros stay literal and
+ * nothing is appended, `campid` included; crazydramas ignores campid and
+ * Studio maps results by the ids it recorded, not by the URL. The Sales
+ * Instant Page keeps its own rule: its button link needs the campaign's
+ * campid (lib/tiktok/instant-page.ts), added after the four parameters.
+ *
+ * Meta, and a TikTok row approved before the contract: the destination with
+ * exactly one `campid` parameter.
+ */
+export function trackingUrlForCampaign(destination: string, campid: string, target: { provider?: LaunchProvider; shape?: LaunchShape } = {}): string {
+  if (target.provider === "tiktok" && isCrazydramasAdUrl(destination)) {
+    return target.shape === "instant_page" ? `${destination}&campid=${encodeURIComponent(campid)}` : destination;
+  }
   const url = new URL(destination);
   url.searchParams.set("campid", campid);
   return url.toString();
 }
+
+/** The TikTok refusal for a destination that is not the title's crazydramas ad link. */
+export const TIKTOK_DESTINATION_REFUSAL = "TikTok ads link to the title's crazydramas page. Choose the title this launch promotes.";
 
 export function buildLaunchPlan(input: LaunchDraft, connections: LaunchConnection[], savedRunExternalId?: string, takenNames: readonly string[] = []): LaunchPlan {
   const parsed = draftSchema.safeParse(input);
@@ -230,9 +256,10 @@ export function buildLaunchPlan(input: LaunchDraft, connections: LaunchConnectio
   if (!d.account_ids.length) throw new Error("Select at least one assigned advertising account.");
   if (!collecting && new Set(d.account_ids).size !== d.account_ids.length) throw new Error("Select each account only once.");
   if (!collecting) {
-    let destination: URL;
-    try { destination = new URL(d.destination_url); } catch { throw new Error("Enter a complete destination URL."); }
-    if (!["https:", "http:"].includes(destination.protocol) || destination.username || destination.password) throw new Error("Destination must be an HTTP(S) URL without credentials.");
+    // Every TikTok ad goes to the title's crazydramas page with the four
+    // attribution parameters (lib/tiktok/ad-url.ts); the data layer checks the
+    // title and that its series is live before it gets here.
+    if (!isCrazydramasAdUrl(d.destination_url)) throw new Error(TIKTOK_DESTINATION_REFUSAL);
   }
   const chosen = d.account_ids.map(id => {
     const a = connections.find(c => c.id === id && c.provider === d.provider && c.enabled && c.assigned_by);
@@ -277,7 +304,7 @@ export function buildLaunchPlan(input: LaunchDraft, connections: LaunchConnectio
     return {
       index: index + 1, connection_id: connection.id, advertiser_id: connection.advertiser_id,
       name: campid ?? `${d.name}-${index + 1}`,
-      ...(campid ? { campid, tracking_url: trackingUrlForCampaign(d.destination_url, campid) } : {}),
+      ...(campid ? { campid, tracking_url: trackingUrlForCampaign(d.destination_url, campid, { provider: d.provider, shape: launchShape(d.tiktok_settings) }) } : {}),
       content,
       budget_cents: shares[index], daily_budget_cents: d.daily_budget_cents,
       ...(d.provider === "meta" ? { ad_sets: deriveAdSets(content, d.meta_settings.placements, shares[index], d.daily_budget_cents) } : {}),

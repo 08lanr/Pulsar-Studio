@@ -7,12 +7,14 @@ Use the shared Clips → Launch → Monitor flow in `unified-launch.md`. Earlier
 1. Apply `0010_clip_renders.sql`, `0011_transcribe.sql`, `0012_launch_controls.sql`, then `0013_launch_runs.sql`, one file at a time, and verify the schema. The readiness document includes the read-only SQL check.
 2. Run Studio with `DATA_SOURCE=supabase` and `TIKTOK_MODE=production` using `studio-live`; keep an existing fixture server on a separate port and build directory if running alongside it. Fixture mode never creates real advertising objects.
 3. On the staff `/tiktok` page, connect the intended Business Center and assign it or its account to the producer company. Stored authorizations accumulate in server-only `.tokens.json`. Check the exact account is enabled, USD, funded, and eligible for the intended Spark post. An ordinary publishing handle is not a substitute for Spark authorization and is not required by the Spark engine.
+4. One account for now: set `TIKTOK_DEFAULT_ADVERTISER_ID` in `.env.local` to that ad account's numeric id. Launch preselects it for the company whose Business Center (or assigned account) reaches it; the "Launch account and pixel" card on `/tiktok` names it, the companies it reaches and the pixel read on it.
+5. The pixel (Website purchases, the default shape): `TIKTOK_PIXEL_CODE=DALLBMJC77U250DBQUR0` (crazydramas.com's pixel; blank means the same). In Business Center, the pixel must be shared with the launch ad account (Assets → Pixel → Linked accounts). The `/tiktok` card shows "Shared · pixel id …" when `/pixel/list/` resolves it on the default account (a read-only call); "isn't shared with ad account … in Business Center" means share it first, and a refusal naming the pixel permission means the TikTok app's authorization lacks it — reconnect after adding the scope. Studio sends no events and needs no Events API token; crazydramas.com sends them.
 
 ## Prepare the exact content and approval
 
 1. On Clips, choose finished files and download individually or as a ZIP (up to 30 per ZIP; filter by title for larger libraries).
 2. Manually post each chosen file on TikTok and manually generate its Spark authorization code. Paste codes directly into Launch. Keep codes and tokens out of chat and logs.
-3. Select the approved company account, campaign count and Spark allocation. The first pilot should be one account and one campaign unless the approver chooses otherwise. Use the user-supplied destination `https://crazydramas.com`.
+3. Select the approved company account (preselected when it is the default), campaign count and Spark allocation. The first pilot should be one account and one campaign unless the approver chooses otherwise. Choose the title the ads promote: its crazydramas series must be live, and the screen then prints the exact link TikTok receives — `https://crazydramas.com/watch/<slug>?source=tiktok&campaign=__CAMPAIGN_ID__&adgroup=__AID__&creative=__CID__`, TikTok's macros literal. Nothing is appended; TikTok fills the ids at click time.
 4. Choose **Paused**. Review targeting, bidding, schedule, daily pacing and the exact total lifetime media budget. A multi-campaign total is divided among campaigns; it is not repeated for every row. Preview the exact allocation and obtain the producer approver's submission, or a staff administrator's on-behalf submission with an authorization note.
 5. Confirm real assets, budget and approval before submitting. No live objects or spend were authorized merely by local fixture acceptance.
 
@@ -41,7 +43,14 @@ Only after the paused hierarchy passes read-back and the exact live pilot is app
 
 In-place budgets cannot exceed the row's original signed allocation. A higher ceiling requires New round and a fresh preview/approval. Cost-cap replacement carries only unspent budget and may fail if below the provider minimum. End or pause remains available when creation, controls or account health need attention. Do not enable `LEGACY_PROMO_RECOVERY` for this new flow.
 
-Revenue, Pixel and Conversions API are outside this pilot. Ask Ruobin before starting that later phase.
+## Website purchases: the first real pixel launch
+
+The Website purchases shape (decision 2026-09-23) is fixture-verified only. Its first real launch is created **paused** and checked, and only with Ruobin's explicit OK for that launch:
+
+1. Preview must show "Optimizes for Purchase on crazydramas.com · pixel DALLBMJC77U250DBQUR0 · 7-day click · 1-day view · every conversion" and the exact link above. Preview refuses a title that is not live and an account the pixel is not shared with, before anything is created.
+2. After the paused create, read back in TikTok Ads Manager: the campaign is Sales to a website; the ad group optimizes toward the pixel's Purchase event with 7-day click / 1-day view attribution (these can never be changed later, so a wrong value means a new ad group); every Spark ad's destination is the crazydramas link with `__CAMPAIGN_ID__`, `__AID__` and `__CID__` still literal.
+3. Unknowns this launch settles: whether TikTok accepts a Spark ad with a website link in a pixel-optimized ad group; whether it fills the macros in a Spark ad's link (click the ad once, then find the visit in crazydramas' acquisition sessions with `source=tiktok` and the three ids); whether the monitor's TikTok-attributed purchase numbers come back (the line says why if they do not; everything else on the monitor is unaffected).
+4. InitiateCheckout is the selectable fallback event when an ad group gets too few purchases to learn; it is a new ad group, not an edit.
 
 ## Posting a clip to Facebook or Instagram
 

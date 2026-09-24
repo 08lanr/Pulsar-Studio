@@ -8,8 +8,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useT } from "@/components/locale";
-import { AGE_OPTIONS, BID_STRATEGY_OPTIONS, BUDGET_MODE_OPTIONS, COMMON_LANGUAGES, CTA_OPTIONS, GENDER_OPTIONS, GOAL_OPTIONS, MAX_DURATION_DAYS, MAX_DUPLICATE_COPIES, MIN_ADGROUP_BUDGET_USD, OS_OPTIONS, PACING_OPTIONS, PLACEMENT_OPTIONS, goalOption } from "@/lib/tiktok/options";
-import { defaultSalesLaunchSettings, planAdGroup, type LaunchSettings } from "@/lib/tiktok/settings";
+import { AGE_OPTIONS, BID_STRATEGY_OPTIONS, BUDGET_MODE_OPTIONS, COMMON_LANGUAGES, CTA_OPTIONS, GENDER_OPTIONS, GOAL_OPTIONS, MAX_DURATION_DAYS, MAX_DUPLICATE_COPIES, MIN_ADGROUP_BUDGET_USD, OS_OPTIONS, PACING_OPTIONS, PLACEMENT_OPTIONS, WEB_EVENT_OPTIONS, defaultEventCount, goalOption } from "@/lib/tiktok/options";
+import { attributionOf, defaultSalesLaunchSettings, defaultWebsitePurchaseSettings, launchShape, planAdGroup, type LaunchSettings } from "@/lib/tiktok/settings";
 import InstantPageTemplatePicker from "@/components/launch/InstantPageTemplatePicker";
 import { call } from "./api";
 
@@ -44,6 +44,7 @@ export default function LaunchSettingsEditor({ value, onChange, budgetUsd, regio
   const addLocation = (r: Region) => { if (!value.location_ids.includes(r.id)) set("location_ids", [...value.location_ids, r.id]); setNames((n) => ({ ...n, [r.id]: r.name })); setQ(""); setHits([]); };
 
   const goal = goalOption(value.optimization_goal);
+  const shape = launchShape(value);
   const plan = planAdGroup(value, budgetUsd || 0);
   const groups = value.duplicate_copies + 1;
   const noCap = value.bid_strategy === "LOWEST_COST";
@@ -51,7 +52,22 @@ export default function LaunchSettingsEditor({ value, onChange, budgetUsd, regio
   const shareTooSmall = lifetime && budgetUsd > 0 && plan.budget < MIN_ADGROUP_BUDGET_USD;
 
   return <div className={`tk-editor${disabled ? " is-disabled" : ""}`}>
-    <fieldset disabled={disabled} className="tk-fieldset"><legend>{tt("salesLaunch.objective")}</legend><div className="seg tk-seg"><button type="button" className={`seg-btn${value.objective_type === "WEB_CONVERSIONS" ? " on" : ""}`} aria-pressed={value.objective_type === "WEB_CONVERSIONS"} onClick={() => onChange({ ...defaultSalesLaunchSettings(), start_paused: value.start_paused, budget_mode: value.budget_mode, daily_budget_usd: value.daily_budget_usd })}>{tt("salesLaunch.sales")}</button><button type="button" className={`seg-btn${value.objective_type !== "WEB_CONVERSIONS" ? " on" : ""}`} aria-pressed={value.objective_type !== "WEB_CONVERSIONS"} onClick={() => onChange({ ...value, objective_type: "TRAFFIC", optimization_goal: "CLICK", instant_page_template: undefined })}>{tt("salesLaunch.traffic")}</button></div>{value.objective_type === "WEB_CONVERSIONS" && <InstantPageTemplatePicker value={value.instant_page_template} onChange={template => set("instant_page_template", template)} />}</fieldset>
+    <fieldset disabled={disabled} className="tk-fieldset"><legend>{tt("salesLaunch.objective")}</legend><div className="seg tk-seg">
+      {/* Three shapes (lib/tiktok/settings.ts launchShape): Website purchases on
+          the crazydramas pixel (the default), Sales on an Instant Page, Traffic. */}
+      <button type="button" className={`seg-btn${shape === "website_purchases" ? " on" : ""}`} aria-pressed={shape === "website_purchases"} onClick={() => onChange({ ...defaultWebsitePurchaseSettings(), start_paused: value.start_paused, budget_mode: value.budget_mode, daily_budget_usd: value.daily_budget_usd ?? defaultWebsitePurchaseSettings().daily_budget_usd })}>{tt("lpx.objectiveWebsite")}</button>
+      <button type="button" className={`seg-btn${shape === "instant_page" ? " on" : ""}`} aria-pressed={shape === "instant_page"} onClick={() => onChange({ ...defaultSalesLaunchSettings(), start_paused: value.start_paused, budget_mode: value.budget_mode, daily_budget_usd: value.daily_budget_usd })}>{tt("salesLaunch.sales")}</button>
+      <button type="button" className={`seg-btn${shape === "traffic" ? " on" : ""}`} aria-pressed={shape === "traffic"} onClick={() => onChange({ ...value, objective_type: "TRAFFIC", sales_destination: undefined, optimization_goal: "CLICK", instant_page_template: undefined, optimization_event: undefined, attribution: undefined, pixel_code: undefined })}>{tt("salesLaunch.traffic")}</button></div>
+      {shape === "instant_page" && <InstantPageTemplatePicker value={value.instant_page_template} onChange={template => set("instant_page_template", template)} />}
+      {shape === "website_purchases" && <>
+        <div className="tk-field tk-row">
+          <label className="tk-label" htmlFor="tk-event">{tt("lpx.event")}</label>
+          <select id="tk-event" className="select" value={value.optimization_event ?? "SHOPPING"} onChange={(e) => { const event = e.target.value as NonNullable<LaunchSettings["optimization_event"]>; onChange({ ...value, optimization_event: event, attribution: { ...attributionOf(value), event_count: defaultEventCount(event) } }); }}>{WEB_EVENT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{tt(`lpx.event.${o.value}`)}</option>)}</select>
+        </div>
+        <p className="hint">{tt("lpx.eventHint")}</p>
+        <p className="hint"><strong>{tt("lpx.attribution")}:</strong> {tt("lpx.attributionFixed")}</p>
+        <p className="hint">{tt("lpx.pixelServer")}</p>
+      </>}</fieldset>
     <fieldset disabled={disabled} className="tk-fieldset">
       <legend>{tt("tk.targeting")}</legend>
       <div className="tk-field">
@@ -104,7 +120,7 @@ export default function LaunchSettingsEditor({ value, onChange, budgetUsd, regio
       <legend>{tt("tk.bidding")}</legend>
       <div className="tk-field tk-row">
         <label className="tk-label" htmlFor="tk-goal">{tt("tk.goal")}</label>
-        <select id="tk-goal" className="select" value={value.optimization_goal} onChange={(e) => set("optimization_goal", e.target.value)}>{GOAL_OPTIONS.filter(g => value.objective_type === "WEB_CONVERSIONS" ? g.value === "CONVERT" : g.value !== "CONVERT").map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}</select>
+        <select id="tk-goal" className="select" value={value.optimization_goal} onChange={(e) => set("optimization_goal", e.target.value)}>{GOAL_OPTIONS.filter(g => shape !== "traffic" ? g.value === "CONVERT" : g.value !== "CONVERT").map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}</select>
         <span className="gt-muted">{goal.billingLabel}</span>
       </div>
       <div className="tk-field"><span className="tk-label">{tt("tk.bidStrategy")}</span><div className="seg tk-seg" role="radiogroup">{BID_STRATEGY_OPTIONS.map((b) => <button type="button" key={b.value} className={`seg-btn${value.bid_strategy === b.value ? " on" : ""}`} onClick={() => set("bid_strategy", b.value as LaunchSettings["bid_strategy"])}>{tt(`tk.bid.${b.value}`)}</button>)}</div></div>

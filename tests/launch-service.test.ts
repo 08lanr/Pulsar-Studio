@@ -12,6 +12,7 @@ import type { LaunchConnection, LaunchContent, LaunchProvider, LaunchRun } from 
 import { fakeMetaTransport, fakeMetaSnapshot, resetFakeMeta } from "@/lib/meta/fake";
 import { fakeTransport, fakeTikTokSnapshot, resetFakeTikTok } from "@/lib/tiktok/fake";
 import type { MetaObject } from "@/lib/meta/transport";
+import { launchTitle, LIVE_AD_URL } from "./launch-title";
 
 const producer = () => fixtureSession("producer");
 const staff = () => fixtureSession("staff");
@@ -42,9 +43,9 @@ async function connections(provider: LaunchProvider, count: number): Promise<Lau
 async function approved(provider: LaunchProvider = "meta", options: { count?: number; paused?: boolean; content?: LaunchContent[]; unique?: boolean; copies?: number } = {}) {
   const accounts = await connections(provider, options.count ?? 2);
   const draft = defaultLaunchDraft(provider);
-  if (provider === "tiktok") { draft.tiktok_settings = defaultLaunchSettings(); draft.daily_budget_cents = null; }
+  if (provider === "tiktok") { draft.tiktok_settings = defaultLaunchSettings(); draft.daily_budget_cents = null; draft.title_id = (await launchTitle()).id; }
   Object.assign(draft, {
-    name: "Integration launch", account_ids: accounts.map(a => a.id), destination_url: "https://example.com/watch", total_budget_cents: 20000,
+    name: "Integration launch", account_ids: accounts.map(a => a.id), destination_url: provider === "tiktok" ? LIVE_AD_URL : "https://example.com/watch", total_budget_cents: 20000,
     start_paused: options.paused ?? true, allocation: options.unique ? "unique" : "shared", content_per_campaign: 1,
     content: options.content || [{ kind: provider === "meta" ? "facebook_post" : "spark", value: provider === "meta" ? "9000000000000010_123" : "valid-spark-code" }],
   });

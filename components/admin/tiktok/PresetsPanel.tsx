@@ -6,7 +6,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useT } from "@/components/locale";
-import { defaultSalesLaunchSettings, normalizeLaunchSettings, summarizeLaunchSettings, type LaunchSettings } from "@/lib/tiktok/settings";
+import { defaultSalesLaunchSettings, defaultTikTokLaunchSettings, normalizeLaunchSettings, summarizeLaunchSettings, type LaunchSettings } from "@/lib/tiktok/settings";
 import type { LaunchPreset } from "@/lib/types";
 import { call } from "@/components/tiktok/api";
 import LaunchSettingsEditor from "@/components/tiktok/LaunchSettingsEditor";
@@ -41,12 +41,12 @@ export default function PresetsPanel({ isAdmin }: { isAdmin: boolean }) {
 
   return <section className="card pd-panel">
     <div className="pd-section-head tk-head-row">
-      <h2 className="section-title">{tt("tkp.title")} <span className="pd-count">{presets.length + 1}</span></h2>
-      {isAdmin && !editing && <button type="button" className="btn btn-primary btn-sm" onClick={() => setEditing({ name: "", note: "", settings: defaultSalesLaunchSettings() })}>{tt("tkp.new")}</button>}
+      <h2 className="section-title">{tt("tkp.title")} <span className="pd-count">{presets.length + 2}</span></h2>
+      {isAdmin && !editing && <button type="button" className="btn btn-primary btn-sm" onClick={() => setEditing({ name: "", note: "", settings: defaultTikTokLaunchSettings() })}>{tt("tkp.new")}</button>}
     </div>
     <p className="pd-muted">{tt("tkp.sub")}</p>
     {error && <p className="note note-warn" role="alert">{error}</p>}
-    <ul className="pd-list tk-presets"><li><div><strong>{tt("salesLaunch.defaultPreset")}</strong><br /><small className="pd-muted">{summarizeLaunchSettings(defaultSalesLaunchSettings()).join(" · ")}</small></div></li>{presets.map((p) => <li key={p.id}>
+    <ul className="pd-list tk-presets"><li><div><strong>{tt("lpx.defaultPreset")}</strong><br /><small className="pd-muted">{summarizeLaunchSettings(defaultTikTokLaunchSettings()).join(" · ")}</small></div></li><li><div><strong>{tt("salesLaunch.defaultPreset")}</strong><br /><small className="pd-muted">{summarizeLaunchSettings(defaultSalesLaunchSettings()).join(" · ")}</small></div></li>{presets.map((p) => <li key={p.id}>
       <div><strong>{p.name}</strong>{p.note && <> · <span className="pd-muted">{p.note}</span></>}<br /><small className="pd-muted">{summarizeLaunchSettings(normalizeLaunchSettings(p.settings)).join(" · ")}</small></div>
       {isAdmin && <span className="pd-actions"><button type="button" className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => setEditing({ id: p.id, name: p.name, note: p.note ?? "", settings: normalizeLaunchSettings(p.settings) })}>{tt("tkp.edit")}</button><button type="button" className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => void remove(p)}>{busy === p.id ? tt("common.loading") : tt("tkp.delete")}</button></span>}
     </li>)}</ul>
