@@ -4205,5 +4205,7 @@
   "clips.staff.open": "广告切片",
   "clips.staff.intro": "每集的 20–30 秒广告切片；员工管理员可以重新切片。下载切片，发布到 TikTok，再把 Spark 码粘贴到投放页。",
   "clips.staff.episode": "第 {n} 集",
-  "clips.staff.noVideo": "这部剧集还没有带视频的分集。"
+  "clips.staff.noVideo": "这部剧集还没有带视频的分集。",
+  "mr4.landing": "打开落地页 ↗",
+  "mr4.landingHint": "这条广告的落地页，已填入真实的广告系列、广告组和广告 ID（点击广告时打开的就是它）。你在这里的访问会像其他访问一样计入 CrazyDramas。"
 }

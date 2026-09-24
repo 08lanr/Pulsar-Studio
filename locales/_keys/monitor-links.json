@@ -1,0 +1,4 @@
+{
+  "mr4.landing": { "en": "Open landing page ↗", "zh": "打开落地页 ↗" },
+  "mr4.landingHint": { "en": "The page this ad sends people to, with its real campaign, ad group and ad ids filled in (what a tap on the ad opens). A visit you make here is counted on crazydramas like any other.", "zh": "这条广告的落地页，已填入真实的广告系列、广告组和广告 ID（点击广告时打开的就是它）。你在这里的访问会像其他访问一样计入 CrazyDramas。" }
+}

@@ -95,6 +95,22 @@ const adStatusWord = (status: string) => status.replaceAll("_", " ").toLowerCase
  * position is the fallback when the sweep recorded none. Anything else returns
  * null and the ads keep their own separate status strip.
  */
+/**
+ * The page one ad sends people to, with TikTok's click macros filled in from
+ * our own launch record: what a tap on that ad opens (Ruobin, 2026-09-24:
+ * "each ad displayed with its link, so I can click into it and check it").
+ * The ad group is known only when the campaign has one; otherwise its macro
+ * stays as TikTok received it.
+ */
+function adLandingLink(template: string | null | undefined, ids: { campaign?: string | null; adgroup?: string | null; ad?: string | null }): string | null {
+  if (!template || !/^https:\/\//i.test(template)) return null;
+  let url = template;
+  if (ids.campaign) url = url.split("__CAMPAIGN_ID__").join(ids.campaign);
+  if (ids.adgroup) url = url.split("__AID__").join(ids.adgroup);
+  if (ids.ad) url = url.split("__CID__").join(ids.ad);
+  return url;
+}
+
 function pairAds(cards: { id: string }[], ads: AdStatus[]): AdStatus[] | null {
   if (!cards.length || cards.length !== ads.length) return null;
   const byValue = new Map(ads.filter((ad) => ad.content_value).map((ad) => [ad.content_value!, ad]));
@@ -434,12 +450,16 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
                     return <div className="lm-ad-row" key={key}>
                       <AdCard {...card} line={!pictured} fallbackName={pictured ? undefined : tt("lr3.adNumber", { n: i + 1 })} />
                       {ad && <span className={`lm-ad-state lm-ad-state-${adStatusTone(ad.status)}`} title={`${ad.id}${ad.note ? ` · ${ad.note}` : ""}`}>{adStatusWord(ad.status)}</span>}
+                      {(() => {
+                        const link = adLandingLink(run.draft.destination_url, { campaign: campaignId, adgroup: groups.length === 1 ? groups[0].id : null, ad: ad?.id ?? null });
+                        return link ? <a className="lm-row-button lm-ad-link" href={link} target="_blank" rel="noreferrer" title={`${tt("mr4.landingHint")}\n${link}`} data-testid="ad-landing-link">{tt("mr4.landing")}</a> : null;
+                      })()}
                     </div>;
                   })
                   : <p>{tt("mr2.noAds")}</p>}</div>
                 {/* Only when the sweep's ads cannot be lined up with the cards
                     does the old strip come back, so nothing goes unsaid. */}
-                {!adStatuses && c.snapshot?.ads && c.snapshot.ads.length > 0 && <div className="lm-ad-statuses">{c.snapshot.ads.map((ad, i) => <span key={ad.id} title={`${ad.id}${ad.note ? ` · ${ad.note}` : ""}`}><strong>{tt("monitorV2.ad")} {i + 1}</strong><span>{adStatusWord(ad.status)}</span></span>)}</div>}
+                {!adStatuses && c.snapshot?.ads && c.snapshot.ads.length > 0 && <div className="lm-ad-statuses">{c.snapshot.ads.map((ad, i) => { const link = adLandingLink(run.draft.destination_url, { campaign: campaignId, adgroup: groups.length === 1 ? groups[0].id : null, ad: ad.id }); return <span key={ad.id} title={`${ad.id}${ad.note ? ` · ${ad.note}` : ""}`}><strong>{tt("monitorV2.ad")} {i + 1}</strong><span>{adStatusWord(ad.status)}</span>{link && <a className="lm-ad-link" href={link} target="_blank" rel="noreferrer" title={`${tt("mr4.landingHint")}\n${link}`}>{tt("mr4.landing")}</a>}</span>; })}</div>}
                 {/* The references a person only needs when they go looking. */}
                 <div className="mr2-detail-links">
                   {c.campid && <span>{tt("mr3.ref.campid")} <code>{c.campid}</code></span>}

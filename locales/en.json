@@ -4205,5 +4205,7 @@
   "clips.staff.open": "Ad clips",
   "clips.staff.intro": "Every episode with video, its 20–30 s ad clips, and Cut clips again (staff administrators). Download a clip, post it on TikTok, then paste its Spark code in Launch.",
   "clips.staff.episode": "Episode {n}",
-  "clips.staff.noVideo": "No episode of this title has video yet."
+  "clips.staff.noVideo": "No episode of this title has video yet.",
+  "mr4.landing": "Open landing page ↗",
+  "mr4.landingHint": "The page this ad sends people to, with its real campaign, ad group and ad ids filled in (what a tap on the ad opens). A visit you make here is counted on crazydramas like any other."
 }
