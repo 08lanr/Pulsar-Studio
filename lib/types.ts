@@ -82,7 +82,7 @@ export type VariantStatus = "candidate" | "dismissed";
 
 export type ClipStatus = "suggested" | "shortlisted" | "dismissed";
 /** How a clip's moment was chosen: from the script (find_clips) or from footage signals alone. */
-export type ClipSource = "script" | "footage";
+export type ClipSource = "script" | "footage" | "upload";
 /**
  * What the clip is for: the trailer-style opening of the drama, or a peak moment (decision 2026-09-14);
  * `montage` is a 60-second ad joined from several of the title's clips (decision 2026-09-24,

@@ -18,7 +18,7 @@ import { ffmpegAvailable } from "@/lib/promote/render";
 import { CLIP_PROMPT_VERSION } from "@/lib/prompts";
 import type { Clip, Json } from "@/lib/types";
 import { cutClip, probeSourceSize, withSourceFile } from "./cut";
-import { selectClips } from "./select";
+import { selectClips, type CutSource } from "./select";
 import { probeDurationMs } from "./signals";
 import { jobIsRunning } from "./state";
 
@@ -27,7 +27,7 @@ export const RENDER_LIMIT = 6;
 
 export type CutRunResult = {
   outcome: "done" | "skipped" | "refused" | "failed";
-  source: "script" | "footage" | null;
+  source: CutSource | null;
   selected: number;
   rendered: number;
   failed: string[];
@@ -35,6 +35,21 @@ export type CutRunResult = {
 };
 
 const log = (m: string) => console.log(`[clips] ${m}`);
+
+/**
+ * The clips a cutting run renders from the episode video, strongest first. A
+ * 60-second ad that hangs on the episode (moment `montage`, lib/clips/montage.ts)
+ * and a finished ad a person uploaded (source `upload`, 0020_uploaded_clips)
+ * carry files of their own: neither is re-cut from the episode, not even by a
+ * forced run ("Cut clips again"), which would replace the delivered file.
+ */
+export function clipsToRender(clips: Clip[], force: boolean): Clip[] {
+  return clips
+    .filter((c) => c.status !== "dismissed" && c.moment !== "montage" && c.source !== "upload")
+    .sort((a, b) => a.rank - b.rank)
+    .filter((c) => force || c.render_status !== "rendered")
+    .slice(0, RENDER_LIMIT);
+}
 
 /** Fire-and-forget: the upload routes call this after the episode is saved. `PROMO_RENDER=off` (tests) disables it. */
 export function scheduleClipCut(titleId: string, episodeNumber: number, opts: { force?: boolean } = {}): void {
@@ -85,12 +100,7 @@ export async function cutEpisodeClips(titleId: string, episodeNumber: number, op
       const [probedDuration, sourceSize] = await Promise.all([probeDurationMs(srcAbs), probeSourceSize(srcAbs)]);
       const durationMs = probedDuration ?? episode.duration_ms ?? null;
       const selection = await selectClips(session, wb, srcAbs, durationMs, { force: opts.force });
-      // A 60-second ad that hangs on this episode (moment `montage`, lib/clips/montage.ts) is never re-cut from it.
-      const toRender = selection.clips
-        .filter((c) => c.status !== "dismissed" && c.moment !== "montage")
-        .sort((a, b) => a.rank - b.rank)
-        .filter((c) => opts.force || c.render_status !== "rendered")
-        .slice(0, RENDER_LIMIT);
+      const toRender = clipsToRender(selection.clips, !!opts.force);
       const failed: string[] = [];
       let rendered = 0;
       for (const clip of toRender) {

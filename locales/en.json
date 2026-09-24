@@ -4478,5 +4478,12 @@
   "seg.joins.imported": "The film is imported; its joins no longer move.",
   "seg.decision.no_logo": "said the film has no logo",
   "seg.decision.rejudge": "asked for the end to be judged again",
-  "seg.decision.unmark": "worked on the faint logo"
+  "seg.decision.unmark": "worked on the faint logo",
+  "uc.cta": "Upload a finished ad",
+  "uc.busy": "Uploading…",
+  "uc.file": "Ad video file",
+  "uc.hook": "Ad text (optional)",
+  "uc.hookHint": "The text shown with the ad",
+  "uc.hint": "A finished vertical ad is used exactly as uploaded — never re-cut or re-encoded.",
+  "clips.source.upload": "Uploaded"
 }

@@ -22,6 +22,10 @@ type Props = { titleId: string; episodeNumber: number; initial: EpisodeClipsPayl
 export default function EpisodeClips({ titleId, episodeNumber, initial, canEdit, hasVideo, locale }: Props) {
   const { tt } = useT();
   const [data, setData] = useState<EpisodeClipsPayload>(initial);
+  // router.refresh() re-renders the server tree but App Router keeps client
+  // state, and useState ignores every value after mount — so a clip added by
+  // another control (an uploaded ad) would never appear. Follow the prop.
+  useEffect(() => setData(initial), [initial]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stale, setStale] = useState(false);
@@ -70,7 +74,7 @@ export default function EpisodeClips({ titleId, episodeNumber, initial, canEdit,
               <span className="ep-clip-rank">{c.rank}</span>
               <div className="ep-clip-main">
                 <div className="ep-clip-line">
-                  <span className="ep-clip-range">{mmss(c.start_ms)} – {mmss(c.end_ms)}</span>
+                  {c.end_ms > c.start_ms && <span className="ep-clip-range">{mmss(c.start_ms)} – {mmss(c.end_ms)}</span>}
                   <span className="pill pill-neutral">{tt(`clips.moment.${c.moment}`)}</span>
                   {c.angle && <span className="pill pill-neutral">{tt(`angle.${c.angle}`)}</span>}
                   <span className="pill pill-neutral">{tt(`clips.source.${c.source}`)}</span>

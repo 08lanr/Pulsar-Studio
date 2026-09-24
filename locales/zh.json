@@ -4478,5 +4478,12 @@
   "seg.joins.imported": "影片已经导入，衔接点不能再移动。",
   "seg.decision.no_logo": "确认影片没有台标",
   "seg.decision.rejudge": "要求重新判断结束点",
-  "seg.decision.unmark": "处理了淡台标"
+  "seg.decision.unmark": "处理了淡台标",
+  "uc.cta": "上传成片广告",
+  "uc.busy": "正在上传…",
+  "uc.file": "广告视频文件",
+  "uc.hook": "广告文案（选填）",
+  "uc.hookHint": "投放时显示的文字",
+  "uc.hint": "已剪好的竖版广告直接上传，不会重新剪辑或转码。",
+  "clips.source.upload": "上传成片"
 }

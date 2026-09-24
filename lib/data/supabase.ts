@@ -1315,6 +1315,51 @@ export const supabaseData: DataLayer = {
     return many<Clip>(studio(c).from("clips").select("*").eq("episode_id", episodeId).order("rank"));
   },
 
+  async addUploadedClip(session, episodeId, input) {
+    const c = dbFor(session);
+    const episode = await one<Episode>(core(c).from("episodes").select("*").eq("id", episodeId).maybeSingle(), "episode", episodeId);
+    // Deliberately no timecode/video requirement: the uploaded file IS the ad,
+    // and migration 0020 widens guard_timecodes for source = 'upload'.
+    const adaptation = await adaptationOf(c, episode.title_id);
+    const kept = await many<Pick<Clip, "rank">>(studio(c).from("clips").select("rank").eq("episode_id", episodeId));
+    const taken = new Set(kept.map((k) => k.rank));
+    let rank = 1;
+    while (taken.has(rank)) rank++;
+    return one<Clip>(
+      studio(c)
+        .from("clips")
+        .insert({
+          title_id: episode.title_id,
+          episode_id: episodeId,
+          adaptation_id: adaptation.id,
+          rank,
+          start_ms: 0,
+          end_ms: input.duration_ms && input.duration_ms > 0 ? input.duration_ms : 0,
+          scene_ids: [],
+          hook_en: input.hook_en,
+          why_en: "Uploaded by the partner as a finished ad.",
+          why_zh: "合作方上传的成片广告。",
+          opening_text_en: null,
+          cut_length_s: input.duration_ms && input.duration_ms > 0 ? Math.round(input.duration_ms / 1000) : null,
+          angle: null,
+          // Shortlisted, never 'suggested': a re-cut replaces suggested rows
+          // and must never delete a file a person supplied.
+          status: "shortlisted",
+          source: "upload",
+          moment: "peak",
+          render_path: input.render_path,
+          render_sha256: input.render_sha256,
+          render_status: "rendered",
+          duration_ms: input.duration_ms ?? null,
+          width: input.width ?? null,
+          height: input.height ?? null,
+        })
+        .select("*")
+        .single(),
+      "clip"
+    );
+  },
+
   async setClipStatus(session, clipId, status) {
     return one<Clip>(studio(dbFor(session)).from("clips").update({ status }).eq("id", clipId).select("*").maybeSingle(), "clip", clipId);
   },

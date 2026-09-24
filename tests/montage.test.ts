@@ -146,7 +146,7 @@ test("refusals: no clips, too few that do not overlap; dismissed clips, other mo
   const none = planMontage({ episodes: [ep(1)], clips: [], rules: null });
   assert.equal(none.ok, false);
   if (!none.ok) assert.equal(none.code, "no_clips");
-  const three = planMontage({ episodes: [ep(1), ep(2)], clips: [clip(1, 1, 0, 20_000), clip(1, 2, 30_000, 50_000), clip(2, 1, 0, 20_000), clip(2, 2, 10_000, 30_000, { status: "dismissed" }), clip(2, 3, 40_000, 60_000, { moment: "montage" }), clip(2, 4, 0, 25_000, { source: "upload" as string as MontageClip["source"] })], rules: null });
+  const three = planMontage({ episodes: [ep(1), ep(2)], clips: [clip(1, 1, 0, 20_000), clip(1, 2, 30_000, 50_000), clip(2, 1, 0, 20_000), clip(2, 2, 10_000, 30_000, { status: "dismissed" }), clip(2, 3, 40_000, 60_000, { moment: "montage" }), clip(2, 4, 0, 25_000, { source: "upload" })], rules: null });
   assert.equal(three.ok, false);
   if (!three.ok) { assert.equal(three.code, "too_few"); assert.equal(three.usable, 3); }
   // Four usable clips in two short episodes are enough: each piece is its whole window, the whole well under 60 s.
