@@ -4157,5 +4157,8 @@
   "cdp.upload.skipped": "未排队：{reason}。",
   "cdp.notLive.notUploaded": "crazydramas 上还没有这个 slug 的剧：带凭据的读取也返回 404（它能看到草稿）。",
   "cdp.notLive.draft": "这部剧在 crazydramas 上是草稿，观众还看不到。",
-  "cdp.notLive.archived": "这部剧在 crazydramas 上已归档，观众看不到。"
+  "cdp.notLive.archived": "这部剧在 crazydramas 上已归档，观众看不到。",
+  "cdp.state.linked_elsewhere": "已关联到另一部剧集",
+  "cdp.linkedElsewhere": "这个 slug 在 crazydramas 上的剧已关联到另一部剧集，所以这里不显示它的任何内容，Studio 也不会向它发送任何东西。请工作人员处理。",
+  "cdp.replace.impact.unchecked": "CrazyDramas 一处理好新文件，观众就会看到新的剪辑，那时 Studio 还没核对它；如果核对没通过，请撤下这一集。"
 }

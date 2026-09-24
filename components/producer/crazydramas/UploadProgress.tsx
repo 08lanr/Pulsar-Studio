@@ -7,12 +7,14 @@
 // queued, uploading x%, processing (Mux has the bytes), ready (checking),
 // verified (ready to publish), published; or failed with its reason. The
 // toolbar uploads every episode not yet on crazydramas or a chosen range,
-// cancels what is queued or running, and retries the failed ones; a row's
-// action column is fixed-width (Cancel, Retry, Replace) so rows align.
+// cancels what is queued or running, and retries the failed ones (a row that
+// failed because someone else's upload holds the episode now offers Replace,
+// with its viewer warning, never a plain Retry); a row's action column is
+// fixed-width (Cancel, Retry, Replace) so rows align.
 
 import { useState } from "react";
 import { useT } from "@/components/locale";
-import { ACTIVE_LEDGER_STEPS, type CdLedgerStep, type PublishEpisode } from "@/lib/crazydramas/publish-types";
+import { ACTIVE_LEDGER_STEPS, needsReplace, type CdLedgerStep, type PublishEpisode } from "@/lib/crazydramas/publish-types";
 
 type Props = {
   episodes: readonly PublishEpisode[];
@@ -79,6 +81,12 @@ export function isActive(e: PublishEpisode): boolean {
   return !!e.ledger_step && ACTIVE_LEDGER_STEPS.includes(e.ledger_step);
 }
 
+/** A failed row's way forward: Replace when someone else's upload holds the episode now (a plain Retry never overwrites it), else Retry. */
+export function failedAction(e: PublishEpisode): "retry" | "replace" | null {
+  if (rowStage(e) !== "failed" || e.studio_frames === null) return null;
+  return needsReplace(e.error_code) ? "replace" : "retry";
+}
+
 function percent(e: PublishEpisode): number | null {
   if (!e.bytes_total || e.bytes_sent == null) return null;
   return Math.max(0, Math.min(100, Math.floor((e.bytes_sent / e.bytes_total) * 100)));
@@ -96,7 +104,7 @@ export default function UploadProgress({ episodes, seriesReady, canWrite, busy, 
   const [to, setTo] = useState(String(last));
   const uploadable = rows.filter(canUploadEpisode);
   const active = rows.filter(isActive);
-  const failed = rows.filter((e) => rowStage(e) === "failed" && e.studio_frames !== null);
+  const failed = rows.filter((e) => failedAction(e) === "retry");
   const on = canWrite && seriesReady && !busy;
   const a = Number(from);
   const b = Number(to);
@@ -136,7 +144,11 @@ export default function UploadProgress({ episodes, seriesReady, canWrite, busy, 
     if (stage === "queued" || stage === "uploading") {
       return <button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => onCancel(e.n)} aria-label={tt("cdp.row.cancel.aria", { n: e.n })}>{tt("cdp.row.cancel")}</button>;
     }
-    if (stage === "failed" && e.studio_frames !== null) {
+    const onFailed = failedAction(e);
+    if (onFailed === "replace") {
+      return <button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => onReplace(e.n)} aria-label={tt("cdp.row.replace.aria", { n: e.n })}>{tt("cdp.row.replace")}</button>;
+    }
+    if (onFailed === "retry") {
       return <button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => onUpload([e.n])} aria-label={tt("cdp.row.retry.aria", { n: e.n })}>{tt("cdp.row.retry")}</button>;
     }
     if (e.replace_needed && e.studio_frames !== null && (e.cd_status === "ready" || e.cd_status === "failed")) {

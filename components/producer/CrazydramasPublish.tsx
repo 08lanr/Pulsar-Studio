@@ -47,6 +47,7 @@ const STATE_PILL: Record<CdSeriesState, string> = {
   draft: "pill-accent",
   published: "pill-success",
   cms_managed: "pill-neutral",
+  linked_elsewhere: "pill-warning",
 };
 
 type Note = { text: string; error: boolean } | null;
@@ -166,6 +167,7 @@ export default function CrazydramasPublish({ titleId, portal, canAct, reason = n
             <>{tt("cdp.readOnly.preview")} <a href={`/titles/${titleId}/crazydramas#cd-publish`}>{tt("cd.check.preview.link")}&nbsp;→</a></>
           ) : reason === "notAdmin" ? tt("cdp.readOnly.notAdmin") : tt(portal === "admin" ? "cdp.readOnly.notAdmin" : "cdp.readOnly.role")}
         </p>
+        {s?.series_state === "linked_elsewhere" && <p className="note note-warn">{tt("cdp.linkedElsewhere")}</p>}
         {s?.series_state === "cms_managed" && <CmsManaged state={s} />}
         {listed && <UploadProgress episodes={s.episodes} seriesReady canWrite={false} busy={false} onUpload={() => undefined} onCancel={() => undefined} onReplace={() => undefined} />}
       </section>
@@ -208,6 +210,8 @@ export default function CrazydramasPublish({ titleId, portal, canAct, reason = n
       )}
 
       {s.series_state === "not_linked" && <p className="note note-info">{tt("cdp.notLinked")}</p>}
+
+      {s.series_state === "linked_elsewhere" && <p className="note note-warn">{tt("cdp.linkedElsewhere")}</p>}
 
       {s.series_state === "cms_managed" && <CmsManaged state={s} />}
 

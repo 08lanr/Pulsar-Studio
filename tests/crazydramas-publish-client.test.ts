@@ -14,7 +14,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { afterEach, beforeEach, test } from "node:test";
 import { FAKE_UPLOAD_QUANTUM, fakeCrazydramasTransport as fake } from "@/lib/crazydramas/fake";
 import { StudioClient, cdWriteGate, crazydramasStudioMode, type StudioFail, type StudioResult } from "@/lib/crazydramas/studio-client";
-import { ackedFromRange, liveCrazydramasStudioTransport, liveCrazydramasTransport, studioTokenConfigured, studioWriteRefusal, CrazydramasApiError } from "@/lib/crazydramas/transport";
+import { ackedFromRange, isPublicAddress, liveCrazydramasStudioTransport, liveCrazydramasTransport, studioTokenConfigured, studioWriteRefusal, CrazydramasApiError } from "@/lib/crazydramas/transport";
 
 const Q = FAKE_UPLOAD_QUANTUM;
 const sha = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
@@ -119,6 +119,13 @@ test("the live transport refuses every Studio API call and every Mux PUT under n
     assert.equal(fetched, 0, "refused before any request");
   } finally {
     globalThis.fetch = before;
+  }
+});
+
+test("the poster check asks only hosts whose every address is public: loopback, private, CGNAT, link-local, unique-local and IPv4-carrying IPv6 forms are refused", () => {
+  for (const a of ["93.184.216.34", "104.21.32.1", "2606:4700::6810:84e5", "2a00:1450:4009:81f::200e"]) assert.equal(isPublicAddress(a), true, a);
+  for (const a of ["127.0.0.1", "10.1.2.3", "172.16.0.1", "172.31.255.255", "192.168.1.1", "100.64.0.1", "100.127.255.254", "169.254.169.254", "0.0.0.0", "224.0.0.1", "255.255.255.255", "198.18.0.1", "::", "::1", "::ffff:127.0.0.1", "::ffff:7f00:1", "fe80::1", "fec0::1", "fc00::1", "fd12:3456::1", "ff02::1", "64:ff9b::a00:1", "2002:a00:1::1", "0:0:0:0:0:0:0:1", "[::1]", "fe80::1%eth0", "localhost", "x.lan"]) {
+    assert.equal(isPublicAddress(a), false, a);
   }
 });
 

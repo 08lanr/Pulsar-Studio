@@ -302,6 +302,7 @@ export function ReplaceDialog({ episode, busy, onClose, onConfirm }: ReplaceProp
     >
       <ul className="cdp-impact">
         <li>{tt(episode.is_published ? "cdp.replace.impact.old" : "cdp.replace.impact.oldDraft")}</li>
+        {episode.is_published && <li>{tt("cdp.replace.impact.unchecked")}</li>}
         <li>{tt("cdp.replace.impact.progress")}</li>
         <li>{tt("cdp.replace.impact.kept")}</li>
       </ul>

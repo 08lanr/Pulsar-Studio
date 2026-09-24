@@ -22,6 +22,7 @@ import { FAKE_UPLOAD_QUANTUM, fakeCrazydramasTransport as fake } from "@/lib/cra
 import { cdIdempotencyKey } from "@/lib/crazydramas/ledger";
 import {
   advanceCdPublication,
+  getPublishState,
   isCdPublishError,
   publishEpisodes,
   queueUploads,
@@ -34,6 +35,7 @@ import {
 } from "@/lib/crazydramas/publish";
 import { StudioClient } from "@/lib/crazydramas/studio-client";
 import { resetCrazydramasSweep } from "@/lib/crazydramas/sweep";
+import type { CrazydramasStudioTransport } from "@/lib/crazydramas/transport";
 import { fixtureData, resetFixtureStore } from "@/lib/data/fixture";
 import { localPathOf } from "@/lib/data/storage";
 import type { CdPublication, Title } from "@/lib/types";
@@ -96,6 +98,27 @@ async function queued(slug: string, episodes?: { n: number; bytes: number; frame
 }
 
 const rowOf = async (titleId: string, n: number) => (await fixtureData.getCdPublications(sys, titleId)).filter((r) => r.episode_number === n && r.step !== "superseded").at(-1)!;
+
+/** Episode n's file becomes `buf` (a re-cut, or the earlier file brought back), in the local tier, as an import would record it. */
+async function setFile(s: Seeded, n: number, buf: Buffer, frames = 120): Promise<void> {
+  const ep = (await fixtureData.listTitleEpisodes(sys, s.title.id)).find((e) => e.number === n)!;
+  const digest = sha(buf);
+  const stored = `local/${s.title.id}/ws/${s.slug}/ep${String(n).padStart(2, "0")}-${digest.slice(0, 8)}.mp4`;
+  writeFileSync(localPathOf(stored), buf);
+  await fixtureData.setEpisodeImport(sys, ep.id, { video_path: stored, video_sha256: digest, video_bytes: buf.byteLength, video_frames: frames, duration_ms: Math.round((frames / 30) * 1000) });
+}
+
+/** A CMS upload takes episode n over and finishes: its asset is ready on the episode. Returns that asset's id. */
+async function cmsReupload(slug: string, n: number): Promise<string> {
+  const upload = fake.takeOver(slug, n);
+  await fake.putUploadChunk(`fake-mux://upload/${upload}`, new Uint8Array(1000), { first: 0, last: 999, total: 1000 });
+  fake.settleAll();
+  const asset = fake.seriesState(slug)!.episodes.find((e) => e.episode_number === n)!.mux_asset_id;
+  assert.ok(asset, "the CMS's asset is on the episode");
+  return asset;
+}
+
+const plannedRow = async (titleId: string) => (await fixtureData.getCdPublications(sys, titleId)).find((r) => r.step === "planned")!;
 
 // ---- the whole way ----------------------------------------------------------------------------------------------------
 
@@ -246,6 +269,161 @@ test("a Retry replaces only Studio's own dead upload: after a takeover it fails 
   assert.equal(fake.uploadsFor(s.slug, 2).length, 2);
 });
 
+test("a replace row after a CMS takeover: a Retry inherits no replace and never overwrites the CMS's newer media; only a person's fresh Replace sends Studio's file over it, as a new upload in the ledger", async () => {
+  const s = await queued("replace-takeover", [{ n: 1, bytes: Q + 11, frames: 120 }]);
+  await runTitleUploads(s.title.id, RUN);
+  assert.deepEqual((await publishEpisodes(producer(), s.title.id, { episodes: [1], publish_series: true })).published, [1]);
+  // A re-cut of the published episode, sent with replace; a CMS upload takes the episode over mid-file.
+  await setFile(s, 1, randomBytes(2 * Q + 7));
+  assert.deepEqual((await queueUploads(producer(), s.title.id, { episodes: [1], replace: true }, { schedule: false })).queued, [1]);
+  const row = await plannedRow(s.title.id);
+  assert.equal(row.replace, true);
+  let cmsUpload = "";
+  fake.onChunk = () => {
+    if (!cmsUpload) cmsUpload = fake.takeOver(s.slug, 1);
+  };
+  const first = await advanceCdPublication(row.id, { ...RUN, owner: "w" });
+  fake.onChunk = null;
+  assert.equal(first.row.error_code, "taken_over");
+  const cancelled = first.row.upload_id!;
+  // The CMS upload finishes: its asset is what viewers of episode 1 get now.
+  await fake.putUploadChunk(`fake-mux://upload/${cmsUpload}`, new Uint8Array(1000), { first: 0, last: 999, total: 1000 });
+  fake.settleAll();
+  const cmsAsset = fake.seriesState(s.slug)!.episodes[0].mux_asset_id;
+  assert.ok(cmsAsset);
+  const studioUploads = fake.uploadsFor(s.slug, 1).length;
+
+  const retry = await queueUploads(producer(), s.title.id, { episodes: [1] }, { schedule: false });
+  assert.deepEqual(retry.queued, [1], "a plain Retry is still queued");
+  assert.equal((await fixtureData.getCdPublication(sys, row.id)).replace, false, "a takeover row never inherits its old replace");
+  const again = await advanceCdPublication(row.id, { ...RUN, owner: "w" });
+  assert.equal(again.row.step, "failed");
+  assert.equal(again.row.error_code, "replace_required");
+  assert.equal(fake.uploadsFor(s.slug, 1).length, studioUploads, "no new Studio upload");
+  assert.equal(fake.seriesState(s.slug)!.episodes[0].mux_asset_id, cmsAsset, "the CMS's newer asset is untouched");
+  const shown = (await getPublishState(producer(), s.title.id)).episodes.find((e) => e.n === 1)!;
+  assert.equal(shown.error_code, "replace_required", "the screen offers Replace for it");
+
+  const replace = await queueUploads(producer(), s.title.id, { episodes: [1], replace: true }, { schedule: false });
+  assert.deepEqual(replace.queued, [1]);
+  const planned = await fixtureData.getCdPublication(sys, row.id);
+  assert.equal(planned.step, "planned", "a person's Replace starts a new upload");
+  assert.equal(planned.upload_id, null);
+  assert.equal(planned.previous_upload_id, cancelled, "the dead upload is kept");
+  assert.equal(planned.replace, true);
+  const done = await advanceCdPublication(row.id, { ...RUN, owner: "w" });
+  assert.equal(done.row.step, "published", "the episode is published, so its replace is live once verified");
+  assert.equal(fake.uploadsFor(s.slug, 1).length, studioUploads + 1);
+  assert.equal(fake.seriesState(s.slug)!.episodes[0].mux_asset_id, done.row.asset_id, "Studio's verified asset is the episode's now");
+  assert.ok(fake.getAsset(cmsAsset!), "the CMS's asset is kept, never deleted");
+});
+
+test("the ledger is trusted only while the episode holds the asset Studio verified: an accepted replace supersedes the older rows at once, a file whose replacement failed can be sent again (with replace), and a CMS re-upload after verification is never published as Studio's", async () => {
+  const s = await queued("stale-ledger", [{ n: 1, bytes: Q + 11, frames: 120 }, { n: 2, bytes: Q + 22, frames: 150 }]);
+  await runTitleUploads(s.title.id, RUN);
+  const x = s.files.get(1)!;
+  const xRow = await rowOf(s.title.id, 1);
+  assert.equal(xRow.step, "verified");
+
+  // Episode 1: X is replaced by a re-cut Y; crazydramas accepts the replace (the episode's asset is cleared), then Y fails verification.
+  await setFile(s, 1, randomBytes(Q + 99));
+  await queueUploads(producer(), s.title.id, { episodes: [1], replace: true }, { schedule: false });
+  fake.durationOffsetFrames = 5;
+  const y = await advanceCdPublication((await plannedRow(s.title.id)).id, { ...RUN, owner: "w" });
+  fake.durationOffsetFrames = 0;
+  assert.equal(y.row.error_code, "verify_failed");
+  assert.equal((await fixtureData.getCdPublication(sys, xRow.id)).step, "superseded", "X's row stopped describing crazydramas when the replace was accepted");
+  // X brought back: never "already uploaded and verified"; crazydramas holds Y's media, so it goes with replace, which the screen offers.
+  await setFile(s, 1, x);
+  const plain = await queueUploads(producer(), s.title.id, { episodes: [1] }, { schedule: false });
+  assert.deepEqual(plain.queued, []);
+  assert.match(plain.skipped[0].reason, /send it again with replace/);
+  assert.equal((await getPublishState(producer(), s.title.id)).episodes.find((e) => e.n === 1)!.replace_needed, true);
+  assert.deepEqual((await queueUploads(producer(), s.title.id, { episodes: [1], replace: true }, { schedule: false })).queued, [1]);
+  const xAgain = await advanceCdPublication((await plannedRow(s.title.id)).id, { ...RUN, owner: "w" });
+  assert.equal(xAgain.row.step, "verified");
+  assert.equal(xAgain.row.sha256, sha(x));
+
+  // Episode 2: verified, then a CMS re-upload takes it. The verified row proves nothing now: not shown as verified, never published.
+  const cmsAsset = await cmsReupload(s.slug, 2);
+  await pause(5);
+  const shown = (await getPublishState(producer(), s.title.id)).episodes.find((e) => e.n === 2)!;
+  assert.equal(shown.ledger_step, null, "the stale verified row is not shown");
+  assert.equal(shown.replace_needed, true);
+  const before = fake.requests.length;
+  await assert.rejects(publishEpisodes(producer(), s.title.id, { episodes: [2], publish_series: true, confirm_paid: true }), (e: unknown) => isCdPublishError(e) && e.code === "not_verified" && /holds another file/.test(e.message + JSON.stringify(e.body())));
+  assert.ok(!fake.requests.slice(before).some((r) => r.method === "POST"), "nothing was sent");
+  assert.equal(fake.seriesState(s.slug)!.episodes[1].mux_asset_id, cmsAsset);
+  // Queueing episode 2 supersedes its stale row; Studio's file needs replace now.
+  const two = await queueUploads(producer(), s.title.id, { episodes: [2] }, { schedule: false });
+  assert.match(two.skipped[0].reason, /send it again with replace/);
+  assert.equal((await fixtureData.getCdPublications(sys, s.title.id)).filter((r) => r.episode_number === 2 && r.step === "verified").length, 0);
+  // Episode 1, whose asset is the one Studio verified, publishes.
+  assert.deepEqual((await publishEpisodes(producer(), s.title.id, { episodes: [1], publish_series: true })).published, [1]);
+});
+
+test("a resume whose upload times out between the status read and the URL re-request creates no upload the ledger does not know: the re-request never sends replace, and the dead upload is replaced through the ledger", async () => {
+  const s = await queued("rerequest-series", [{ n: 1, bytes: Q + 3, frames: 120 }]);
+  await runTitleUploads(s.title.id, RUN);
+  await setFile(s, 1, randomBytes(2 * Q + 5));
+  await queueUploads(producer(), s.title.id, { episodes: [1], replace: true }, { schedule: false });
+  const row = await plannedRow(s.title.id);
+  assert.equal(row.replace, true, "a replace row: the case where a repeated call with replace would make a second upload");
+  await assert.rejects(advanceCdPublication(row.id, { ...RUN, owner: "a", leaseMs: 1, crash: (p) => { if (p === "after_chunk") throw new SimulatedCrash(p); } }), SimulatedCrash);
+  const waiting = (await fixtureData.getCdPublication(sys, row.id)).upload_id!;
+  const calls: { replace?: boolean }[] = [];
+  const transport: CrazydramasStudioTransport = {
+    mode: "fake",
+    async request(method, p, body) {
+      if (method === "POST" && /\/episodes\/1\/upload$/.test(p)) {
+        calls.push(body as { replace?: boolean });
+        fake.expireUpload(waiting); // Mux's hour runs out just as the resume asks for the URL again
+      }
+      return fake.request(method, p, body);
+    },
+    putUploadChunk: (url, chunk, range) => fake.putUploadChunk(url, chunk, range),
+    checkImage: (url) => fake.checkImage(url),
+  };
+  const client = new StudioClient({ transport, writeGate: () => ({ enabled: true, reason: null }) });
+  await pause(5);
+  fake.now = () => Date.now() + 3 * 60_000;
+  const before = fake.uploadsFor(s.slug, 1).length;
+  const out = await advanceCdPublication(row.id, { ...RUN, client, owner: "b", now: () => Date.now() + 3 * 60_000 });
+  assert.equal(calls[0].replace, undefined, "the URL re-request sends no replace");
+  assert.equal(out.row.step, "verified");
+  const uploads = fake.uploadsFor(s.slug, 1);
+  assert.equal(uploads.length, before + 1, "one new upload, the dead one's replacement");
+  assert.equal(out.row.previous_upload_id, waiting);
+  assert.equal(out.row.upload_id, uploads.at(-1)!.id, "the ledger records the upload that holds the episode");
+  assert.equal(fake.seriesState(s.slug)!.episodes[0].mux_upload_id, out.row.upload_id);
+});
+
+test("a worker that lost its lease stops: once another worker adopted the row, even one that released it since, the first never carries on without a lease", async () => {
+  const s = await queued("lost-lease", [{ n: 1, bytes: Q + 4, frames: 120 }]);
+  fake.readyAfterReads = 6;
+  let adopted = false;
+  const out = await advanceCdPublication(s.rows[0].id, {
+    ...RUN,
+    owner: "w1",
+    leaseMs: 1,
+    waitReadyMs: 60_000,
+    pollMs: 1,
+    sleep: async () => {
+      if (adopted) return;
+      adopted = true;
+      await pause(5); // w1's one-millisecond lease runs out
+      const r = await fixtureData.getCdPublication(sys, s.rows[0].id);
+      assert.ok(await fixtureData.claimCdPublication(sys, r.id, { owner: "w2", revision: r.revision, leaseMs: 60_000 }), "w2 adopts the stale lease");
+      await fixtureData.releaseCdPublication(sys, r.id, { owner: "w2" });
+    },
+  });
+  assert.ok(adopted);
+  assert.equal(out.outcome, "skipped", "w1 stops at its next write");
+  const row = await fixtureData.getCdPublication(sys, s.rows[0].id);
+  assert.equal(row.lease_owner, null);
+  assert.equal(row.step, "bytes_sent", "nothing was written after the lease was lost");
+});
+
 test("a takeover after the last chunk: the bytes are in Mux, Studio neither syncs nor publishes and says so", async () => {
   const s = await queued("late-takeover", [{ n: 1, bytes: Q + 5, frames: 120 }]);
   fake.readyAfterReads = 5;
@@ -358,6 +536,34 @@ test("at most two uploads send at once on the machine: with two other workers' l
   const summary = await runTitleUploads(c.title.id, { ...RUN, maxPasses: 3 });
   assert.deepEqual(summary.waiting, [1]);
   assert.equal(fake.requests.slice(before).filter((r) => r.path.includes("/episodes/")).length, 0, "no upload started while two others send");
+});
+
+test("at most two uploads send at once on the machine when several titles start together (a restart's resume): the slot is reserved before any wait, and this process's own runners are counted once", async () => {
+  const titles = [];
+  for (const slug of ["conc-one", "conc-two", "conc-three"]) titles.push(await queued(slug, [{ n: 1, bytes: 6 * Q + 11, frames: 120 }]));
+  let inFlight = 0;
+  let most = 0;
+  const transport: CrazydramasStudioTransport = {
+    mode: "fake",
+    request: (method, p, body) => fake.request(method, p, body),
+    async putUploadChunk(url, chunk, range) {
+      if (!chunk) return fake.putUploadChunk(url, chunk, range);
+      inFlight += 1;
+      most = Math.max(most, inFlight);
+      try {
+        await pause(15);
+        return await fake.putUploadChunk(url, chunk, range);
+      } finally {
+        inFlight -= 1;
+      }
+    },
+    checkImage: (url) => fake.checkImage(url),
+  };
+  const client = new StudioClient({ transport, writeGate: () => ({ enabled: true, reason: null }) });
+  const summaries = await Promise.all(titles.map((t) => runTitleUploads(t.title.id, { ...RUN, client, pollMs: 5, sleep: pause, maxPasses: 500 })));
+  for (const s of summaries) assert.deepEqual(s.verified, [1], `${s.title_id} finished`);
+  assert.ok(most <= 2, `${most} titles sent chunks at once`);
+  assert.equal(most, 2, "two do run side by side");
 });
 
 test("the ledger's rules in the data layer: one active row per episode, the same file twice refused, a producer writes nothing, a foreign title is not found", async () => {

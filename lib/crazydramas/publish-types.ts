@@ -28,9 +28,25 @@ import { z } from "zod";
 
 // ---- vocabulary -----------------------------------------------------------------------------------
 
-/** Where the title's series stands, as Studio may act on it (spec §5, §7). */
-export const SERIES_STATES = ["not_linked", "not_uploaded", "draft", "published", "cms_managed"] as const;
+/**
+ * Where the title's series stands, as Studio may act on it (spec §5, §7).
+ * `linked_elsewhere`: the series the slug answers is held by another title's
+ * link ("one film is one title per company"), so nothing of it is shown and
+ * every write is refused; staff can resolve it.
+ */
+export const SERIES_STATES = ["not_linked", "not_uploaded", "draft", "published", "cms_managed", "linked_elsewhere"] as const;
 export type CdSeriesState = (typeof SERIES_STATES)[number];
+
+/**
+ * A failed row whose episode on crazydramas now holds someone else's upload
+ * (a CMS takeover, or media Studio did not make): a plain Retry never
+ * overwrites it; only a person's Replace, after the viewer warning, does.
+ */
+export const CD_REPLACE_CODES: readonly string[] = ["replace_required", "taken_over", "taken_over_late"];
+
+export function needsReplace(errorCode: string | null | undefined): boolean {
+  return !!errorCode && CD_REPLACE_CODES.includes(errorCode);
+}
 
 /**
  * One ledger row's step (`studio.cd_publications`, spec §8, plan A6):
@@ -128,6 +144,8 @@ export const PublishEpisodeSchema = z.object({
   bytes_total: z.number().int().nonnegative().nullable().optional(),
   /** The ledger row's error, in words, when the step is failed (or a wait's note). */
   error: z.string().nullable().optional(),
+  /** Its code: a failed row in CD_REPLACE_CODES offers Replace, never a plain Retry. */
+  error_code: z.string().nullable().optional(),
   /** crazydramas' length of the ready asset, seconds. */
   duration_s: z.number().nullable().optional(),
   /** Studio's file is not the one on crazydramas (a re-cut): only `replace: true` can send it (spec §10). */

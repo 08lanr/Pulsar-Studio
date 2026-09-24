@@ -34,6 +34,8 @@
 // Nothing outside lib/crazydramas imports this file for a transport:
 // pick.ts chooses the reads, studio-client.ts the Studio API.
 
+import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
 import { dataSource } from "@/lib/data-source";
 import { type CatalogEntry, parseCatalog, parseSeries, parseStudioSeries, type SeriesRead, CRAZYDRAMAS_SLUG } from "./types";
 
@@ -306,7 +308,53 @@ async function muxPut(uploadUrl: string, chunk: Uint8Array | null, range: ChunkR
 
 const IMAGE_TYPE = /^image\//i;
 
-/** HEAD, then a one-byte GET when HEAD is refused; no cookie, no credential, no redirect followed. */
+/**
+ * Is an IP address on the public internet? Refused: unspecified, loopback,
+ * RFC 1918 private, CGNAT (100.64/10), link-local (169.254/16, fe80::/10,
+ * and the old site-local fec0::/10), unique-local (fc00::/7), multicast and
+ * reserved ranges, the documentation and benchmarking nets, and IPv6 forms
+ * that carry an IPv4 address (::ffff:, ::/96, 64:ff9b::/96 NAT64, 2002::/16
+ * 6to4) — a poster address must never make Studio's server ask something on
+ * its own network.
+ */
+export function isPublicAddress(address: string): boolean {
+  const a = address.trim().toLowerCase().replace(/^\[|\]$/g, "").replace(/%.*$/, "");
+  if (isIP(a) === 4) {
+    const [p, q, r] = a.split(".").map(Number);
+    if (p === 0 || p === 10 || p === 127 || p >= 224) return false;
+    if (p === 100 && q >= 64 && q <= 127) return false;
+    if (p === 169 && q === 254) return false;
+    if (p === 172 && q >= 16 && q <= 31) return false;
+    if (p === 192 && q === 168) return false;
+    if (p === 192 && q === 0 && (r === 0 || r === 2)) return false;
+    if (p === 198 && (q === 18 || q === 19)) return false;
+    if (p === 198 && q === 51 && r === 100) return false;
+    if (p === 203 && q === 0 && r === 113) return false;
+    return true;
+  }
+  if (isIP(a) === 6) {
+    if (a.startsWith("::")) return false; // ::, ::1, ::ffff:a.b.c.d and the other IPv4-carrying forms
+    if (/^f[c-d]/.test(a) || /^fe[89a-f]/.test(a) || a.startsWith("ff")) return false;
+    if (a.startsWith("64:ff9b:") || a.startsWith("2002:") || a.startsWith("2001:db8:")) return false;
+    if (/^0{0,4}:/.test(a)) return false;
+    return true;
+  }
+  return false;
+}
+
+/** The host's addresses, every one of them public; a reason in words otherwise. */
+async function publicHost(host: string): Promise<string | null> {
+  let found: { address: string }[];
+  try {
+    found = await lookup(host, { all: true });
+  } catch {
+    return "The address did not answer (DNS).";
+  }
+  if (!found.length || found.some((f) => !isPublicAddress(f.address))) return "The poster must be on a public web address.";
+  return null;
+}
+
+/** HEAD, then a one-byte GET when HEAD is refused; no cookie, no credential, no redirect followed; only to a host whose every address is public. */
 async function imageCheck(address: string): Promise<ImageCheck> {
   serverOnly();
   if (underTest()) return { ok: false, status: null, content_type: null, reason: "Live checks are refused in tests." };
@@ -321,6 +369,9 @@ async function imageCheck(address: string): Promise<ImageCheck> {
   if (!host.includes(".") || host === "localhost" || /^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.startsWith("[") || host.endsWith(".local") || host.endsWith(".internal")) {
     return { ok: false, status: null, content_type: null, reason: "The poster must be on a named public web address." };
   }
+  // A name alone can point anywhere (x.lan, 127.0.0.1.nip.io): what it resolves to decides.
+  const refused = await publicHost(host);
+  if (refused) return { ok: false, status: null, content_type: null, reason: refused };
   const once = (method: "HEAD" | "GET") =>
     fetch(url, { method, headers: method === "GET" ? { accept: "image/*", range: "bytes=0-0" } : { accept: "image/*" }, cache: "no-store", redirect: "manual", signal: AbortSignal.timeout(10_000) });
   let res: Response;

@@ -14,7 +14,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { publishable } from "@/components/producer/crazydramas/PublishDialog";
 import { centsFromDollars, dollarsFromCents, episodeList, refusalWords } from "@/components/producer/crazydramas/request";
-import { canUploadEpisode, isActive, rowStage, STAGE_PILL } from "@/components/producer/crazydramas/UploadProgress";
+import { canUploadEpisode, failedAction, isActive, rowStage, STAGE_PILL } from "@/components/producer/crazydramas/UploadProgress";
 import {
   IAP_PRODUCT_ID,
   LEDGER_STEPS,
@@ -78,7 +78,7 @@ test("the state the page reads parses with only the contract's fields, and the o
   };
   const parsed = PublishStateSchema.parse(state);
   assert.equal(parsed.episodes[0].bytes_sent, 262144);
-  assert.deepEqual([...SERIES_STATES], ["not_linked", "not_uploaded", "draft", "published", "cms_managed"]);
+  assert.deepEqual([...SERIES_STATES], ["not_linked", "not_uploaded", "draft", "published", "cms_managed", "linked_elsewhere"]);
   assert.equal(PublishStateSchema.safeParse({ ...state, series_state: "archived" }).success, false);
 });
 
@@ -108,6 +108,15 @@ test("only a file Studio has and nothing on crazydramas can be uploaded; the upl
   assert.equal(publishable(ep({ ledger_step: "failed", cd_status: "ready" })), false, "a verify mismatch never goes live");
   assert.equal(publishable(ep({ ledger_step: "published", cd_status: "ready", is_published: true })), false);
   assert.equal(publishable(ep({ ledger_step: "published", cd_status: "ready", is_published: false })), true, "an unpublished episode can go live again");
+});
+
+test("a failed row whose episode someone else's upload now holds offers Replace (with its warning), never a plain Retry, and Retry failed leaves it out", () => {
+  for (const code of ["replace_required", "taken_over", "taken_over_late"]) assert.equal(failedAction(ep({ ledger_step: "failed", error_code: code, cd_status: "ready" })), "replace", code);
+  for (const code of ["asset_errored", "verify_failed", "cancelled", null]) assert.equal(failedAction(ep({ ledger_step: "failed", error_code: code })), "retry", String(code));
+  assert.equal(failedAction(ep({ ledger_step: "failed", error_code: "replace_required", studio_frames: null })), null, "no file, nothing to send");
+  assert.equal(failedAction(ep({ ledger_step: "verified" })), null);
+  assert.ok(EN["cdp.replace.impact.unchecked"] && ZH["cdp.replace.impact.unchecked"]);
+  assert.match(EN["cdp.replace.impact.unchecked"], /before Studio checks it; if the check fails, unpublish the episode/, "a published episode's replace says it goes live before Studio's check");
 });
 
 test("a refusal keeps the words it came with: crazydramas' sentence, its issues, Studio's zod detail and the series that has the title", () => {

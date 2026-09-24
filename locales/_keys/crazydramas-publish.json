@@ -13,6 +13,7 @@
   "cdp.state.draft": { "zh": "CrazyDramas 草稿", "en": "Draft on CrazyDramas" },
   "cdp.state.published": { "zh": "已在 CrazyDramas 发布", "en": "Published on CrazyDramas" },
   "cdp.state.cms_managed": { "zh": "在 CMS 中创建 · 只读", "en": "Made in the CMS · read-only" },
+  "cdp.state.linked_elsewhere": { "zh": "已关联到另一部剧集", "en": "Linked to a different title" },
 
   "cdp.writesOff.title": { "zh": "写入 CrazyDramas 已关闭。", "en": "Writes to CrazyDramas are off." },
   "cdp.writesOff.reason": { "zh": "缺少的设置：{reason}", "en": "Missing setting: {reason}" },
@@ -21,6 +22,7 @@
   "cdp.notLive.draft": { "zh": "这部剧在 crazydramas 上是草稿，观众还看不到。", "en": "The series is a draft on crazydramas: viewers do not see it yet." },
   "cdp.notLive.archived": { "zh": "这部剧在 crazydramas 上已归档，观众看不到。", "en": "The series is archived on crazydramas: viewers do not see it." },
   "cdp.notLinked": { "zh": "此剧集没有 crazydramas slug，无法创建系列。在影片的 cut/film-meta.json 里加上 crazydramas_slug，再到“导入影片”页点“更新”。", "en": "This title has no crazydramas slug, so no series can be created. Add crazydramas_slug to the film's cut/film-meta.json, then Update it on Import films." },
+  "cdp.linkedElsewhere": { "zh": "这个 slug 在 crazydramas 上的剧已关联到另一部剧集，所以这里不显示它的任何内容，Studio 也不会向它发送任何东西。请工作人员处理。", "en": "The series under this slug on crazydramas is linked to a different title, so nothing of it is shown here and Studio sends nothing to it. Staff can resolve it." },
 
   "cdp.cms.note": { "zh": "这部剧是在 CMS 里创建的——请 Jayden 把它移交给 Studio（一行 SQL），之后才能在 Studio 里管理。Studio 不会修改它。", "en": "Made in the CMS — ask Jayden to hand it over (one SQL line) to manage it from Studio. Studio never changes it." },
   "cdp.cms.status": { "zh": "CrazyDramas 状态", "en": "Status on CrazyDramas" },
@@ -188,6 +190,7 @@
   "cdp.replace.lede": { "zh": "用 Studio 现在的文件（重新剪辑过）替换 CrazyDramas 上的这一集。发送之前请先知道：", "en": "Send Studio's current file (a re-cut) over the episode on CrazyDramas. Before you do:" },
   "cdp.replace.impact.old": { "zh": "新文件就绪之前，观众仍然看到旧的剪辑。", "en": "Viewers keep seeing the old cut until the new file is ready." },
   "cdp.replace.impact.oldDraft": { "zh": "新文件就绪之前，这一集仍然是旧的剪辑。", "en": "The episode keeps the old cut until the new file is ready." },
+  "cdp.replace.impact.unchecked": { "zh": "CrazyDramas 一处理好新文件，观众就会看到新的剪辑，那时 Studio 还没核对它；如果核对没通过，请撤下这一集。", "en": "Viewers see the new cut as soon as crazydramas has it ready, before Studio checks it; if the check fails, unpublish the episode." },
   "cdp.replace.impact.progress": { "zh": "观众的观看进度仍按旧剪辑的时间点记录。", "en": "Viewers' watch positions then refer to the old timing." },
   "cdp.replace.impact.kept": { "zh": "旧文件保留在 Mux 上，不会删除（Mux 按存储计费）。", "en": "The old file is kept on Mux, never deleted (Mux bills its storage)." },
   "cdp.replace.go": { "zh": "替换第 {n} 集", "en": "Replace episode {n}" },

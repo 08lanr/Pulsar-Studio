@@ -250,6 +250,71 @@ test("who may act: the title's approver or a staff administrator; a reviewer, a 
   assert.equal(r.created, true, "a staff administrator may send it");
 });
 
+test("two companies' titles on one slug: the series is the title's whose link holds it; to the other company's title it is foreign — nothing of it is shown, every write is refused before any write is sent, and its check keeps none of the draft's facts", async () => {
+  const slug = "shared-series";
+  const mine = await seriesTitle(slug, { name: "Company A Film", episodes: [{ n: 1, bytes: Q + 11, frames: 120 }] });
+  const created = await saveSeries(producer(), mine.id, { title: "Company A Film" });
+  await queueUploads(producer(), mine.id, { episodes: "all" }, { schedule: false });
+  await runTitleUploads(mine.id, RUN);
+
+  // Company B imports the same film ("one film is one title per company"), under the same slug, as its approver.
+  const other = await fixtureData.createProducer(staff(), { name_zh: "别家影视" });
+  const them = fixtureSession("producer", other.id);
+  const theirs = await fixtureData.createImportedTitle(sys, { producer_id: other.id, source_ref: "low-quality/company-b-film", display_title_en: "Company B Film", crazydramas_slug: slug, created_by: them.userId });
+  const buf = randomBytes(Q + 5);
+  const stored = `local/${theirs.id}/ws/${slug}/ep01-${sha(buf).slice(0, 8)}.mp4`;
+  mkdirSync(path.dirname(localPathOf(stored)), { recursive: true });
+  writeFileSync(localPathOf(stored), buf);
+  await fixtureData.addVideoOnlyEpisode(sys, theirs.id, 1, stored, { video_sha256: sha(buf), video_bytes: buf.byteLength, video_frames: 120, duration_ms: 4000, auto_cut: false });
+
+  // B's check while A's series is a draft: the refusal, and no body — nothing of a series the site does not show.
+  const draftRead = await checkCrazydramasTitle(them, theirs.id, { force: true });
+  assert.equal(draftRead.outcome, "checked");
+  if (draftRead.outcome === "checked") {
+    assert.match(draftRead.error ?? "", /linked to a different title/);
+    assert.equal(draftRead.snapshot.drama, null);
+    assert.equal(draftRead.snapshot.episodes, null);
+    assert.equal(draftRead.snapshot.cd_drama_id, null);
+  }
+
+  // B's section: linked_elsewhere, with the title's own defaults and nothing of A's series.
+  const state = await getPublishState(them, theirs.id);
+  assert.equal(state.series_state, "linked_elsewhere");
+  assert.equal(state.series, null);
+  assert.equal(state.can_write, false);
+  assert.equal(state.form_defaults.title, "Company B Film");
+  assert.equal(state.episodes.find((e) => e.n === 1)?.cd_status, null);
+  assert.doesNotMatch(JSON.stringify(state), new RegExp(`${created.series.id}|Company A Film|${mine.id}`));
+  PublishStateSchema.parse(state);
+
+  // Every write B tries is refused before any write is sent, in words that name no other title.
+  const before = writes().length;
+  for (const attempt of [
+    () => queueUploads(them, theirs.id, { episodes: [1], replace: true }, { schedule: false }),
+    () => publishEpisodes(them, theirs.id, { episodes: [1], publish_series: true }),
+    () => unpublishEpisodes(them, theirs.id, { episodes: [1], unpublish_series: true }),
+    () => saveSeries(them, theirs.id, { title: "Company B Film" }),
+  ]) {
+    const body = await refusal(attempt(), 409, "conflict");
+    assert.match(String(body.error), /linked to a different title/);
+    assert.doesNotMatch(JSON.stringify(body), new RegExp(`${created.series.id}|${mine.id}|Company A`));
+  }
+  assert.equal(writes().length, before, "nothing reached crazydramas");
+  assert.equal(fake.seriesState(slug)!.drama.status, "draft");
+  assert.equal(fake.uploadsFor(slug, 1).length, 1, "A's one upload, nothing of B's");
+
+  // A's own title writes as before; once A's series is live, B's check keeps only what the public read shows.
+  assert.deepEqual((await publishEpisodes(producer(), mine.id, { episodes: [1], publish_series: true })).published, [1]);
+  const liveRead = await checkCrazydramasTitle(them, theirs.id, { force: true });
+  assert.equal(liveRead.outcome, "checked");
+  if (liveRead.outcome === "checked") {
+    assert.match(liveRead.error ?? "", /linked to a different title/);
+    assert.equal(liveRead.snapshot.drama?.status, "published");
+    assert.equal(liveRead.snapshot.drama?.managed_by, undefined, "who manages the series is not the other title's to know");
+    assert.ok(liveRead.snapshot.episodes?.every((e) => e.is_published));
+  }
+});
+
 test("writes disabled in fixture mode without the fake (CRAZYDRAMAS_LIVE_READ=1): every write refused with the setting's name, nothing sent anywhere", async () => {
   const t = await seriesTitle("disabled-series");
   process.env.CRAZYDRAMAS_LIVE_READ = "1";

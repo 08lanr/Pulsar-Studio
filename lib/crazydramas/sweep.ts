@@ -20,7 +20,7 @@
 import { systemSession, type Session } from "@/lib/auth";
 import { getData, isDataError } from "@/lib/data";
 import { forbidden } from "@/lib/data/errors";
-import type { Episode, PlatformLink, PlatformSnapshot, Title } from "@/lib/types";
+import type { Episode, PlatformDrama, PlatformEpisode, PlatformLink, PlatformSnapshot, Title } from "@/lib/types";
 import { crazydramasStatusFor, isHotState, type CrazydramasStatus } from "./match";
 import { crazydramasTransport } from "./pick";
 import { CrazydramasApiError, crazydramasPublicUrl, type CrazydramasTransport } from "./transport";
@@ -121,6 +121,14 @@ export type CheckResult =
   | { outcome: "checked"; title_id: string; slug: string; http_status: number | null; error: string | null; linked: boolean; snapshot: PlatformSnapshot; status: CrazydramasStatus }
   | { outcome: "too_soon"; title_id: string; slug: string; retry_after_s: number; status: CrazydramasStatus }
   | { outcome: "not_linked"; title_id: string; status: CrazydramasStatus };
+
+/** What the public read shows of a series: a published one's facts without `managed_by`, its published episodes; null for one the site does not show. */
+function publicView(drama: PlatformDrama, episodes: readonly PlatformEpisode[]): { drama: PlatformDrama; episodes: PlatformEpisode[] } | null {
+  if (drama.status !== "published") return null;
+  const shown = episodes.filter((e) => e.is_published);
+  const { managed_by: _managed, ...facts } = drama;
+  return { drama: { ...facts, episode_count: shown.length }, episodes: shown };
+}
 
 function errorText(e: unknown): string {
   if (e instanceof CrazydramasApiError) return e.message;
@@ -225,8 +233,17 @@ export async function checkCrazydramasTitle(session: Session, titleId: string, o
           if (!isDataError(e)) throw e;
         }
       }
-      // A 200 that could not be linked keeps its body AND the refusal: the reading shows it as a failed read with that sentence.
-      snapshot = await data.recordPlatformSnapshot(sys, { platform: PLATFORM, slug: read.slug, cd_drama_id: answer.drama.id, title_id: titleId, http_status: 200, drama: answer.drama, episodes: answer.episodes, error, read_via: answer.read_via ?? null });
+      if (error) {
+        // A 200 that could not be linked is another title's drama. It keeps the refusal and at most what the public read
+        // shows of it — a published series' public facts, its published episodes — never the authenticated read's draft,
+        // archived or unpublished facts or who manages it (phase 5); a series the site does not show keeps no body at all.
+        const seen = publicView(answer.drama, answer.episodes);
+        snapshot = seen
+          ? await data.recordPlatformSnapshot(sys, { platform: PLATFORM, slug: read.slug, cd_drama_id: answer.drama.id, title_id: titleId, http_status: 200, drama: seen.drama, episodes: seen.episodes, error, read_via: answer.read_via ?? null })
+          : await data.recordPlatformSnapshot(sys, { platform: PLATFORM, slug: read.slug, cd_drama_id: link?.cd_drama_id ?? null, title_id: titleId, http_status: null, error, read_via: answer.read_via ?? null });
+      } else {
+        snapshot = await data.recordPlatformSnapshot(sys, { platform: PLATFORM, slug: read.slug, cd_drama_id: answer.drama.id, title_id: titleId, http_status: 200, drama: answer.drama, episodes: answer.episodes, error, read_via: answer.read_via ?? null });
+      }
     } else {
       snapshot = await data.recordPlatformSnapshot(sys, { platform: PLATFORM, slug: read.slug, cd_drama_id: link?.cd_drama_id ?? null, title_id: titleId, http_status: 404, read_via: answer.read_via ?? null });
     }

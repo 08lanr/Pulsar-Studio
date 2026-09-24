@@ -4157,5 +4157,8 @@
   "cdp.upload.skipped": "Not queued: {reason}.",
   "cdp.notLive.notUploaded": "Nothing is on crazydramas under this slug yet: the authenticated read, which sees drafts, answers 404 too.",
   "cdp.notLive.draft": "The series is a draft on crazydramas: viewers do not see it yet.",
-  "cdp.notLive.archived": "The series is archived on crazydramas: viewers do not see it."
+  "cdp.notLive.archived": "The series is archived on crazydramas: viewers do not see it.",
+  "cdp.state.linked_elsewhere": "Linked to a different title",
+  "cdp.linkedElsewhere": "The series under this slug on crazydramas is linked to a different title, so nothing of it is shown here and Studio sends nothing to it. Staff can resolve it.",
+  "cdp.replace.impact.unchecked": "Viewers see the new cut as soon as crazydramas has it ready, before Studio checks it; if the check fails, unpublish the episode."
 }

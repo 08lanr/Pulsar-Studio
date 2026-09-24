@@ -19,8 +19,9 @@
 // What it never does (spec §2, §5, §6, §11): publish on upload (a replace of
 // an episode that is ALREADY published goes live when its asset is ready —
 // the contract keeps is_published — and the ledger says so); write to a
-// series made in the CMS (refused before any call); write anything from
-// fixture mode but the fake, or from Supabase mode without
+// series made in the CMS (refused before any call); write to, or show, a
+// series another title's link holds (foreign: `conflict`); write anything
+// from fixture mode but the fake, or from Supabase mode without
 // CRAZYDRAMAS_LIVE_WRITES=enabled; create a series whose title is already on
 // the site (the working-name table and the public catalog are checked first;
 // crazydramas' own series_title_exists is the backstop); create a second Mux
@@ -48,6 +49,7 @@ import {
   CancelBodySchema,
   PublishBodySchema,
   UnpublishBodySchema,
+  needsReplace,
   suggestIapProductId,
   suggestPosterUrl,
   type CdSeries,
@@ -178,7 +180,8 @@ const nowIso = (now: () => number = Date.now) => new Date(now()).toISOString();
 
 // ---- the live series read (the screens' poll reuses it for 20 s) --------------------------------------------------
 
-type SeriesRead = { found: true; answer: GetSeriesAnswer } | { found: false; fail: StudioFail | null };
+/** One read of the series; `at` is when it was asked (a ledger row written after it is newer than what it says). */
+type SeriesRead = ({ found: true; answer: GetSeriesAnswer } | { found: false; fail: StudioFail | null }) & { at: number };
 
 const cache = (globalThis as unknown as { __studioCdSeriesCache?: Map<string, { at: number; read: SeriesRead }> }).__studioCdSeriesCache ??= new Map();
 
@@ -191,10 +194,41 @@ async function readSeries(client: StudioClient, key: string, opts: { fresh?: boo
   const cacheable = client.mode === "live";
   const hit = cacheable && !opts.fresh ? cache.get(key) : undefined;
   if (hit && Date.now() - hit.at < SERIES_CACHE_MS) return hit.read;
+  const at = Date.now();
   const r = await client.getSeries(key);
-  const read: SeriesRead = r.ok ? { found: true, answer: r.data } : r.status === 404 && r.code === "series_not_found" ? { found: false, fail: null } : { found: false, fail: r };
-  if (cacheable && (read.found || !read.fail)) cache.set(key, { at: Date.now(), read });
+  const read: SeriesRead = r.ok ? { found: true, answer: r.data, at } : r.status === 404 && r.code === "series_not_found" ? { found: false, fail: null, at } : { found: false, fail: r, at };
+  if (cacheable && (read.found || !read.fail)) cache.set(key, { at, read });
   return read;
+}
+
+/**
+ * Is the drama a read answered another title's? Another title's link holds
+ * it, or this title's link names a different drama. "One film is one title
+ * per company", so two companies' titles can carry one slug; the one whose
+ * link holds the series owns it, and to every other title it is foreign:
+ * nothing of it is shown and every write is refused (`conflict`), in words
+ * that name no other title.
+ */
+async function heldElsewhere(titleId: string, link: PlatformLink | null, dramaId: string): Promise<boolean> {
+  const id = dramaId.toLowerCase();
+  if (link && link.cd_drama_id.toLowerCase() !== id) return true;
+  return (await getData().listPlatformLinks(systemSession(), PLATFORM)).some((l) => l.cd_drama_id.toLowerCase() === id && l.title_id !== titleId);
+}
+
+function heldElsewhereRefusal(): CdPublishError {
+  return new CdPublishError(409, "conflict", "This series is linked to a different title; staff can resolve it. Nothing was sent.");
+}
+
+/**
+ * Does a verified or published ledger row still describe crazydramas? Only
+ * while the episode, in a read asked after the row's last write, holds the
+ * row's asset: a replace (Studio's own, or a CMS re-upload) moves the
+ * episode to another asset, and the row no longer proves what viewers get.
+ */
+function rowStale(row: CdPublication, cd: StudioEpisode | null, readAt: number): boolean {
+  if (row.step !== "verified" && row.step !== "published") return false;
+  if (!(Date.parse(row.updated_at) < readAt)) return false; // written since the read: the read cannot judge it
+  return !cd || !row.asset_id || cd.mux_asset_id !== row.asset_id;
 }
 
 /** The series as the route answers it: the contract's fields, nothing else. */
@@ -241,7 +275,8 @@ function seriesStateFrom(slug: string | null, series: CdSeries | { status: strin
  * Where the title's series and each episode stand, for the section's poll:
  * the live Studio read when reads are allowed (cached 20 s in live mode),
  * else the phase 3a reading; the ledger's rows; Studio's files. Whoever reads
- * the title may ask (`can_write` says whether the buttons are theirs).
+ * the title may ask (`can_write` says whether the buttons are theirs). A
+ * series another title holds reads `linked_elsewhere`, with nothing of it.
  */
 export async function getPublishState(session: Session, titleId: string, opts: { client?: StudioClient } = {}): Promise<PublishStateOut> {
   const data = getData();
@@ -258,9 +293,16 @@ export async function getPublishState(session: Session, titleId: string, opts: {
   let cdEpisodes: StudioEpisode[] | null = null;
   /** The live read answered: the series (found) or a 404 (nothing uploaded). Otherwise the phase 3a reading stands in. */
   let definite = false;
+  /** The series the slug answers is another title's: nothing of it (series, episodes, form values) is shown here. */
+  let foreign = false;
+  let readAt = 0;
   if (slug && mode.read !== "off") {
     const read = await readSeries(client, link?.cd_drama_id ?? slug);
-    if (read.found) {
+    readAt = read.at;
+    if (read.found && (await heldElsewhere(titleId, link, read.answer.series.id))) {
+      foreign = true;
+      definite = true;
+    } else if (read.found) {
       series = seriesOut(read.answer.series);
       cdEpisodes = read.answer.episodes;
       definite = true;
@@ -280,10 +322,13 @@ export async function getPublishState(session: Session, titleId: string, opts: {
     }
     if (status.series) known = { status: status.series.status, managed_by: status.series.managed_by };
   }
-  const seriesState = seriesStateFrom(slug, series ?? known);
+  const seriesState: CdSeriesState = foreign ? "linked_elsewhere" : seriesStateFrom(slug, series ?? known);
 
-  const byN = rowsByEpisode(rows);
   const cdByN = new Map((cdEpisodes ?? []).map((e) => [e.episode_number, e]));
+  // With a live read, a verified or published row whose asset the episode no longer holds reads as replaced (queueUploads
+  // supersedes it); without one the ledger stands.
+  const current = cdEpisodes ? rows.filter((r) => !rowStale(r, cdByN.get(r.episode_number) ?? null, readAt)) : rows;
+  const byN = rowsByEpisode(current);
   const freeCount = series?.free_episode_count ?? status?.series?.free_episode_count ?? 5;
   const studioByN = new Map(episodes.map((e) => [e.number, e]));
   const numbers = [...new Set([...studioByN.keys(), ...cdByN.keys(), ...byN.keys()])].sort((a, b) => a - b);
@@ -291,7 +336,7 @@ export async function getPublishState(session: Session, titleId: string, opts: {
   // The verdict per episode: from the live read when there is one, else from the phase 3a reading.
   const verdicts = new Map<number, string>();
   if (cdEpisodes) {
-    const m = matchEpisodes(episodes, cdEpisodes.map((e) => ({ n: e.episode_number, duration_s: e.duration_seconds, status: e.status, is_published: e.is_published })), { free_episode_count: freeCount, ledger: ledgerFor(rows) });
+    const m = matchEpisodes(episodes, cdEpisodes.map((e) => ({ n: e.episode_number, duration_s: e.duration_seconds, status: e.status, is_published: e.is_published })), { free_episode_count: freeCount, ledger: ledgerFor(current) });
     for (const r of m.episodes) verdicts.set(r.n, r.verdict);
   } else if (status) {
     for (const r of status.episodes) verdicts.set(r.n, r.verdict);
@@ -302,7 +347,7 @@ export async function getPublishState(session: Session, titleId: string, opts: {
     const row = byN.get(n) ?? null;
     const cd = cdByN.get(n) ?? null;
     const statusEp = status?.episodes.find((e) => e.n === n)?.live ?? null;
-    const recordedSha = rows.filter((r) => r.episode_number === n && (r.step === "verified" || r.step === "published")).sort((a, b) => b.created_at.localeCompare(a.created_at))[0]?.sha256 ?? null;
+    const recordedSha = current.filter((r) => r.episode_number === n && (r.step === "verified" || r.step === "published")).sort((a, b) => b.created_at.localeCompare(a.created_at))[0]?.sha256 ?? null;
     const cdHasMedia = !!cd && (cd.status === "ready" || cd.status === "failed");
     const replaceNeeded = !!ep?.video_sha256 && (recordedSha ? recordedSha !== ep.video_sha256 : cdHasMedia && !(row && isActiveStep(row.step) && row.sha256 === ep.video_sha256));
     return {
@@ -316,6 +361,7 @@ export async function getPublishState(session: Session, titleId: string, opts: {
       bytes_sent: row ? row.bytes_acked : null,
       bytes_total: row ? row.bytes : ep?.video_bytes ?? null,
       error: row?.error ?? null,
+      error_code: row?.error_code ?? null,
       duration_s: row?.duration_s ?? cd?.duration_seconds ?? statusEp?.duration_s ?? null,
       replace_needed: replaceNeeded,
     };
@@ -343,7 +389,7 @@ export async function getPublishState(session: Session, titleId: string, opts: {
     ...(gate.enabled ? {} : { writes_disabled_reason: gate.reason ?? "Writes to crazydramas are disabled." }),
     paywall_live: paywallLive(),
     uploading: rows.some((r) => isActiveStep(r.step)),
-    can_write: canPublish(session),
+    can_write: canPublish(session) && !foreign,
     frame_rule: FRAME_RULE,
     paid_warning: PAID_WARNING,
   };
@@ -461,8 +507,13 @@ export async function saveSeries(session: Session, titleId: string, input: unkno
 
 // ---- POST …/uploads ------------------------------------------------------------------------------------------------
 
-/** The series Studio may write for this title, read fresh: missing → series_missing, the CMS's → series_not_studio (no call is made to write). */
-async function writableSeries(client: StudioClient, title: Title, link: PlatformLink | null): Promise<GetSeriesAnswer> {
+/**
+ * The series Studio may write for this title, read fresh: missing →
+ * series_missing, another title's → conflict (it is foreign to this one:
+ * refused in words that name no other title), the CMS's → series_not_studio;
+ * no call is made to write. `at` is when the read was asked.
+ */
+async function writableSeries(client: StudioClient, title: Title, link: PlatformLink | null): Promise<{ answer: GetSeriesAnswer; at: number }> {
   const slug = slugOf(title, link);
   if (!slug) throw new CdPublishError(409, "not_linked", "This title has no crazydramas slug; add it to the film's film-meta.json and import the film again. Nothing was sent.");
   // The link already says the series is the CMS's (an authenticated read recorded it): refused before any call.
@@ -472,8 +523,9 @@ async function writableSeries(client: StudioClient, title: Title, link: Platform
     if (read.fail) throw passThrough(read.fail);
     throw new CdPublishError(409, "series_missing", "Create the draft series on crazydramas first. Nothing was sent.");
   }
+  if (await heldElsewhere(title.id, link, read.answer.series.id)) throw heldElsewhereRefusal();
   if (read.answer.series.managed_by !== "studio") throw cmsRefusal(read.answer.series);
-  return read.answer;
+  return { answer: read.answer, at: read.at };
 }
 
 export type QueueResult = { queued: number[]; skipped: { n: number; reason: string }[] };
@@ -483,10 +535,11 @@ export type QueueResult = { queued: number[]; skipped: { n: number; reason: stri
  * (spec §1c). Uploading never publishes. An episode is refused, with the
  * reason, when Studio has no imported file for it (the bytes are read from
  * the local-tier link only), when that file is already on crazydramas or
- * already uploaded and verified, when an older file of it is still
- * uploading, or when crazydramas already holds media for it and the caller
- * did not ask for `replace` (spec §10: the viewer warning comes first). A
- * failed row of the same file is retried where it stopped.
+ * already uploaded and verified (while the episode still holds that asset),
+ * when an older file of it is still uploading, or when crazydramas already
+ * holds media for it and the caller did not ask for `replace` (spec §10: the
+ * viewer warning comes first). A failed row of the same file is retried
+ * where it stopped.
  */
 export async function queueUploads(session: Session, titleId: string, input: unknown, opts: { client?: StudioClient; schedule?: boolean } = {}): Promise<QueueResult> {
   const title = await requirePublisher(session, titleId);
@@ -498,7 +551,7 @@ export async function queueUploads(session: Session, titleId: string, input: unk
   const sys = systemSession();
   const link = await data.getPlatformLink(sys, titleId, PLATFORM);
   const client = opts.client ?? studioClient();
-  const answer = await writableSeries(client, title, link);
+  const { answer, at: readAt } = await writableSeries(client, title, link);
   const series = answer.series;
   const cdByN = new Map(answer.episodes.map((e) => [e.episode_number, e]));
   const episodes = await data.listTitleEpisodes(sys, titleId);
@@ -519,7 +572,12 @@ export async function queueUploads(session: Session, titleId: string, input: unk
       skipped.push({ n, reason: why });
       continue;
     }
-    const mine = rows.filter((r) => r.episode_number === n && r.step !== "superseded");
+    const cd = cdByN.get(n) ?? null;
+    // A verified or published row whose asset the episode no longer holds (a replace since, Studio's or the CMS's) proves
+    // nothing any more: it is superseded, so the file can be sent again — with replace, since crazydramas holds media.
+    const stale = rows.filter((r) => r.episode_number === n && rowStale(r, cd, readAt));
+    for (const r of stale) await data.updateCdPublication(sys, r.id, { revision: r.revision, step: "superseded" });
+    const mine = rows.filter((r) => r.episode_number === n && r.step !== "superseded" && !stale.includes(r));
     const active = mine.find((r) => isActiveStep(r.step));
     if (active) {
       if (active.sha256 === ep.video_sha256) queued.push(n);
@@ -535,21 +593,25 @@ export async function queueUploads(session: Session, titleId: string, input: unk
       continue;
     }
     const failed = mine.filter((r) => r.step === "failed" && r.sha256 === ep.video_sha256).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
-    const cd = cdByN.get(n) ?? null;
     const cdHasMedia = !!cd && (cd.status === "ready" || cd.status === "failed");
     if (failed) {
       // A Retry: the same file, where it stopped. With an upload id recorded the uploader asks for it first and never
-      // creates a second one; it replaces only its own dead upload by itself, and anyone else's media only with `replace`
-      // (crazydramas refuses the rest), so a Retry is always safe to queue.
+      // creates a second one, and it replaces only its own dead upload by itself, so a Retry is always safe to queue.
+      // A row that stopped because someone else's upload holds the episode (a takeover, replace_required) never inherits
+      // its old `replace`: overwriting that media takes a person's fresh Replace, after the viewer warning, and then a new
+      // upload over it (the dead one is kept as previous_upload_id).
+      const theirs = needsReplace(failed.error_code);
+      const overwrite = theirs && body.replace === true;
       await data.updateCdPublication(sys, failed.id, {
         revision: failed.revision,
-        step: failed.upload_id ? "upload_created" : "planned",
+        step: failed.upload_id && !overwrite ? "upload_created" : "planned",
+        ...(overwrite && failed.upload_id ? { upload_id: null, previous_upload_id: failed.upload_id, bytes_acked: 0 } : {}),
         error: null,
         error_code: null,
         cancel_requested: false,
         attempts: 0,
         next_attempt_at: null,
-        replace: failed.replace || body.replace === true,
+        replace: theirs ? overwrite : failed.replace || body.replace === true,
       });
       queued.push(n);
       continue;
@@ -643,8 +705,9 @@ async function supersedeOlder(row: CdPublication): Promise<void> {
 
 /**
  * Publish exactly the listed episodes (spec §1d, §2), and the series with
- * them when asked. Each must be one Studio uploaded and VERIFIED (a failed
- * verification blocks it: `not_verified`, before any call). Paid episodes
+ * them when asked. Each must be one Studio uploaded and VERIFIED, whose
+ * asset the episode still holds in the fresh read (a failed verification,
+ * or a replace since, blocks it: `not_verified`, before any call). Paid episodes
  * (past the series' free count) need `confirm_paid` until
  * CRAZYDRAMAS_PAYWALL_LIVE=1 (spec §3: `paid_needs_confirm`). crazydramas'
  * partial `episodes_changed` is recorded for what it did publish and
@@ -660,14 +723,22 @@ export async function publishEpisodes(session: Session, titleId: string, input: 
   const sys = systemSession();
   const link = await data.getPlatformLink(sys, titleId, PLATFORM);
   const client = opts.client ?? studioClient();
-  const answer = await writableSeries(client, title, link);
+  const { answer } = await writableSeries(client, title, link);
   const series = answer.series;
+  const cdByN = new Map(answer.episodes.map((e) => [e.episode_number, e]));
   const numbers = [...new Set(body.episodes)].sort((a, b) => a - b);
   const byN = rowsByEpisode(await data.getCdPublications(sys, titleId));
+  // Verified means verified AND still on the episode: the fresh read's episode must hold the very asset Studio checked
+  // (a replace since, Studio's own or a CMS re-upload, is not what Studio verified).
+  const holds = (n: number, row: CdPublication) => !!row.asset_id && cdByN.get(n)?.mux_asset_id === row.asset_id;
   const unverified = numbers
     .map((n) => ({ n, row: byN.get(n) ?? null }))
-    .filter(({ row }) => !row || (row.step !== "verified" && row.step !== "published"))
-    .map(({ n, row }) => ({ episode_number: n, step: row?.step ?? null, error: row?.error ?? null }));
+    .filter(({ n, row }) => !row || (row.step !== "verified" && row.step !== "published") || !holds(n, row))
+    .map(({ n, row }) => ({
+      episode_number: n,
+      step: row?.step ?? null,
+      error: row && (row.step === "verified" || row.step === "published") ? `episode ${n} on crazydramas now holds another file than the one Studio verified; upload it again` : row?.error ?? null,
+    }));
   if (unverified.length) {
     throw new CdPublishError(409, "not_verified", `Only episodes Studio uploaded and verified can be published; not ${unverified.map((u) => u.episode_number).join(", ")}. Nothing was sent.`, { not_verified: unverified });
   }
@@ -706,7 +777,7 @@ export async function unpublishEpisodes(session: Session, titleId: string, input
   const sys = systemSession();
   const link = await data.getPlatformLink(sys, titleId, PLATFORM);
   const client = opts.client ?? studioClient();
-  const answer = await writableSeries(client, title, link);
+  const { answer } = await writableSeries(client, title, link);
   const r = await client.unpublish(answer.series.id, { ...(body.episodes?.length ? { episodes: [...new Set(body.episodes)].sort((a, b) => a - b) } : {}), ...(body.unpublish_series ? { unpublish_series: true } : {}) }, { managed_by: "studio" });
   forgetSeriesRead();
   if (!r.ok) throw passThrough(r);
@@ -835,7 +906,13 @@ class Pass {
     this.opts.crash?.(point, this.row);
   }
 
-  /** A revision-conditional write under the lease; a moved revision is re-read (a person's Stop), a lost lease ends the pass. */
+  /**
+   * A revision-conditional write under the lease; a moved revision is re-read
+   * (a person's Stop), a lost lease ends the pass. Lost means the row is no
+   * longer leased to this worker, live or not: another worker adopted it
+   * (and may have released it since) — this one never carries on without
+   * its lease; a later claim picks the row up.
+   */
   private async save(patch: Omit<Parameters<ReturnType<typeof getData>["updateCdPublication"]>[2], "revision" | "owner">): Promise<CdPublication> {
     for (let attempt = 0; ; attempt++) {
       try {
@@ -844,7 +921,7 @@ class Pass {
       } catch (e) {
         if (!isDataError(e) || e.code !== "conflict" || attempt >= 3) throw e;
         const fresh = await this.data.getCdPublication(this.sys, this.row.id);
-        if (fresh.lease_owner !== this.owner && cdLeaseLive(fresh, this.now())) throw new LostRow(fresh, "another worker holds the row");
+        if (fresh.lease_owner !== this.owner) throw new LostRow(fresh, "the row is no longer leased to this worker");
         if (!isActiveStep(fresh.step)) throw new LostRow(fresh, `the row is ${fresh.step}`);
         this.row = fresh;
         if (fresh.cancel_requested && patch.step !== "failed") return this.cancelled();
@@ -882,17 +959,19 @@ class Pass {
    * forgot it): plan a new one with replace — the contract's remedy — but
    * only while the episode still holds OUR dead upload (`ours`: the upload
    * status says episode_is_current). When someone else's upload is on the
-   * episode now, Studio never replaces it on its own: the row fails
-   * `replace_required` and a person decides (a Retry with replace). At most
-   * three new uploads in a row.
+   * episode now, Studio never replaces it on its own, whatever the row's
+   * `replace` says (a replace a person confirmed was over the media that was
+   * there then, not over what took the episode since): the row fails
+   * `replace_required` and a person decides (a fresh Replace, after the
+   * viewer warning). At most three new uploads in a row.
    */
   private async dead(why: string, ours: boolean): Promise<AdvanceOutcome | null> {
     if (this.row.cancel_requested) {
       await this.cancelled();
       return { row: this.row, outcome: "done" };
     }
-    if (!ours && !this.row.replace) {
-      return this.fail("replace_required", `${why}, and episode ${this.row.episode_number} on crazydramas now holds another upload; Studio does not replace it on its own. Upload it again with replace (the viewer warning applies) if Studio's file should win.`);
+    if (!ours) {
+      return this.fail("replace_required", `${why}, and episode ${this.row.episode_number} on crazydramas now holds another upload; Studio does not replace it on its own. Replace it (the viewer warning applies) if Studio's file should win.`);
     }
     if (this.row.previous_upload_id && this.row.attempts >= 3) return this.fail("upload_dead", `${why}; three uploads of this file died, Retry to try again`);
     await this.save({ step: "planned", upload_id: null, previous_upload_id: this.row.upload_id, replace: true, bytes_acked: 0, attempts: this.row.attempts + 1, error: `${why}; a new upload is created`, error_code: "upload_dead" });
@@ -952,6 +1031,9 @@ class Pass {
           error_code: null,
           next_attempt_at: null,
         });
+        // A replace clears the episode's asset at once (STUDIO_API.md, Replace): an older verified or published row of it
+        // describes crazydramas no more, whatever this upload turns into.
+        if (d.replaced) await supersedeOlder(this.row);
         return null;
       }
       if (r.code === "webhook_pending" && typeof r.body.upload_id === "string") {
@@ -1002,9 +1084,18 @@ class Pass {
     }
     if (!u.episode_is_current) return this.takenOverBeforeLast();
     if (!this.url) {
-      // After a restart the URL is gone (it is never stored): the same call with the same sha answers the same upload and its URL.
-      const again = await this.client.createUpload(this.row.cd_drama_id, this.row.episode_number, { sha256: this.row.sha256, bytes: this.row.bytes, ...(this.row.frames ? { frames: this.row.frames } : {}), ...(this.row.replace ? { replace: true } : {}) }, { managed_by: "studio" });
+      // After a restart the URL is gone (it is never stored): the same call with the same sha answers the same upload and its
+      // URL. It only asks for the URL of an upload known to be waiting, so it never sends `replace`: if the upload died
+      // since the status read (its hour ran out), crazydramas answers replace_required instead of creating a second
+      // upload, and the dead upload goes the way every dead upload goes.
+      const again = await this.client.createUpload(this.row.cd_drama_id, this.row.episode_number, { sha256: this.row.sha256, bytes: this.row.bytes, ...(this.row.frames ? { frames: this.row.frames } : {}) }, { managed_by: "studio" });
       if (!again.ok) {
+        if (again.code === "replace_required") return this.dead("the upload is no longer waiting", await this.oursNow());
+        if (again.code === "webhook_pending" && again.body.upload_id === this.row.upload_id) {
+          // Every byte is in Mux already and crazydramas has not heard: the wait's sync settles it.
+          await this.save({ step: "bytes_sent", bytes_acked: this.row.bytes, attempts: 0, error: null, error_code: null, next_attempt_at: null });
+          return null;
+        }
         if (again.code === "episode_busy") return this.wait(again.code, again.error, EPISODE_BUSY_WAIT_MS);
         if (isTransient(again)) return this.wait(again.code, again.error);
         return this.fail(again.code, again.error);
@@ -1173,10 +1264,13 @@ const registry = ((globalThis as unknown as { __studioCdUploads?: Registry }).__
 
 export type RunSummary = { title_id: string; passes: number; verified: number[]; failed: number[]; waiting: number[] };
 
-/** Rows sending bytes on this machine's other workers (a live lease in planned / upload_created that is not ours). */
+/** This process's lease owners start so (uploaderOwner): its own runners are counted in `registry.sending`, never twice. */
+const PROCESS_OWNER_PREFIX = `${hostname()}:${process.pid}:`;
+
+/** Rows sending bytes on other workers — other processes, or another Studio server on the shared database (a live lease in planned / upload_created that is not this process's). */
 async function othersSending(owner: string, now: number): Promise<number> {
   const rows = await getData().listActiveCdPublications(systemSession());
-  return rows.filter((r) => (r.step === "planned" || r.step === "upload_created") && r.lease_owner && r.lease_owner !== owner && cdLeaseLive(r, now)).length;
+  return rows.filter((r) => (r.step === "planned" || r.step === "upload_created") && r.lease_owner && r.lease_owner !== owner && !r.lease_owner.startsWith(PROCESS_OWNER_PREFIX) && cdLeaseLive(r, now)).length;
 }
 
 /**
@@ -1208,17 +1302,20 @@ export async function runTitleUploads(titleId: string, opts: UploaderOptions & {
     }
     const next = due.filter((r) => r.step === "planned" || r.step === "upload_created").sort((a, b) => a.episode_number - b.episode_number)[0];
     if (next) {
-      if (registry.sending + (await othersSending(owner, t)) >= CD_MAX_CONCURRENT) {
-        await sleep(pollMs);
-      } else {
-        registry.sending += 1;
-        try {
+      // The slot is reserved before anything is awaited, so two runners of this process that start together never both
+      // see a free one; over the cap, it is handed back and the runner waits.
+      registry.sending += 1;
+      let sent = false;
+      try {
+        if (registry.sending + (await othersSending(owner, t)) <= CD_MAX_CONCURRENT) {
           await advanceCdPublication(next.id, pass);
-        } finally {
-          registry.sending -= 1;
+          sent = true;
         }
-        progressed = true;
+      } finally {
+        registry.sending -= 1;
       }
+      if (sent) progressed = true;
+      else await sleep(pollMs);
     }
     if (!progressed) {
       if (now() > until) break;
