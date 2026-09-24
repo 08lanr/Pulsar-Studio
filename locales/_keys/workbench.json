@@ -20,7 +20,7 @@
   "wb.firstPass.exists": { "en": "This version already has an AI first pass. Fork a new draft to run it again.", "zh": "该版本已有 AI 初稿。如需重新生成，请另起新草稿。" },
   "wb.firstPass.noLines": { "en": "No lines to adapt — ingest a subtitle file first.", "zh": "没有可改编的台词，请先导入字幕文件。" },
   "wb.ai.unavailable": { "en": "AI unavailable", "zh": "AI 不可用" },
-  "wb.ai.unavailable.hint": { "en": "AI is unavailable — set ANTHROPIC_API_KEY on the server.", "zh": "AI 不可用：请在服务器上设置 ANTHROPIC_API_KEY。" },
+  "wb.ai.unavailable.hint": { "en": "AI is not set up on this server.", "zh": "这台服务器没有配置 AI。" },
   "wb.submit": { "en": "Send to producer", "zh": "提交制片方审核" },
   "wb.submit.noVersion": { "en": "Generate the English draft before sending this episode.", "zh": "请先生成英文初稿，再提交本集。" },
   "wb.submit.frozen": { "en": "This version has already been submitted.", "zh": "该版本已提交。" },

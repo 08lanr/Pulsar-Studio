@@ -59,7 +59,7 @@
     "en": "asked for a new logo search",
     "zh": "要求重新查找台标"
   },
-  "seg.decision.watermark_no_delogo": {
+  "seg.decision.no_logo": {
     "en": "said the film has no logo",
     "zh": "确认影片没有台标"
   },
@@ -71,13 +71,13 @@
     "en": "moved the end",
     "zh": "移动了结束点"
   },
-  "seg.decision.reject": {
-    "en": "rejected the end",
-    "zh": "否决了结束点"
+  "seg.decision.rejudge": {
+    "en": "asked for the end to be judged again",
+    "zh": "要求重新判断结束点"
   },
-  "seg.decision.remove": {
-    "en": "removed the end",
-    "zh": "删除了结束点"
+  "seg.decision.unmark": {
+    "en": "worked on the faint logo",
+    "zh": "处理了淡台标"
   },
   "seg.decision.apply_review": {
     "en": "applied the review",

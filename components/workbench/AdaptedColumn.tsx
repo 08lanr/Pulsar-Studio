@@ -47,6 +47,7 @@ export function AdaptedColumn({
   onMoreAlternatives,
   onRewrite,
   onSaveState,
+  videoOnly = false,
 }: {
   scene: Scene | null;
   line: Line | null;
@@ -68,6 +69,8 @@ export function AdaptedColumn({
   onMoreAlternatives: (adaptedLineId: string) => void;
   onRewrite: (adaptedLineId: string, instruction: string) => void;
   onSaveState: (s: SaveState) => void;
+  /** A video with no script: nothing to translate, so the empty column says so instead of offering a draft. */
+  videoOnly?: boolean;
 }) {
   const { tt, locale } = useT();
   const [ctxOpen, setCtxOpen] = useState(false);
@@ -126,8 +129,8 @@ export function AdaptedColumn({
             <div className="empty-art">
               <IconSparkle size={24} />
             </div>
-            <h3>{tt("wb.adapted.noVersion")}</h3>
-            <p>{aiAvailable ? tt("wb.adapted.noVersion.hint") : tt("wb.adapted.manualHint")}</p>
+            <h3>{videoOnly ? tt("wb.workflow.videoOnly.title") : tt("wb.adapted.noVersion")}</h3>
+            <p>{videoOnly ? tt("wb.workflow.videoOnly.body") : aiAvailable ? tt("wb.adapted.noVersion.hint") : tt("wb.adapted.manualHint")}</p>
           </div>
         ) : !line ? (
           <div className="empty">

@@ -173,7 +173,7 @@ test("the render and QA finish, the sheets show, film-meta ends the wait, and th
   const form = page.getByRole("form", { name: "Film details" });
   await expect(form.getByRole("textbox", { name: "Display title (English)" })).toHaveValue(/\S/);
   await form.getByRole("textbox", { name: "Display title (English)" }).fill("E2E Segmented Film");
-  await form.getByRole("button", { name: "Save film meta" }).click();
+  await form.getByRole("button", { name: "Save the film's details" }).click();
   await reach(page, runId, ["handoff", "done"], { timeout: 120_000 });
 });
 

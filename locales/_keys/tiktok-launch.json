@@ -580,8 +580,8 @@
     "zh": "运行中 · 最近一次 {at}"
   },
   "admin.tiktok.scheduler.stopped": {
-    "en": "Not running in this process (SCHEDULER_DISABLED or no boot hook). Sync now still works.",
-    "zh": "本进程未运行调度器（SCHEDULER_DISABLED 或无启动钩子），仍可点击“立即同步”。"
+    "en": "The background sync is off on this server. Sync now still works.",
+    "zh": "这台服务器的后台同步已关闭，仍可点击“立即同步”。"
   },
   "admin.tiktok.loading": {
     "en": "Reading the connection…",

@@ -525,7 +525,7 @@ export function Workbench({
                 ))}
               </select>
             )}
-            <span className={statusPill[statusKey] ?? "pill pill-neutral"}>{tt(`wb.status.${statusKey}`)}</span>
+            {!videoOnly && <span className={statusPill[statusKey] ?? "pill pill-neutral"}>{tt(`wb.status.${statusKey}`)}</span>}
           </div>
           <div className="title-meta">
             <span>{tt("wb.meta.scenes", { n: scenes.length })}</span>
@@ -533,13 +533,18 @@ export function Workbench({
             {version && <span>{version.external_id}</span>}
             {!data.episode.has_timecodes && <span>{tt("wb.meta.untimed")}</span>}
           </div>
-          <div className="def-row">
-            <span className="k">{tt("wb.progress.label")}</span>
-            <span className="v">{tt("wb.progress.value", { n: readyLineCount, total: lines.length, pct })}</span>
-          </div>
-          <div className="track" role="progressbar" aria-label={tt("wb.progress.label")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
-            <span style={{ width: `${pct}%` }} />
-          </div>
+          {/* A video with no script has nothing to translate: no progress, no draft, no send (UI sweep review 2026-09-24). */}
+          {!videoOnly && (
+            <>
+              <div className="def-row">
+                <span className="k">{tt("wb.progress.label")}</span>
+                <span className="v">{tt("wb.progress.value", { n: readyLineCount, total: lines.length, pct })}</span>
+              </div>
+              <div className="track" role="progressbar" aria-label={tt("wb.progress.label")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+                <span style={{ width: `${pct}%` }} />
+              </div>
+            </>
+          )}
         </div>
         <div className="title-actions">
           <span className="title-save" aria-live="polite">
@@ -557,17 +562,19 @@ export function Workbench({
               </>
             )}
           </span>
-          <button
-            type="button"
-            className="btn btn-outline"
-            disabled={!!firstPassWhy || busy.firstPass || busy.manual}
-            title={firstPassWhy ?? undefined}
-            onClick={() => gate(data.ai_available ? "firstPass" : "manual")}
-          >
-            {busy.firstPass || busy.manual ? <span className="spinner" /> : data.ai_available ? <IconSparkle /> : <IconEdit />}
-            {data.ai_available ? tt("wb.firstPass") : tt("wb.manualDraft")}
-          </button>
-          {frozen ? (
+          {!videoOnly && (
+            <button
+              type="button"
+              className="btn btn-outline"
+              disabled={!!firstPassWhy || busy.firstPass || busy.manual}
+              title={firstPassWhy ?? undefined}
+              onClick={() => gate(data.ai_available ? "firstPass" : "manual")}
+            >
+              {busy.firstPass || busy.manual ? <span className="spinner" /> : data.ai_available ? <IconSparkle /> : <IconEdit />}
+              {data.ai_available ? tt("wb.firstPass") : tt("wb.manualDraft")}
+            </button>
+          )}
+          {videoOnly ? null : frozen ? (
             <button
               type="button"
               className="btn btn-primary"
@@ -603,10 +610,12 @@ export function Workbench({
           <span>{tt("wb.workflow.owner")}</span>
           <strong>{workflow.owner}</strong>
         </div>
-        <div className="workflow-checks">
-          <span className={allLinesReady ? "done" : ""}>{tt("wb.workflow.lines", { n: readyLineCount, total: lines.length })}</span>
-          <span className={allScenesApproved ? "done" : ""}>{tt("wb.workflow.scenes", { n: scenesApproved, total: scenes.length })}</span>
-        </div>
+        {!videoOnly && (
+          <div className="workflow-checks">
+            <span className={allLinesReady ? "done" : ""}>{tt("wb.workflow.lines", { n: readyLineCount, total: lines.length })}</span>
+            <span className={allScenesApproved ? "done" : ""}>{tt("wb.workflow.scenes", { n: scenesApproved, total: scenes.length })}</span>
+          </div>
+        )}
       </section>
 
       {requestedScenes.length > 0 && (
@@ -795,6 +804,7 @@ export function Workbench({
             onMoreAlternatives={moreAlternatives}
             onRewrite={rewrite}
             onSaveState={setSaveState}
+            videoOnly={videoOnly}
           />
         </div>
       </div>

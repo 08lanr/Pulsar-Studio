@@ -1,6 +1,6 @@
 {
   "cdp.slug.lockedBecause": { "en": "Locked: {reason}.", "zh": "已锁定：{reason}。" },
-  "cdp.slug.restoreHint": { "en": "This title's slug was changed away from the series it is on, {slug}, so every write to crazydramas is held.", "zh": "此剧集的 slug 被改离了它所在的剧集 {slug}，因此所有写入 crazydramas 的操作都已暂停。" },
-  "cdp.slug.restore": { "en": "Put the slug back to {slug}", "zh": "把 slug 改回 {slug}" },
-  "seg.meta.cdSlugHint": { "en": "Leave it empty: Studio picks one when the film is imported and checks it on crazydramas. A slug typed here is used as it is.", "zh": "留空即可：导入影片时 Studio 会自动选择一个并在 crazydramas 上核对。在这里填写的 slug 会按原样使用。" }
+  "cdp.slug.restoreHint": { "en": "This title's slug was changed away from the series it is on, {slug}, so every write to crazydramas is held.", "zh": "此剧集的网址被改离了它所在的剧集 {slug}，因此所有写入 crazydramas 的操作都已暂停。" },
+  "cdp.slug.restore": { "en": "Put the slug back to {slug}", "zh": "把网址改回 {slug}" },
+  "seg.meta.cdSlugHint": { "en": "Leave it empty: Studio picks one when the film is imported and checks it on crazydramas. A slug typed here is used as it is.", "zh": "留空即可：导入影片时 Studio 会自动选择一个并在 crazydramas 上核对。在这里填写的网址会按原样使用。" }
 }
