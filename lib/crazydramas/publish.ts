@@ -460,9 +460,9 @@ export async function getPublishState(session: Session, titleId: string, opts: {
   });
 
   // The slug may change until the draft series exists (decision 2026-09-23 "Upload automation"): no series under it on
-  // crazydramas, no link, no upload in the ledger. After that ad links point at crazydramas.com/drama/<slug>.
+  // crazydramas, no link, no upload in the ledger. After that ad links point at crazydramas.com/watch/<slug>.
   const lockReason = series
-    ? `the series exists on crazydramas as ${series.slug}; ad links point at crazydramas.com/drama/${series.slug}, so the slug no longer changes`
+    ? `the series exists on crazydramas as ${series.slug}; ad links point at crazydramas.com/watch/${series.slug}, so the slug no longer changes`
     : seriesState === "not_linked" || seriesState === "not_uploaded"
       ? await slugLockReason(titleId)
       : "the series is on crazydramas; ad links depend on its slug";

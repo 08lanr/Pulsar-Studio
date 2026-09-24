@@ -62,7 +62,7 @@ export async function slugLockReason(titleId: string): Promise<string | null> {
   const data = getData();
   const sys = systemSession();
   const [link, rows] = await Promise.all([data.getPlatformLink(sys, titleId, PLATFORM), data.getCdPublications(sys, titleId)]);
-  if (link) return `the series exists on crazydramas as ${link.slug}; ad links point at crazydramas.com/drama/${link.slug}, so the slug no longer changes`;
+  if (link) return `the series exists on crazydramas as ${link.slug}; ad links point at crazydramas.com/watch/${link.slug}, so the slug no longer changes`;
   if (rows.length) return "episodes were uploaded under this slug; ad links depend on it, so it no longer changes";
   return null;
 }

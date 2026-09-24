@@ -245,7 +245,7 @@ test("a typed slug is checked: one another series has is refused with the next f
   await assert.rejects(assignCrazydramasSlug(producer(), a.title.id, { slug: "taken-one-3", root: a.root, read: table, skipCheck: true }), (e: unknown) => {
     assert.ok(isSlugError(e));
     assert.equal(e.code, "slug_locked");
-    assert.match(e.message, /ad links point at crazydramas\.com\/drama\/taken-one-2/);
+    assert.match(e.message, /ad links point at crazydramas\.com\/watch\/taken-one-2/);
     return true;
   });
 });

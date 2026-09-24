@@ -209,7 +209,7 @@ export const FormDefaultsSchema = z.object({
   poster_url: z.string().nullable(),
   /** The slug may still change: no draft series and no upload yet. */
   slug_editable: z.boolean().optional(),
-  /** Why not, in words, once it may not (ad links point at crazydramas.com/drama/<slug>). */
+  /** Why not, in words, once it may not (ad links point at crazydramas.com/watch/<slug>). */
   slug_locked_reason: z.string().nullable().optional(),
   /** The title has a cover in Studio (the poster field's default source). */
   has_cover: z.boolean().optional(),

@@ -152,7 +152,7 @@ test("the state the section polls, in every series state: not_linked, not_upload
   assert.equal(s2.series?.free_episode_count, 1);
   assert.equal(s2.form_defaults.series_price_cents, 499, "the form now starts from the series itself");
   assert.equal(s2.form_defaults.slug_editable, false, "the draft exists: the slug is locked");
-  assert.match(s2.form_defaults.slug_locked_reason ?? "", /ad links point at crazydramas\.com\/drama\/a-brand-new-studio-series-with-a-very-long-name/);
+  assert.match(s2.form_defaults.slug_locked_reason ?? "", /ad links point at crazydramas\.com\/watch\/a-brand-new-studio-series-with-a-very-long-name/);
   assert.deepEqual(s2.episodes.map((e) => e.is_free), [true, false, false]);
   PublishStateSchema.parse(s2);
 
