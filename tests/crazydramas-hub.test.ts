@@ -335,6 +335,12 @@ test("the flow strip: done, next, not yet, not needed, each with its page", () =
   assert.equal(studio.find((s) => s.id === "launch")!.href, "/producer/launch");
   const all = titleFlow({ imported: true, episodes_with_video: 3, crazydramas: "live_partial", clips_ready: 1, campaigns: 2 }, "t3", "admin");
   assert.equal(all.every((s) => s.state === "done"), true);
+  // No episode video: nothing on the strip can move (no upload, no ad clips), so no step is next; a CMS series that is
+  // live keeps its done upload and does not offer "Ad clips" (review r2).
+  const cms = titleFlow({ imported: false, episodes_with_video: 0, crazydramas: "live_complete", clips_ready: 0, campaigns: 0 }, "t4", "producer");
+  assert.deepEqual(cms.map((s) => [s.id, s.state]), [["segment", "skip"], ["import", "skip"], ["upload", "done"], ["clips", "later"], ["launch", "later"], ["stats", "later"]]);
+  const bare = titleFlow({ imported: false, episodes_with_video: 0, crazydramas: "not_live", clips_ready: 0, campaigns: 0 }, "t5", "producer");
+  assert.equal(bare.some((s) => s.state === "next"), false);
 });
 
 test("Import films folds the films that cannot be imported yet; an imported or importing film keeps its row", () => {

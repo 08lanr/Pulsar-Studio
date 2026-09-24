@@ -56,6 +56,8 @@ export default function CrazydramasHub({ hub, portal, canAct, reason = null, pro
   const [open, setOpen] = useState<Open>(null);
   const [producerId, setProducerId] = useState<string>(defaultProducerId ?? producers[0]?.id ?? "");
   const [importing, setImporting] = useState<Record<string, ImportProgress | "starting">>({});
+  /** Staff: the company an import started here was started for (the picker may change while it runs). */
+  const [startedFor, setStartedFor] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [sweep, setSweep] = useState<{ busy: boolean; note: string | null; error: boolean }>({ busy: false, note: null, error: false });
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -64,28 +66,54 @@ export default function CrazydramasHub({ hub, portal, canAct, reason = null, pro
   const sectionHref = (id: string) => `${titleHref(id)}/crazydramas`;
   const addEpisodesHref = (id: string) => (portal === "admin" ? `/titles/${id}` : `/producer/titles/${id}/materials`);
   const importPage = portal === "admin" ? "/films/import" : "/producer/films/import";
-  const listUrl = portal === "admin" ? `/api/admin/films?producer_id=${encodeURIComponent(producerId)}` : "/api/producer/films";
+  const listUrlFor = useCallback((company: string) => (portal === "admin" ? `/api/admin/films?producer_id=${encodeURIComponent(company)}` : "/api/producer/films"), [portal]);
 
-  // While an import started here runs, read the company's listing every two seconds for its progress line.
+  // An import that was already running when the page was drawn (a reload, a second tab, another person's press) is
+  // followed like one started here, so its line advances and the row turns into the title's row when it settles.
+  useEffect(() => {
+    const running = hub.rows.filter((r) => r.source_ref && r.progress && isRunning(r.progress));
+    if (!running.length) return;
+    setImporting((current) => {
+      let changed = false;
+      const next = { ...current };
+      for (const r of running) {
+        const had = current[r.source_ref!];
+        if (had === "starting" || isRunning(had as ImportProgress | undefined)) continue;
+        next[r.source_ref!] = r.progress!;
+        changed = true;
+      }
+      return changed ? next : current;
+    });
+  }, [hub.rows]);
+
+  // While an import runs, read its company's listing every two seconds for its progress line: staff read the
+  // company each import is for (its own progress names it), never the picker's current one.
   const watching = Object.entries(importing).filter(([, p]) => p === "starting" || isRunning(p as ImportProgress)).map(([ref]) => ref);
   const poll = useCallback(async () => {
-    try {
-      const listing = await getJson<FilmListing>(listUrl);
-      const next: Record<string, ImportProgress | "starting"> = {};
-      let settled = false;
-      for (const ref of Object.keys(importing)) {
-        const film = listing.films.find((f) => f.source_ref === ref);
-        if (film?.progress) {
+    const byUrl = new Map<string, string[]>();
+    for (const [ref, p] of Object.entries(importing)) {
+      if (!(p === "starting" || isRunning(p as ImportProgress))) continue;
+      const url = listUrlFor(p !== "starting" ? p.producer_id : startedFor[ref] ?? producerId);
+      byUrl.set(url, [...(byUrl.get(url) ?? []), ref]);
+    }
+    const next: Record<string, ImportProgress | "starting"> = { ...importing };
+    let settled = false;
+    for (const [url, refs] of byUrl) {
+      try {
+        const listing = await getJson<FilmListing>(url);
+        for (const ref of refs) {
+          const film = listing.films.find((f) => f.source_ref === ref);
+          if (!film?.progress) continue;
           next[ref] = film.progress;
           if (!isRunning(film.progress)) settled = true;
-        } else next[ref] = importing[ref];
+        }
+      } catch {
+        /* the next poll tries again */
       }
-      setImporting(next);
-      if (settled) router.refresh();
-    } catch {
-      /* the next poll tries again */
     }
-  }, [importing, listUrl, router]);
+    setImporting(next);
+    if (settled) router.refresh();
+  }, [importing, listUrlFor, startedFor, producerId, router]);
 
   useEffect(() => {
     if (!watching.length) return;
@@ -98,6 +126,7 @@ export default function CrazydramasHub({ hub, portal, canAct, reason = null, pro
   async function startImport(row: HubRow, ref: string) {
     setErrors((e) => ({ ...e, [row.key]: "" }));
     setImporting((x) => ({ ...x, [ref]: "starting" }));
+    if (portal === "admin") setStartedFor((x) => ({ ...x, [ref]: producerId }));
     try {
       const body: Record<string, unknown> = { source_ref: ref, mode: "import", attach_transcript: true };
       if (portal === "admin") body.producer_id = producerId;
@@ -196,20 +225,24 @@ export default function CrazydramasHub({ hub, portal, canAct, reason = null, pro
     const importBusy = imp === "starting" || isRunning(imp as ImportProgress | undefined) || isRunning(row.progress);
     const toggle = (titleId: string, mode: "upload" | "publish") => setOpen((o) => (o?.titleId === titleId ? null : { titleId, mode }));
     const isOpen = !!row.title_id && open?.titleId === row.title_id;
+    // While the import runs the title may already exist (its episodes are still being linked): nothing is offered
+    // until it settles, whatever the row's next step would be.
+    if (importBusy) return <button type="button" className="btn btn-outline btn-sm" disabled><span className="spinner" /> {tt("fi.action.importing")}</button>;
+    // An open panel always closes from its row, even when the next step changed under it (Publish done: Open on site).
+    if (isOpen && row.title_id) return <button type="button" className="btn btn-outline btn-sm" aria-expanded aria-controls={`cdh-panel-${row.title_id}`} onClick={() => setOpen(null)}>{tt("cdh.action.close")}</button>;
     switch (a.kind) {
       case "import":
-        if (importBusy) return <button type="button" className="btn btn-outline btn-sm" disabled><span className="spinner" /> {tt("fi.action.importing")}</button>;
         return (
           <button type="button" className="btn btn-primary btn-sm" disabled={needsCompany && !producerId} onClick={() => void startImport(row, a.source_ref)}>
             {tt("cdh.action.import")}
           </button>
         );
       case "upload":
-        return <button type="button" className={`btn btn-sm ${isOpen ? "btn-outline" : "btn-primary"}`} aria-expanded={isOpen} aria-controls={`cdh-panel-${a.title_id}`} onClick={() => toggle(a.title_id, "upload")}>{isOpen ? tt("cdh.action.close") : tt("cdh.action.upload")}</button>;
+        return <button type="button" className="btn btn-sm btn-primary" aria-expanded={false} aria-controls={`cdh-panel-${a.title_id}`} onClick={() => toggle(a.title_id, "upload")}>{tt("cdh.action.upload")}</button>;
       case "uploading":
-        return <button type="button" className="btn btn-outline btn-sm" aria-expanded={isOpen} aria-controls={`cdh-panel-${a.title_id}`} onClick={() => toggle(a.title_id, "upload")}>{isOpen ? tt("cdh.action.close") : <><span className="spinner" /> {tt("cdh.action.uploading", { n: a.n, of: a.of })}</>}</button>;
+        return <button type="button" className="btn btn-outline btn-sm" aria-expanded={false} aria-controls={`cdh-panel-${a.title_id}`} onClick={() => toggle(a.title_id, "upload")}><span className="spinner" /> {tt("cdh.action.uploading", { n: a.n, of: a.of })}</button>;
       case "publish":
-        return <button type="button" className={`btn btn-sm ${isOpen ? "btn-outline" : "btn-primary"}`} aria-expanded={isOpen} aria-controls={`cdh-panel-${a.title_id}`} onClick={() => toggle(a.title_id, "publish")}>{isOpen ? tt("cdh.action.close") : a.n > 0 ? tt("cdh.action.publish", { n: a.n }) : tt("cdh.action.publishSeries")}</button>;
+        return <button type="button" className="btn btn-sm btn-primary" aria-expanded={false} aria-controls={`cdh-panel-${a.title_id}`} onClick={() => toggle(a.title_id, "publish")}>{a.n > 0 ? tt("cdh.action.publish", { n: a.n }) : tt("cdh.action.publishSeries")}</button>;
       case "open_site":
         return <a className="btn btn-outline btn-sm" href={a.url} target="_blank" rel="noreferrer">{tt("cdh.action.open_site")}&nbsp;↗</a>;
       case "check":

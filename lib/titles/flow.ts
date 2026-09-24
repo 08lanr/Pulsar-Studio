@@ -61,7 +61,10 @@ export function flowHref(id: FlowStepId, titleId: string, portal: "admin" | "pro
  * Upload is done once the series is live, Ad clips once one clip is
  * finished, Launch once a launch made a campaign, Stats once there is a
  * campaign to read. The first step that is neither done nor not needed is
- * next; the ones after it are not yet.
+ * next; the ones after it are not yet. A title with no episode video has no
+ * next step on the strip: nothing can be uploaded to crazydramas or cut for
+ * ads without the videos, so the page's own button asks for them (a series
+ * live from the CMS with no video in Studio no longer offers "Ad clips").
  */
 export function titleFlow(facts: FlowFacts, titleId: string, portal: "admin" | "producer"): FlowStep[] {
   const done: Record<FlowStepId, boolean | null> = {
@@ -72,7 +75,7 @@ export function titleFlow(facts: FlowFacts, titleId: string, portal: "admin" | "
     launch: facts.campaigns > 0,
     stats: facts.campaigns > 0,
   };
-  let nextFound = false;
+  let nextFound = facts.episodes_with_video === 0;
   return FLOW_STEPS.map((id) => {
     const d = done[id];
     let state: FlowStepState;

@@ -46,7 +46,7 @@ export default async function TitleOverview({ params, searchParams }: { params: 
   const flowNext = flow.find((s) => s.state === "next" && s.href) ?? [...flow].reverse().find((s) => s.state === "done" && s.href) ?? null;
   if (w.ads.flow && !w.ads.flow.waiting) next = { href: w.ads.flow.href, label: t(locale, w.ads.flow.action), hint: t(locale, w.ads.flow.hint) };
   else if (w.ads.flow) next = { href: w.ads.flow.href, label: t(locale, "workflow.viewLaunch"), hint: t(locale, w.ads.flow.hint) };
-  else if (withVideo === 0 && (!flowNext || flowNext.id === "upload")) next = { href: sectionHref(params.id, "materials"), label: t(locale, "tw.next.uploadVideo"), hint: t(locale, "workflow.needsVideo") };
+  else if (withVideo === 0 && (!flowNext || flowNext.id === "upload" || flowNext.id === "clips")) next = { href: sectionHref(params.id, "materials"), label: t(locale, "tw.next.uploadVideo"), hint: t(locale, "workflow.needsVideo") };
   else if (flowNext?.href) next = { href: flowNext.href, label: t(locale, `flow.step.${flowNext.id}`), hint: t(locale, `flow.what.${flowNext.id}`) };
   else next = { href: `/producer/launch`, label: t(locale, "ws.actions.test"), hint: t(locale, "tw.next.firstCampaignHint") };
 

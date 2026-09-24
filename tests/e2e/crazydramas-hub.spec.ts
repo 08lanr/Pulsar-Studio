@@ -141,6 +141,9 @@ test("Upload opens the series form in place; Publish opens its dialog and shows 
   await expect(progress.locator('[data-step="live"]')).toContainText("Live on CrazyDramas.");
   await expect(progress.getByRole("link", { name: /Open on CrazyDramas/ })).toHaveAttribute("href", new RegExp(`/drama/${film.slug}$`));
   await shot(page, "published");
+  // The open panel closes from its row, whatever the row's next step became under it (review r2).
+  await row(page).getByRole("button", { name: "Close", exact: true }).click();
+  await expect(panel(page)).toHaveCount(0);
 
   await page.goto("/crazydramas");
   await expect(row(page)).toContainText(/Live/);

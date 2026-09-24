@@ -223,7 +223,6 @@ export function titleAction(titleId: string, onCd: HubOnCd, ledger: HubLedger | 
   if (onTheirWay > 0) return { kind: "uploading", title_id: titleId, n: l.verified + l.published, of: withVideo };
   if (l.verified > 0 && sent >= withVideo) return { kind: "publish", title_id: titleId, n: l.verified };
   if (sent < withVideo) return { kind: "upload", title_id: titleId };
-  if (l.verified > 0) return { kind: "publish", title_id: titleId, n: l.verified };
   // Every episode went out and was published, and the series is still a draft ("Also publish the series" left unticked,
   // or its own call failed after the batches): publishing the series is the step left, not another upload.
   if (onCd.code === "draft" && !onCd.cms && l.published > 0 && l.verified === 0 && sent >= withVideo) return { kind: "publish", title_id: titleId, n: 0 };
