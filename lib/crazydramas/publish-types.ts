@@ -39,10 +39,12 @@ export type CdSeriesState = (typeof SERIES_STATES)[number];
 
 /**
  * A failed row whose episode on crazydramas now holds someone else's upload
- * (a CMS takeover, or media Studio did not make): a plain Retry never
- * overwrites it; only a person's Replace, after the viewer warning, does.
+ * (a CMS takeover, media Studio did not make, or an upload still in flight
+ * that is not this file's — `upload_in_progress`, met by a Replace sent while
+ * a CMS upload was running): a plain Retry never overwrites it; only a
+ * person's Replace, after the viewer warning, does.
  */
-export const CD_REPLACE_CODES: readonly string[] = ["replace_required", "taken_over", "taken_over_late"];
+export const CD_REPLACE_CODES: readonly string[] = ["replace_required", "taken_over", "taken_over_late", "upload_in_progress"];
 
 export function needsReplace(errorCode: string | null | undefined): boolean {
   return !!errorCode && CD_REPLACE_CODES.includes(errorCode);

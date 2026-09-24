@@ -238,6 +238,43 @@ test("the last-chunk check: a CMS upload takes the episode over mid-file, so the
   assert.ok(!fake.chunks.some((c) => c.upload_id === ours.id && c.last === total - 1), "the last chunk was never sent");
 });
 
+test("a take-back mid-upload (Jayden sets managed_by back to cms): the last chunk is never sent and nothing is written to the CMS series; taken back after the last chunk, the row is never marked verified", async () => {
+  const s = await queued("take-back", [{ n: 1, bytes: 3 * Q + 11, frames: 120 }]);
+  const posts = () => fake.requests.filter((r) => r.method !== "GET").length;
+  let atTakeBack = -1;
+  fake.onChunk = () => {
+    if (atTakeBack < 0) {
+      atTakeBack = posts();
+      fake.setManagedBy(s.slug, "cms"); // after Studio's first chunk
+    }
+  };
+  const out = await advanceCdPublication(s.rows[0].id, { ...RUN, owner: "w" });
+  fake.onChunk = null;
+  assert.ok(atTakeBack > 0);
+  assert.equal(out.row.step, "failed");
+  assert.equal(out.row.error_code, "series_not_studio");
+  assert.match(out.row.error!, /expires within the hour/);
+  const ours = fake.uploadsFor(s.slug, 1)[0];
+  const total = s.files.get(1)!.byteLength;
+  assert.ok(!fake.chunks.some((c) => c.upload_id === ours.id && c.last === total - 1), "the last chunk was never sent");
+  assert.equal(ours.asset_id, null, "nothing of Studio's reaches the CMS series' episode");
+  assert.equal(posts(), atTakeBack, "no cancel, sync or other write reached the series once it was the CMS's");
+
+  // Taken back just after the last chunk: the webhook puts the asset on the episode (the contract leaves that to the
+  // operator), but Studio never marks the row verified, so nothing of it can be published there.
+  const late = await queued("take-back-late", [{ n: 1, bytes: Q + 5, frames: 120 }]);
+  const lateTotal = late.files.get(1)!.byteLength;
+  fake.onChunk = (c) => {
+    if (c.last === lateTotal - 1) fake.setManagedBy(late.slug, "cms");
+  };
+  const after = await advanceCdPublication(late.rows[0].id, { ...RUN, owner: "w" });
+  fake.onChunk = null;
+  assert.equal(after.row.step, "failed");
+  assert.equal(after.row.error_code, "series_not_studio");
+  assert.match(after.row.error!, /Tell the operator/);
+  assert.equal((await fixtureData.getCdPublications(sys, late.title.id)).filter((r) => r.step === "verified" || r.step === "published").length, 0);
+});
+
 test("a Retry replaces only Studio's own dead upload: after a takeover it fails replace_required instead of overwriting the CMS's upload; after an errored asset it uploads again with replace", async () => {
   const s = await queued("retry-series", [{ n: 1, bytes: 2 * Q + 1, frames: 120 }, { n: 2, bytes: Q + 2, frames: 150 }]);
   let taken = false;
@@ -286,6 +323,16 @@ test("a replace row after a CMS takeover: a Retry inherits no replace and never 
   fake.onChunk = null;
   assert.equal(first.row.error_code, "taken_over");
   const cancelled = first.row.upload_id!;
+  // A person's Replace while the CMS upload is still in flight: crazydramas answers upload_in_progress. Someone else's upload
+  // holds the episode, so the row offers Replace again, and a plain Retry of it never keeps the replace.
+  const inFlight = fake.uploadsFor(s.slug, 1).length;
+  assert.deepEqual((await queueUploads(producer(), s.title.id, { episodes: [1], replace: true }, { schedule: false })).queued, [1]);
+  const busy = await advanceCdPublication(row.id, { ...RUN, owner: "w" });
+  assert.equal(busy.row.step, "failed");
+  assert.equal(busy.row.error_code, "upload_in_progress");
+  assert.equal(busy.row.replace, true);
+  assert.equal(fake.uploadsFor(s.slug, 1).length, inFlight, "no Studio upload while the CMS's is in flight");
+  assert.equal((await getPublishState(producer(), s.title.id)).episodes.find((e) => e.n === 1)!.error_code, "upload_in_progress", "the screen offers Replace for it, not Retry");
   // The CMS upload finishes: its asset is what viewers of episode 1 get now.
   await fake.putUploadChunk(`fake-mux://upload/${cmsUpload}`, new Uint8Array(1000), { first: 0, last: 999, total: 1000 });
   fake.settleAll();
@@ -424,6 +471,50 @@ test("a worker that lost its lease stops: once another worker adopted the row, e
   assert.equal(row.step, "bytes_sent", "nothing was written after the lease was lost");
 });
 
+test("an unexpected failure fails the row only while this worker still holds it: a row another worker adopted, and released since, is left alone", async () => {
+  const s = await queued("lost-then-broke", [{ n: 1, bytes: Q + 6, frames: 120 }]);
+  const id = s.rows[0].id;
+  // w1's upload call is slow: its one-millisecond lease runs out, and w2 adopts the row and lets it go meanwhile.
+  const transport: CrazydramasStudioTransport = {
+    mode: "fake",
+    async request(method, p, body) {
+      if (method === "POST" && /\/episodes\/1\/upload$/.test(p)) {
+        await pause(5);
+        const r = await fixtureData.getCdPublication(sys, id);
+        assert.ok(await fixtureData.claimCdPublication(sys, id, { owner: "w2", revision: r.revision, leaseMs: 60_000 }), "w2 adopts the stale lease");
+        await fixtureData.releaseCdPublication(sys, id, { owner: "w2" });
+      }
+      return fake.request(method, p, body);
+    },
+    putUploadChunk: (url, chunk, range) => fake.putUploadChunk(url, chunk, range),
+    checkImage: (url) => fake.checkImage(url),
+  };
+  const client = new StudioClient({ transport, writeGate: () => ({ enabled: true, reason: null }) });
+  const out = await advanceCdPublication(id, {
+    ...RUN,
+    client,
+    owner: "w1",
+    leaseMs: 1,
+    crash: (p) => {
+      if (p === "after_upload_call") throw new Error("something unexpected broke");
+    },
+  });
+  assert.equal(out.outcome, "skipped", "w1 no longer holds the row: it does not judge it");
+  const row = await fixtureData.getCdPublication(sys, id);
+  assert.equal(row.step, "planned", "not failed by the worker that lost it");
+  assert.equal(row.error_code, null);
+  // The next worker picks it up where it stands; the repeated upload call answers the same upload.
+  const done = await advanceCdPublication(id, { ...RUN, owner: "w3" });
+  assert.equal(done.row.step, "verified");
+  assert.equal(fake.uploadsFor(s.slug, 1).length, 1);
+
+  // While the worker still holds its row, the same failure fails it with the reason instead of spinning.
+  const t = await queued("still-mine-broke", [{ n: 1, bytes: Q + 7, frames: 120 }]);
+  const failed = await advanceCdPublication(t.rows[0].id, { ...RUN, owner: "w4", crash: (p) => { if (p === "after_upload_call") throw new Error("something unexpected broke"); } });
+  assert.equal(failed.row.step, "failed");
+  assert.equal(failed.row.error_code, "internal");
+});
+
 test("a takeover after the last chunk: the bytes are in Mux, Studio neither syncs nor publishes and says so", async () => {
   const s = await queued("late-takeover", [{ n: 1, bytes: Q + 5, frames: 120 }]);
   fake.readyAfterReads = 5;
@@ -536,6 +627,44 @@ test("at most two uploads send at once on the machine: with two other workers' l
   const summary = await runTitleUploads(c.title.id, { ...RUN, maxPasses: 3 });
   assert.deepEqual(summary.waiting, [1]);
   assert.equal(fake.requests.slice(before).filter((r) => r.path.includes("/episodes/")).length, 0, "no upload started while two others send");
+});
+
+test("a row another live worker holds (a second Studio server on the shared database, or this server's previous process within its lease): the runner sleeps between looks instead of spinning, and starts no other episode of the title meanwhile", async () => {
+  const s = await queued("held-elsewhere", [{ n: 1, bytes: Q + 1, frames: 120 }, { n: 2, bytes: Q + 2, frames: 150 }]);
+  const one = s.rows.find((r) => r.episode_number === 1)!;
+  assert.ok(await fixtureData.claimCdPublication(sys, one.id, { owner: "other-host:4242:cd:abcdef", revision: one.revision }), "another server holds episode 1");
+  let clock = Date.now();
+  let sleeps = 0;
+  let reads = 0;
+  const list = fixtureData.getCdPublications.bind(fixtureData);
+  const before = fake.requests.length;
+  fixtureData.getCdPublications = async (...args: Parameters<typeof list>) => {
+    reads += 1;
+    return list(...args);
+  };
+  let summary: Awaited<ReturnType<typeof runTitleUploads>>;
+  try {
+    summary = await runTitleUploads(s.title.id, {
+      ...RUN,
+      pollMs: 7_000,
+      now: () => clock,
+      sleep: async (ms) => {
+        assert.ok(ms > 0, "a pass that moves nothing never waits zero");
+        sleeps += 1;
+        clock += ms;
+      },
+      maxPasses: 200,
+      maxRunMs: 60_000,
+    });
+  } finally {
+    fixtureData.getCdPublications = list;
+  }
+  assert.ok(summary.passes < 200, `the runner ended at its run time, not after ${summary.passes} passes`);
+  assert.ok(sleeps >= summary.passes, `it slept between looks: ${sleeps} sleeps in ${summary.passes} passes`);
+  assert.ok(reads <= summary.passes + 2, `one ledger read per look (${reads} for ${summary.passes} passes)`);
+  assert.deepEqual(summary.waiting, [1, 2]);
+  assert.equal(fake.requests.slice(before).filter((r) => r.path.includes("/episodes/")).length, 0, "no upload call: episode 1 is the other server's, and episode 2 waits for it (one upload per title)");
+  assert.equal((await fixtureData.getCdPublication(sys, one.id)).lease_owner, "other-host:4242:cd:abcdef", "the other server's row is untouched");
 });
 
 test("at most two uploads send at once on the machine when several titles start together (a restart's resume): the slot is reserved before any wait, and this process's own runners are counted once", async () => {

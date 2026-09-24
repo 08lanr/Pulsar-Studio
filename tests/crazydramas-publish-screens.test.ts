@@ -111,7 +111,7 @@ test("only a file Studio has and nothing on crazydramas can be uploaded; the upl
 });
 
 test("a failed row whose episode someone else's upload now holds offers Replace (with its warning), never a plain Retry, and Retry failed leaves it out", () => {
-  for (const code of ["replace_required", "taken_over", "taken_over_late"]) assert.equal(failedAction(ep({ ledger_step: "failed", error_code: code, cd_status: "ready" })), "replace", code);
+  for (const code of ["replace_required", "taken_over", "taken_over_late", "upload_in_progress"]) assert.equal(failedAction(ep({ ledger_step: "failed", error_code: code, cd_status: "ready" })), "replace", code);
   for (const code of ["asset_errored", "verify_failed", "cancelled", null]) assert.equal(failedAction(ep({ ledger_step: "failed", error_code: code })), "retry", String(code));
   assert.equal(failedAction(ep({ ledger_step: "failed", error_code: "replace_required", studio_frames: null })), null, "no file, nothing to send");
   assert.equal(failedAction(ep({ ledger_step: "verified" })), null);

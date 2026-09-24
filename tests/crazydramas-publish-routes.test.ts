@@ -315,6 +315,56 @@ test("two companies' titles on one slug: the series is the title's whose link ho
   }
 });
 
+test("a title re-pointed in Studio (film-meta's slug edited while a link exists): the section and every write follow the slug the title names now, its draft series is made there and the link moves; a title whose uploads went to the old series writes nothing", async () => {
+  // Linked to a series it never uploaded to; re-pointed, the section reads the new slug and the series is created there.
+  const t = await seriesTitle("first-slug", { name: "Repointed Film" });
+  const first = await saveSeries(producer(), t.id, { title: "Repointed Film" });
+  await fixtureData.setTitleImport(staff(), t.id, { crazydramas_slug: "second-slug" });
+  const state = await getPublishState(producer(), t.id);
+  assert.equal(state.form_defaults.slug, "second-slug", "the slug the title names, as the phase 3a section reads it");
+  assert.equal(state.series_state, "not_uploaded", "the new slug has no series yet; the old one is not shown");
+  assert.equal(state.series, null);
+  PublishStateSchema.parse(state);
+  await refusal(queueUploads(producer(), t.id, { episodes: "all" }, { schedule: false }), 409, "series_missing");
+  const made = await saveSeries(producer(), t.id, { title: "Another Film" });
+  assert.equal(made.created, true, "created, not an update of the old series");
+  assert.equal(made.series.slug, "second-slug");
+  assert.notEqual(made.series.id, first.series.id);
+  assert.equal(fake.seriesState("first-slug")!.drama.title, "Repointed Film", "the old series is untouched");
+  const moved = await fixtureData.getPlatformLink(sys, t.id, PLATFORM);
+  assert.equal(moved?.cd_drama_id, made.series.id, "the link moved to the series the title names");
+  assert.equal(moved?.slug, "second-slug");
+  assert.equal((await getPublishState(producer(), t.id)).series_state, "draft");
+  assert.deepEqual((await queueUploads(producer(), t.id, { episodes: [1] }, { schedule: false })).queued, [1]);
+  assert.deepEqual((await fixtureData.getCdPublications(sys, t.id)).map((r) => r.cd_drama_id), [made.series.id], "the upload goes to the new series");
+
+  // A title whose uploads went to its first series, re-pointed at a Studio series no title is linked to: the ledger is one
+  // series per title, so every write is refused before anything is sent, and the section shows none of the old rows.
+  const u = await seriesTitle("uploaded-slug", { name: "Uploaded Film", episodes: [{ n: 1, bytes: Q + 11, frames: 120 }] });
+  await saveSeries(producer(), u.id, { title: "Uploaded Film" });
+  await queueUploads(producer(), u.id, { episodes: "all" }, { schedule: false });
+  assert.deepEqual((await runTitleUploads(u.id, RUN)).verified, [1]);
+  assert.equal((await fake.request("PUT", "/api/studio/series/orphan-slug", { title: "Orphan Film" })).status, 201);
+  await fixtureData.setTitleImport(staff(), u.id, { crazydramas_slug: "orphan-slug" });
+  const shown = await getPublishState(producer(), u.id);
+  assert.equal(shown.form_defaults.slug, "orphan-slug");
+  assert.equal(shown.series?.slug, "orphan-slug");
+  assert.equal(shown.episodes.find((e) => e.n === 1)?.ledger_step, null, "the old series' rows say nothing of this one");
+  const before = writes().length;
+  for (const attempt of [
+    () => saveSeries(producer(), u.id, { title: "Orphan Film" }),
+    () => queueUploads(producer(), u.id, { episodes: "all", replace: true }, { schedule: false }),
+    () => publishEpisodes(producer(), u.id, { episodes: [1], publish_series: true }),
+    () => unpublishEpisodes(producer(), u.id, { unpublish_series: true }),
+  ]) {
+    const body = await refusal(attempt(), 409, "repointed");
+    assert.match(String(body.error), /Set the slug back/);
+  }
+  assert.equal(writes().length, before, "nothing reached crazydramas");
+  assert.equal(fake.uploadsFor("orphan-slug", 1).length, 0);
+  assert.equal((await fixtureData.getPlatformLink(sys, u.id, PLATFORM))?.slug, "uploaded-slug", "the link stays with the series the uploads went to");
+});
+
 test("writes disabled in fixture mode without the fake (CRAZYDRAMAS_LIVE_READ=1): every write refused with the setting's name, nothing sent anywhere", async () => {
   const t = await seriesTitle("disabled-series");
   process.env.CRAZYDRAMAS_LIVE_READ = "1";
