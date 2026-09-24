@@ -30,6 +30,9 @@ test("built-in Sales preset and saved Instant Page design reach the launch previ
     await page.context().addCookies([{ name: "pulsar_studio_locale", value: "en", url: base }]);
     await page.goto("/producer/launch");
     await page.getByLabel("Preset").selectOption({ label: "(default) · 1 Geo Sales · $0.20 cost cap" });
+    // Website purchases is the default, so the Sales preset is a real edit: its first save moves the page to the
+    // saved draft's own address, a new Launch instance. Edit only once that page holds the run.
+    await page.waitForURL(/\/producer\/launch\/[0-9a-f-]{36}$/, { timeout: 30_000 });
     const pageTemplate = page.getByLabel("Instant Page template");
     await expect(pageTemplate).toBeVisible();
     await expect(pageTemplate.locator("option").filter({ hasText: name })).toHaveCount(0);

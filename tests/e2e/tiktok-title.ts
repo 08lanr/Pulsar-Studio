@@ -7,8 +7,18 @@ import { expect, type Page } from "@playwright/test";
 export const WAR_GOD_TITLE = "The War God Returns";
 export const WAR_GOD_LINK = "https://crazydramas.com/watch/fixture-film-processing?source=tiktok&campaign=__CAMPAIGN_ID__&adgroup=__AID__&creative=__CID__";
 
-/** Choose the title a TikTok launch promotes; the screen then prints the exact link TikTok receives. */
+/**
+ * Choose the title a TikTok launch promotes; the screen then prints the exact link TikTok receives, or, for an
+ * Instant Page ad (which carries the page), the link its button opens: the same link plus the campaign's campid.
+ */
 export async function chooseTikTokTitle(page: Page, title = WAR_GOD_TITLE, link = WAR_GOD_LINK) {
   await page.getByLabel("Title on crazydramas").selectOption({ label: title });
-  await expect(page.getByTestId("tiktok-ad-url")).toHaveText(link);
+  const adUrl = page.getByTestId("tiktok-ad-url");
+  const buttonUrl = page.getByTestId("tiktok-button-url");
+  await expect(adUrl.or(buttonUrl)).toBeVisible();
+  if (await buttonUrl.count()) {
+    const literal = link.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    await expect(buttonUrl).toHaveText(new RegExp(`^${literal}&campid=([a-z0-9_-]+|…)$`));
+    await expect(adUrl).toHaveCount(0);
+  } else await expect(adUrl).toHaveText(link);
 }

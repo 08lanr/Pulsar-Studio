@@ -15,7 +15,7 @@ import ContentPicker from "@/components/launch/ContentPicker";
 import AdCard, { type AdCardProps } from "@/components/launch/AdCard";
 import { launchShape, summarizeLaunchSettings } from "@/lib/tiktok/settings";
 import { metaDestination, startingDraft } from "@/lib/launch/draft-defaults";
-import { campidSeries, defaultLaunchDraft, deriveAdSets, metaDraftIssues, trackingUrlForCampaign } from "@/lib/launch/plan";
+import { campidForRun, campidSeries, defaultLaunchDraft, deriveAdSets, metaDraftIssues, trackingUrlForCampaign } from "@/lib/launch/plan";
 import { feeLineVars } from "@/lib/promote/fee";
 import type { MetaPagePost, MetaPagePostList } from "@/lib/launch/clip-posts";
 import type { LaunchContent, LaunchDraft, LaunchPlan, LaunchProvider, LaunchRun, LaunchWorkspace, MetaPlatform } from "@/lib/launch/types";
@@ -29,6 +29,14 @@ function rememberedDraft(scope: string): string | null {
 function rememberDraft(scope: string, id: string | null): void {
   try { if (id) window.localStorage.setItem(draftKey(scope), id); else window.localStorage.removeItem(draftKey(scope)); } catch { /* private window or blocked storage */ }
 }
+
+// The save a Launch page makes as it is left (unmount, pagehide). A draft's
+// first save moves the bare Launch page to /launch/<id>, a new instance, and
+// the old one flushes the edits made meanwhile as it unmounts: the new one
+// waits for that write before it reads the run, so its read never answers
+// with the revision before it (the edits lost, every later save a conflict).
+// Module scope, because the two instances share nothing else.
+let pendingFlush: Promise<void> | null = null;
 
 /** The link an ad will carry once the tag is on it; shown under the campid field. The same rule the plan signs. */
 function campidLink(draft: LaunchDraft, campid: string): string {
@@ -94,6 +102,11 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
   const inFlight = useRef<Promise<void> | null>(null);
   const skipResume = useRef(false);
   const autosaveRef = useRef<(keepalive?: boolean) => Promise<void>>(async () => {});
+  // The run as last written, for a save that waited on another: its render's
+  // `run` may predate that write (and after an unmount no render follows).
+  const latestRun = useRef<LaunchRun | null>(null);
+  // A render that has not caught up with a write yet never takes it back.
+  if (!run || !latestRun.current || run.id !== latestRun.current.id || run.revision >= latestRun.current.revision) latestRun.current = run;
   const [saveState, setSaveState] = useState<{ kind: "idle" | "saving" | "saved" | "unsaved" | "failed"; at?: string }>({ kind: "idle" });
 
   const workspaceUrl = `${base}/workspace${staff && producerId ? `?producer_id=${encodeURIComponent(producerId)}` : ""}`;
@@ -121,7 +134,8 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
     if (!runId) { setRun(null); setPlan(null); setLoadedRunId(null); setRunLoadFailed(false); return; }
     let active = true;
     setRun(null); setPlan(null); setLoadedRunId(null); setRunLoadFailed(false); setError("");
-    void call<{ run: LaunchRun }>(`${base}/${encodeURIComponent(runId)}`)
+    void (pendingFlush ?? Promise.resolve())
+      .then(() => call<{ run: LaunchRun }>(`${base}/${encodeURIComponent(runId)}`))
       .then((r) => {
         if (!active) return;
         setRun(r.run);
@@ -203,9 +217,21 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
     try {
       // Never race a quiet autosave: it may be carrying a newer revision.
       if (inFlight.current) await inFlight.current;
-      const result = run
-        ? await call<{ run: LaunchRun }>(`${base}/${run.id}`, "PUT", { draft, revision: run.revision })
-        : await call<{ run: LaunchRun }>(base, "POST", { draft, ...(staff && producerId ? { producer_id: producerId } : {}) });
+      const current = latestRun.current;
+      const snapshot = JSON.stringify(draft);
+      const write = (async () => {
+        const written = current
+          ? await call<{ run: LaunchRun }>(`${base}/${current.id}`, "PUT", { draft, revision: current.revision })
+          : await call<{ run: LaunchRun }>(base, "POST", { draft, ...(staff && producerId ? { producer_id: producerId } : {}) });
+        lastSaved.current = snapshot; latestRun.current = written.run;
+        return written;
+      })();
+      // An autosave timer that fires meanwhile waits for this write, then finds
+      // nothing new to send, instead of sending the same draft on the revision
+      // this write is replacing (a conflict, and a preview on a stale revision).
+      const held = write.then(() => undefined, () => undefined);
+      inFlight.current = held;
+      const result = await write.finally(() => { if (inFlight.current === held) inFlight.current = null; });
       setRun(result.run);
       if (preview) {
         const p = await call<{ plan: LaunchPlan }>(`${base}/${result.run.id}/preview`, "POST");
@@ -275,6 +301,12 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
   // Every reason this draft cannot be previewed, collected into one list.
   const issues = useMemo(() => draft.provider === "meta" ? metaDraftIssues(draft, connections) : [], [draft, connections]);
   const campidPreview = draft.campid_start?.trim() ? campidSeries(draft.campid_start, Math.min(Math.max(campaigns, 1), 3)) : [];
+  // Traffic and Website purchases ads carry the title's link itself. An Instant
+  // Page ad carries the page, and its button opens that link plus the
+  // campaign's campid: the typed one, else the one the plan derives from the
+  // saved run, else a placeholder until the draft is saved.
+  const firstCampid = campidPreview[0] ?? (() => { try { return run ? campidForRun(run.external_id, 1, draft.name) : null; } catch { return null; } })();
+  const buttonLink = !draft.destination_url ? "" : firstCampid ? campidLink(draft, firstCampid) : `${draft.destination_url}&campid=…`;
   const posted = !!run && run.status !== "draft";
 
   // ---- autosave, resume and reset ------------------------------------------
@@ -288,27 +320,30 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
     if (!editableDraft || busy || confirmOpen || baseline.current === null) return;
     // Leaving the page may update the draft it was on; it never creates one.
     // A first write only ever comes from the timer, after a real edit.
-    if (keepalive && !run) return;
+    if (keepalive && !latestRun.current) return;
     if (inFlight.current) await inFlight.current;
     const snapshot = JSON.stringify(draft);
     if (snapshot === lastSaved.current || snapshot === baseline.current) return;
+    // The write this one waited on may have made the run or moved its revision.
+    const current = latestRun.current;
     setSaveState({ kind: "saving" });
     const work = (async () => {
       try {
-        const url = run ? `${base}/${run.id}` : base;
-        const body = run ? { draft, revision: run.revision } : { draft, ...(staff && producerId ? { producer_id: producerId } : {}) };
-        const response = await fetch(url, { method: run ? "PUT" : "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), keepalive });
+        const url = current ? `${base}/${current.id}` : base;
+        const body = current ? { draft, revision: current.revision } : { draft, ...(staff && producerId ? { producer_id: producerId } : {}) };
+        const response = await fetch(url, { method: current ? "PUT" : "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), keepalive });
         const json = await response.json().catch(() => ({})) as { run?: LaunchRun; error?: string };
         if (!response.ok || !json.run) throw new Error(json.error || `HTTP ${response.status}`);
         lastSaved.current = snapshot;
+        latestRun.current = json.run;
         setRun(json.run);
         setSaveState({ kind: "saved", at: json.run.updated_at });
         rememberDraft(staff ? producerId : "me", json.run.id);
-        if (!run) router.replace(`${pageBase}/${json.run.id}`);
+        if (!current) router.replace(`${pageBase}/${json.run.id}`);
       } catch (e) { setSaveState({ kind: "failed" }); setError(errorText(e)); }
     })();
-    inFlight.current = work; await work; inFlight.current = null;
-  }, [editableDraft, busy, confirmOpen, draft, run, base, staff, producerId, router, pageBase]);
+    inFlight.current = work; await work; if (inFlight.current === work) inFlight.current = null;
+  }, [editableDraft, busy, confirmOpen, draft, base, staff, producerId, router, pageBase]);
   autosaveRef.current = autosave;
   useEffect(() => {
     // The first draft this page ever renders is its baseline, taken before the
@@ -323,7 +358,15 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
   useEffect(() => {
     // Leaving the page, by tab close or by an in-app link: flush what the timer
     // has not written yet. keepalive lets the request outlive the page.
-    const flush = () => { void autosaveRef.current(true); };
+    const flush = () => {
+      const write = autosaveRef.current(true).catch(() => { /* autosave reports its own failure */ });
+      // Chained, never replaced: Strict Mode's remount flushes too (nothing to
+      // write), and that must not hide the old instance's write still in flight.
+      const prior = pendingFlush;
+      const all = prior ? Promise.all([prior, write]).then(() => undefined) : write;
+      pendingFlush = all;
+      void all.finally(() => { if (pendingFlush === all) pendingFlush = null; });
+    };
     const hidden = () => { if (document.visibilityState === "hidden") flush(); };
     window.addEventListener("pagehide", flush); document.addEventListener("visibilitychange", hidden);
     return () => { window.removeEventListener("pagehide", flush); document.removeEventListener("visibilitychange", hidden); flush(); };
@@ -425,8 +468,11 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
       {draft.provider === "tiktok" && <div className="launch-ad-link">
         {chosenTitle && chosenTitle.slug && <p className="hint" data-title-state={chosenTitle.state ?? ""}>{tt("lpx.titleState", { slug: chosenTitle.slug, state: titleStateWord(chosenTitle.state) })}</p>}
         {!titles.length && workspace && <p className="hint">{tt("lpx.noTitles")}</p>}
-        <p className="hint">{tt("lpx.linkLabel")}</p>
-        <code className="launch-ad-url" data-testid="tiktok-ad-url">{draft.destination_url || "—"}</code>
+        {shape === "instant_page"
+          ? <><p className="hint">{tt("lpx.buttonLinkLabel")}</p>
+            <code className="launch-ad-url" data-testid="tiktok-button-url">{buttonLink || "—"}</code></>
+          : <><p className="hint">{tt("lpx.linkLabel")}</p>
+            <code className="launch-ad-url" data-testid="tiktok-ad-url">{draft.destination_url || "—"}</code></>}
         <p className="hint">{tt("lpx.macroNote")}</p>
       </div>}<div className="tk-field tk-row"><label htmlFor="lv2-total">{tt("lv2.budget")}</label><input id="lv2-total" className="input tk-num" type="number" min={1} step="0.01" value={draft.total_budget_cents / 100} onChange={(e) => update("total_budget_cents", Math.round((Number(e.target.value) || 0) * 100))} /><label htmlFor="lv2-daily">{tt("lv2.dailyTotal")} {tt("lr2.dailyOptional")}</label><input id="lv2-daily" className="input tk-num" type="number" min={0} step="0.01" value={draft.daily_budget_cents == null ? "" : draft.daily_budget_cents / 100} onChange={(e) => { const cents = Math.round(Number(e.target.value) * 100); update("daily_budget_cents", e.target.value === "" || !(cents > 0) ? null : cents); }} /></div><p className="hint">{(campaigns === 1 ? tt("lr2.budgetMathOne", { campaigns, share: campaigns ? money(Math.floor(draft.total_budget_cents / campaigns)) : "—" }) : tt("lv2.budgetMath", { campaigns, share: campaigns ? money(Math.floor(draft.total_budget_cents / campaigns)) : "—" }))}</p><p className="hint">{tt("lr2.dailyHint")}</p>
       {/* overlord's mass launch: one campid per campaign, counted up from the
@@ -434,7 +480,7 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
       <div className="tk-field tk-row"><label htmlFor="lv2-campid">{tt("lr2.campidStart")}</label><input id="lv2-campid" className="input" value={draft.campid_start ?? ""} placeholder="rlapple01" onChange={(e) => update("campid_start", e.target.value)} /></div>
       <p className="hint" role="status">{campidPreview.length
         ? <>{tt(campaigns > 1 ? "lr2.campidNaming" : "lr2.campidNamingOne", { names: `${campidPreview.join(", ")}${campaigns > campidPreview.length ? ", …" : ""}` })}<br />{draft.provider === "tiktok"
-          ? shape === "instant_page" ? tt("lpx.campidInstantPage", { names: campidPreview[0], url: campidLink(draft, campidPreview[0]) }) : tt("lpx.campidTikTok", { names: campidPreview[0] })
+          ? shape === "instant_page" ? tt("lpx.campidInstantPage", { names: campidPreview[0] }) : tt("lpx.campidTikTok", { names: campidPreview[0] })
           : tt("lr2.campidLink", { url: campidLink(draft, campidPreview[0]) })}</>
         : tt("lr2.campidEmpty")}</p>
       <label className="tk-check"><input type="checkbox" checked={draft.start_paused} onChange={(e) => update("start_paused", e.target.checked)} /> {tt("lv2.startPaused")}</label></section>

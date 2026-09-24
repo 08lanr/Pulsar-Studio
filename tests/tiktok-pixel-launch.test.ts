@@ -17,7 +17,7 @@ import { buildLaunchPlan, defaultLaunchDraft, trackingUrlForCampaign } from "@/l
 import type { DriverContext, LaunchCampaign, LaunchConnection, LaunchDraft, LaunchRun, LaunchWorkspace } from "@/lib/launch/types";
 import { crazydramasAdUrl, crazydramasSlugProblem, isCrazydramasAdUrl, slugOfCrazydramasAdUrl, TIKTOK_AD_QUERY } from "@/lib/tiktok/ad-url";
 import { FAKE_PIXEL_ID, fakeTikTokSnapshot, fakeTransport, resetFakeTikTok } from "@/lib/tiktok/fake";
-import { CRAZYDRAMAS_PIXEL_CODE, pixelFromList, resolvePixel, tiktokPixelCode } from "@/lib/tiktok/pixel";
+import { CRAZYDRAMAS_PIXEL_CODE, isPermissionRefusal, pixelFromList, resolvePixel, tiktokPixelCode } from "@/lib/tiktok/pixel";
 import { probePixel } from "@/lib/tiktok/preflight";
 import { adGroupBody, defaultLaunchSettings, defaultSalesLaunchSettings, defaultTikTokLaunchSettings, defaultWebsitePurchaseSettings, launchShape, LaunchSettingsError, planAdGroup, validateLaunchSettings, type LaunchSettings } from "@/lib/tiktok/settings";
 import { tiktokSparkDriver } from "@/lib/tiktok/spark-driver";
@@ -174,10 +174,28 @@ test("pixel resolution: shared resolves to its id; not listed and UNBOUND both s
   const unbound = await resolvePixel(fakeTransport, "fake-token", "7000000000000000001", code);
   assert.equal(!unbound.ok && unbound.reason, "not_linked");
   assert.match(!unbound.ok ? unbound.message : "", /isn't shared with ad account .* in Business Center \(it was unbound\)/);
+  // TikTok's 40001 (seen live 2026-09-23): the Studio app lacks the pixel permission. The refusal says what to do,
+  // in order, that reconnecting alone changes nothing, and that Traffic needs no pixel meanwhile.
   process.env.TIKTOK_FAKE_PIXEL = "unreadable";
-  const unreadable = await resolvePixel(fakeTransport, "fake-token", "7000000000000000001", code);
-  assert.equal(!unreadable.ok && unreadable.reason, "unreadable");
-  assert.match(!unreadable.ok ? unreadable.message : "", /pixel permission/);
+  const refused = await resolvePixel(fakeTransport, "fake-token", "7000000000000000001", code);
+  assert.equal(!refused.ok && refused.reason, "no_permission");
+  const words = !refused.ok ? refused.message : "";
+  assert.match(words, /doesn't have the pixel permission/);
+  assert.match(words, /1\. In the TikTok for Business developer portal, open the Studio app and add the Pixel permission/);
+  assert.match(words, /2\. In Studio, open the TikTok page \(\/tiktok\), press Connect a Business Center/);
+  assert.match(words, /Reconnecting before step 1 changes nothing/);
+  assert.match(words, /launch with Traffic, which needs no pixel: in Ad group settings, press Customize for this launch and choose Traffic · website/);
+  // Any other failed read is not a permission: it says to try again, never to change the app.
+  delete process.env.TIKTOK_FAKE_PIXEL;
+  fakeTransport.get = async () => ({ code: 50002, message: "Internal error" });
+  const failed = await resolvePixel(fakeTransport, "fake-token", "7000000000000000001", code);
+  assert.equal(!failed.ok && failed.reason, "unreadable");
+  assert.match(!failed.ok ? failed.message : "", /could not read the pixels .* \(Internal error\)\. Preview again in a minute/);
+  assert.doesNotMatch(!failed.ok ? failed.message : "", /developer portal/);
+  assert.equal(isPermissionRefusal(40001, ""), true);
+  assert.equal(isPermissionRefusal(40002, "advertiser does not grant you /pixel/list/:GET permission"), true);
+  assert.equal(isPermissionRefusal(-1, "Could not reach TikTok. Check the connection and try again."), false);
+  fakeTransport.get = originalGet;
   const bad = await resolvePixel(fakeTransport, "fake-token", "7000000000000000001", "not a code");
   assert.equal(!bad.ok && bad.reason, "bad_code");
   // The preflight probe is the same read through the chosen transport (the fake in fixture mode).
@@ -404,6 +422,30 @@ test("preview refuses a TikTok draft with no title, a title that is not live, an
   delete process.env.TIKTOK_PIXEL_CODE;
   const stranger = await getData().saveLaunchDraft(producer(), await websiteDraft(foreign.id, accounts));
   await assert.rejects(getData().previewLaunchRun(producer(), stranger.id), (e: unknown) => (e as { code?: string }).code === "not_found");
+});
+
+test("without the pixel permission a Website purchases preview says what to do, and Traffic previews, approves and launches untouched", async () => {
+  const accounts = await tiktokAccounts(1);
+  const live = await launchTitle();
+  process.env.TIKTOK_FAKE_PIXEL = "unreadable"; // TikTok's 40001 on /pixel/list/, as the live app answers today
+  const website = await getData().saveLaunchDraft(producer(), await websiteDraft(live.id, accounts));
+  await assert.rejects(getData().previewLaunchRun(producer(), website.id), /doesn't have the pixel permission[\s\S]*launch with Traffic, which needs no pixel/);
+  const trafficDraft: LaunchDraft = { ...(await websiteDraft(live.id, accounts)), tiktok_settings: { ...defaultLaunchSettings(), budget_mode: "BUDGET_MODE_DAY", daily_budget_usd: 30 } };
+  const traffic = await getData().saveLaunchDraft(producer(), trafficDraft);
+  assert.equal(launchShape(traffic.draft.tiktok_settings), "traffic");
+  assert.equal(traffic.draft.tiktok_settings.pixel_code, undefined, "a Traffic draft signs no pixel");
+  const preview = await getData().previewLaunchRun(producer(), traffic.id);
+  assert.equal(preview.tiktok_pixel, undefined);
+  assert.ok(preview.rows.every((row) => row.tracking_url === LIVE_AD_URL));
+  const approved = await getData().submitLaunchRun(producer(), traffic.id, traffic.revision);
+  assert.ok(approved.campaigns.every((c) => c.tracking_url === LIVE_AD_URL));
+  // The driver never asks for the pixel on a Traffic launch: the permission refusal cannot reach it.
+  const reads: string[] = [];
+  fakeTransport.get = async (path, token, query) => { reads.push(path); return originalGet.call(fakeTransport, path, token, query); };
+  await tiktokSparkDriver.launch(context({ ...defaultLaunchSettings(), start_paused: true, budget_mode: "BUDGET_MODE_DAY", daily_budget_usd: 30 }));
+  assert.ok(!reads.includes("/pixel/list/"));
+  assert.equal(fakeTikTokSnapshot().ads[0].body.landing_page_url, LIVE_AD_URL);
+  assert.equal(fakeTikTokSnapshot().adgroups[0].body.pixel_id, undefined);
 });
 
 test("the default account: the operator's when the company reaches it, else the preferred, else the only one", async () => {
