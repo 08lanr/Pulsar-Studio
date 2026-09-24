@@ -32,8 +32,14 @@ function linkWord(url: string): string {
   try { return new URL(url).host; } catch { return url; }
 }
 
-export default function LaunchConfirmDialog({ name, plan, destination, destinationNote, optimizes, startPaused, provider, mode, accountNames, cards, pageDesign, staff, note, onNoteChange, error, onClose, onConfirm }: {
+export default function LaunchConfirmDialog({ name, plan, destination, destinationNote, optimizes, startPaused, provider, mode, accountNames, cards, pageDesign, adLine, staff, note, onNoteChange, error, onClose, onConfirm }: {
   name: string; plan: LaunchPlan; destination: string; startPaused: boolean;
+  /**
+   * TikTok: what each ad promotes and the exact link it carries (a launch may
+   * promote several titles, each ad its own). Null link: the ad carries an
+   * Instant Page.
+   */
+  adLine?: (item: LaunchContent, campaignUrl?: string) => { title: string; link: string | null } | null;
   /** One line under the destination: for TikTok, what its literal macros become. */
   destinationNote?: string;
   /** TikTok Website purchases: the pixel event, pixel and attribution the ad groups are created with. */
@@ -86,6 +92,11 @@ export default function LaunchConfirmDialog({ name, plan, destination, destinati
     ? tt(one ? "lr3.startsPausedOne" : "lr3.startsPausedMany")
     : tt(one ? "lr3.startsLiveOne" : "lr3.startsLiveMany", { provider: providerWord });
 
+  // One link for every ad reads as one destination; several titles in one
+  // launch are named under each ad instead.
+  const adLinks = new Set(adLine ? plan.rows.flatMap(row => row.content.map(item => adLine(item, row.tracking_url)?.link ?? destination)) : []);
+  const perAd = adLinks.size > 1;
+
   const budgetUsd = plan.total_budget_cents / 100;
   const billed = usd(billedTotalUsd(budgetUsd));
   // The button says what pressing it commits to; its accessible name stays the
@@ -106,7 +117,9 @@ export default function LaunchConfirmDialog({ name, plan, destination, destinati
           <div><dt>{tt("lv2.accounts")}</dt><dd>{accounts.join(" · ")}</dd></div>
           <div><dt>{tt("lr3.factCampaigns")}</dt><dd>{plan.campaign_count}</dd></div>
           {/* The exact string the provider receives (TikTok's macros literal), and one line on what they become. */}
-          <div className="launch-confirm-fact-wide"><dt>{tt("lv2.destination")}</dt><dd><span className={`launch-confirm-url${destinationNote ? " launch-confirm-url-full" : ""}`} title={destination} data-testid="confirm-destination">{destination}</span>{destinationNote && <small className="launch-confirm-url-note">{destinationNote}</small>}</dd></div>
+          <div className="launch-confirm-fact-wide"><dt>{tt("lv2.destination")}</dt><dd>{perAd
+            ? <span data-testid="confirm-destination-per-ad">{tt("lpt.destinationPerAd", { n: adLinks.size })}</span>
+            : <span className={`launch-confirm-url${destinationNote ? " launch-confirm-url-full" : ""}`} title={destination} data-testid="confirm-destination">{destination}</span>}{destinationNote && <small className="launch-confirm-url-note">{destinationNote}</small>}</dd></div>
           {optimizes && <div className="launch-confirm-fact-wide"><dt>{tt("lpx.factOptimizes")}</dt><dd data-testid="confirm-optimizes">{optimizes}</dd></div>}
           {pageDesign && <div className="launch-confirm-fact-wide"><dt>{tt("lr3.factLandingPage")}</dt><dd title={pageDesign.name}>{tt("salesLaunch.sales")} · {pageDesign.button_text} · {tt(`tipTemplates.background.${pageDesign.background}`)}{pageDesign.hand_cursor ? ` · ${tt("tipTemplates.handCursor")}` : ""}</dd></div>}
         </dl>
@@ -130,9 +143,12 @@ export default function LaunchConfirmDialog({ name, plan, destination, destinati
                 thumbnail_url: null, media_url: null, id: item.value,
               };
               const pictured = Boolean(card.thumbnail_url || card.media_url);
-              return <AdCard key={`${platform ?? ""}:${item.kind}:${item.value}:${index}`} {...card} compact
-                line={!pictured} fallbackName={pictured ? undefined : tt("lr3.adNumber", { n: index + 1 })}
-                {...(platform ? { platform, platforms: undefined } : {})} />;
+              const line = adLine?.(item, row.tracking_url);
+              return <div className="launch-confirm-ad" key={`${platform ?? ""}:${item.kind}:${item.value}:${index}`}>
+                <AdCard {...card} compact line={!pictured} fallbackName={pictured ? undefined : tt("lr3.adNumber", { n: index + 1 })}
+                  {...(platform ? { platform, platforms: undefined } : {})} />
+                {line && <p className="launch-confirm-adlink" data-testid="confirm-ad-title"><strong>{line.title}</strong>{line.link && perAd ? <span className="launch-confirm-url launch-confirm-url-full" title={line.link}>{line.link}</span> : null}</p>}
+              </div>;
             })}</div>
             {row.campid && <p className="launch-confirm-ref"><small>{tt("mr2.campid")} {row.campid}{row.tracking_url ? <> · <a href={row.tracking_url} target="_blank" rel="noreferrer" title={row.tracking_url}>{linkWord(row.tracking_url)}</a></> : null}</small></p>}
           </article>;

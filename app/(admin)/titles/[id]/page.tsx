@@ -130,6 +130,8 @@ export default async function TitlePage({ params }: { params: { id: string } }) 
             {/* The staff mirror of the CrazyDramas section (plan A4.4): where staff read the series' state and may press Check now. */}
             <a className="btn" href={`/titles/${detail.title.id}/crazydramas`}>{t(locale, "cd.admin.open")}</a>
             <a className="btn" href={`/titles/${detail.title.id}/clips`}>{t(locale, "clips.staff.open")}</a>
+            {/* What this title's launches spent and brought (by title, 2026-09-24). */}
+            <a className="btn" href={`/promote/monitor/titles/${detail.title.id}`}>{t(locale, "mad.openResults")}</a>
             <ExportMenu titleId={detail.title.id} episodes={detail.episodes} />
           </div>
         </div>

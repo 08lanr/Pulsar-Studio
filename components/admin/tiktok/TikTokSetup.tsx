@@ -7,9 +7,11 @@
 // fingerprint, the authorizations held (never the tokens), the producers'
 // account requests, Pulsar's launch presets and the scheduler. Linking a
 // BC to a company is the primary action on every BC row; assigning one ad
-// account stays as an explicit override.
+// account stays as an explicit override. The link / change / override form
+// opens directly under the row it belongs to (the Business Center, the ad
+// account or the request), scrolls into view and takes the focus.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "@/components/locale";
 import type { AccountHealth } from "@/lib/tiktok/account-health";
 import type { AccountFingerprint } from "@/lib/tiktok/fingerprint";
@@ -46,7 +48,17 @@ export default function TikTokSetup({ isAdmin, connect, connectDetail }: { isAdm
   const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [openBc, setOpenBc] = useState<string | null>(null);
-  const [assigning, setAssigning] = useState<{ kind: "bc" | "account"; id: string; name: string; requestId: string | null; producerId: string } | null>(null);
+  const [assigning, setAssigning] = useState<{ kind: "bc" | "account"; id: string; name: string; requestId: string | null; producerId: string; anchor: string } | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const anchor = assigning?.anchor ?? null;
+  useEffect(() => {
+    // The form opens where the button was pressed; bring it into view and put
+    // the cursor in its first field, so nothing happens off-screen.
+    if (!anchor) return;
+    const form = formRef.current;
+    form?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    form?.querySelector<HTMLElement>("select, input")?.focus({ preventScroll: true });
+  }, [anchor]);
   const [name, setName] = useState("");
   const [identity, setIdentity] = useState("");
   const [note, setNote] = useState("");
@@ -79,8 +91,8 @@ export default function TikTokSetup({ isAdmin, connect, connectDetail }: { isAdm
   const openAccounts = (bcId: string, force = false) => { setOpenBc(bcId); setFilter("all"); setAcctQuery(""); void run(`bc-${bcId}`, async () => { await load({ bc: bcId, force }); return null; }, false); };
   const probe = (id: string) => run(`probe-${id}`, async () => { await load({ bc: openBc, advertiser: id }); return null; }, false);
   const producerName = (id: string) => { const p = status?.producers.find((x) => x.id === id); return p?.name_en || p?.name_zh || id; };
-  const startAssignBc = (bc: Bc, requestId: string | null, producerId?: string) => { setAssigning({ kind: "bc", id: bc.bcId, name: bc.bcName, requestId, producerId: producerId ?? status?.producers[0]?.id ?? "" }); setName(bc.company ? `${bc.company} · ${bc.bcName}` : bc.bcName || `Business Center ${bc.bcId.slice(-4)}`); setNote(""); };
-  const startAssignAccount = (a: BcAccount, requestId: string | null, producerId?: string) => { setAssigning({ kind: "account", id: a.id, name: a.name ?? "", requestId, producerId: producerId ?? status?.producers[0]?.id ?? "" }); setName(a.name ?? `TikTok ad account ${a.id.slice(-4)}`); setIdentity(""); setNote(""); void load({ bc: openBc, advertiser: a.id }); };
+  const startAssignBc = (bc: Bc, requestId: string | null, producerId?: string) => { setAssigning({ kind: "bc", id: bc.bcId, name: bc.bcName, requestId, producerId: producerId ?? status?.assignments[bc.bcId]?.producerId ?? status?.producers[0]?.id ?? "", anchor: requestId ? `request:${requestId}` : `bc:${bc.bcId}` }); setName(bc.company ? `${bc.company} · ${bc.bcName}` : bc.bcName || `Business Center ${bc.bcId.slice(-4)}`); setNote(""); };
+  const startAssignAccount = (a: BcAccount, requestId: string | null, producerId?: string) => { setAssigning({ kind: "account", id: a.id, name: a.name ?? "", requestId, producerId: producerId ?? status?.assignments[a.id]?.producerId ?? status?.producers[0]?.id ?? "", anchor: `account:${a.id}` }); setName(a.name ?? `TikTok ad account ${a.id.slice(-4)}`); setIdentity(""); setNote(""); void load({ bc: openBc, advertiser: a.id }); };
   const assign = () => run("assign", async () => {
     if (!assigning) return null;
     if (assigning.kind === "bc") await call("/api/admin/tiktok/assign-bc", "POST", { producer_id: assigning.producerId, bc_id: assigning.id, name, note: note || null, request_id: assigning.requestId });
@@ -135,8 +147,9 @@ export default function TikTokSetup({ isAdmin, connect, connectDetail }: { isAdm
   const assignedTo = (id: string) => { const a = status?.assignments[id]; return a ? producerName(a.producerId) : null; };
   const scanned = Object.keys(fingerprints).length > 0;
 
-  const assignForm = assigning && (
-    <form className="pd-revise" style={{ marginTop: 12 }} onSubmit={(e) => { e.preventDefault(); void assign(); }}>
+  /** The form, drawn under the row whose anchor opened it. */
+  const assignFormAt = (at: string) => assigning?.anchor === at && (
+    <form ref={formRef} className="pd-revise tk-inline-form" data-testid="tiktok-assign-form" onSubmit={(e) => { e.preventDefault(); void assign(); }} onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); setAssigning(null); } }}>
       <h3 style={{ margin: 0 }}>{tt(assigning.kind === "bc" ? "admin.tiktok.assignBcTitle" : "admin.tiktok.assignTitle", { id: assigning.id })}</h3>
       {assigning.kind === "bc" && <p className="pd-muted">{tt("admin.tiktok.assignBcHint")}</p>}
       <div className="field"><label className="label">{tt("admin.tiktok.producer")}</label><select className="input" value={assigning.producerId} onChange={(e) => setAssigning({ ...assigning, producerId: e.target.value })}>{status?.producers.map((p) => <option key={p.id} value={p.id}>{p.name_en || p.name_zh}</option>)}</select></div>
@@ -203,16 +216,16 @@ export default function TikTokSetup({ isAdmin, connect, connectDetail }: { isAdm
           const owner = assignedTo(bc.bcId);
           const isOpen = openBc === bc.bcId && status.bc?.bcId === bc.bcId;
           const reach = c?.reachableAccounts ?? 0;
-          return <div className="gt-row" key={bc.bcId}>
+          return <Fragment key={bc.bcId}><div className="gt-row">
             <span><strong>{bc.bcName || bc.bcId}</strong>{bc.company && <> · {bc.company}</>}<br /><small className="pd-mono gt-muted">{bc.bcId}</small></span>
             <span>{owner ? <span className="pill pill-accent">{owner}</span> : <span className="gt-muted">{tt("tks.unlinked")}</span>}</span>
             <span>{bc.verified ? <span className="pill pill-success">{tt("tks.verified")}</span> : <span className="gt-muted">—</span>}</span>
             <span className="gt-muted">{isOpen ? tt("tks.accountsN", { n: status.bc?.accounts.length ?? 0 }) : status.businessCenters.length === 1 ? tt("tks.accountsN", { n: reach }) : "—"}</span>
             <span className="pd-actions">
               <button type="button" className="btn btn-outline btn-sm" disabled={!!busy} onClick={() => (isOpen ? setOpenBc(null) : openAccounts(bc.bcId))}>{isOpen ? tt("admin.tiktok.hideAccounts") : tt("admin.tiktok.loadAccounts")}</button>
-              {isAdmin && <button type="button" className="btn btn-primary btn-sm" disabled={!!busy} onClick={() => startAssignBc(bc, null)}>{owner ? tt("tks.relink") : tt("tks.link")}</button>}
+              {isAdmin && <button type="button" className="btn btn-primary btn-sm" disabled={!!busy} aria-expanded={assigning?.anchor === `bc:${bc.bcId}`} onClick={() => startAssignBc(bc, null)}>{owner ? tt("tks.relink") : tt("tks.link")}</button>}
             </span>
-          </div>;
+          </div>{assignFormAt(`bc:${bc.bcId}`)}</Fragment>;
         })}
       </div>}
       {openBc && status?.bc?.bcId === openBc && <div style={{ marginTop: 12 }}>
@@ -230,12 +243,12 @@ export default function TikTokSetup({ isAdmin, connect, connectDetail }: { isAdm
           {visible.map((a) => {
             const acctOwner = assignedTo(a.id);
             const fp = fingerprints[a.id];
-            return <div className="gt-row" key={a.id}>
+            return <Fragment key={a.id}><div className="gt-row">
               <span><strong>{a.name ?? "—"}</strong>{acctOwner && <> · <span className="pill pill-accent">{acctOwner}</span></>}<br /><small className="pd-mono gt-muted">{a.id}</small></span>
               <span><span className={`pill ${HEALTH_CLASS[a.health]}`}>{a.statusLabel}</span></span>
               <span className="tk-fp">{fp ? (fp.error ? fp.error : fp.campaigns === 0 ? tt("tks.fp.cold") : tt("tks.fp.used", { campaigns: fp.campaigns, active: fp.active, geo: fp.geoCountries || "?", full: FULL_GEO })) : <span className="gt-muted">{tt("tks.fp.unscanned")}</span>}</span>
-              <span className="pd-actions"><button type="button" className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => probe(a.id)}>{tt("admin.tiktok.probe")}</button>{isAdmin && <button type="button" className="btn btn-outline btn-sm" disabled={!!busy} onClick={() => startAssignAccount(a, null)}>{tt("tks.override")}</button>}</span>
-            </div>;
+              <span className="pd-actions"><button type="button" className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => probe(a.id)}>{tt("admin.tiktok.probe")}</button>{isAdmin && <button type="button" className="btn btn-outline btn-sm" disabled={!!busy} aria-expanded={assigning?.anchor === `account:${a.id}`} onClick={() => startAssignAccount(a, null)}>{tt("tks.override")}</button>}</span>
+            </div>{assignFormAt(`account:${a.id}`)}</Fragment>;
           })}
           {!visible.length && <div className="gt-row"><span className="gt-muted" style={{ gridColumn: "1 / -1" }}>{tt("tks.noMatch")}</span></div>}
         </div>}
@@ -245,7 +258,6 @@ export default function TikTokSetup({ isAdmin, connect, connectDetail }: { isAdm
           <p>{tt("admin.tiktok.identity")}: {status.probe.identities.length ? status.probe.identities.map((i) => `${i.name ?? i.id} (${i.type})`).join(", ") : tt("admin.tiktok.identityNone")}</p>
         </div>}
       </div>}
-      {assignForm}
     </section>
 
     {c && c.mode !== "fake" && <section className="card pd-panel">
@@ -270,6 +282,7 @@ export default function TikTokSetup({ isAdmin, connect, connectDetail }: { isAdm
           {isAdmin && status?.businessCenters.length ? <select className="input" style={{ maxWidth: 280 }} value="" disabled={!!busy} onChange={(e) => { const bc = status.businessCenters.find((x) => x.bcId === e.target.value); if (bc) startAssignBc(bc, r.id, r.producer_id); }}><option value="">{tt("admin.tiktok.request.fulfilBc")}</option>{status.businessCenters.map((bc) => <option key={bc.bcId} value={bc.bcId}>{bc.bcName || bc.bcId}{bc.company ? ` · ${bc.company}` : ""}</option>)}</select> : null}
           <button type="button" className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => resolve(r.id, "declined")}>{tt("admin.tiktok.request.decline")}</button>
         </div>
+        {assignFormAt(`request:${r.id}`)}
       </div>)}
     </section>
 

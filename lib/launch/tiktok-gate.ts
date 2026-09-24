@@ -7,7 +7,9 @@
 //                missing, not `mock-`, lowercase words) and whose series is
 //                live by the phase 3a reading (lib/crazydramas); a title that
 //                does not read live gets one fresh public check first
-//   the link     the draft carries exactly crazydramasAdUrl(slug)
+//   the link     the draft carries exactly crazydramasAdUrl(slug), and each ad
+//                its own title's (a launch may promote several titles; a
+//                Sales Instant Page, with one button, promotes one)
 //   the pixel    Website purchases only: the signed pixel code is the current
 //                TIKTOK_PIXEL_CODE and resolves, read-only, on every chosen
 //                ad account (lib/tiktok/pixel.ts)
@@ -69,18 +71,18 @@ export async function launchTitleOptions(s: Session, producerId: string): Promis
     const status = statuses.get(t.id);
     const slug = status?.slug ?? t.crazydramas_slug ?? null;
     return { id: t.id, name: t.name_en || t.name_zh, slug, state: status?.state ?? null,
+      live: !!status && crazydramasLaunchable(status),
       ad_url: crazydramasSlugProblem(slug) === null ? crazydramasAdUrl(slug!) : null };
   }).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /**
- * The preview and approval gate for a TikTok draft. Throws the sentence a
- * person reads; returns the pixel summary a Website purchases plan carries.
+ * One title a TikTok ad promotes, checked: the company's, a real slug, a live
+ * series (after one fresh public read when the stored reading is not live).
+ * Returns the title's name and the one link its ads carry.
  */
-export async function tiktokLaunchGate(s: Session, draft: LaunchDraft, producerId: string, own: readonly LaunchConnection[]): Promise<LaunchPlan["tiktok_pixel"] | undefined> {
-  if (draft.provider !== "tiktok") return undefined;
-  if (!draft.title_id) throw invalid("TikTok ads link to the title's crazydramas page. Choose the title this launch promotes.");
-  const found = await titleOf(s, draft.title_id, producerId);
+async function launchableTitle(s: Session, titleId: string, producerId: string): Promise<{ name: string; link: string }> {
+  const found = await titleOf(s, titleId, producerId);
   let status = found.status;
   const problem = crazydramasSlugProblem(status.slug);
   if (problem === "missing") throw invalid(`${found.name} has no crazydramas link. Add its crazydramas slug to the title before launching on TikTok.`);
@@ -95,7 +97,45 @@ export async function tiktokLaunchGate(s: Session, draft: LaunchDraft, producerI
     try { status = (await checkCrazydramasTitle(systemSession(), found.title.id)).status; } catch { /* the stored reading stands */ }
   }
   if (!crazydramasLaunchable(status)) throw invalid(`${found.name} is not live on crazydramas.com (${stateWords(status)}), so its ads would land on a missing page. Publish the series, then preview again.`);
-  if (draft.destination_url !== crazydramasAdUrl(status.slug!)) throw conflict("The title's crazydramas link changed since this draft was saved. Save the draft and preview again.");
+  return { name: found.name, link: crazydramasAdUrl(status.slug!) };
+}
+
+/**
+ * The preview and approval gate for a TikTok draft: the launch's title and
+ * every title an ad promotes (each a live series, each ad carrying its own
+ * title's exact link, a picked clip from that same title; an Instant Page
+ * launch promotes one title), then the pixel. Throws the sentence a person
+ * reads; returns the pixel summary a Website purchases plan carries.
+ */
+export async function tiktokLaunchGate(s: Session, draft: LaunchDraft, producerId: string, own: readonly LaunchConnection[]): Promise<LaunchPlan["tiktok_pixel"] | undefined> {
+  if (draft.provider !== "tiktok") return undefined;
+  if (!draft.title_id) throw invalid("TikTok ads link to the title's crazydramas page. Choose the title this launch promotes.");
+  // The launch's title (every ad's default, the campaign's link) and every
+  // title an ad names, each checked once.
+  const checked = new Map<string, { name: string; link: string }>();
+  const title = async (id: string) => {
+    if (!checked.has(id)) checked.set(id, await launchableTitle(s, id, producerId));
+    return checked.get(id)!;
+  };
+  const launchTitleId: string = draft.title_id;
+  const launchTitle = await title(launchTitleId);
+  if (draft.destination_url !== launchTitle.link) throw conflict("The title's crazydramas link changed since this draft was saved. Save the draft and preview again.");
+  const clipIds = draft.content.map((c) => c.clip_id).filter((id): id is string => !!id);
+  const clips = clipIds.length ? await getData().listClipLibrary(s, { producer_id: producerId }) : [];
+  const instantPage = launchShape(draft.tiktok_settings) === "instant_page";
+  for (const [index, item] of draft.content.entries()) {
+    const ad = `Ad ${index + 1}`;
+    const titleId: string = item.title_id ?? launchTitleId;
+    const adTitle = await title(titleId);
+    // A picked clip names the title the Spark code was made from: an ad that
+    // promotes another title would send its viewers to the wrong show.
+    const clip = item.clip_id ? clips.find((c) => c.id === item.clip_id) : undefined;
+    if (clip && clip.title_id !== titleId) throw invalid(`${ad} is made from a clip of ${clip.title_name}, but it is set to promote ${adTitle.name}. Set the ad's title to ${clip.title_name}, or clear its clip.`);
+    // Content saved before per-ad titles carries the campaign's link, the launch's title.
+    const expected = item.landing_url === undefined && titleId === launchTitleId ? undefined : adTitle.link;
+    if (item.landing_url !== expected) throw conflict(`${ad}'s crazydramas link changed since this draft was saved. Save the draft and preview again.`);
+    if (instantPage && titleId !== launchTitleId) throw invalid(`${ad} promotes ${adTitle.name}, but a Sales Instant Page has one button link, so every ad in this launch must promote ${launchTitle.name}. Set the ad to ${launchTitle.name}, or use Website purchases or Traffic to promote several titles in one launch.`);
+  }
   const settings = draft.tiktok_settings;
   if (launchShape(settings) !== "website_purchases") return undefined;
   const code = tiktokPixelCode();

@@ -1,0 +1,19 @@
+{
+  "lpt.head": { "en": "What each ad promotes", "zh": "每条广告推广的剧集" },
+  "lpt.hint": { "en": "Each Spark code is one ad. It starts on the launch's title (step 4); pick another title for it, or the clip the code was made from, and the ad links to that title's page. One launch can promote several titles.", "zh": "每个 Spark 授权码对应一条广告，默认推广本次投放的剧集（第 4 步）。可以为它选择其他剧集，或选择该授权码对应的片段，广告就会链接到那部剧集的页面。一次投放可以推广多部剧集。" },
+  "lpt.hintInstantPage": { "en": "Each Spark code is one ad. A Sales Instant Page has one button link, so every ad in this launch promotes the launch's title (step 4). To promote several titles in one launch, use Website purchases or Traffic.", "zh": "每个 Spark 授权码对应一条广告。销售即时页面只有一个按钮链接，因此本次投放的每条广告都推广本次投放的剧集（第 4 步）。若要在一次投放中推广多部剧集，请使用网站购买或流量。" },
+  "lpt.ad": { "en": "Ad", "zh": "广告" },
+  "lpt.title": { "en": "Title", "zh": "剧集" },
+  "lpt.clip": { "en": "Made from clip (optional)", "zh": "对应片段（可选）" },
+  "lpt.link": { "en": "Link TikTok receives", "zh": "TikTok 收到的链接" },
+  "lpt.titleFor": { "en": "Title for ad {n}", "zh": "广告 {n} 的剧集" },
+  "lpt.clipFor": { "en": "Clip for ad {n}", "zh": "广告 {n} 的片段" },
+  "lpt.noClip": { "en": "No clip chosen", "zh": "未选择片段" },
+  "lpt.episode": { "en": "Ep {n}", "zh": "第 {n} 集" },
+  "lpt.launchTitle": { "en": "the launch's title", "zh": "本次投放的剧集" },
+  "lpt.mismatch": { "en": "This clip is from {clip}, but the ad promotes {title}. Choose {clip} as its title, or clear the clip: preview refuses the mismatch.", "zh": "这个片段来自《{clip}》，但广告推广的是《{title}》。请把剧集改为《{clip}》，或清除片段；预览会拒绝不一致的设置。" },
+  "lpt.instantPageLink": { "en": "The Instant Page's button link (step 4)", "zh": "即时页面的按钮链接（第 4 步）" },
+  "lpt.instantPageOther": { "en": "Not allowed: an Instant Page promotes the launch's title only", "zh": "不允许：即时页面只能推广本次投放的剧集" },
+  "lpt.unknownTitle": { "en": "Title not chosen", "zh": "未选择剧集" },
+  "lpt.destinationPerAd": { "en": "Each ad links to its own title's page ({n} links, listed under each ad).", "zh": "每条广告链接到各自剧集的页面（共 {n} 个链接，列在每条广告下方）。" }
+}

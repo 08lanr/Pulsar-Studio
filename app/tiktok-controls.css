@@ -76,3 +76,7 @@
   .tk-field.tk-row { grid-template-columns: 1fr; }
   .tk-swept { margin-left: 0; }
 }
+/* The link / change company / override form opens under the row it belongs
+   to (2026-09-24), not below the table where nobody sees it. */
+.gtable .tk-inline-form { margin:0; padding:12px 16px 14px; background:var(--surface-2); border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+.pd-revnote .tk-inline-form { margin-top:10px; }

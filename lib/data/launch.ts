@@ -375,30 +375,53 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
     if (!parsed.success) throw invalid(parsed.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; "));
     const safe = parsed.data;
     const own = safe.content.some(c => c.kind === "video" || c.clip_id) ? await library(s, producerId) : [];
+    // Each ad's title and, on TikTok, its link: the title the row names, else
+    // the picked clip's title, else the launch's title.
+    const ads = new Map<LaunchDraft["content"][number], { title_id?: string; landing_url?: string }>();
     if (safe.provider === "tiktok") {
       // The server writes the link a TikTok ad carries: the chosen title's
       // crazydramas ad link (its macros literal), never a typed URL; and the
       // pixel code a Website purchases launch will use, so the approver signs
-      // both. A title whose slug cannot carry a link leaves the destination
-      // as it was, and preview says why.
-      if (safe.title_id) {
-        const { tiktokLandingFor } = await import("@/lib/launch/tiktok-gate");
-        // A draft saves leniently: a title this company cannot see keeps the
-        // draft as sent, and the preview refuses it as not found.
-        try { safe.destination_url = (await tiktokLandingFor(s, safe.title_id, producerId)) ?? safe.destination_url; }
-        catch (e) { if (!(isDataError(e) && e.code === "not_found")) throw e; }
+      // both. A title whose slug cannot carry a link leaves the link unset,
+      // and preview says why.
+      const { tiktokLandingFor } = await import("@/lib/launch/tiktok-gate");
+      const links = new Map<string, string | null>();
+      const landing = async (titleId: string): Promise<string | null> => {
+        if (!links.has(titleId)) {
+          // A draft saves leniently: a title this company cannot see keeps the
+          // draft as sent, and the preview refuses it as not found.
+          try { links.set(titleId, await tiktokLandingFor(s, titleId, producerId)); }
+          catch (e) { if (!(isDataError(e) && e.code === "not_found")) throw e; links.set(titleId, null); }
+        }
+        return links.get(titleId) ?? null;
+      };
+      if (safe.title_id) safe.destination_url = (await landing(safe.title_id)) ?? safe.destination_url;
+      for (const c of safe.content) {
+        const clipTitle = c.clip_id ? own.find(a => a.id === c.clip_id)?.title_id : undefined;
+        const titleId = c.title_id ?? clipTitle ?? safe.title_id ?? undefined;
+        const link = titleId ? await landing(titleId) : null;
+        ads.set(c, { title_id: titleId, landing_url: link ?? undefined });
       }
       const { pixel_code: _stale, ...settings } = safe.tiktok_settings;
       if (launchShape(settings) === "website_purchases") {
         const { tiktokPixelCode } = await import("@/lib/tiktok/pixel");
         safe.tiktok_settings = { ...settings, pixel_code: tiktokPixelCode() };
       } else safe.tiktok_settings = settings;
+    } else if (safe.content.some(c => c.title_id)) {
+      // Meta: the title is display only (the monitor and the title's stats),
+      // so one this company does not own is dropped rather than refused.
+      const titles = new Set((await base.listTitles(s)).filter(t => t.producer_id === producerId).map(t => t.id));
+      for (const c of safe.content) ads.set(c, { title_id: c.title_id && titles.has(c.title_id) ? c.title_id : undefined });
     }
     return { ...safe, content: safe.content.map(c => {
       // Clip provenance is display only, so an unknown one is dropped rather
       // than refused; it never reaches the provider payload.
       const known = c.clip_id && own.some(a => a.id === c.clip_id) ? c.clip_id : undefined;
-      const provenance = { ...c, clip_id: known, post_id: known ? c.post_id : undefined };
+      const ad = ads.get(c);
+      const { landing_url: _untrusted, ...sent } = c as typeof c & { landing_url?: string };
+      const provenance: LaunchDraft["content"][number] = { ...sent, clip_id: known, post_id: known ? c.post_id : undefined,
+        title_id: ad?.title_id, ...(ad?.landing_url ? { landing_url: ad.landing_url } : {}) };
+      if (provenance.title_id === undefined) delete provenance.title_id;
       if (c.kind !== "video") return provenance;
       const asset = own.find(a => a.id === c.value);
       if (!asset) throw notFound("Finished clip");
@@ -470,6 +493,8 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
       if (s.kind === "staff" && !note?.trim()) throw invalid("Explain the on-behalf authorization.");
       const currentDraft = await resolved(s, r.draft, r.producer_id);
       if (currentDraft.destination_url !== r.draft.destination_url) throw conflict("The title's crazydramas link changed since this draft was saved. Save the draft and preview again.");
+      if (currentDraft.content.some((c, i) => c.title_id !== r.draft.content[i]?.title_id || c.landing_url !== r.draft.content[i]?.landing_url))
+        throw conflict("An ad's title or its crazydramas link changed since this draft was saved. Save the draft and preview again.");
       if (currentDraft.tiktok_settings.pixel_code !== r.draft.tiktok_settings.pixel_code) throw conflict("The TikTok pixel setting changed since this draft was saved. Save the draft and preview again.");
       if (launchHash(currentDraft, []) !== launchHash(r.draft, [])) throw conflict("A selected clip changed. Save and preview the draft again.");
       const own = await connections(s, r.producer_id, r.draft.provider);

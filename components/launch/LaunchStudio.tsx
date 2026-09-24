@@ -15,7 +15,7 @@ import ContentPicker from "@/components/launch/ContentPicker";
 import AdCard, { type AdCardProps } from "@/components/launch/AdCard";
 import { launchShape, summarizeLaunchSettings } from "@/lib/tiktok/settings";
 import { metaDestination, startingDraft } from "@/lib/launch/draft-defaults";
-import { campidForRun, campidSeries, defaultLaunchDraft, deriveAdSets, metaDraftIssues, trackingUrlForCampaign } from "@/lib/launch/plan";
+import { adLandingUrl, campidForRun, campidSeries, defaultLaunchDraft, deriveAdSets, metaDraftIssues, trackingUrlForCampaign } from "@/lib/launch/plan";
 import { feeLineVars } from "@/lib/promote/fee";
 import type { MetaPagePost, MetaPagePostList } from "@/lib/launch/clip-posts";
 import type { LaunchContent, LaunchDraft, LaunchPlan, LaunchProvider, LaunchRun, LaunchWorkspace, MetaPlatform } from "@/lib/launch/types";
@@ -44,11 +44,19 @@ function campidLink(draft: LaunchDraft, campid: string): string {
   catch { return `${draft.destination_url || "https://…"}?campid=${campid}`; }
 }
 
+/** A content row with its own title, or none (the launch's title then applies on save). */
+function withTitle(item: LaunchContent, titleId: string | undefined): LaunchContent {
+  const { title_id: _previous, ...rest } = item;
+  return titleId ? { ...rest, title_id: titleId } : rest;
+}
+
 type Props = { staff?: boolean; runId?: string };
 const PLATFORM_WORD: Record<MetaPlatform, string> = { facebook: "Facebook", instagram: "Instagram" };
 const DIRECT_ACCOUNTS = "__direct_accounts__";
 const money = (cents: number | null | undefined) => usd(cents == null ? null : cents / 100);
 const errorText = (e: unknown) => e instanceof Error ? e.message : String(e);
+/** "crazydramas.com/watch/<slug>": a link read by where it goes; the whole string stays in title=. */
+const shortLink = (url: string) => { try { const u = new URL(url); return `${u.host}${u.pathname}`; } catch { return url; } };
 const localDateTime = (iso: string) => {
   const date = new Date(iso);
   return Number.isFinite(date.getTime()) ? new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "";
@@ -195,13 +203,44 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
       destination_url: provider === "meta" ? metaDestination(draft.destination_url) : "" };
     setDraft(workspace ? startingDraft(next, workspace) : next); setCodesRaw(""); setBusinessId(""); setPlan(null);
   };
-  const titles = workspace?.titles ?? [];
+  const titles = useMemo(() => workspace?.titles ?? [], [workspace]);
   const chosenTitle = titles.find((t) => t.id === draft.title_id) ?? null;
-  const chooseTitle = (id: string) => { const t = titles.find((x) => x.id === id); setDraft((d) => ({ ...d, title_id: t?.id ?? null, destination_url: t?.ad_url ?? "" })); setPlan(null); };
+  // The launch's title is every ad's default: ads that follow it move with it,
+  // and an ad set to another title, or made from a clip, keeps its own.
+  const chooseTitle = (id: string) => {
+    const t = titles.find((x) => x.id === id);
+    setDraft((d) => ({ ...d, title_id: t?.id ?? null, destination_url: t?.ad_url ?? "",
+      content: d.provider !== "tiktok" ? d.content : d.content.map((x) => x.kind !== "spark" || x.clip_id || (x.title_id && x.title_id !== d.title_id) ? x : withTitle(x, t?.id)) }));
+    setPlan(null);
+  };
+  // Per ad (TikTok): the title each Spark code promotes, and optionally the
+  // clip the code was made from. Only titles that can be live are offered: a
+  // series read as not live is left out; one not checked yet is offered with
+  // that said, and preview checks it.
+  const liveTitles = titles.filter((t) => t.ad_url && t.state !== "not_live" && t.state !== "not_linked");
+  const titleOf = (id: string | null | undefined) => (id ? titles.find((t) => t.id === id) ?? null : null);
+  const adTitleId = (item: LaunchContent) => item.title_id ?? draft.title_id ?? "";
+  const adClips = useMemo(() => (workspace?.library ?? []).filter((c) => c.kind === "video" && titles.some((t) => t.id === c.title_id && t.ad_url)), [workspace, titles]);
+  const setAdTitle = (value: string, titleId: string) => update("content", draft.content.map((x) => x.kind === "spark" && x.value === value ? withTitle(x, titleId || undefined) : x));
+  const setAdClip = (value: string, clipId: string) => {
+    const clip = adClips.find((c) => c.id === clipId);
+    update("content", draft.content.map((x) => x.kind !== "spark" || x.value !== value ? x
+      : clip ? { ...x, clip_id: clip.id, title_id: clip.title_id } : (({ clip_id: _dropped, ...rest }) => rest)(x)));
+  };
   const titleStateWord = (state: string | null) => state && ["live_complete", "live_partial", "live_differs", "live_unverified", "local_newer"].includes(state) ? tt("lpx.state.live")
     : state === "not_live" ? tt("lpx.state.notLive") : state === "read_failed" ? tt("lpx.state.readFailed") : tt("lpx.state.notChecked");
   const shape = launchShape(draft.tiktok_settings);
-  const setCodes = (s: string) => { setCodesRaw(s); update("content", [...new Set(s.split(/[\s,]+/).map((value) => value.trim()).filter(Boolean))].map((value) => ({ kind: "spark" as const, value }))); };
+  // Each pasted code is one ad; a code already listed keeps the title and
+  // clip chosen for it, a new one starts on the launch's title.
+  const setCodes = (s: string) => {
+    setCodesRaw(s);
+    const values = [...new Set(s.split(/[\s,]+/).map((value) => value.trim()).filter(Boolean))];
+    setDraft((d) => {
+      const kept = new Map(d.content.filter((x) => x.kind === "spark").map((x) => [x.value, x]));
+      return { ...d, content: values.map((value) => kept.get(value) ?? withTitle({ kind: "spark" as const, value }, d.title_id ?? undefined)) };
+    });
+    setPlan(null);
+  };
   const editorDaily = draft.daily_budget_cents === null ? null : Math.floor(draft.daily_budget_cents / (draft.tiktok_settings.duplicate_copies + 1)) / 100;
   const editorSettings = { ...draft.tiktok_settings, start_paused: draft.start_paused, budget_mode: draft.daily_budget_cents === null ? "BUDGET_MODE_TOTAL" : "BUDGET_MODE_DAY", daily_budget_usd: editorDaily } as LaunchDraft["tiktok_settings"];
   const updateTikTokSettings = (value: LaunchDraft["tiktok_settings"]) => {
@@ -417,6 +456,12 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
       id: item.value, compact,
     };
   }, [workspace, postMeta, draft.meta_settings.placements]);
+  /** What one TikTok ad promotes and the exact link it carries (none for an Instant Page ad: it carries the page). */
+  const adLine = (item: LaunchContent, campaignUrl?: string): { title: string; link: string | null } | null => {
+    if (draft.provider !== "tiktok") return null;
+    const title = titleOf(item.title_id ?? draft.title_id)?.name ?? tt("lpt.unknownTitle");
+    return { title, link: shape === "instant_page" ? null : adLandingUrl(item, campaignUrl ?? draft.destination_url) || null };
+  };
   const cards = useMemo(() => Object.fromEntries((plan?.rows ?? []).flatMap((row) => row.content)
     .map((item) => [`${item.kind}:${item.value}`, cardFor(item, true)])), [plan, cardFor]);
   if (runId && (loadedRunId !== runId || runLoadFailed)) return <div className="launch-flow">
@@ -443,7 +488,42 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
         <div className="seg"><button className={`seg-btn${draft.allocation === "unique" ? " on" : ""}`} onClick={() => update("allocation", "unique")}>{tt("lv2.unique")}</button><button className={`seg-btn${draft.allocation === "shared" ? " on" : ""}`} onClick={() => update("allocation", "shared")}>{tt("lv2.shared")}</button></div>
         <p className="hint">{draft.allocation === "unique" ? tt(draft.provider === "meta" ? "launchRedesign.metaUniqueExplainer" : "launchRedesign.uniqueExplainer") : tt(draft.provider === "meta" ? "launchRedesign.metaSharedExplainer" : "launchRedesign.sharedExplainer")}</p>
         <div className={`launch-spark-count${available === required && required > 0 ? " ready" : ""}`} role="status"><strong>{available} / {required}</strong><span>{draft.provider === "tiktok" ? tt("launchRedesign.sparkCount") : tt("launchRedesign.creativeCount")}</span><small>{draft.allocation === "unique" ? tt(draft.provider === "meta" ? "launchRedesign.metaUniqueMath" : "launchRedesign.uniqueMath", { perCampaign: draft.content_per_campaign, perAccount: draft.campaigns_per_account * draft.content_per_campaign, total: required, campaignsPerAccount: draft.campaigns_per_account, accounts: draft.account_ids.length }) : tt(draft.provider === "meta" ? "launchRedesign.metaSharedMath" : "launchRedesign.sharedMath", { perCampaign: draft.content_per_campaign, campaigns })}</small></div>
-        {draft.provider === "tiktok" ? <><label className="tk-label" htmlFor="lv2-codes">{tt("lv2.codes")}</label><textarea id="lv2-codes" className="input" rows={5} value={codesRaw} onChange={(e) => setCodes(e.target.value)} placeholder={tt("lv2.codesHint")} /><p className="hint">{tt("lv2.manualTikTok")}</p></> : <p className="hint">{tt("lv2.metaHint")}</p>}
+        {draft.provider === "tiktok" ? <><label className="tk-label" htmlFor="lv2-codes">{tt("lv2.codes")}</label><textarea id="lv2-codes" className="input" rows={5} value={codesRaw} onChange={(e) => setCodes(e.target.value)} placeholder={tt("lv2.codesHint")} /><p className="hint">{tt("lv2.manualTikTok")}</p>
+          {/* One row per pasted code: the title that ad promotes (its own
+              crazydramas link) and, optionally, the clip the code was made from. */}
+          {draft.content.length > 0 && <div className="launch-ad-titles" data-testid="launch-ad-titles">
+            <h3 className="launch-ad-titles-head">{tt("lpt.head")}</h3>
+            <p className="hint">{tt(shape === "instant_page" ? "lpt.hintInstantPage" : "lpt.hint")}</p>
+            <div className="gtable gt-resp" style={{ "--cols-lg": "96px minmax(170px,1.2fr) minmax(190px,1.3fr) minmax(220px,1.8fr)", "--cols-sm": "minmax(0,1fr)" } as React.CSSProperties}>
+              <div className="gt-head gt-sm-hide"><span>{tt("lpt.ad")}</span><span>{tt("lpt.title")}</span><span>{tt("lpt.clip")}</span><span>{tt("lpt.link")}</span></div>
+              {draft.content.map((item, i) => {
+                const titleId = adTitleId(item);
+                const current = titleOf(titleId);
+                const clip = item.clip_id ? adClips.find((c) => c.id === item.clip_id) : undefined;
+                const mismatch = !!clip && clip.title_id !== titleId;
+                const options = current && !liveTitles.some((t) => t.id === current.id) ? [...liveTitles, current] : liveTitles;
+                return <div className="gt-row launch-ad-title-row" key={item.value} data-ad-row={i + 1}>
+                  <span title={item.value}><strong>{tt("lr3.adNumber", { n: i + 1 })}</strong><small className="gt-muted launch-ad-code">…{item.value.slice(-6)}</small></span>
+                  <label className="launch-ad-cell"><span className="launch-ad-cell-label">{tt("lpt.title")}</span>
+                    <select className="select" aria-label={tt("lpt.titleFor", { n: i + 1 })} value={current ? titleId : ""} onChange={(e) => setAdTitle(item.value, e.target.value)}>
+                      {!current && <option value="">{tt("lpx.chooseTitle")}</option>}
+                      {options.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                    {current && <small className="gt-muted">{[titleId === draft.title_id ? tt("lpt.launchTitle") : null, titleStateWord(current.state)].filter(Boolean).join(" · ")}</small>}</label>
+                  <label className="launch-ad-cell"><span className="launch-ad-cell-label">{tt("lpt.clip")}</span>
+                    <select className="select" aria-label={tt("lpt.clipFor", { n: i + 1 })} value={clip ? clip.id : ""} onChange={(e) => setAdClip(item.value, e.target.value)}>
+                      <option value="">{tt("lpt.noClip")}</option>
+                      {liveTitles.map((t) => { const own = adClips.filter((c) => c.title_id === t.id); return own.length ? <optgroup key={t.id} label={t.name}>{own.map((c) => <option key={c.id} value={c.id}>{c.episode_label ? `${tt("lpt.episode", { n: c.episode_label })} · ` : ""}{c.label}</option>)}</optgroup> : null; })}
+                    </select>
+                    {mismatch && <small className="launch-ad-mismatch" role="alert">{tt("lpt.mismatch", { clip: clip!.title_name, title: current?.name ?? "—" })}</small>}</label>
+                  <span className="launch-ad-cell"><span className="launch-ad-cell-label">{tt("lpt.link")}</span>
+                    {shape === "instant_page"
+                      ? <small className="gt-muted">{titleId === draft.title_id ? tt("lpt.instantPageLink") : tt("lpt.instantPageOther")}</small>
+                      : <code className="launch-ad-url launch-ad-url-row" data-testid="ad-row-url">{current?.ad_url ?? "—"}</code>}</span>
+                </div>;
+              })}
+            </div>
+          </div>}</> : <p className="hint">{tt("lv2.metaHint")}</p>}
       {draft.provider === "tiktok" ? <Link href={staff ? "/clips" : "/producer/clips"}>{tt("lv2.clips.title")}&nbsp;→</Link> : <>
         <div className="rs-tool-row"><button type="button" className="btn btn-outline" onClick={() => setPickerOpen(true)}>{tt("contentPicker.open")}</button><span className="hint">{tt("contentPicker.chosen", { n: draft.content.length })}</span></div>
         {/* An uploaded clip carries the copy Studio sends; an existing post
@@ -489,7 +569,7 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
 {hasClips && <label>{tt("lv2.placements")} <select className="select" value={draft.meta_settings.placements.join(",")} onChange={(e) => update("meta_settings", { ...draft.meta_settings, placements: e.target.value.split(",") as ("facebook" | "instagram")[] })}><option value="facebook,instagram">Facebook + Instagram</option><option value="facebook">Facebook</option><option value="instagram">Instagram</option></select></label>}
 {hasClips && <span className="hint">{tt("lr2.placementsClipsOnly")}</span>}<label>{tt("lv2.goal")} <select className="select" value={draft.meta_settings.optimization_goal} onChange={(e) => update("meta_settings", { ...draft.meta_settings, optimization_goal: e.target.value as "LINK_CLICKS" | "LANDING_PAGE_VIEWS" })}><option value="LINK_CLICKS">Link clicks</option><option value="LANDING_PAGE_VIEWS">Landing page views</option></select></label><label>{tt("lv2.cta")} <select className="select" value={draft.meta_settings.call_to_action} onChange={(e) => update("meta_settings", { ...draft.meta_settings, call_to_action: e.target.value as "LEARN_MORE" | "WATCH_MORE" })}><option value="LEARN_MORE">Learn more</option><option value="WATCH_MORE">Watch more</option></select></label><label>{tt("lv2.bid")} <input className="input tk-num" type="number" min={0} step="0.01" value={draft.meta_settings.bid_cents == null ? "" : draft.meta_settings.bid_cents / 100} onChange={(e) => update("meta_settings", { ...draft.meta_settings, bid_cents: e.target.value === "" ? null : Math.round(Number(e.target.value) * 100), bid_strategy: e.target.value === "" ? "LOWEST_COST_WITHOUT_CAP" : "LOWEST_COST_WITH_BID_CAP" })} /></label><label>{tt("lv2.start")} <input className="input" type="datetime-local" value={localReady ? localDateTime(draft.meta_settings.start_time) : draft.meta_settings.start_time.slice(0, 16)} onChange={(e) => update("meta_settings", { ...draft.meta_settings, start_time: e.target.value ? new Date(e.target.value).toISOString() : "" })} /></label><label>{tt("lv2.end")} <input className="input" type="datetime-local" value={localReady ? localDateTime(draft.meta_settings.end_time) : draft.meta_settings.end_time.slice(0, 16)} onChange={(e) => update("meta_settings", { ...draft.meta_settings, end_time: e.target.value ? new Date(e.target.value).toISOString() : "" })} /></label><span className="hint">{tt("lv2.localTime")} ({localReady ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC"})</span></div>}</section>
       </fieldset><section className="rs-panel" aria-busy={busy}><h2>6. {tt("launchFeedback.reviewLaunch")}</h2>{!plan && <p className="hint">{tt("launchFeedback.launchHelp", { provider: draft.provider === "tiktok" ? "TikTok" : "Meta" })}</p>}{!workspace && !error && <p role="status">{tt("common.loading")}</p>}{workspace && !canEdit && <p className="note">{tt(staff && !producerId ? "launchFeedback.chooseProducer" : "launchFeedback.cannotEdit")}</p>}{issues.length > 0 && <div className="note note-warn launch-fix-first" role="alert"><strong>{tt("lr2.fixFirst")}</strong><ul>{issues.map((issue) => <li key={issue.code}>{tt(`lr2.issue.${issue.code}`, issue.vars)}</li>)}</ul></div>}<div className="rs-tool-row">{!plan && <button type="button" className="btn btn-primary" disabled={busy || !workspace} onClick={() => void prepareLaunch()}>{busy ? tt("launchFeedback.preparing") : tt("launchFeedback.launchOn", { provider: draft.provider === "tiktok" ? "TikTok" : "Meta" })}</button>}<button className="btn btn-outline" disabled={busy || !canEdit} onClick={() => void save(false)}>{tt("lv2.save")}</button><button className="btn btn-outline" disabled={busy || !canEdit} onClick={() => void save(true)}>{busy ? tt("common.loading") : tt("lv2.preview")}</button></div>{plan && <><p>{run?.mode !== "production" && <span className="pill pill-accent">{tt(run?.mode === "sandbox" ? "lv2.sandbox" : "lv2.demo")}</span>}</p><p>{planSummary(tt, plan, money)}</p>{draft.provider === "tiktok" && plan.tiktok_pixel && <p className="note" data-testid="tiktok-optimizes">{tt("lpx.factOptimizes")}: {tt("lpx.optimizes", { event: plan.tiktok_pixel.event, code: plan.tiktok_pixel.code, attribution: plan.tiktok_pixel.attribution })}</p>}{draft.provider === "tiktok" && shape === "instant_page" && draft.tiktok_settings.instant_page_template && <p className="note">{tt("salesLaunch.sales")}: {draft.tiktok_settings.instant_page_template.name} · {tt("tipTemplates.button")}: {draft.tiktok_settings.instant_page_template.button_text} · {tt(`tipTemplates.background.${draft.tiktok_settings.instant_page_template.background}`)}{draft.tiktok_settings.instant_page_template.hand_cursor ? ` · ${tt("tipTemplates.handCursor")}` : ""}</p>}{plan.warnings.length > 0 && <div className="note"><ul>{plan.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul></div>}<div className="gtable" style={{ "--cols": "48px minmax(180px,2fr) minmax(140px,1fr) minmax(200px,2fr) 110px" } as React.CSSProperties}><div className="gt-head"><span>#</span><span>{tt("lv2.campaign")}</span><span>{tt("lv2.account")}</span><span>{tt("lv2.content")}</span><span>{tt("lv2.campaignBudget")}</span></div>{plan.rows.map((row) => <div className="gt-row" key={row.index}><span>{row.index}</span><span>{draft.name} · {row.index}{row.campid && <small className="gt-muted">{tt("mr2.campid")}: {row.campid}</small>}{row.tracking_url && <small className="gt-muted">{tt("mr2.trackingLink")}: <a href={row.tracking_url} target="_blank" rel="noreferrer">{row.tracking_url}</a></small>}</span><span>{connections.find((c) => c.id === row.connection_id)?.name ?? tt("lv2.account")}<small className="gt-muted">{row.advertiser_id}</small></span><span className="launch-content-cell">{(row.ad_sets?.length ? row.ad_sets.flatMap((set) => set.content.map((x) => ({ item: x, platform: set.platform }))) : row.content.map((x) => ({ item: x, platform: undefined })))
-          .map(({ item, platform }, i) => <AdCard key={`${platform ?? ""}:${item.kind}:${item.value}:${i}`} {...cardFor(item, true)} {...(platform ? { platform, platforms: undefined } : {})} />)}</span><span>{money(row.budget_cents)}{row.ad_sets && row.ad_sets.length > 1 && <small className="gt-muted">{row.ad_sets.map((set) => tt("lr2.adSetBudget", { platform: PLATFORM_WORD[set.platform], budget: money(set.daily_budget_cents ?? set.budget_cents) })).join(" · ")}</small>}</span></div>)}</div><p className="note">{tt("lv2.feeLine", feeLineVars(plan.total_budget_cents / 100))}</p>{draft.provider === "meta" && <p className="hint">{tt("lv2.destination")}: {draft.destination_url} · {draft.meta_settings.countries.join(", ")} · {campaignAdSets.map((set) => PLATFORM_WORD[set.platform]).join(" / ")} · {draft.meta_settings.optimization_goal} · {draft.meta_settings.call_to_action}</p>}<button className="btn btn-approve" disabled={busy} onClick={requestLaunch}>{busy ? tt("launchFeedback.submitting") : launchButtonLabel(tt, plan.campaign_count, draft.start_paused ? tt("lv2.paused") : tt("lv2.live"))}</button>{!canLaunch && <p className="hint">{tt("lv2.needsApprover")}</p>}</>}{error && <p className="note note-warn" role="alert" tabIndex={-1} ref={errorBox}>{error}</p>}</section>
+          .map(({ item, platform }, i) => { const line = adLine(item, row.tracking_url); return <div className="launch-preview-ad" key={`${platform ?? ""}:${item.kind}:${item.value}:${i}`}><AdCard {...cardFor(item, true)} {...(platform ? { platform, platforms: undefined } : {})} />{line && <small className="gt-muted launch-ad-title-line" data-testid="preview-ad-title">{line.title}{line.link ? <> · <a href={line.link} target="_blank" rel="noreferrer" title={line.link}>{shortLink(line.link)}</a></> : null}</small>}</div>; })}</span><span>{money(row.budget_cents)}{row.ad_sets && row.ad_sets.length > 1 && <small className="gt-muted">{row.ad_sets.map((set) => tt("lr2.adSetBudget", { platform: PLATFORM_WORD[set.platform], budget: money(set.daily_budget_cents ?? set.budget_cents) })).join(" · ")}</small>}</span></div>)}</div><p className="note">{tt("lv2.feeLine", feeLineVars(plan.total_budget_cents / 100))}</p>{draft.provider === "meta" && <p className="hint">{tt("lv2.destination")}: {draft.destination_url} · {draft.meta_settings.countries.join(", ")} · {campaignAdSets.map((set) => PLATFORM_WORD[set.platform]).join(" / ")} · {draft.meta_settings.optimization_goal} · {draft.meta_settings.call_to_action}</p>}<button className="btn btn-approve" disabled={busy} onClick={requestLaunch}>{busy ? tt("launchFeedback.submitting") : launchButtonLabel(tt, plan.campaign_count, draft.start_paused ? tt("lv2.paused") : tt("lv2.live"))}</button>{!canLaunch && <p className="hint">{tt("lv2.needsApprover")}</p>}</>}{error && <p className="note note-warn" role="alert" tabIndex={-1} ref={errorBox}>{error}</p>}</section>
     </>}
     {pickerOpen && <ContentPicker
       clipsBase={staff ? "/api/promote/clips" : "/api/producer/clips"}
@@ -499,6 +579,6 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
       connections={connections} accountIds={draft.account_ids} placements={draft.meta_settings.placements}
       content={draft.content} canPost={canLaunch}
       onChange={(next) => update("content", next)} onClose={() => setPickerOpen(false)} onPostMeta={mergePostMeta} />}
-    {confirmOpen && plan && <LaunchConfirmDialog name={draft.name} plan={plan} destination={draft.destination_url} startPaused={draft.start_paused} provider={draft.provider} mode={run?.mode ?? "fake"} accountNames={Object.fromEntries(connections.map(c => [c.id, c.name]))} cards={cards} pageDesign={draft.provider === "tiktok" && shape === "instant_page" ? draft.tiktok_settings.instant_page_template : undefined} destinationNote={draft.provider === "tiktok" ? tt("lpx.macroNote") : undefined} optimizes={draft.provider === "tiktok" && plan.tiktok_pixel ? tt("lpx.optimizes", { event: plan.tiktok_pixel.event, code: plan.tiktok_pixel.code, attribution: plan.tiktok_pixel.attribution }) : undefined} staff={staff} note={note} onNoteChange={value => { setNote(value); setConfirmError(""); }} error={confirmError} onClose={closeConfirm} onConfirm={() => void launch()} />}
+    {confirmOpen && plan && <LaunchConfirmDialog adLine={draft.provider === "tiktok" ? adLine : undefined} name={draft.name} plan={plan} destination={draft.destination_url} startPaused={draft.start_paused} provider={draft.provider} mode={run?.mode ?? "fake"} accountNames={Object.fromEntries(connections.map(c => [c.id, c.name]))} cards={cards} pageDesign={draft.provider === "tiktok" && shape === "instant_page" ? draft.tiktok_settings.instant_page_template : undefined} destinationNote={draft.provider === "tiktok" ? tt("lpx.macroNote") : undefined} optimizes={draft.provider === "tiktok" && plan.tiktok_pixel ? tt("lpx.optimizes", { event: plan.tiktok_pixel.event, code: plan.tiktok_pixel.code, attribution: plan.tiktok_pixel.attribution }) : undefined} staff={staff} note={note} onNoteChange={value => { setNote(value); setConfirmError(""); }} error={confirmError} onClose={closeConfirm} onConfirm={() => void launch()} />}
   </div>;
 }

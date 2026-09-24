@@ -6,6 +6,7 @@ import { invalid } from "@/lib/data/errors";
 import { handle } from "@/app/api/titles/_lib/handler";
 import { draftSchema } from "./plan";
 import { controlLaunch, queueLaunch, refreshLaunches } from "./service";
+import { runTitleIds } from "./title-stats";
 
 const money = z.number().int().min(1).max(100_000_000);
 export const controlSchema = z.discriminatedUnion("action", [
@@ -43,12 +44,19 @@ export function launchRoute(req: NextRequest, staff: boolean, op: Operation, id 
       const b = await parse(req, z.object({ connection_ids: z.array(z.string()).min(1).max(30), producer_id: z.string().uuid().optional(), force: z.boolean().optional() }));
       return publicJson(await (await import("./account-scan")).scanLaunchAccounts(s, b.producer_id, b.connection_ids, b.force));
     }
-    if (op === "list") return publicJson({
-      runs: await refreshLaunches(s, req.nextUrl.searchParams.get("force") === "1"),
+    if (op === "list") {
+      const runs = await refreshLaunches(s, req.nextUrl.searchParams.get("force") === "1");
+      // The titles the launches promote, by name, for the Monitor's title
+      // column, its Title filter and its "By title" table.
+      const ids = new Set(runs.flatMap(runTitleIds));
+      const titles = ids.size ? (await data.listTitles(s)).filter(t => ids.has(t.id)).map(t => ({ id: t.id, name: t.name_en || t.name_zh, producer_id: t.producer_id })) : [];
+      return publicJson({
+      runs, titles,
       can_edit: s.kind === "staff" || ["reviewer", "approver"].includes(s.producerRole || ""),
       can_launch: s.kind === "staff" ? s.staffRole === "admin" : s.producerRole === "approver",
       ...(s.kind === "staff" ? { producers: (await data.listProducers(s)).map(p => ({ id: p.id, name_zh: p.name_zh, name_en: p.name_en })) } : {}),
-    });
+      });
+    }
     if (op === "create") { const b = await parse(req, bodySchema.create); return publicJson({ run: await data.saveLaunchDraft(s, b.draft, { producerId: b.producer_id }) }); }
     if (op === "get") return publicJson({ run: await data.getLaunchRun(s, id) });
     if (op === "update") { const b = await parse(req, bodySchema.update); return publicJson({ run: await data.saveLaunchDraft(s, b.draft, { id, expectedRevision: b.revision }) }); }

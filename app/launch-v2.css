@@ -229,3 +229,21 @@
 /* Inside a 600px dialog the ads read as a list, not as a wall of cards. */
 .launch-confirm-ads { display: grid; gap: 8px; min-width: 0; }
 .launch-confirm-ads .ad-card-label { font-size: var(--t-small); }
+/* TikTok, one row per Spark code (2026-09-24): the title that ad promotes,
+   optionally the clip the code was made from, and the exact link it carries.
+   At phone width each row stacks and every control names itself. */
+.launch-ad-titles { margin:14px 0 8px; display:grid; gap:8px; }
+.launch-ad-titles-head { margin:0; font-size:var(--t-body); font-weight:var(--w-strong); }
+.launch-ad-titles .hint { margin:0; }
+.launch-ad-title-row { align-items:start; }
+.launch-ad-title-row > span:first-child { display:grid; gap:2px; }
+.launch-ad-code { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; }
+.launch-ad-cell { display:grid; gap:4px; min-width:0; }
+.launch-ad-cell .select { width:100%; min-width:0; }
+.launch-ad-cell-label { display:none; font-size:var(--t-small); color:var(--text-muted); }
+.launch-flow .launch-ad-url.launch-ad-url-row { padding:6px 8px; }
+.launch-ad-mismatch { color:var(--error); font-size:var(--t-small); line-height:var(--lh-body); }
+.launch-ad-title-line { display:block; overflow-wrap:anywhere; }
+.launch-preview-ad, .launch-confirm-ad { display:grid; gap:4px; min-width:0; }
+.launch-confirm-adlink { margin:0; display:grid; gap:2px; font-size:var(--t-small); }
+@media (max-width: 767.98px) { .launch-ad-cell-label { display:block; } }

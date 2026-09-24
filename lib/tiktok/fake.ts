@@ -206,8 +206,10 @@ function day(d: Date): string {
  * Deterministic daily numbers per ad: the first ad of a launch does better,
  * so the decision is legible. A campaign delivers once any of its ads has
  * been ruled on (the second look); copies made after that deliver with it.
- * Levels: AUCTION_AD (per ad), AUCTION_ADGROUP (per group, lifetime),
- * AUCTION_CAMPAIGN (per campaign, daily or lifetime).
+ * Levels: AUCTION_AD (per ad, daily or lifetime), AUCTION_ADGROUP (per
+ * group, lifetime), AUCTION_CAMPAIGN (per campaign, daily or lifetime). A
+ * lifetime row of a pixel campaign's ad, or of the campaign, also carries
+ * the TikTok-attributed website conversions.
  */
 function reportRows(campaignIds: string[], adgroupIds: string[], start: string, end: string, level: "AUCTION_AD" | "AUCTION_ADGROUP" | "AUCTION_CAMPAIGN", byDay: boolean) {
   const rows: Array<{ dimensions: Record<string, string>; metrics: Record<string, number> }> = [];
@@ -230,6 +232,7 @@ function reportRows(campaignIds: string[], adgroupIds: string[], start: string, 
     for (const a of s.ads.values()) if (a.campaignId === cid) adsPerGroup.set(a.adgroupId, (adsPerGroup.get(a.adgroupId) ?? 0) + 1);
     const perAdDayOf = (ad: FakeAd) => (s.adgroups.get(ad.adgroupId)?.budget ?? 0) / Math.max(1, adsPerGroup.get(ad.adgroupId) ?? 1) / 5;
     const total = { spend: 0, impressions: 0, clicks: 0, conversion: 0, video_play_actions: 0, video_watched_2s: 0, video_watched_6s: 0 };
+    const perAd = new Map<string, { spend: number; impressions: number; clicks: number }>();
     for (let d = new Date(from); d <= to; d.setUTCDate(d.getUTCDate() + 1)) {
       // A lifetime budget is a ceiling: once the five days have spent it, the campaign reports nothing more.
       if (campaign.budgetMode !== "BUDGET_MODE_DAY" && total.spend >= groupBudget) break;
@@ -256,19 +259,43 @@ function reportRows(campaignIds: string[], adgroupIds: string[], start: string, 
         const hold2 = Math.round(plays * (0.3 + (i === 0 ? 0.14 : 0.02) + seed * 0.05));
         const hold6 = Math.round(hold2 * (0.4 + seed * 0.1));
         const clicks = Math.round(impressions * (0.009 + (i === 0 ? 0.007 : 0.001) + seed * 0.003));
-        if (level === "AUCTION_AD") rows.push({ dimensions: { ad_id: ad.adId, stat_time_day: `${dayKey} 00:00:00` }, metrics: { spend, impressions, clicks, conversion: 0, video_play_actions: plays, video_watched_2s: hold2, video_watched_6s: hold6 } });
+        if (level === "AUCTION_AD" && byDay) rows.push({ dimensions: { ad_id: ad.adId, stat_time_day: `${dayKey} 00:00:00` }, metrics: { spend, impressions, clicks, conversion: 0, video_play_actions: plays, video_watched_2s: hold2, video_watched_6s: hold6 } });
+        const sofar = perAd.get(ad.adId) ?? { spend: 0, impressions: 0, clicks: 0 };
+        perAd.set(ad.adId, { spend: sofar.spend + spend, impressions: sofar.impressions + impressions, clicks: sofar.clicks + clicks });
         byGroup.set(ad.adgroupId, (byGroup.get(ad.adgroupId) ?? 0) + spend);
       });
       if (level === "AUCTION_CAMPAIGN" && byDay) rows.push({ dimensions: { campaign_id: cid, stat_time_day: `${dayKey} 00:00:00` }, metrics: byCampaign });
       for (const k of Object.keys(total) as Array<keyof typeof total>) total[k] += byCampaign[k];
     }
+    // The pixel's numbers, the campaign's rule applied per ad: about one purchase in fifty clicks at $9.99, three checkouts per purchase.
+    const pixelGroupOf = (adgroupId: string) => { const g = s.adgroups.get(adgroupId); return g?.body.pixel_id ? g : null; };
+    const webOf = (spend: number, clicks: number, event: unknown): Record<string, number> => {
+      const purchases = Math.floor(clicks / 50);
+      const value = Math.round(purchases * 999) / 100;
+      const checkouts = purchases * 3;
+      return {
+        conversion: event === "INITIATE_ORDER" ? checkouts : purchases,
+        complete_payment: purchases, total_complete_payment_rate: value, initiate_checkout: checkouts,
+        cost_per_complete_payment: purchases ? Math.round((spend / purchases) * 100) / 100 : 0,
+        complete_payment_roas: spend ? Math.round((value / spend) * 100) / 100 : 0,
+        cost_per_initiate_checkout: checkouts ? Math.round((spend / checkouts) * 100) / 100 : 0,
+      };
+    };
+    if (level === "AUCTION_AD" && !byDay) for (const ad of ads) {
+      const sums = perAd.get(ad.adId);
+      if (!sums) continue;
+      const spend = Math.round(sums.spend * 100) / 100;
+      const group = pixelGroupOf(ad.adgroupId);
+      rows.push({ dimensions: { ad_id: ad.adId }, metrics: { spend, impressions: sums.impressions, clicks: sums.clicks, conversion: 0, ...(group ? webOf(spend, sums.clicks, group.body.optimization_event) : {}) } });
+    }
     if (level === "AUCTION_CAMPAIGN" && !byDay) {
       // A pixel campaign also reports TikTok-attributed website conversions:
-      // about one purchase in fifty clicks at $9.99, three checkouts per purchase.
+      // about one purchase in fifty clicks of each ad at $9.99, three checkouts
+      // per purchase, so the campaign is the sum of its ads.
       const pixelGroup = [...s.adgroups.values()].find((g) => g.campaignId === cid && g.body.pixel_id);
       const pixel = !!pixelGroup;
       const spend = Math.round(total.spend * 100) / 100;
-      const purchases = pixel ? Math.floor(total.clicks / 50) : 0;
+      const purchases = pixel ? [...perAd.values()].reduce((n, a) => n + Math.floor(a.clicks / 50), 0) : 0;
       const value = Math.round(purchases * 999) / 100;
       const checkouts = purchases * 3;
       // `conversion` counts the optimization event, so on a pixel group it is the purchases (or the checkouts).

@@ -1,7 +1,7 @@
 // Overlord's authorize -> authorized-post list -> AUTH_CODE ad flow.
 // No video bytes, uploads, covers or ad copy enter this driver. The approved
 // launch record supplies every account, code, destination and money ceiling.
-import type { DeliverySnapshot, DriverContext, LaunchControl, LaunchDriver } from "@/lib/launch/types";
+import type { AdStats, DeliverySnapshot, DriverContext, LaunchControl, LaunchDriver } from "@/lib/launch/types";
 import { accessTokenFor, tiktokTransport, type TikTokResponse, type TikTokTransport } from "./index";
 import { normalizeReview } from "./review";
 import { accountHealth, accountStatusLabel } from "./account-health";
@@ -9,6 +9,7 @@ import { adGroupBody, attributionLabel, attributionOf, launchSettingsSchema, lau
 import { isCrazydramasAdUrl } from "./ad-url";
 import { resolvePixel, tiktokPixelCode } from "./pixel";
 import { WEB_METRICS, webConversionsFromReport } from "./web-metrics";
+import { AD_METRICS, adStatsByAd } from "./ad-stats";
 import { assertCampaignBudget } from "@/lib/launch/budget";
 import { createInstantPageDraft, InstantPageCreateNotSentError, InstantPageCreateRejectedError, loadSalesMasterSnapshot, publishInstantPage } from "./instant-page";
 import { SALES_MASTER_SHA256, SALES_MASTER_VERSION } from "./instant-page-master";
@@ -32,6 +33,13 @@ type Row = Record<string, unknown>;
 const state = (ctx: DriverContext) => ctx.campaign.state as SparkState;
 /** The approved link this campaign's website ads carry: the signed row's, or the draft's on rows approved before rows had one. */
 const landingUrl = (ctx: DriverContext) => ctx.campaign.tracking_url ?? ctx.run.draft.destination_url;
+/**
+ * The link one Spark ad carries: its own title's (each Spark code row may
+ * promote its own title; the approved row holds the link the server wrote),
+ * else the campaign's on rows approved before per-ad titles.
+ */
+const adLanding = (ctx: DriverContext, code: string) =>
+  ctx.campaign.content.find((item) => item.kind === "spark" && item.value.trim() === code)?.landing_url ?? landingUrl(ctx);
 const shapeOf = (s: SparkState) => (s.settings ? launchShape(s.settings) : "traffic");
 const str = (v: unknown) => v === undefined || v === null ? "" : String(v);
 const number = (v: unknown): number | null => v === undefined || v === null || v === "" || !Number.isFinite(Number(v)) ? null : Number(v);
@@ -180,7 +188,8 @@ async function findInstantPageByName(c: Client, name: string): Promise<{ id: str
 async function ensurePixel(ctx: DriverContext, c: Client): Promise<void> {
   const settings = state(ctx).settings;
   if (!settings || launchShape(settings) !== "website_purchases") return;
-  if (!isCrazydramasAdUrl(landingUrl(ctx))) throw new Error("This Website purchases launch has no crazydramas ad link; create a new round from the title.");
+  if (!isCrazydramasAdUrl(landingUrl(ctx)) || ctx.campaign.content.some((item) => item.landing_url !== undefined && !isCrazydramasAdUrl(item.landing_url)))
+    throw new Error("This Website purchases launch has no crazydramas ad link; create a new round from the title.");
   const code = settings.pixel_code ?? tiktokPixelCode();
   const recorded = state(ctx).pixel;
   if (recorded?.code === code && recorded.pixel_id) return;
@@ -302,10 +311,11 @@ async function createAds(ctx: DriverContext, c: Client, group: SparkGroup): Prom
         tiktok_item_id: post.item_id, ad_format: post.item_type === "CAROUSEL" ? "CAROUSEL_ADS" : "SINGLE_VIDEO",
         call_to_action: state(ctx).settings!.call_to_action,
         // An Instant Page ad points at the page; every website ad (Traffic,
-        // Website purchases) carries the approved crazydramas link verbatim.
+        // Website purchases) carries its own title's approved crazydramas
+        // link verbatim.
         ...(shapeOf(state(ctx)) === "instant_page"
           ? { page_id: state(ctx).instant_page?.id }
-          : { landing_page_url: landingUrl(ctx) }),
+          : { landing_page_url: adLanding(ctx, post.code) }),
       }] });
       if (result.code !== 0) {
         if (result.code > 0 && result.code !== 40100 && !/QPS limit|too many requests|rate limit/i.test(result.message || "") && permanentAdRejection(result.message || "")) skipped.push({ code: post.code, reason: result.message });
@@ -550,10 +560,32 @@ async function monitor(ctx: DriverContext): Promise<DeliverySnapshot> {
       out.web = { ...webConversionsFromReport(rows), event: settings.optimization_event ?? "SHOPPING", attribution: attributionLabel(attributionOf(settings)) };
     } catch (e) { out.web = null; out.web_error = (e as Error).message; }
   }
+  // Each ad's own numbers (TikTok's AUCTION_AD report), read after the
+  // campaign's and failing soft the same way: a refusal never costs the sweep
+  // its delivery state or the campaign's numbers. Website purchases launches
+  // also read each ad's TikTok-attributed purchases; that second read failing
+  // leaves the ads their delivery numbers.
+  let adStats = new Map<string, AdStats>();
+  if (codeById.size) {
+    const window = {
+      start_date: ctx.run.created_at.slice(0, 10), end_date: new Date().toISOString().slice(0, 10),
+      filtering: JSON.stringify([{ field_name: "campaign_ids", filter_type: "IN", filter_value: JSON.stringify([state(ctx).campaign_id]) }]),
+    };
+    try {
+      const rows = await list(c, "/report/integrated/get/", { report_type: "BASIC", data_level: "AUCTION_AD", dimensions: JSON.stringify(["ad_id"]), metrics: JSON.stringify(AD_METRICS), ...window });
+      let webRows: Row[] | null = null;
+      if (settings && launchShape(settings) === "website_purchases") {
+        try { webRows = await list(c, "/report/integrated/get/", { report_type: "BASIC", data_level: "AUCTION_AD", dimensions: JSON.stringify(["ad_id"]), metrics: JSON.stringify(WEB_METRICS), ...window }); }
+        catch (e) { out.ad_stats_error = (e as Error).message; }
+      }
+      adStats = adStatsByAd(codeById.keys(), rows, webRows);
+    } catch (e) { out.ad_stats_error = (e as Error).message; }
+  }
   out.configured_status = str(campaign?.operation_status) || undefined;
   out.effective_status = str(campaign?.secondary_status) || undefined;
   out.groups = groups.map((g) => ({ id: str(g.adgroup_id), status: str(g.operation_status), budget_cents: cents(g.budget) ?? undefined, bid_cents: cents(g.billing_event === "CPC" ? g.bid_price : g.conversion_bid_price), end_time: str(g.schedule_end_time) || undefined }));
-  out.ads = reviews.map((r) => ({ id: r.adId, status: r.state, note: r.reasons.join(" · ") || undefined, content_value: codeById.get(r.adId) }));
+  out.ads = reviews.map((r) => ({ id: r.adId, status: r.state, note: r.reasons.join(" · ") || undefined, content_value: codeById.get(r.adId),
+    ...(adStats.has(r.adId) ? { stats: adStats.get(r.adId) } : {}) }));
   const activeIds = new Set(activeGroups(state(ctx)).flatMap((g) => Object.values(g.ads)));
   const currentReviews = reviews.filter((r) => activeIds.has(r.adId));
   const currentAds = ads.filter((a) => activeIds.has(str(a.ad_id)));

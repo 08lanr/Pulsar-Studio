@@ -6,7 +6,8 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useT } from "@/components/locale";
 import { call, int, usd } from "@/components/tiktok/api";
-import { splitBudget } from "@/lib/launch/plan";
+import { adLandingUrl, splitBudget } from "@/lib/launch/plan";
+import { adTitleId, adsOfContent, campaignTitleIds, contentNumbers, resultsByTitle, runTitleIds, totalsOf, type Totals } from "@/lib/launch/title-stats";
 import AdCard, { type AdCardProps } from "@/components/launch/AdCard";
 import {
   adSetPlatforms, campaignPlatforms, explainProviderError, monitorState, needsFirstSweep,
@@ -118,10 +119,28 @@ function pairAds(cards: { id: string }[], ads: AdStatus[]): AdStatus[] | null {
   return ads;
 }
 
+/** One ad's own numbers in one line: what it cost and what it brought. */
+function AdNumbers({ totals, tt }: { totals: Totals; tt: (key: string, vars?: Record<string, string | number>) => string }) {
+  const pct = totals.ctr === null ? "—" : `${(totals.ctr * 100).toFixed(2)}%`;
+  return <span className="lm-ad-numbers" data-testid="ad-stats">
+    <span>{tt("lv2.spent")} <b>{money(totals.spend_cents)}</b></span>
+    <span>{tt("mad.impressions")} <b>{int(totals.impressions)}</b></span>
+    <span>{tt("lv2.clicks")} <b>{int(totals.clicks)}</b></span>
+    <span>CTR <b>{pct}</b></span>
+    <span>{tt("lv2.cpc")} <b>{money(totals.cpc_cents)}</b></span>
+    {totals.purchases !== null && <>
+      <span>{tt("lpx.purchases")} <b>{int(totals.purchases)}</b></span>
+      <span>{tt("lpx.value")} <b>{money(totals.value_cents)}</b></span>
+      <span>{tt("lpx.roas")} <b>{totals.roas ?? "—"}</b></span>
+      <span>{tt("lpx.costPerPurchase")} <b>{money(totals.cost_per_purchase_cents)}</b></span>
+    </>}
+  </span>;
+}
+
 type EditKind = "budget" | "daily_budget" | "bid" | "schedule" | "end";
 type Edit = { run: LaunchRun; campaign: LaunchCampaign; kind: EditKind };
 
-export default function LaunchMonitorV2({ staff = false, focusId, embedded = false }: { staff?: boolean; focusId?: string; embedded?: boolean }) {
+export default function LaunchMonitorV2({ staff = false, focusId, embedded = false, initialView = "launches" }: { staff?: boolean; focusId?: string; embedded?: boolean; initialView?: "launches" | "titles" }) {
   const { tt } = useT();
   const router = useRouter();
   const api = staff ? "/api/promote/launches" : "/api/producer/launch";
@@ -146,6 +165,11 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
   const [provider, setProvider] = useState("all");
   const [filter, setFilter] = useState("all");
   const [focused, setFocused] = useState(!!focusId);
+  // The titles the launches promote (by name), the Title filter, and whether
+  // the page shows the launches or the "By title" table.
+  const [titles, setTitles] = useState<Record<string, string>>({});
+  const [titleFilter, setTitleFilter] = useState("all");
+  const [view, setView] = useState<"launches" | "titles">(initialView);
   const [renaming, setRenaming] = useState("");
   const [nameDraft, setNameDraft] = useState("");
   const returnFocus = useRef<HTMLElement | null>(null);
@@ -157,8 +181,9 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
 
   const refresh = useCallback(async (force = false) => {
     const url = staff ? `${api}${force ? "?force=1" : ""}` : `/api/producer/monitor${force ? "?force=1" : ""}`;
-    const r = await call<{ runs: LaunchRun[]; can_edit: boolean; can_launch: boolean; producers?: { id: string; name_zh: string; name_en: string | null }[] }>(url);
+    const r = await call<{ runs: LaunchRun[]; titles?: { id: string; name: string }[]; can_edit: boolean; can_launch: boolean; producers?: { id: string; name_zh: string; name_en: string | null }[] }>(url);
     setRuns(r.runs);
+    setTitles(Object.fromEntries((r.titles ?? []).map((t) => [t.id, t.name])));
     setError("");
     setLoading(false);
     setCapabilities({ can_edit: r.can_edit, can_launch: r.can_launch });
@@ -226,9 +251,14 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
   const visible = useMemo(() => runs
     .filter((r) => !focused || !focusId || r.id === focusId || r.external_id === focusId)
     .filter((r) => provider === "all" || r.draft.provider === provider)
+    .filter((r) => titleFilter === "all" || runTitleIds(r).includes(titleFilter))
     .filter((r) => filter === "all" || (filter === "active" ? r.campaigns.some((c) => ["live", "review", "submitted"].includes(monitorState(c))) : r.status === filter))
     .filter((r) => !query.trim() || [r.draft.name, r.external_id, producers[r.producer_id], ...r.campaigns.flatMap((c) => [c.name, c.campid, c.advertiser_id, providerCampaignId(c)]), ...(r.connections ?? []).flatMap((c) => [c.name, c.advertiser_id])].some((x) => x?.toLowerCase().includes(query.trim().toLowerCase())))
-    .sort((a, b) => b.created_at.localeCompare(a.created_at)), [runs, focused, focusId, provider, filter, query, producers]);
+    .sort((a, b) => b.created_at.localeCompare(a.created_at)), [runs, focused, focusId, provider, filter, query, producers, titleFilter]);
+  const titleName = (id: string | null | undefined) => (id ? titles[id] ?? tt("mad.unknownTitle") : null);
+  const titleOptions = useMemo(() => Object.entries(titles).filter(([id]) => runs.some((r) => runTitleIds(r).includes(id))).sort((a, b) => a[1].localeCompare(b[1])), [titles, runs]);
+  const byTitle = useMemo(() => view === "titles" ? resultsByTitle(runs.filter((r) => provider === "all" || r.draft.provider === provider)) : [], [view, runs, provider]);
+  const titleHref = (id: string) => `${staff ? "/promote/monitor/titles" : "/producer/monitor/titles"}/${id}`;
 
   async function action(run: LaunchRun, suffix: "retry" | "round") {
     setBusy(`${run.id}:${suffix}`); setActionError((x) => ({ ...x, [run.id]: "" }));
@@ -300,9 +330,30 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
     <div className="page-head"><div><h1>{tt("lv2.monitor.title")}</h1><p className="page-sub">{tt("monitorV2.subtitle")}</p></div><div className="rs-tool-row">{!embedded && <Link className="btn btn-outline" href={page}>{tt("launchFeedback.createLaunch")}</Link>}<button className="btn btn-outline" disabled={!!busy || refreshing} onClick={() => void refreshDelivery()}>{tt(refreshing ? "common.loading" : "lv2.refresh")}</button></div></div>
     {error && <p className="note note-warn" role="alert">{error}</p>}
     {focusId && focused && <div className="lm-focus"><span>{tt("monitorV2.focused")}</span><button className="btn btn-outline btn-sm" onClick={() => setFocused(false)}>{tt("monitorV2.showAll")}</button></div>}
+    {/* Two ways to read the same launches: one by one, or added up per title. */}
+    <div className="seg lm-view" role="group" aria-label={tt("mad.view")}>
+      <button type="button" className={`seg-btn${view === "launches" ? " on" : ""}`} aria-pressed={view === "launches"} onClick={() => setView("launches")}>{tt("mad.viewLaunches")}</button>
+      <button type="button" className={`seg-btn${view === "titles" ? " on" : ""}`} aria-pressed={view === "titles"} onClick={() => setView("titles")}>{tt("mad.viewTitles")}</button>
+    </div>
+    {view === "titles" ? <section className="lm-by-title" aria-label={tt("mad.byTitle")}>
+      <p className="hint">{tt("mad.byTitleHint")}</p>
+      {loading ? <p>{tt("common.loading")}</p> : byTitle.length === 0 ? <div className="empty"><p>{tt("mad.byTitleEmpty")}</p></div> : <div className="lm-table-scroll"><table className="lm-table lm-title-table" data-testid="by-title-table">
+        <colgroup><col className="lm-col-title" /><col className="lm-col-count" /><col className="lm-col-count" /><col className="lm-col-count" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /></colgroup>
+        <thead><tr><th scope="col">{tt("mad.title")}</th><th scope="col">{tt("mad.launches")}</th><th scope="col">{tt("lv2.campaigns")}</th><th scope="col">{tt("mad.ads")}</th><th scope="col">{tt("lv2.spent")}</th><th scope="col">{tt("lv2.clicks")}</th><th scope="col">CTR</th><th scope="col">{tt("lv2.cpc")}</th><th scope="col">{tt("lpx.purchases")}</th><th scope="col">{tt("lpx.value")}</th><th scope="col">{tt("lpx.roas")}</th><th scope="col">{tt("lpx.costPerPurchase")}</th></tr></thead>
+        <tbody>{byTitle.map((r) => <tr key={r.title_id} data-title-id={r.title_id}>
+          <td><Link href={titleHref(r.title_id)} className="lm-title-link">{titleName(r.title_id)}</Link>{r.unattributed > 0 && <small className="lm-title-note">{tt("mad.unattributed", { n: r.unattributed })}</small>}</td>
+          <td className="lm-number">{r.launches}</td><td className="lm-number">{r.campaigns.length}</td><td className="lm-number">{r.ads}</td>
+          <td className="lm-number">{money(r.totals.spend_cents)}</td><td className="lm-number">{int(r.totals.clicks)}</td>
+          <td className="lm-number">{r.totals.ctr === null ? "—" : `${(r.totals.ctr * 100).toFixed(2)}%`}</td><td className="lm-number">{money(r.totals.cpc_cents)}</td>
+          <td className="lm-number">{int(r.totals.purchases)}</td><td className="lm-number">{money(r.totals.value_cents)}</td>
+          <td className="lm-number">{r.totals.roas ?? "—"}</td><td className="lm-number">{money(r.totals.cost_per_purchase_cents)}</td>
+        </tr>)}</tbody>
+      </table></div>}
+    </section> : <>
     <div className="lm-filters" aria-label={tt("monitorV2.filters")}>
       <label>{tt("monitorV2.search")}<input value={query} onChange={(e) => setQuery(e.target.value)} type="search" placeholder={tt("monitorV2.searchPlaceholder")} /></label>
       <label>{tt("monitorV2.provider")}<select value={provider} onChange={(e) => setProvider(e.target.value)}><option value="all">{tt("monitorV2.all")}</option><option value="tiktok">TikTok</option><option value="meta">Meta</option></select></label>
+      <label>{tt("mad.title")}<select value={titleFilter} onChange={(e) => setTitleFilter(e.target.value)} data-testid="monitor-title-filter"><option value="all">{tt("monitorV2.all")}</option>{titleOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
       <label>{tt("monitorV2.status")}<select value={filter} onChange={(e) => setFilter(e.target.value)}><option value="all">{tt("monitorV2.all")}</option><option value="active">{tt("monitorV2.active")}</option><option value="draft">{tt("lv2.plan.draft")}</option><option value="pending">{tt("lv2.run.pending")}</option><option value="running">{tt("lv2.run.running")}</option><option value="done">{tt("lv2.run.complete")}</option><option value="failed">{tt("lv2.run.failed")}</option></select></label>
       <span className="lm-count">{visible.length} {tt("monitorV2.runs")}</span>
     </div>
@@ -335,7 +386,7 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
               </button>}
               <span className="lm-run-status">{run.status === "draft" ? tt("lv2.plan.draft") : tt(`lv2.run.${run.status === "done" ? "complete" : run.status}`)}</span>
             </div>
-            <div className="lm-eyebrow"><span>{providerName}</span>{staff && <span>{producers[run.producer_id] ?? tt("monitorV2.producer")}</span>}<span>{tt("lv2.round")} {run.round}</span><span><time dateTime={run.created_at}>{date(run.created_at)}</time></span>{run.mode !== "production" && <span>{tt(run.mode === "fake" ? "lv2.demo" : "lv2.sandbox")}</span>}</div>
+            <div className="lm-eyebrow"><span>{providerName}</span>{runTitleIds(run).length > 0 && <span data-testid="run-titles">{runTitleIds(run).map((id) => titleName(id)).join(" · ")}</span>}{staff && <span>{producers[run.producer_id] ?? tt("monitorV2.producer")}</span>}<span>{tt("lv2.round")} {run.round}</span><span><time dateTime={run.created_at}>{date(run.created_at)}</time></span>{run.mode !== "production" && <span>{tt(run.mode === "fake" ? "lv2.demo" : "lv2.sandbox")}</span>}</div>
           </div>
           <div className="lm-head-actions"><Link className="lm-toolbar-button" href={`${page}/${run.id}`}>{run.status === "draft" ? tt("lv2.openDraft") : tt("monitorTable.openLaunch")}</Link>{capabilities.can_edit && <button className="lm-toolbar-button" disabled={!!busy} onClick={() => void action(run, "round")}>{tt("lv2.round.new")}</button>}{capabilities.can_launch && run.status === "failed" && <button className="lm-toolbar-button" disabled={!!busy} onClick={() => void action(run, "retry")}>{tt("lv2.retry")}</button>}</div>
         </header>
@@ -363,7 +414,7 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
         {run.campaigns.length > 0 ? <div className="lm-table-scroll"><table className="lm-table" aria-label={tt("lv2.campaigns")}>
           <colgroup><col className="lm-col-state" /><col className="lm-col-campaign" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-actions" /></colgroup>
           <thead><tr><th scope="col">{tt("lv2.state")}</th><th scope="col">{tt("lv2.campaign")}</th><th scope="col">{tt("lv2.spent")}</th><th scope="col">{tt("lv2.clicks")}</th><th scope="col">{tt("lv2.cpc")}</th><th scope="col">{tt("lv2.conversions")}</th><th scope="col">{tt("lv2.costPerConv")}</th><th scope="col">CTR</th><th scope="col"><span className="sr-only">{tt("lv2.actions")}</span></th></tr></thead>
-          <tbody>{run.campaigns.map(c => {
+          <tbody>{run.campaigns.filter(c => titleFilter === "all" || campaignTitleIds(run, c).includes(titleFilter)).map(c => {
             const active = switchState(c.snapshot?.configured_status);
             const state = monitorState(c);
             const switchKnown = active !== null;
@@ -408,7 +459,7 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
                   <div className="lm-account-line"><span>{names.get(c.connection_id) ?? tt("monitorV2.account")}</span>
                     <span className="mr2-badges">{(platforms.length ? platforms : (run.draft.provider === "tiktok" ? ["tiktok" as const] : [])).map(p => <span className={`mr2-badge ad-card-badge ad-card-badge-${p}`} key={p}>{PLATFORM_LABEL[p]}</span>)}</span>
                   </div>
-                  <div className="lm-row-meta"><span>{cards.length === 1 ? tt("mr2.adOne") : tt("mr2.adMany", { n: cards.length })}</span>{c.snapshot?.note && <span className="lm-provider-note" title={c.snapshot.note}>{c.snapshot.note}</span>}</div>
+                  <div className="lm-row-meta">{campaignTitleIds(run, c).length > 0 && <span className="lm-campaign-title" data-testid="campaign-title">{campaignTitleIds(run, c).map((id) => titleName(id)).join(" · ")}</span>}<span>{cards.length === 1 ? tt("mr2.adOne") : tt("mr2.adMany", { n: cards.length })}</span>{c.snapshot?.note && <span className="lm-provider-note" title={c.snapshot.note}>{c.snapshot.note}</span>}</div>
                 </td>
                 <td className="lm-number">{money(c.snapshot?.spend_cents)}</td><td className="lm-number">{int(c.snapshot?.clicks)}</td><td className="lm-number">{money(c.snapshot?.cpc_cents)}</td><td className="lm-number">{int(c.snapshot?.conversions)}</td><td className="lm-number">{costPerConversion}</td><td className="lm-number">{ctr}</td>
                 <td><div className="lm-actions"><button className="lm-row-button" aria-expanded={!!expanded[c.id]} aria-controls={`campaign-details-${c.id}`} onClick={() => setExpanded(x => ({ ...x, [c.id]: !x[c.id] }))}>{expanded[c.id] ? tt("lv2.hide") : tt("lv2.details")}</button>{(canControl || canEnd) && <button data-monitor-menu className="lm-row-button lm-more" aria-expanded={menu === c.id} aria-label={tt("monitorV2.moreActions")} onClick={event => { const rect = event.currentTarget.getBoundingClientRect(); setMenuPosition({ top: Math.max(12, Math.min(rect.bottom + 4, window.innerHeight - 300)), left: Math.max(12, Math.min(rect.right - 220, window.innerWidth - 232)) }); setMenu(menu === c.id ? "" : c.id); }}><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="3" cy="8" r="1.2" /><circle cx="8" cy="8" r="1.2" /><circle cx="13" cy="8" r="1.2" /></svg></button>}</div></td>
@@ -443,18 +494,27 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
                     is the card's `title=` and `data-content-id`, never its text. */}
                 <div className="mr2-ads" aria-label={tt("mr2.ads")}>{cards.length
                   ? cards.map(({ key, ...card }, i) => {
-                    const ad = adStatuses?.[i];
+                    const item = c.content[i];
+                    // The sweep's ad for this card: paired by position, else the
+                    // first ad carrying its Spark code or post (copies included).
+                    const ad = adStatuses?.[i] ?? (item ? adsOfContent(c, item)[0] : undefined);
                     // An ad with no picture of its own is one line named by its
                     // position ("Ad 1"), the same way the confirm dialog draws it.
                     const pictured = Boolean(card.thumbnail_url || card.media_url);
-                    return <div className="lm-ad-row" key={key}>
+                    // Its own numbers, summed over its copies; its own title and link.
+                    const numbers = item ? contentNumbers(c, item) : null;
+                    const adTitle = item ? titleName(adTitleId(run, item)) : null;
+                    const link = adLandingLink(item ? adLandingUrl(item, run.draft.destination_url) : run.draft.destination_url, { campaign: campaignId, adgroup: groups.length === 1 ? groups[0].id : null, ad: ad?.id ?? null });
+                    return <div className="lm-ad" key={key}><div className="lm-ad-row">
                       <AdCard {...card} line={!pictured} fallbackName={pictured ? undefined : tt("lr3.adNumber", { n: i + 1 })} />
                       {ad && <span className={`lm-ad-state lm-ad-state-${adStatusTone(ad.status)}`} title={`${ad.id}${ad.note ? ` · ${ad.note}` : ""}`}>{adStatusWord(ad.status)}</span>}
-                      {(() => {
-                        const link = adLandingLink(run.draft.destination_url, { campaign: campaignId, adgroup: groups.length === 1 ? groups[0].id : null, ad: ad?.id ?? null });
-                        return link ? <a className="lm-row-button lm-ad-link" href={link} target="_blank" rel="noreferrer" title={`${tt("mr4.landingHint")}\n${link}`} data-testid="ad-landing-link">{tt("mr4.landing")}</a> : null;
-                      })()}
-                    </div>;
+                      {link ? <a className="lm-row-button lm-ad-link" href={link} target="_blank" rel="noreferrer" title={`${tt("mr4.landingHint")}\n${link}`} data-testid="ad-landing-link">{tt("mr4.landing")}</a> : null}
+                    </div>
+                    <div className="lm-ad-facts">
+                      {adTitle && <span className="lm-ad-title" data-testid="ad-title">{adTitle}</span>}
+                      {numbers ? <AdNumbers totals={totalsOf(numbers)} tt={tt} /> : c.snapshot && run.draft.provider === "tiktok" && campaignId ? <span className="lm-ad-numbers-none">{tt(c.snapshot.ad_stats_error ? "mad.adStatsFailed" : "mad.adStatsNone")}</span> : null}
+                      {ad && run.draft.provider === "tiktok" && <span className="lm-ad-id" title={tt("mad.adIdHint")}>{tt("mad.adId")} {ad.id}</span>}
+                    </div></div>;
                   })
                   : <p>{tt("mr2.noAds")}</p>}</div>
                 {/* Only when the sweep's ads cannot be lined up with the cards
@@ -469,6 +529,7 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
                 </div>
                 {c.snapshot?.web && <p className="hint lm-web-line" data-testid="web-conversions">{tt("lpx.webLine", { attribution: c.snapshot.web.attribution })}: {tt("lpx.purchases")} {int(c.snapshot.web.purchases)} · {tt("lpx.value")} {money(c.snapshot.web.purchase_value_cents)} · {tt("lpx.roas")} {c.snapshot.web.roas ?? "—"} · {tt("lpx.checkouts")} {int(c.snapshot.web.checkouts)}</p>}
                 {c.snapshot?.web_error && <p className="hint">{tt("lpx.webUnavailable", { reason: c.snapshot.web_error })}</p>}
+                {c.snapshot?.ad_stats_error && <p className="hint" data-testid="ad-stats-error">{tt("mad.adStatsUnavailable", { reason: c.snapshot.ad_stats_error })}</p>}
                 {skippedOf(c).map((item, i) => <p className="note note-warn" key={i}>{typeof item === "string" ? item : JSON.stringify(item)}</p>)}
               </div></td></tr>}
               {menu === c.id && createPortal(<div data-monitor-menu className="lm-menu-list" style={{ top: menuPosition.top, left: menuPosition.left }}>{canControl && <><button onClick={() => openEdit(run, c, "budget")}>{tt("lv2.changeBudget")}</button>{c.daily_budget_cents != null && <button onClick={() => openEdit(run, c, "daily_budget")}>{tt("lv2.changeDaily")}</button>}<button onClick={() => openEdit(run, c, "bid")}>{tt("lv2.changeBid")}</button><button onClick={() => openEdit(run, c, "schedule")}>{tt("lv2.endDate")}</button>{run.draft.provider === "tiktok" && <button disabled={!!busy} onClick={() => void control(run, c, { action: "duplicate" })}>{tt("lv2.duplicate")}</button>}</>}{canEnd && <button className="lm-danger" onClick={() => openEdit(run, c, "end")}>{tt("monitorV2.endCampaign")}</button>}</div>, document.body)}
@@ -487,6 +548,7 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
         </footer>
       </section>;
     })}
+    </>}
     <span className="sr-only" role="status">{copied ? tt("monitorTable.copied") : ""}</span>
     {edit && <div className="lm-dialog-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) setEdit(null); }}><div ref={dialogRef} tabIndex={-1} className="lm-dialog" role="dialog" aria-modal="true" aria-labelledby="lm-dialog-title"><h2 id="lm-dialog-title">{edit.kind === "end" ? tt("monitorV2.endCampaign") : edit.kind === "schedule" ? tt("lv2.endDate") : tt(edit.kind === "budget" ? "lv2.changeBudget" : edit.kind === "daily_budget" ? "lv2.changeDaily" : "lv2.changeBid")}</h2><p className="lm-meta">{edit.run.draft.name} · {edit.campaign.index}</p>{edit.kind === "end" ? <p>{tt("monitorV2.endWarning")}</p> : edit.kind === "schedule" ? <label>{tt("monitorV2.newEndDate")}<input autoFocus type="datetime-local" value={endTime} onChange={(e) => setEndTime(e.target.value)} /></label> : <label>{tt(edit.kind === "budget" ? "lv2.campaignBudget" : edit.kind === "daily_budget" ? "lv2.campaignDaily" : "lv2.bid")}<input autoFocus type="number" min="0.01" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>}{edit.kind === "budget" && <p className="lm-meta">{tt("monitorV2.approvedCeiling")}: {money(splitBudget(edit.run.draft.total_budget_cents, edit.run.draft.account_ids.length * edit.run.draft.campaigns_per_account)[edit.campaign.index - 1])}</p>}{dialogError && <p className="note note-warn" role="alert">{dialogError}</p>}<div className="lm-dialog-actions"><button className="btn btn-outline" disabled={!!busy} onClick={() => setEdit(null)}>{tt("monitorV2.cancel")}</button><button className="btn btn-primary" disabled={!!busy} onClick={saveEdit}>{edit.kind === "end" ? tt("monitorV2.endCampaign") : tt("monitorV2.save")}</button></div></div></div>}
   </div>;

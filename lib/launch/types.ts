@@ -6,9 +6,23 @@ import type { WebConversions } from "@/lib/tiktok/web-metrics";
 export type LaunchProvider = "tiktok" | "meta";
 export type ContentKind = "spark" | "facebook_post" | "instagram_post" | "video";
 export type LaunchContent = {
-  kind: ContentKind; value: string; label?: string; creative_id?: string; title_id?: string;
+  kind: ContentKind; value: string; label?: string; creative_id?: string;
+  /**
+   * The title this ad promotes. TikTok: each Spark code row picks its own
+   * (default: the launch's title; a picked clip's title otherwise), so one
+   * launch may promote several titles. The server fills it on save.
+   */
+  title_id?: string;
   /** The Studio clip this content came from, and the promote.clip_posts row that published it. */
   clip_id?: string; post_id?: string;
+  /**
+   * TikTok website ads: this ad's own landing page, `crazydramasAdUrl(slug)`
+   * of its title. Written by the server on save from the title, never taken
+   * from the client, signed with the draft and sent as the ad's
+   * `landing_page_url`. Absent on content saved before per-ad titles: the
+   * campaign's link applies.
+   */
+  landing_url?: string;
   // Populated by the server from company-owned finished creatives, never trusted from JSON input.
   file_path?: string; sha256?: string; thumbnail_path?: string; text?: string; headline?: string;
 };
@@ -77,7 +91,9 @@ export type DeliverySnapshot = {
   spend_cents: number | null; impressions: number | null; clicks: number | null;
   conversions: number | null; cpc_cents: number | null;
   configured_status?: string; effective_status?: string;
-  ads?: { id: string; status: string; note?: string; content_value?: string }[];
+  ads?: { id: string; status: string; note?: string; content_value?: string; stats?: AdStats }[];
+  /** Why the per-ad numbers are missing when TikTok's ad report failed (fails soft: the campaign's numbers stand). */
+  ad_stats_error?: string;
   /** One entry per ad set. Meta names the platform its ad set runs on; TikTok groups have none. */
   groups?: { id: string; status: string; budget_cents?: number; bid_cents?: number | null; end_time?: string; platform?: MetaPlatform }[];
   /**
@@ -87,6 +103,17 @@ export type DeliverySnapshot = {
    */
   web?: (WebConversions & { event: string; attribution: string }) | null;
   web_error?: string;
+};
+/**
+ * One ad's own results: TikTok's AUCTION_AD report over the launch's life.
+ * Unknown stays null, never zero. `web` is TikTok-attributed website
+ * conversions, read on a Website purchases launch only.
+ */
+export type AdStats = {
+  spend_cents: number | null; impressions: number | null; clicks: number | null;
+  /** clicks ÷ impressions (0.0123 = 1.23%), recomputed from the sums. */
+  ctr: number | null; cpc_cents: number | null; conversions: number | null;
+  web?: WebConversions | null;
 };
 export type LaunchCampaign = LaunchPlanRow & {
   id: string; run_id: string; status: "pending" | "running" | "done" | "failed";
@@ -134,6 +161,8 @@ export type LaunchTitleOption = {
   id: string; name: string; slug: string | null;
   /** The crazydramas status state (lib/crazydramas/match.ts), or null when the title has no slug. */
   state: string | null;
+  /** Whether ads may send people to it today (the gate's reading): only these are offered per ad. */
+  live?: boolean;
   /** The link its ads would carry, when the slug can carry one. */
   ad_url: string | null;
 };

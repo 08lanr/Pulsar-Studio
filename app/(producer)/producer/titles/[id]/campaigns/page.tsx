@@ -10,11 +10,15 @@ import { readResults } from "@/lib/research/results";
 import { adCtr, adSpend } from "@/lib/research/title-status";
 import { loadTitleWorkspace } from "@/lib/research/title-workspace";
 import { campaignWorkflow } from "@/lib/research/workflow";
+import TitleLaunchSummary from "@/components/launch/TitleLaunchSummary";
+import { getData } from "@/lib/data";
+import { titleResults } from "@/lib/launch/title-stats";
 
-// /producer/titles/[id]/campaigns — the Ad campaigns section: every round
-// on this title with its step, budget, reported spend and result reading,
-// the way into each campaign (which stays at /producer/promote/[id]) and
-// the way to the attributable outcomes in the TikTok section.
+// /producer/titles/[id]/campaigns — the Ad campaigns section: first what the
+// launches that promote this title spent and brought (the same reading as
+// the Monitor and the title's results page, 2026-09-24), then, only when the
+// title has any, the older rounds with their step, budget, reported spend and
+// result reading and the way into each (which stays at /producer/promote/[id]).
 
 export const dynamic = "force-dynamic";
 
@@ -29,24 +33,22 @@ export default async function TitleCampaigns({ params }: { params: { id: string 
   const ctr = adCtr(x.results);
   const adStep = w.ads.flow ? t(locale, `workflow.step.${w.ads.flow.step}`) : null;
   const returnTo = encodeURIComponent(`/producer/titles/${params.id}/campaigns`);
+  const launched = titleResults(await getData().listLaunchRuns(session), params.id);
 
   return (
     <TitleShell locale={locale} titleId={params.id} name_zh={w.detail.title.name_zh} name_en={w.detail.title.name_en} platform={w.platform} ads={w.ads.status} adStep={adStep} crazydramas={chipReading(w.crazydramas)} section="campaigns"
       actions={canEdit ? <a className="btn btn-primary" href={`/producer/launch`}>{t(locale, "ws.exp.new")}</a> : undefined}>
-      <div className="tw-strip">
+      <TitleLaunchSummary locale={locale} results={launched} resultsHref={`/producer/monitor/titles/${params.id}`} launchHref={canEdit ? "/producer/launch" : null} />
+      {rounds.length > 0 && <div className="tw-strip">
         <div><span>{t(locale, "tw.ads.spendToDate")}</span><strong>{spend == null ? "–" : fmtUsd(spend, 2)}</strong></div>
         <div><span>{t(locale, "tw.ads.ctrToDate")}</span><strong>{ctr ? <>{fmtPct(ctr.ctr, 2)} <small>{ctr.ctr >= BENCHMARK.ctr ? "✓" : "✗"} ≥ {(BENCHMARK.ctr * 100).toFixed(1)}%</small></> : "–"}</strong></div>
         <div><span>{t(locale, "tw.ads.rounds")}</span><strong>{rounds.length}</strong></div>
         <div><span>{t(locale, "tw.ads.attributed")}</span><strong><a href={`/producer/titles/${params.id}/analytics/acquisition`}>{t(locale, "tw.nav.tiktok")}&nbsp;→</a></strong></div>
-      </div>
+      </div>}
 
-      {rounds.length === 0 ? (
-        <section className="rs-panel rs-empty">
-          <p>{t(locale, "ws.assess.noExperiments")}</p>
-          {canEdit && <a className="btn btn-primary btn-sm" href={`/producer/launch`}>{t(locale, "ws.exp.new")}</a>}
-        </section>
-      ) : (
+      {rounds.length > 0 && (
         <section className="rs-panel">
+          <h2>{t(locale, "mad.earlierRounds")}</h2>
           <table className="tw-table">
             <caption className="sr-only">{t(locale, "tw.nav.campaigns")}</caption>
             <thead><tr>

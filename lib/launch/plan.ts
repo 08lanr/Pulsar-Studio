@@ -12,7 +12,11 @@ export const contentSchema = z.object({
   // clip this content is, and which post record published it. Both are verified
   // against the company's own clip library before saving, never trusted as sent.
   clip_id: z.string().uuid().optional(), post_id: z.string().uuid().optional(),
-}); // File paths, hashes and ownership are resolved from the data layer, never from the client.
+  // The title this ad promotes (TikTok: one per Spark code row). Checked
+  // against the company's titles and its crazydramas series at preview; its
+  // link (`landing_url`) is written by the server, never read from here.
+  title_id: z.string().uuid().optional(),
+}); // File paths, hashes, landing links and ownership are resolved from the data layer, never from the client.
 export const draftSchema = z.object({
   provider: z.enum(["tiktok", "meta"]), name: z.string().trim().min(1).max(80),
   account_ids: z.array(z.string().min(1).max(150)).max(50),
@@ -245,6 +249,16 @@ export function trackingUrlForCampaign(destination: string, campid: string, targ
 
 /** The TikTok refusal for a destination that is not the title's crazydramas ad link. */
 export const TIKTOK_DESTINATION_REFUSAL = "TikTok ads link to the title's crazydramas page. Choose the title this launch promotes.";
+/** A Sales Instant Page has one button, so it has one link: its ads cannot promote different titles. */
+export const INSTANT_PAGE_ONE_TITLE = "A Sales Instant Page has one button link, so every ad in this launch must promote the launch's title. Set each ad to that title, or use Website purchases or Traffic to promote several titles in one launch.";
+
+/**
+ * The link one TikTok ad carries: its own title's link when the server wrote
+ * one (per-ad titles), else the campaign's (content saved before them).
+ */
+export function adLandingUrl(item: Pick<LaunchContent, "landing_url">, campaignUrl: string): string {
+  return item.landing_url ?? campaignUrl;
+}
 
 export function buildLaunchPlan(input: LaunchDraft, connections: LaunchConnection[], savedRunExternalId?: string, takenNames: readonly string[] = []): LaunchPlan {
   const parsed = draftSchema.safeParse(input);
@@ -260,6 +274,13 @@ export function buildLaunchPlan(input: LaunchDraft, connections: LaunchConnectio
     // attribution parameters (lib/tiktok/ad-url.ts); the data layer checks the
     // title and that its series is live before it gets here.
     if (!isCrazydramasAdUrl(d.destination_url)) throw new Error(TIKTOK_DESTINATION_REFUSAL);
+    // Each ad may promote its own title, so each carries its own link (the
+    // server writes it on save; the gate checks it against the title).
+    input.content.forEach((item, i) => {
+      if (item.landing_url !== undefined && !isCrazydramasAdUrl(item.landing_url)) throw new Error(`Ad ${i + 1} has no crazydramas link. Choose a title that is live on crazydramas for it.`);
+    });
+    if (launchShape(d.tiktok_settings) === "instant_page" && input.content.some(item => item.landing_url !== undefined && item.landing_url !== d.destination_url))
+      throw new Error(INSTANT_PAGE_ONE_TITLE);
   }
   const chosen = d.account_ids.map(id => {
     const a = connections.find(c => c.id === id && c.provider === d.provider && c.enabled && c.assigned_by);

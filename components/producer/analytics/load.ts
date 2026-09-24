@@ -7,6 +7,7 @@ import type { Session } from "@/lib/auth";
 import { adStatus, platformStatus, type AdReading, type PlatformStatus } from "@/lib/research/title-status";
 import { loadCrazydramasStatus } from "@/lib/crazydramas";
 import { chipReading, type CrazydramasChipReading } from "@/components/producer/CrazydramasChip";
+import { titleResults, type TitleResults } from "@/lib/launch/title-stats";
 
 // What every analytics page needs in one call: the session, the locale, the
 // record for the range in the URL, and the base href the sub-views share.
@@ -28,6 +29,8 @@ export type AnalyticsPageData = {
   platform: PlatformStatus;
   ads: AdReading;
   crazydramas: CrazydramasChipReading;
+  /** What the launches that promote this title spent and brought (lib/launch/title-stats.ts). */
+  launched: TitleResults;
 };
 
 export type View = "overview" | "revenue" | "episodes" | "acquisition" | "link";
@@ -48,13 +51,15 @@ export async function loadAnalyticsPage(titleId: string, view: View, searchParam
   }
   const canEdit = !isStaffPreview(session) && (session.producerRole === "approver" || session.producerRole === "reviewer");
   const data = getData();
-  const [campaigns, results, cd] = await Promise.all([
+  const [campaigns, results, cd, runs] = await Promise.all([
     data.listPromoCampaigns(session),
     data.listCreativeResults(session, { titleId }),
     // The third header chip (plan A4): the shell reads the state only. The analytics record carries no slug, so the
     // reading starts from the title row (getTitleAnalytics already answered not_found for a foreign title).
     data.getTitle(session, titleId).then((detail) => loadCrazydramasStatus(session, detail.title)),
+    // The launches (unified launch, 2026-09-16) are where this title's ad numbers live now.
+    data.listLaunchRuns(session).catch(() => []),
   ]);
   const query = window ? `?range=custom&from=${window.from}&to=${window.to}` : `?range=${range}`;
-  return { session, locale, record, range, window, base, query, canEdit, platform: platformStatus(record.analytics_state), ads: adStatus(campaigns.filter((c) => c.title_id === titleId), results), crazydramas: chipReading(cd) };
+  return { session, locale, record, range, window, base, query, canEdit, platform: platformStatus(record.analytics_state), ads: adStatus(campaigns.filter((c) => c.title_id === titleId), results), crazydramas: chipReading(cd), launched: titleResults(runs, titleId) };
 }

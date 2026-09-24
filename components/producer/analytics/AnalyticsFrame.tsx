@@ -3,6 +3,7 @@ import type { AnalyticsRange } from "@/lib/analytics/types";
 import { ANALYTICS_VERSION } from "@/lib/analytics/compute";
 import TitleShell from "@/components/producer/TitleShell";
 import { DemoChip, FreshnessLine, RangeControl, StateChip } from "./bits";
+import TitleLaunchSummary from "@/components/launch/TitleLaunchSummary";
 import type { AnalyticsPageData, View } from "./load";
 
 // The frame every analytics view shares: breadcrumb (My catalog › title ›
@@ -49,6 +50,10 @@ export default function AnalyticsFrame({ data, view, children }: { data: Analyti
         </nav>
         <RangeControl range={range} hrefFor={hrefFor} locale={locale} window={window} action={viewPath} dataThrough={a.freshness.data_through} />
       </div>
+
+      {/* The ad numbers of this title's launches come first: they exist for
+          every title that ran ads, platform listing or not. */}
+      {view !== "link" && <TitleLaunchSummary locale={locale} results={data.launched} resultsHref={`/producer/monitor/titles/${a.title.id}`} launchHref={canEdit ? "/producer/launch" : null} />}
 
       <FreshnessLine f={a.freshness} period={a.period} locale={locale} source={a.source} />
 

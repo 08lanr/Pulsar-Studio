@@ -73,7 +73,9 @@ function preview(plan: LaunchPlan, run: LaunchRun, connections: LaunchConnection
         content: r.content.map(c => ({ kind: c.kind, label: c.label ?? null,
           reference: c.kind === "spark" ? null : c.value,
           spark_code_suffix: c.kind === "spark" ? c.value.slice(-4) : null,
-          text: c.text ?? null, headline: c.headline ?? null })) };
+          text: c.text ?? null, headline: c.headline ?? null,
+          // The title this ad promotes and the exact link it carries (TikTok: one per Spark code).
+          title_id: c.title_id ?? null, landing_url: c.landing_url ?? null })) };
     }) };
 }
 function jsonResult(data: unknown) { return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data }; }
