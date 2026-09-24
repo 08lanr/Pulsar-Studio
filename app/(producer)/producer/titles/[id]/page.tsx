@@ -39,11 +39,15 @@ export default async function TitleOverview({ params, searchParams }: { params: 
   const step = w.ads.flow ? t(locale, `workflow.step.${w.ads.flow.step}`) : null;
 
   // The next action: the campaign's own next step when one is waiting on the
-  // producer; otherwise the most useful preparation step.
+  // producer; otherwise the flow strip's next step, so the button and the
+  // strip always name the same one (a title with no episode video uploads
+  // its videos first; with every step done, its stats).
   let next: { href: string; label: string; hint: string };
+  const flowNext = flow.find((s) => s.state === "next" && s.href) ?? [...flow].reverse().find((s) => s.state === "done" && s.href) ?? null;
   if (w.ads.flow && !w.ads.flow.waiting) next = { href: w.ads.flow.href, label: t(locale, w.ads.flow.action), hint: t(locale, w.ads.flow.hint) };
   else if (w.ads.flow) next = { href: w.ads.flow.href, label: t(locale, "workflow.viewLaunch"), hint: t(locale, w.ads.flow.hint) };
-  else if (withVideo === 0) next = { href: sectionHref(params.id, "materials"), label: t(locale, "tw.next.uploadVideo"), hint: t(locale, "workflow.needsVideo") };
+  else if (withVideo === 0 && (!flowNext || flowNext.id === "upload")) next = { href: sectionHref(params.id, "materials"), label: t(locale, "tw.next.uploadVideo"), hint: t(locale, "workflow.needsVideo") };
+  else if (flowNext?.href) next = { href: flowNext.href, label: t(locale, `flow.step.${flowNext.id}`), hint: t(locale, `flow.what.${flowNext.id}`) };
   else next = { href: `/producer/launch`, label: t(locale, "ws.actions.test"), hint: t(locale, "tw.next.firstCampaignHint") };
 
   return (

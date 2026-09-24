@@ -64,6 +64,7 @@
 .fi-not-ready ul { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
 .fi-not-ready li { display: flex; gap: 8px 12px; align-items: baseline; flex-wrap: wrap; padding-top: 8px; border-top: 1px solid var(--border-light); font-size: 14px; }
 .fi-not-ready li small { overflow-wrap: anywhere; }
+.fi-not-ready li .cdh-not-ready-note { flex-basis: 100%; font-size: 12px; }
 
 /* The per-film flow strip (title pages): Segment → Import → Upload → Ad clips → Launch → Stats. */
 .title-flow { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin: 0 0 20px; padding: 0; list-style: none; }

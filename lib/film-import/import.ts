@@ -381,6 +381,23 @@ export function importIsRunning(p: ImportProgress | null | undefined): boolean {
   return !!p && p.step !== "done" && p.step !== "failed";
 }
 
+/**
+ * A running import of one film that the session may see before any title it
+ * reads came from the film (the CrazyDramas hub, 2026-09-24: reloaded, or a
+ * second tab, while the import scans): its company's for a producer, any
+ * company's for staff. Null when none runs.
+ */
+export function runningImportOf(session: Session, sourceRef: string): ImportProgress | null {
+  if (session.kind === "producer") {
+    const p = session.producerId ? importProgress(session.producerId, sourceRef) : null;
+    return importIsRunning(p) ? p : null;
+  }
+  if (session.kind !== "staff") return null;
+  const ref = sourceRef.toLowerCase();
+  for (const p of registry().values()) if (p.source_ref.toLowerCase() === ref && importIsRunning(p)) return { ...p, counts: { ...p.counts } };
+  return null;
+}
+
 /** Tests only: forget every import this process ran. */
 export function resetImportRegistry(): void {
   registry().clear();
@@ -554,7 +571,8 @@ export async function listFilmsForHub(session: Session, opts: ImportOptions = {}
   for (const scan of scans) {
     const mine = byRef.get(scan.source_ref.toLowerCase()) ?? [];
     if (!mine.length) {
-      films.push({ ...toRow(scan, null, null, null), producer_id: null });
+      // Nobody's title yet, but an import may be on its way: its line stays on the row and the hub's Import stays off.
+      films.push({ ...toRow(scan, null, null, runningImportOf(session, scan.source_ref)), producer_id: null });
       continue;
     }
     for (const t of mine) {

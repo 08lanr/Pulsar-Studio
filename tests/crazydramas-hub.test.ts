@@ -12,7 +12,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
-import { systemSession } from "@/lib/auth";
+import { fixtureSession, systemSession } from "@/lib/auth";
 import { fakeCrazydramasTransport, FAKE_SLUGS } from "@/lib/crazydramas/fake";
 import { buildHub, ledgerCounts, loadCrazydramasHub, onCdOf, titleAction, type HubInput, type HubStatusInput, type HubTitleInput } from "@/lib/crazydramas/hub";
 import { checkPublicPage, PUBLIC_CHECK_MIN_MS, resetCrazydramasSweep, sweepCrazydramasNow, type UnmatchedSeries } from "@/lib/crazydramas/sweep";
@@ -64,7 +64,7 @@ function series(slug: string, t: string, episodes = 10): UnmatchedSeries {
 }
 function input(over: Partial<HubInput>): HubInput {
   return {
-    workspace: true, films: [], titles: [], statuses: new Map(), ledgers: new Map(), unmatched: [], catalog_read: true, can_act: true,
+    workspace: true, films: [], titles: [], statuses: new Map(), ledgers: new Map(), unmatched: [], series_rows: true, catalog_read: true, can_act: true,
     film_poster: (ref) => `/poster?ref=${ref}`, public_url: (slug) => `https://crazydramas.com/drama/${slug}`, ...over,
   };
 }
@@ -134,6 +134,29 @@ test("the hub: one row per film or title, each live series once, not-ready films
   assert.deepEqual(readOnly.rows[0].action, { kind: "none" }, "someone who may not act gets no button");
 });
 
+test("a producer's hub matches its films against the live series too, but lists none of them as rows", () => {
+  const films = [film("low-quality/the-cold-ceo", { display_title: "The Cold CEO" }), film("low-quality/fresh-film"), film("low-quality/other-film", { crazydramas_slug: "other-film" })];
+  const unmatched = [
+    series("hired-as-his-secretary-claimed-as-his-wife", "Hired as His Secretary, Claimed as His Wife", 61),
+    series("he-treated-our-love-like-a-prank", "He Treated Our Love Like a Prank", 40),
+    { ...series("other-film", "Other Film", 12), held: true }, // another company's title holds it
+  ];
+  const hub = buildHub(input({ films, unmatched, series_rows: false }));
+  const by = new Map(hub.rows.map((r) => [r.key, r]));
+  assert.equal(hub.rows.some((r) => r.kind === "series"), false, "no series rows on the producer's page");
+  const cold = by.get("film:low-quality/the-cold-ceo")!;
+  assert.deepEqual(cold.on_cd, { code: "live", episodes: 61, match: null, of: null, state: null, cms: true }, "its show is live: never \"Not on CrazyDramas\"");
+  assert.equal(cold.public_url, "https://crazydramas.com/drama/hired-as-his-secretary-claimed-as-his-wife");
+  assert.deepEqual(by.get("film:low-quality/other-film")!.on_cd, { code: "live", episodes: 12, match: null, of: null, state: null, cms: false }, "live under another company's title: not said to be made in the CMS");
+  assert.deepEqual(by.get("film:low-quality/fresh-film")!.on_cd, { code: "before_import", read: true });
+
+  const staffHub = buildHub(input({ films, unmatched }));
+  assert.deepEqual(staffHub.rows.filter((r) => r.kind === "series").map((r) => r.slug), ["he-treated-our-love-like-a-prank"], "staff list the series nothing matches, never a held one");
+
+  const unread = buildHub(input({ films: [film("low-quality/fresh-film")], unmatched: null, series_rows: false, catalog_read: false }));
+  assert.deepEqual(unread.rows[0].on_cd, { code: "before_import", read: false }, "nothing read: not checked yet, never \"not on CrazyDramas\"");
+});
+
 test("the next step follows the series: upload, uploads on their way, publish, open the site; a CMS series is only opened", () => {
   const none = { active: 0, verified: 0, published: 0, failed: 0 };
   assert.deepEqual(titleAction("t", onCdOf(null, null, 3), none, 3, null, true), { kind: "upload", title_id: "t" }, "no slug yet: the form picks one");
@@ -148,6 +171,15 @@ test("the next step follows the series: upload, uploads on their way, publish, o
   const cms = onCdOf(status("live_partial", "s", { series: { managed_by: "cms", status: "published", episode_count: 3, poster_url: null } }), liveMore, 5);
   assert.deepEqual(titleAction("t", cms, liveMore, 5, "https://x", true), { kind: "open_site", url: "https://x" });
   assert.deepEqual(titleAction("t", onCdOf(status("read_failed", "s"), none, 3), none, 3, null, true), { kind: "check", title_id: "t" });
+  // Every episode went out and was published, and the series is still a draft ("Also publish the series" left unticked, or its call failed).
+  const allOut = { active: 0, verified: 0, published: 3, failed: 0 };
+  const seriesDraft = onCdOf(status("not_live", "s", { detail: "draft" }), allOut, 3);
+  assert.deepEqual(seriesDraft, { code: "draft", uploaded: 3, of: 3, publishable: 0, uploading: 0, failed: 0, cms: false });
+  assert.deepEqual(titleAction("t", seriesDraft, allOut, 3, null, true), { kind: "publish", title_id: "t", n: 0 }, "publish the series, not another upload");
+  const twoOut = { active: 0, verified: 0, published: 2, failed: 0 };
+  assert.deepEqual(titleAction("t", onCdOf(status("not_live", "s", { detail: "draft" }), twoOut, 3), twoOut, 3, null, true), { kind: "upload", title_id: "t" }, "one episode still to send");
+  const cmsDraft = onCdOf(status("not_live", "s", { detail: "draft", series: { managed_by: "cms", status: "draft", episode_count: 3, poster_url: null } }), allOut, 3);
+  assert.deepEqual(titleAction("t", cmsDraft, allOut, 3, null, true), { kind: "check", title_id: "t" }, "a CMS draft is not Studio's to publish");
   assert.deepEqual(onCdOf(status("not_live", "s", { note: "slug_reassigned" }), none, 3), { code: "elsewhere" });
 
   const row = (n: number, step: CdPublication["step"], created: string) => ({ episode_number: n, step, created_at: created }) as CdPublication;
@@ -188,6 +220,43 @@ test("the hub reads the fixture workspace: the imported film is one row with its
 
   const mine = await loadCrazydramasHub(producer(), { portal: "producer", can_act: true });
   assert.equal(mine.rows.some((r) => r.kind === "series"), false, "a producer never sees nobody's series");
+});
+
+test("the producer's hub reads the live series before it says a film is not on CrazyDramas", async () => {
+  process.env.WORKSPACE_ROOT = path.resolve("tests", "fixtures", "workspace");
+  process.env.STUDIO_IMPORT_QUIET_MS = "0";
+  const who = producer();
+
+  const before = await loadCrazydramasHub(who, { portal: "producer", can_act: true });
+  const unread = before.rows.find((r) => r.source_ref === "low-quality/fixture-film")!;
+  assert.equal(unread.kind, "film");
+  assert.deepEqual(unread.on_cd, { code: "before_import", read: false }, "nothing read yet: not checked, never \"not on CrazyDramas\"");
+  assert.equal(before.catalog_read, false);
+
+  const read = await sweepCrazydramasNow({ transport: fakeCrazydramasTransport });
+  assert.equal(read.ran, true);
+  const after = await loadCrazydramasHub(who, { portal: "producer", can_act: true });
+  assert.equal(after.catalog_read, true);
+  const row = after.rows.find((r) => r.source_ref === "low-quality/fixture-film")!;
+  assert.equal(row.in_studio.code, "not_imported");
+  assert.equal(row.on_cd.code, "live", "the film's show is live on crazydramas, as the staff desk says");
+  assert.equal(row.slug, "fixture-film");
+  assert.deepEqual(row.action, { kind: "import", source_ref: "low-quality/fixture-film" });
+  assert.equal(after.rows.some((r) => r.kind === "series"), false, "the unmatched series stay staff's list");
+
+  const staffRow = (await loadCrazydramasHub(staff(), { portal: "admin", can_act: true })).rows.find((r) => r.source_ref === "low-quality/fixture-film")!;
+  assert.deepEqual(staffRow.on_cd, row.on_cd, "both portals say the same");
+
+  // Another company imported the film and its title holds the live series: still live for this company, not "made in the CMS".
+  const other = await fixtureData.createProducer(staff(), { name_zh: "别家影视" });
+  const theirs = await fixtureData.createImportedTitle(systemSession(), { producer_id: other.id, source_ref: "low-quality/fixture-film", display_title_en: "Fixture Film", crazydramas_slug: FAKE_SLUGS.complete, created_by: who.userId });
+  resetCrazydramasSweep();
+  assert.equal((await sweepCrazydramasNow({ transport: fakeCrazydramasTransport })).ran, true);
+  const held = (await loadCrazydramasHub(who, { portal: "producer", can_act: true })).rows.find((r) => r.source_ref === "low-quality/fixture-film")!;
+  assert.equal(held.title_id, null, "the other company's title stays unseen");
+  assert.deepEqual(held.on_cd, { code: "live", episodes: 3, match: null, of: null, state: null, cms: false });
+  const theirRow = (await loadCrazydramasHub(fixtureSession("producer", other.id), { portal: "producer", can_act: true })).rows.find((r) => r.source_ref === "low-quality/fixture-film")!;
+  assert.equal(theirRow.title_id, theirs.id, "for the company that imported it, the row is its title");
 });
 
 // ---- the public page after a publish ----------------------------------------------------------------------------

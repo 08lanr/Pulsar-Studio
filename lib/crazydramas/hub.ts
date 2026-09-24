@@ -70,7 +70,7 @@ export type HubAction =
   | { kind: "upload"; title_id: string }
   /** Uploads on their way: open the progress in place. */
   | { kind: "uploading"; title_id: string; n: number; of: number }
-  /** Verified episodes wait: open the publish step in place. */
+  /** Verified episodes wait (`n` of them), or — `n` 0 — every episode went out and the series itself is still a draft: open the publish step in place. */
   | { kind: "publish"; title_id: string; n: number }
   | { kind: "open_site"; url: string }
   /** Something to look at on the title's CrazyDramas section (a failed read, a slug that moved). */
@@ -142,8 +142,10 @@ export type HubInput = {
   titles: readonly HubTitleInput[];
   statuses: ReadonlyMap<string, HubStatusInput>;
   ledgers: ReadonlyMap<string, HubLedger>;
-  /** Series the sweep read that match no title; null before any read (staff only; empty for a producer). */
+  /** Series the sweep read that match no title the session reads; null before any read. Films nobody imported are matched against them. */
   unmatched: readonly UnmatchedSeries[] | null;
+  /** Whether the series no film matches are rows of their own (the staff desk; a producer's page matches films against them but lists none). */
+  series_rows: boolean;
   catalog_read: boolean;
   /** Who may import films and drive the uploads (a staff administrator, the company's approver). */
   can_act: boolean;
@@ -222,6 +224,9 @@ export function titleAction(titleId: string, onCd: HubOnCd, ledger: HubLedger | 
   if (l.verified > 0 && sent >= withVideo) return { kind: "publish", title_id: titleId, n: l.verified };
   if (sent < withVideo) return { kind: "upload", title_id: titleId };
   if (l.verified > 0) return { kind: "publish", title_id: titleId, n: l.verified };
+  // Every episode went out and was published, and the series is still a draft ("Also publish the series" left unticked,
+  // or its own call failed after the batches): publishing the series is the step left, not another upload.
+  if (onCd.code === "draft" && !onCd.cms && l.published > 0 && l.verified === 0 && sent >= withVideo) return { kind: "publish", title_id: titleId, n: 0 };
   return { kind: "upload", title_id: titleId };
 }
 
@@ -316,7 +321,8 @@ export function buildHub(input: HubInput): Hub {
       slug: live?.slug ?? film.crazydramas_slug,
       public_url: live ? live.public_url : null,
       in_studio: { code: "not_imported" },
-      on_cd: live ? { code: "live", episodes: live.episode_count, match: null, of: null, state: null, cms: true } : { code: "before_import", read: input.catalog_read },
+      // A series no Studio title holds was made in the CMS; one another company's title holds is live, and who made it is not this page's to say.
+      on_cd: live ? { code: "live", episodes: live.episode_count, match: null, of: null, state: null, cms: !live.held } : { code: "before_import", read: input.catalog_read },
       episodes: film.episodes,
       action: input.can_act ? { kind: "import", source_ref: film.source_ref } : { kind: "none" },
       progress: film.progress,
@@ -325,8 +331,8 @@ export function buildHub(input: HubInput): Hub {
 
   for (const t of input.titles) if (!titlesSeen.has(t.id)) rows.push(titleRow(t, null));
 
-  for (const s of series) {
-    if (usedSeries.has(s.slug)) continue;
+  for (const s of input.series_rows ? series : []) {
+    if (usedSeries.has(s.slug) || s.held) continue;
     rows.push({
       key: `series:${s.slug}`,
       kind: "series",
@@ -373,12 +379,16 @@ export type HubOptions = {
 export async function loadCrazydramasHub(session: Session, opts: HubOptions): Promise<Hub> {
   const data = getData();
   const sys = systemSession();
-  // The series nobody's title matches are staff's list (a producer's session reads none); a staff preview of the producer page leaves them out too.
+  // The series nobody's title matches are rows on the staff desk only; a staff preview of the producer page leaves them out too.
   const staffList = session.kind === "staff" && opts.portal === "admin";
   const summaries = await data.listTitles(session);
+  // Both portals match the films nobody imported against the live series, so a film whose show is live never reads
+  // "Not on CrazyDramas". A producer's session reads no title-less snapshot, so the producer page reads them as the
+  // system, counting as matched only the titles this session reads (another company's series is live, not "nobody's").
+  const readUnmatched = staffList ? listUnmatchedCrazydramas(session) : listUnmatchedCrazydramas(sys, { titleIds: new Set(summaries.map((t) => t.id)) });
   const [films, unmatched] = await Promise.all([
     listFilmsForHub(session, {}, summaries).catch(() => ({ configured: false, films: [] as HubFilmRow[] })),
-    staffList ? listUnmatchedCrazydramas(session).catch(() => null) : Promise.resolve([] as UnmatchedSeries[]),
+    readUnmatched.catch(() => null),
   ]);
   const titles: HubTitleInput[] = summaries.map((t) => ({
     id: t.id,
@@ -411,8 +421,9 @@ export async function loadCrazydramasHub(session: Session, opts: HubOptions): Pr
     titles,
     statuses,
     ledgers,
-    unmatched: staffList ? unmatched : [],
-    catalog_read: staffList ? catalogRead : true,
+    unmatched,
+    series_rows: staffList,
+    catalog_read: catalogRead,
     can_act: opts.can_act,
     film_poster: (ref) => `${posterRoute}?ref=${encodeURIComponent(ref)}`,
     public_url: crazydramasPublicUrl,

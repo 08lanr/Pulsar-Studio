@@ -123,11 +123,12 @@ export default function CrazydramasPublish({ titleId, portal, canAct, reason = n
     changed.current?.();
   }, [load, schedule, router]);
 
-  // The hub's Publish button: open the dialog once, when the state says something can go live.
+  // The hub's Publish button: open the dialog once, when the state says something can go live — an episode, or a
+  // draft series whose episodes already went out (the section's own Publish button allows the same).
   useEffect(() => {
     if (autoOpen !== "publish" || autoOpened.current || !state || !canAct || !state.writes_enabled) return;
     autoOpened.current = true;
-    if (state.episodes.some(publishable)) setDialog({ kind: "publish" });
+    if (state.episodes.some(publishable) || (state.series_state === "draft" && state.episodes.some((e) => e.is_published))) setDialog({ kind: "publish" });
   }, [autoOpen, state, canAct]);
 
   async function upload(episodes: number[] | "all", replace = false) {

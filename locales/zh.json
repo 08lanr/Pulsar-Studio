@@ -3552,7 +3552,7 @@
   "fi.state.READY": "可导入",
   "fi.state.RENDERING": "渲染中",
   "fi.state.NOT_DELIVERED": "未交付",
-  "fi.state.NO_MANIFEST": "无交付清单",
+  "fi.state.NO_MANIFEST": "工作目录",
   "fi.state.IMPORTED": "已导入",
   "fi.state.K_CHANGED": "有更新",
   "fi.reason.no_cut_dir": "还没有切成分集（叙述式项目，或尚未开始切片）",
@@ -4421,5 +4421,7 @@
   "mad.unattributedMeta": "{n} 个含多部剧集的 Meta 广告系列未计入",
   "mad.unattributedMetaLong": "有 {n} 个 Meta 广告系列同时推广此剧集和其他剧集。Meta 只按广告系列报告数据，不按单条广告，因此这些数字没有计入这里；广告系列本身的数字见投放监控。",
   "cdh.cd.before_import_unread": "尚未检查（读取 CrazyDramas，或先导入）",
-  "cdh.unmatchedMoved": "在 CrazyDramas 上线、但没有对应影片或剧集的剧，列在 CrazyDramas 页面。"
+  "cdh.unmatchedMoved": "在 CrazyDramas 上线、但没有对应影片或剧集的剧，列在 CrazyDramas 页面。",
+  "cdh.cd.before_import_unreadProducer": "尚未检查（Studio 每小时读取一次 CrazyDramas）",
+  "cdh.action.publishSeries": "让系列上线"
 }

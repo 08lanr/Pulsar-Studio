@@ -27,7 +27,7 @@
   "fi.state.READY": { "zh": "可导入", "en": "Ready" },
   "fi.state.RENDERING": { "zh": "渲染中", "en": "Rendering" },
   "fi.state.NOT_DELIVERED": { "zh": "未交付", "en": "Not delivered" },
-  "fi.state.NO_MANIFEST": { "zh": "无交付清单", "en": "No manifest" },
+  "fi.state.NO_MANIFEST": { "zh": "工作目录", "en": "Work folder" },
   "fi.state.IMPORTED": { "zh": "已导入", "en": "Imported" },
   "fi.state.K_CHANGED": { "zh": "有更新", "en": "Changed" },
   "fi.reason.no_cut_dir": { "zh": "还没有切成分集（叙述式项目，或尚未开始切片）", "en": "Not cut into episodes yet (a narrated project, or cutting has not started)" },

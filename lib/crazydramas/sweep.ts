@@ -500,6 +500,8 @@ export type UnmatchedSeries = {
   public_url: string;
   /** When the sweep read it ("observed"). */
   read_at: string;
+  /** A Studio title the caller does not count holds it (another company's, on a producer's page): live, but not "nobody's", and who made it is not the caller's to say. */
+  held?: boolean;
 };
 
 /**
@@ -508,16 +510,23 @@ export type UnmatchedSeries = {
  * any drama a link holds. Null when no read has happened yet (nothing to
  * say, rather than "none"); staff only — a producer's session reads no
  * title-less row, so for them the answer is empty.
+ *
+ * `titleIds` (the producer's CrazyDramas page, read as the system): only
+ * those titles count as a match, so a series another company's title holds
+ * is listed too, marked `held`. Without it every title counts.
  */
-export async function listUnmatchedCrazydramas(session: Session): Promise<UnmatchedSeries[] | null> {
+export async function listUnmatchedCrazydramas(session: Session, opts: { titleIds?: ReadonlySet<string> } = {}): Promise<UnmatchedSeries[] | null> {
   const data = getData();
   const rows = await data.listLatestPlatformSnapshots(session, PLATFORM);
   if (!rows.length) return null;
-  const linked = new Set((await data.listPlatformLinks(session, PLATFORM)).map((l) => l.cd_drama_id));
+  const counts = (titleId: string | null | undefined): boolean => !!titleId && (!opts.titleIds || opts.titleIds.has(titleId));
+  const links = await data.listPlatformLinks(session, PLATFORM);
+  const linked = new Set(links.filter((l) => counts(l.title_id)).map((l) => l.cd_drama_id));
+  const heldElsewhere = new Set(links.filter((l) => !counts(l.title_id)).map((l) => l.cd_drama_id));
   const out: UnmatchedSeries[] = [];
   for (const r of rows) {
     // Live means published: an authenticated read also sees drafts and archived series, which are not on the site.
-    if (r.title_id || r.http_status !== 200 || !r.drama || r.error || linked.has(r.drama.id) || r.drama.status !== "published") continue;
+    if (counts(r.title_id) || r.http_status !== 200 || !r.drama || r.error || linked.has(r.drama.id) || r.drama.status !== "published") continue;
     out.push({
       slug: r.slug,
       cd_drama_id: r.drama.id,
@@ -530,6 +539,7 @@ export async function listUnmatchedCrazydramas(session: Session): Promise<Unmatc
       poster_placeholder: !!r.drama.poster_url && r.drama.poster_url.includes("-placeholder"),
       public_url: crazydramasPublicUrl(r.slug),
       read_at: r.read_at,
+      ...(r.title_id || heldElsewhere.has(r.drama.id) ? { held: true } : {}),
     });
   }
   return out;

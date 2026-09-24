@@ -184,7 +184,8 @@ export default function CrazydramasHub({ hub, portal, canAct, reason = null, pro
       case "elsewhere":
         return chip("is-bad", tt("cdh.cd.elsewhere"));
       case "before_import":
-        return c.read ? chip("is-none", tt("cdh.cd.before_import")) : chip("is-wait", tt("cdh.cd.before_import_unread"));
+        // Only staff have "Read CrazyDramas now"; the company is told the hourly read will say.
+        return c.read ? chip("is-none", tt("cdh.cd.before_import")) : chip("is-wait", tt(portal === "admin" ? "cdh.cd.before_import_unread" : "cdh.cd.before_import_unreadProducer"));
     }
   }
 
@@ -208,7 +209,7 @@ export default function CrazydramasHub({ hub, portal, canAct, reason = null, pro
       case "uploading":
         return <button type="button" className="btn btn-outline btn-sm" aria-expanded={isOpen} aria-controls={`cdh-panel-${a.title_id}`} onClick={() => toggle(a.title_id, "upload")}>{isOpen ? tt("cdh.action.close") : <><span className="spinner" /> {tt("cdh.action.uploading", { n: a.n, of: a.of })}</>}</button>;
       case "publish":
-        return <button type="button" className={`btn btn-sm ${isOpen ? "btn-outline" : "btn-primary"}`} aria-expanded={isOpen} aria-controls={`cdh-panel-${a.title_id}`} onClick={() => toggle(a.title_id, "publish")}>{isOpen ? tt("cdh.action.close") : tt("cdh.action.publish", { n: a.n })}</button>;
+        return <button type="button" className={`btn btn-sm ${isOpen ? "btn-outline" : "btn-primary"}`} aria-expanded={isOpen} aria-controls={`cdh-panel-${a.title_id}`} onClick={() => toggle(a.title_id, "publish")}>{isOpen ? tt("cdh.action.close") : a.n > 0 ? tt("cdh.action.publish", { n: a.n }) : tt("cdh.action.publishSeries")}</button>;
       case "open_site":
         return <a className="btn btn-outline btn-sm" href={a.url} target="_blank" rel="noreferrer">{tt("cdh.action.open_site")}&nbsp;↗</a>;
       case "check":
@@ -318,6 +319,7 @@ export default function CrazydramasHub({ hub, portal, canAct, reason = null, pro
                 <small className="gt-muted">{f.source_ref}</small>
                 <span className="pill pill-neutral">{tt(`fi.state.${f.state}`)}</span>
                 {filmReasonText(tt, f.reason) && <small className="gt-muted">{filmReasonText(tt, f.reason)}</small>}
+                {f.note && <small className="gt-muted cdh-not-ready-note" lang="en">{f.note}</small>}
               </li>
             ))}
           </ul>
