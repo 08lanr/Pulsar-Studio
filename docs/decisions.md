@@ -6,6 +6,17 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-09-24 · Upload automation, the review's fixes
+
+The review of the upload automation (2026-09-23 entry below) found six small gaps; each is closed, and the Launch autosave race it could not reproduce is now pinned by a test:
+
+- **A slug is checked before it is kept.** The Segment form's crazydramas slug starts empty unless the film's film-meta names one (it used to start from the folder name, which the import then took unchecked); the import picks one and checks it on crazydramas. A slug typed there is still taken as it is.
+- **Another Studio title's slug is taken.** The pick (and a typed slug) treats a slug any other Studio title carries as taken even while crazydramas has no series under it yet (`takenInStudio` in `pickSlug`), so two titles of one name get `x` and `x-2` instead of the second being locked out later.
+- **The series text respects the spoiler line.** The draft reads up to the title's own spoiler line (`ad_rules.spoiler_from_s`) when that comes before the 80% mark, and a moved line is a new draft (part of the transcript key). Episodes with neither a film window nor a length count as two minutes each (or up to their last line), so the last episode never lands in the opening the model reads in full.
+- **No refusal asks for a file edit.** A title whose slug was changed away from the series it is linked to (held on its link, or its uploads went there) gets **Put the slug back to <slug>** under the locked slug; the slug route takes the link's own slug even while locked. The two refusals point at that button or at staff, never at film-meta.json.
+- **The lock says why.** A locked slug shows the section's own reason (uploads in the ledger, a CMS series, a series linked to another title, a published series) instead of one fixed sentence.
+- **The autosave race has a test.** `tests/e2e/launch-autosave.spec.ts` holds a draft's first save, edits meanwhile and slows the old page's flush: the new page must show and keep the edit, answer no 409 and preview. It fails on the Launch screen before the phase 6 fix and passes now.
+
 ## 2026-09-24 · A title per ad, ad-level stats, stats by title
 
 Ruobin's ad workflow (the overnight spec, phase 1): one TikTok launch may promote several titles, the Monitor says which title each campaign and ad promotes, TikTok's numbers are read per ad, and every title has its own results. In plain words:

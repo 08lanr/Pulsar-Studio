@@ -221,3 +221,49 @@ test("the transcript comes from the imported ASR index on the film's timeline; a
   const bare = await fixtureData.createImportedTitle(sys, { producer_id: who.producerId!, source_ref: "low-quality/none", display_title_en: "None", crazydramas_slug: null, created_by: who.userId });
   assert.equal(await loadTitleTranscript(bare.id), null);
 });
+
+// ---- the spoiler line and untimed episodes (review of the upload automation, 2026-09-24) -------------------------------
+
+test("the title's spoiler line cuts the draft's inputs too: nothing from it on reaches the model, and a new line is a new draft", async () => {
+  // The spoiler line before the 80% mark wins; after it, the 80% mark does.
+  const sel = selectTranscript(film(60), 3600, 1200);
+  assert.equal(sel.cutoff_s, 1200);
+  assert.equal(sel.head_until_s, HEAD_SECONDS);
+  assert.ok([...sel.head, ...sel.sample].every((p) => p.end_s <= 1200), "nothing past the spoiler line");
+  assert.equal(selectTranscript(film(60), 3600, 3500).cutoff_s, 2880, "a line after the 80% mark changes nothing");
+  assert.equal(selectTranscript(film(10), 600, 300).head_until_s, 300, "the opening itself stops at a line inside it");
+  assert.equal(transcriptSha(film(60), 3600, null), transcriptSha(film(60), 3600), "no line: the same key as before");
+  assert.notEqual(transcriptSha(film(60), 3600, 1200), transcriptSha(film(60), 3600), "a line is part of the key");
+
+  process.env.DEMO_REPLAY = "0";
+  process.env.DEEPSEEK_API_KEY = "test-key-never-sent";
+  const t = await titleWithTranscript();
+  await fixtureData.setTitleAdRules(sys, t.id, { spoiler_from_s: 1200, exclusions: [] });
+  const model = fakeModel([CANNED_SERIES_TEXT]);
+  const first = await draftSeriesText(producer(), t.id, { call: model });
+  assert.equal(first.status, "drafted");
+  const seen = [...model.calls[0].user.matchAll(/line at (\d+) seconds/g)].map((m) => Number(m[1]));
+  assert.ok(Math.max(...seen) < 1200, `the latest line sent is at ${Math.max(...seen)} s, before the spoiler line`);
+  const job = await fixtureData.latestJobByTarget(staff(), "title", t.id, "draft_series_text");
+  assert.equal((job?.input as { cutoff_s: number }).cutoff_s, 1200);
+  await fixtureData.setTitleAdRules(sys, t.id, { spoiler_from_s: 900, exclusions: [] });
+  const moved = await draftSeriesText(producer(), t.id, { call: model });
+  assert.equal(moved.status, "drafted", "a moved spoiler line is not the draft that was reused");
+  assert.equal(model.calls.length, 2);
+});
+
+test("episodes with neither a film window nor a length get a nominal one in order, so the last episode never lands in the opening", async () => {
+  const who = producer();
+  const title = await fixtureData.createTitle(sys, { name_zh: "无时长", name_en: "No Lengths", producer_id: who.producerId! });
+  const { ingestEpisodeFile } = await import("@/lib/ingest");
+  const srt = (n: number) => `1\n00:00:01,000 --> 00:00:04,000\nepisode ${n} line\n`;
+  for (let n = 1; n <= 10; n++) await fixtureData.addEpisodeFromIngest(sys, title.id, n, ingestEpisodeFile(new TextEncoder().encode(srt(n)), `ep${n}.srt`), { subtitlePath: null, videoPath: null });
+  const tr = await loadTitleTranscript(title.id);
+  assert.ok(tr);
+  const starts = tr!.pieces.map((p) => p.start_s);
+  for (let i = 1; i < starts.length; i++) assert.ok(starts[i] > starts[i - 1], "each episode after the one before");
+  const sel = selectTranscript(tr!.pieces, tr!.duration_s);
+  const sent = [...sel.head, ...sel.sample].map((p) => p.text).join(" ");
+  assert.doesNotMatch(sent, /episode (9|10) line/, "the last fifth of the episodes stays out");
+  assert.match(sent, /episode 1 line/);
+});

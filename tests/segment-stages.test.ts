@@ -416,10 +416,10 @@ test("film-meta: the default form starts from the folder name, the slug and half
     writeFileSync(path.join(cut, "cuts.json"), JSON.stringify({ source_duration: 100, target: 120, fps: 30, band: [95, 150], pinned: 0, pin_from: null, moves: [], final_end_is_boundary: false, episodes: [{ n: 1, start: 0, end: 50, dur: 50, ends_after_line: "a", next_opens_on: "b" }, { n: 2, start: 50, end: 100, dur: 50, ends_after_line: "c", next_opens_on: "" }] }));
     const d = defaultFilmMeta({ slug: "she-returned-with-her-son", lang: "en" }, cut);
     assert.equal(d.display_title_en, "She Returned With Her Son");
-    assert.equal(d.crazydramas_slug, "she-returned-with-her-son");
+    assert.equal(d.crazydramas_slug, null, "no slug until the import picks and checks one (a filled-in slug would be taken unchecked)");
     assert.equal(d.spoiler_from_s, 50);
     // A scratch slug's leading underscore never reaches the crazydramas slug (the decide route's rule refuses "-studio-smoke").
-    assert.equal(defaultFilmMeta({ slug: "_studio-smoke", lang: "en" }, cut).crazydramas_slug, "studio-smoke");
+    assert.equal(suggestedCrazydramasSlug("_studio-smoke"), "studio-smoke");
     assert.equal(defaultFilmMeta({ slug: "_studio-smoke", lang: "en" }, cut).display_title_en, "Studio Smoke");
     assert.equal(suggestedCrazydramasSlug("mafia_king"), "mafia-king");
     writeFileSync(path.join(cut, "film-meta.json"), JSON.stringify({ display_title_en: "Old", source_title_en: "The Source Title", language: "zh", exclusions: [], notes: "hand-written" }));

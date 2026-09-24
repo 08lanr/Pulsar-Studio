@@ -297,7 +297,7 @@ export default function SeriesForm({ titleId, seriesState, defaults, series, can
   return (
     <form className="cdp-form" onSubmit={(e) => void submit(e)} aria-label={tt("cdp.step.series")} noValidate>
       <div className="cdp-fields">
-        <SlugField titleId={titleId} slug={slug} editable={defaults.slug_editable === true} auto={false} onSaved={(r) => onSlugSaved?.(r)} />
+        <SlugField titleId={titleId} slug={slug} editable={defaults.slug_editable === true} auto={false} lockedReason={defaults.slug_locked_reason ?? null} restore={defaults.slug_restore ?? null} onSaved={(r) => onSlugSaved?.(r)} />
         <label className="field cdp-wide">
           <span className="label">{tt("cdp.form.title")}</span>
           <input className="input" name="title" lang="en" value={f.title} onChange={set("title")} required maxLength={200} disabled={!canWrite} />

@@ -4296,5 +4296,9 @@
   "mad.openResults": "Ad results",
   "mad.earlierRounds": "Earlier ad rounds",
   "lpt.notChecked": "not checked yet",
-  "mad.campaignsHead": "Campaigns"
+  "mad.campaignsHead": "Campaigns",
+  "cdp.slug.lockedBecause": "Locked: {reason}.",
+  "cdp.slug.restoreHint": "This title's slug was changed away from the series it is on, {slug}, so every write to crazydramas is held.",
+  "cdp.slug.restore": "Put the slug back to {slug}",
+  "seg.meta.cdSlugHint": "Leave it empty: Studio picks one when the film is imported and checks it on crazydramas. A slug typed here is used as it is."
 }

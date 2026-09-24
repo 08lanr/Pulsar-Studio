@@ -34,6 +34,7 @@ import {
   type UploaderOptions,
 } from "@/lib/crazydramas/publish";
 import { PublishStateSchema } from "@/lib/crazydramas/publish-types";
+import { assignCrazydramasSlug } from "@/lib/crazydramas/slug-assign";
 import { checkCrazydramasTitle, resetCrazydramasSweep } from "@/lib/crazydramas/sweep";
 import { CrazydramasApiError, liveCrazydramasStudioTransport } from "@/lib/crazydramas/transport";
 import { PLATFORM } from "@/lib/crazydramas/types";
@@ -136,6 +137,7 @@ test("the state the section polls, in every series state: not_linked, not_upload
       poster_url: null,
       slug_editable: true,
       slug_locked_reason: null,
+      slug_restore: null,
       has_cover: false,
       poster_default: "none",
       poster_preview_url: null,
@@ -367,11 +369,23 @@ test("a title re-pointed in Studio (film-meta's slug edited while a link exists)
     () => unpublishEpisodes(producer(), u.id, { unpublish_series: true }),
   ]) {
     const body = await refusal(attempt(), 409, "repointed");
-    assert.match(String(body.error), /Set the slug back/);
+    assert.match(String(body.error), /Put the slug back to .* with the button under the slug above, or ask staff/);
+    assert.doesNotMatch(String(body.error), /film-meta/, "nobody is told to edit a file");
   }
   assert.equal(writes().length, before, "nothing reached crazydramas");
   assert.equal(fake.uploadsFor("orphan-slug", 1).length, 0);
   assert.equal((await fixtureData.getPlatformLink(sys, u.id, PLATFORM))?.slug, "uploaded-slug", "the link stays with the series the uploads went to");
+  // The way back is a button, not a file: the section offers the link's slug, and the slug route takes it while locked.
+  assert.equal(shown.form_defaults.slug_editable, false);
+  assert.equal(shown.form_defaults.slug_restore, "uploaded-slug");
+  const back = await assignCrazydramasSlug(producer(), u.id, { slug: "uploaded-slug", skipCheck: true });
+  assert.deepEqual([back.outcome, back.slug], ["linked", "uploaded-slug"]);
+  assert.equal((await fixtureData.getTitle(staff(), u.id)).title.crazydramas_slug, "uploaded-slug");
+  const restored = await getPublishState(producer(), u.id);
+  assert.equal(restored.form_defaults.slug_restore, null);
+  assert.equal(restored.series?.slug, "uploaded-slug");
+  // Any other slug stays locked.
+  await assert.rejects(assignCrazydramasSlug(producer(), u.id, { slug: "orphan-slug", skipCheck: true }), { code: "slug_locked" });
 });
 
 test("a title linked to a show already on crazydramas stays on it when its slug is edited: the section shows that series, every write is refused before any write is sent, no second series is made and the link does not move", async () => {

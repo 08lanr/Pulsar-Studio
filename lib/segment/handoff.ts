@@ -52,7 +52,13 @@ export function suggestedCrazydramasSlug(slug: string): string {
   return slug.replace(/_/g, "-").replace(/^-+|-+$/g, "");
 }
 
-/** What the form starts from: the file when there is one, else the folder's title, the run's slug and the spoiler line at half the runtime. */
+/**
+ * What the form starts from: the file when there is one, else the folder's
+ * title and the spoiler line at half the runtime. The crazydramas slug starts
+ * empty unless the file names one: the import then picks one and checks it on
+ * crazydramas (lib/crazydramas/slug-assign.ts), where a slug filled in here
+ * would be taken as it is (review of the upload automation, 2026-09-24).
+ */
 export function defaultFilmMeta(run: Pick<FilmRun, "slug" | "lang">, cutDir: string): FilmMetaForm {
   const have = readFilmMeta(cutDir);
   const plan = readPlan(cutDir);
@@ -64,7 +70,7 @@ export function defaultFilmMeta(run: Pick<FilmRun, "slug" | "lang">, cutDir: str
     .join(" ");
   return {
     display_title_en: have?.display_title_en ?? title,
-    crazydramas_slug: have?.crazydramas_slug ?? suggestedCrazydramasSlug(run.slug),
+    crazydramas_slug: have?.crazydramas_slug ?? null,
     spoiler_from_s: have?.spoiler_from_s ?? (runtime ? Math.round((runtime / 2) * 1000) / 1000 : null),
     exclusions: have?.exclusions.map((e) => ({ from_s: e.from_s, to_s: e.to_s, why: e.why, kind: e.kind })) ?? [],
     live_poster: have?.live_poster ?? null,

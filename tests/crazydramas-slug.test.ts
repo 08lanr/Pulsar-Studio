@@ -332,3 +332,23 @@ test("the checked-in fixture film names its slug, so importing it asks crazydram
   assert.deepEqual(read.asked, []);
   assert.equal(readFileSync(path.join(FIXTURE_ROOT, "low-quality", "fixture-film", "cut", "film-meta.json"), "utf8"), before);
 });
+
+// ---- a slug another Studio title holds (review of the upload automation, 2026-09-24) ----------------------------------
+
+test("two Studio titles with the same name get X and X-2: a slug another Studio title has is taken, picked or typed", async () => {
+  const a = await filmTitle("Twin Name Show");
+  const who = producer();
+  const b = await fixtureData.createImportedTitle(sys, { producer_id: who.producerId!, source_ref: "low-quality/twin-name-show-again", display_title_en: "Twin Name Show", crazydramas_slug: null, created_by: who.userId });
+  const free = reader({});
+  const one = await assignCrazydramasSlug(producer(), a.title.id, { root: a.root, read: free, skipCheck: true });
+  assert.deepEqual([one.outcome, one.slug], ["saved", "twin-name-show"]);
+  const two = await assignCrazydramasSlug(producer(), b.id, { root: a.root, read: free, skipCheck: true });
+  assert.deepEqual([two.outcome, two.slug], ["saved", "twin-name-show-2"], "crazydramas has neither, but the first is another Studio title's");
+  await assert.rejects(assignCrazydramasSlug(producer(), b.id, { slug: "twin-name-show", root: a.root, read: free, skipCheck: true }), (e: unknown) => {
+    assert.ok(isSlugError(e));
+    assert.equal(e.code, "slug_taken");
+    assert.match(e.message, /twin-name-show is already the slug of another Studio title \("Twin Name Show"\)/);
+    assert.equal((e.body() as { suggestion: string }).suggestion, "twin-name-show-2");
+    return true;
+  });
+});

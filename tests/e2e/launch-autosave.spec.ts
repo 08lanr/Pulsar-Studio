@@ -36,3 +36,62 @@ test("edits survive clicking away, the bare Launch page resumes them, and Start 
   expect(old.ok()).toBe(true);
   expect((await old.json()).run.draft.name).toBe("Autosave check");
 });
+
+// Phase 6 review, finding 1 (2026-09-24): a draft's first save moves the page to
+// /launch/<id>, a new page instance. An edit made while that first POST is still
+// on its way must reach the draft: the old instance flushes it as it unmounts,
+// and the new one waits for that write before it reads the run. Before the fix
+// the new page read the run before the flush landed, lost the edit and sent every
+// later save on a stale revision (409), so Preview failed. The first POST is held
+// until the edit is made, and the old page's flush (a PUT) is slowed down, so the
+// new page's read always comes before that write unless it waits for it: the race
+// happens every time instead of now and then.
+test("an edit made while the draft's first save is still on its way reaches the draft: no conflict, and Preview works", async ({ page }) => {
+  const base = test.info().project.use.baseURL ?? "http://localhost:3200";
+  const login = await page.request.post("/api/auth/dev", { form: { kind: "producer" }, maxRedirects: 0 });
+  expect([200, 303]).toContain(login.status());
+  await page.context().addCookies([{ name: "pulsar_studio_locale", value: "en", url: base }]);
+  expect((await page.request.post("/api/demo/reset", { data: { seed: "demo" } })).ok()).toBe(true);
+
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  let held = false;
+  await page.route("**/api/producer/launch", async (route) => {
+    if (route.request().method() === "POST" && !held) { held = true; await gate; }
+    await route.continue();
+  });
+  let putsSlowed = 0;
+  await page.route("**/api/producer/launch/*", async (route) => {
+    if (route.request().method() === "PUT" && putsSlowed === 0) { putsSlowed++; await new Promise((resolve) => setTimeout(resolve, 1500)); }
+    await route.continue();
+  });
+  const conflicts: string[] = [];
+  page.on("response", (response) => {
+    if (response.status() === 409 && response.url().includes("/api/producer/launch")) conflicts.push(`${response.request().method()} ${response.url()}`);
+  });
+
+  await page.goto("/producer/launch");
+  const name = page.getByLabel("Launch name");
+  await expect(name).toBeVisible();
+  await name.fill("Race: first words");
+  await expect.poll(() => held, { timeout: 15_000 }).toBe(true);
+  // The first save is on its way; this edit is made meanwhile, and the save lands at once.
+  await name.fill("Race: edited while the first save was held");
+  release();
+  await expect(page).toHaveURL(/\/producer\/launch\/[^/?]+$/, { timeout: 15_000 });
+  const id = page.url().split("/").pop()!;
+  await expect.poll(async () => (await (await page.request.get(`/api/producer/launch/${id}`)).json()).run.draft.name, { timeout: 15_000 })
+    .toBe("Race: edited while the first save was held");
+  await expect(page.getByLabel("Launch name")).toHaveValue("Race: edited while the first save was held");
+
+  // The page keeps working on the newest revision: a Preview goes through.
+  const picker = page.locator("details.launch-account-picker");
+  if (await picker.count() && await picker.getAttribute("open") === null) await picker.locator("summary").click();
+  await page.getByRole("checkbox", { name: /Demo TikTok 1/ }).check();
+  await page.getByLabel(/^(Items|Spark codes) per campaign$/).fill("1");
+  await page.getByLabel("Paste all Spark codes, one per line").fill("RACE-SPARK-ONE");
+  await page.getByLabel("Title on crazydramas").selectOption({ label: "The War God Returns" });
+  await page.getByRole("button", { name: "Preview campaigns" }).click();
+  await expect(page.getByText(/1 campaign across 1 ad account/)).toBeVisible();
+  expect(conflicts).toEqual([]);
+});

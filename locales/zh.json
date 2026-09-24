@@ -4296,5 +4296,9 @@
   "mad.openResults": "广告结果",
   "mad.earlierRounds": "早期广告轮次",
   "lpt.notChecked": "尚未检查",
-  "mad.campaignsHead": "广告系列"
+  "mad.campaignsHead": "广告系列",
+  "cdp.slug.lockedBecause": "已锁定：{reason}。",
+  "cdp.slug.restoreHint": "此剧集的 slug 被改离了它所在的剧集 {slug}，因此所有写入 crazydramas 的操作都已暂停。",
+  "cdp.slug.restore": "把 slug 改回 {slug}",
+  "seg.meta.cdSlugHint": "留空即可：导入影片时 Studio 会自动选择一个并在 crazydramas 上核对。在这里填写的 slug 会按原样使用。"
 }

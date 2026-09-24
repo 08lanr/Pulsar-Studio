@@ -149,13 +149,15 @@ function sameShow(read: Extract<SlugRead, { status: 200 }>, names: readonly stri
  * free (404) or is the show itself (200, the same title). Pure over the
  * injected reader.
  */
-export async function pickSlug(base: string, opts: { names: readonly string[]; read: SlugReader; heldByOther?: (dramaId: string) => boolean; start?: number; maxTries?: number }): Promise<SlugPick> {
+export async function pickSlug(base: string, opts: { names: readonly string[]; read: SlugReader; heldByOther?: (dramaId: string) => boolean; takenInStudio?: (slug: string) => boolean; start?: number; maxTries?: number }): Promise<SlugPick> {
   const tried: string[] = [];
   const held = opts.heldByOther ?? (() => false);
   const last = (opts.start ?? 1) + (opts.maxTries ?? SLUG_MAX_TRIES) - 1;
   for (let k = opts.start ?? 1; k <= last; k++) {
     const slug = slugCandidate(base, k);
     tried.push(slug);
+    // Another Studio title already carries it (not uploaded yet, so crazydramas answers 404): taken all the same.
+    if (opts.takenInStudio?.(slug)) continue;
     const r = await opts.read(slug);
     if (r.status === "error") return { outcome: "unreachable", slug, error: r.error, tried };
     if (r.status === 404) return { outcome: "free", slug, tried };

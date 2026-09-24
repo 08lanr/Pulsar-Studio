@@ -44,6 +44,8 @@ export const HEAD_MAX_CHARS = 24_000;
 export const SAMPLE_MAX_CHARS = 8_000;
 
 export const DRAFT_JOB_KIND = "draft_series_text" as const;
+/** The length an episode with neither a film window nor a duration counts as (a mini-drama episode runs about two minutes). */
+export const NOMINAL_EPISODE_S = 120;
 
 export type TranscriptSelection = { head: TranscriptPiece[]; sample: TranscriptPiece[]; head_until_s: number; cutoff_s: number; duration_s: number };
 
@@ -60,14 +62,17 @@ function capChars(pieces: TranscriptPiece[], max: number): TranscriptPiece[] {
 
 /**
  * What the model may read of a film `duration_s` long: every piece that ends
- * by min(15 minutes, 80% of the film), then up to SAMPLE_PIECES pieces spaced
- * evenly between there and the 80% mark. A piece that runs past the 80% mark
- * is left out whole. Pure.
+ * by min(15 minutes, the cutoff), then up to SAMPLE_PIECES pieces spaced
+ * evenly between there and the cutoff. The cutoff is the 80% mark, or the
+ * title's own spoiler line ("from which every moment is a spoiler",
+ * `ad_rules.spoiler_from_s`) when that comes first. A piece that runs past
+ * the cutoff is left out whole. Pure.
  */
-export function selectTranscript(pieces: readonly TranscriptPiece[], durationS: number): TranscriptSelection {
+export function selectTranscript(pieces: readonly TranscriptPiece[], durationS: number, spoilerFromS: number | null = null): TranscriptSelection {
   const ordered = pieces.filter((p) => p.text.trim() && Number.isFinite(p.start_s) && Number.isFinite(p.end_s)).slice().sort((a, b) => a.start_s - b.start_s);
   const duration = durationS > 0 ? durationS : ordered.length ? Math.max(...ordered.map((p) => p.end_s)) : 0;
-  const cutoff = duration * (1 - EXCLUDED_TAIL);
+  const spoiler = spoilerFromS !== null && Number.isFinite(spoilerFromS) && spoilerFromS > 0 ? spoilerFromS : Infinity;
+  const cutoff = Math.min(duration * (1 - EXCLUDED_TAIL), spoiler);
   const headUntil = Math.min(HEAD_SECONDS, cutoff);
   const head = capChars(ordered.filter((p) => p.end_s <= headUntil), HEAD_MAX_CHARS);
   const rest = ordered.filter((p) => p.start_s >= headUntil && p.end_s <= cutoff);
@@ -77,10 +82,11 @@ export function selectTranscript(pieces: readonly TranscriptPiece[], durationS: 
   return { head, sample: capChars(picked, SAMPLE_MAX_CHARS), head_until_s: headUntil, cutoff_s: cutoff, duration_s: duration };
 }
 
-/** The transcript's identity: every piece's time and words, in order. */
-export function transcriptSha(pieces: readonly TranscriptPiece[], durationS: number): string {
+/** The transcript's identity: every piece's time and words, in order, and the spoiler line when the title has one (a moved line is a new draft). */
+export function transcriptSha(pieces: readonly TranscriptPiece[], durationS: number, spoilerFromS: number | null = null): string {
   const h = createHash("sha256");
   h.update(`${Math.round(durationS * 1000)}\n`);
+  if (spoilerFromS !== null && Number.isFinite(spoilerFromS) && spoilerFromS > 0) h.update(`spoiler|${Math.round(spoilerFromS * 1000)}\n`);
   for (const p of pieces) h.update(`${Math.round(p.start_s * 1000)}|${Math.round(p.end_s * 1000)}|${p.text}\n`);
   return h.digest("hex");
 }
@@ -91,7 +97,10 @@ export type TitleTranscript = { pieces: TranscriptPiece[]; duration_s: number; l
  * The film's transcript on the film's own timeline: the imported ASR index
  * when the title has one; else each episode's script lines shifted by where
  * the episode sits in the film (its film window from the import, else the
- * lengths of the episodes before it). Null when there is nothing to read.
+ * lengths of the episodes before it). An episode with neither a window nor a
+ * length counts as NOMINAL_EPISODE_S (or up to its last line, if later), so
+ * the episodes stay in order and the last one never lands in the opening.
+ * Null when there is nothing to read.
  */
 export async function loadTitleTranscript(titleId: string): Promise<TitleTranscript | null> {
   const data = getData();
@@ -120,7 +129,9 @@ export async function loadTitleTranscript(titleId: string): Promise<TitleTranscr
       if (l.merged_into_id || l.start_ms === null || l.end_ms === null || !l.text_zh.trim()) continue;
       pieces.push({ start_s: start + l.start_ms / 1000, end_s: start + l.end_ms / 1000, text: l.text_zh });
     }
-    const length = typeof ep.film_start_ms === "number" && typeof ep.film_end_ms === "number" ? (ep.film_end_ms - ep.film_start_ms) / 1000 : (ep.duration_ms ?? 0) / 1000;
+    const lastLine = Math.max(0, ...(wb?.lines ?? []).map((l) => (l.end_ms ?? 0) / 1000));
+    const length = typeof ep.film_start_ms === "number" && typeof ep.film_end_ms === "number" ? (ep.film_end_ms - ep.film_start_ms) / 1000
+      : ep.duration_ms ? ep.duration_ms / 1000 : Math.max(NOMINAL_EPISODE_S, lastLine);
     offset = start + length;
   }
   if (!pieces.length) return null;
@@ -187,7 +198,9 @@ export async function draftSeriesText(session: Session, titleId: string, opts: D
   const transcript = await loadTitleTranscript(titleId);
   if (!transcript) return reply("unavailable", null, "This title has no transcript yet, so Studio did not draft the tagline, description and genres; write them here.");
 
-  const sha = transcriptSha(transcript.pieces, transcript.duration_s);
+  // The title's own spoiler line cuts what the model reads too, when it comes before the 80% mark.
+  const spoilerFrom = title.ad_rules?.spoiler_from_s ?? null;
+  const sha = transcriptSha(transcript.pieces, transcript.duration_s, spoilerFrom);
   const latest = await data.latestJobByTarget(sys, "title", titleId, DRAFT_JOB_KIND);
   const last = inputOf(latest);
   const sameTranscript = last.transcript_sha === sha && last.prompt_version === SERIES_TEXT_PROMPT_VERSION;
@@ -197,7 +210,7 @@ export async function draftSeriesText(session: Session, titleId: string, opts: D
   }
   const attempt = opts.again ? (sameTranscript ? (last.attempt ?? 1) + 1 : 1) : sameTranscript ? last.attempt ?? 1 : 1;
 
-  const selection = selectTranscript(transcript.pieces, transcript.duration_s);
+  const selection = selectTranscript(transcript.pieces, transcript.duration_s, spoilerFrom);
   const call = buildSeriesText({ display_title: title.name_en ?? title.name_zh, language: transcript.language, ...selection });
   const model = modelFor(provider, "fast");
   const input: Json = {

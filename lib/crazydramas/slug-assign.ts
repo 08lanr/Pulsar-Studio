@@ -123,19 +123,39 @@ export async function assignCrazydramasSlug(session: Session, titleId: string, o
     return { outcome: "kept", slug: current, series: null, ...recordInFilmMeta(title, current, opts.root), tried: [] };
   }
   const locked = await slugLockReason(titleId);
+  if (locked && typed !== null && typed !== current) {
+    // Putting the slug back to the series the title is linked to is always safe: it is the title's own series (a
+    // title whose slug was changed away from it is held there, and every write is refused until it is back).
+    const link = await data.getPlatformLink(sys, titleId, PLATFORM);
+    if (link && typed === link.slug) {
+      const saved = await data.setTitleImport(sys, titleId, { crazydramas_slug: typed });
+      const meta = recordInFilmMeta(saved, typed, opts.root);
+      if (!opts.skipCheck) await checkCrazydramasTitle(sys, titleId, { force: true }).catch((e) => console.warn(`[crazydramas] after the slug ${typed}, the check failed: ${(e as Error).message}`));
+      return { outcome: "linked", slug: typed, series: null, ...meta, tried: [] };
+    }
+  }
   if (locked && typed !== current) throw new SlugError(409, "slug_locked", `The slug is locked: ${locked}.`, { slug: current });
   if (typed !== null && !isCdSlug(typed)) throw new SlugError(400, "bad_slug", "A slug is lowercase letters and digits joined by single hyphens, at most 80 characters (e.g. the-midnight-contract).");
 
   const links = await data.listPlatformLinks(sys, PLATFORM);
   const heldByOther = (dramaId: string) => links.some((l) => l.cd_drama_id.toLowerCase() === dramaId.toLowerCase() && l.title_id !== titleId);
+  // Another Studio title's slug is taken even while crazydramas has no series under it yet (two titles of one name, or
+  // one film imported by two companies, would otherwise both save it and the second find itself locked out).
+  const studioSlugs = new Map((await data.listTitlesWithPlatformSlug(sys, PLATFORM)).filter((t) => t.id !== titleId && t.crazydramas_slug?.trim()).map((t) => [t.crazydramas_slug!.trim(), t.name_en || t.name_zh] as const));
+  const takenInStudio = (slug: string) => studioSlugs.has(slug);
 
   let pick: SlugPick;
   if (typed !== null) {
-    pick = await pickSlug(typed, { names, read, heldByOther, maxTries: 1 });
+    if (takenInStudio(typed)) {
+      const next = await pickSlug(typed, { names, read, heldByOther, takenInStudio, start: 2 });
+      const suggestion = next.outcome === "free" || next.outcome === "link" ? next.slug : null;
+      throw new SlugError(409, "slug_taken", `${typed} is already the slug of another Studio title ("${studioSlugs.get(typed)}").${suggestion ? ` ${suggestion} is free.` : ""}`, { suggestion, existing: null });
+    }
+    pick = await pickSlug(typed, { names, read, heldByOther, takenInStudio, maxTries: 1 });
     if (pick.outcome === "exhausted") {
       // Taken by another series: say which, and offer the next free one (asked now, so the offer is true).
       const r = await read(typed);
-      const next = await pickSlug(typed, { names, read, heldByOther, start: 2 });
+      const next = await pickSlug(typed, { names, read, heldByOther, takenInStudio, start: 2 });
       const suggestion = next.outcome === "free" || next.outcome === "link" ? next.slug : null;
       throw new SlugError(409, "slug_taken", `${typed} is another series on crazydramas${r.status === 200 ? ` ("${r.title}")` : ""}.${suggestion ? ` ${suggestion} is free.` : ""}`, { suggestion, existing: r.status === 200 ? { slug: typed, title: r.title } : null });
     }
@@ -143,7 +163,7 @@ export async function assignCrazydramasSlug(session: Session, titleId: string, o
     // 1. The show is already on the site under a slug of its own: the working-name table, then the public catalog.
     const known = knownLiveSlug([...names, opts.folder ?? title.source_ref?.split("/").pop() ?? null]);
     let found: SlugPick | null = null;
-    if (known) {
+    if (known && !takenInStudio(known)) {
       const r = await read(known);
       if (r.status === "error") found = { outcome: "unreachable", slug: known, error: r.error, tried: [known] };
       else if (r.status === 200 && !heldByOther(r.id)) found = { outcome: "link", slug: known, series: { id: r.id, title: r.title, managed_by: r.managed_by }, tried: [known] };
@@ -151,7 +171,7 @@ export async function assignCrazydramasSlug(session: Session, titleId: string, o
     if (!found && !opts.read) {
       try {
         const keys = new Set(names.map(titleKey).filter(Boolean));
-        const twin = (await crazydramasTransport().catalog()).find((d) => keys.has(titleKey(d.title)) && !heldByOther(d.id));
+        const twin = (await crazydramasTransport().catalog()).find((d) => keys.has(titleKey(d.title)) && !heldByOther(d.id) && !takenInStudio(d.slug));
         if (twin) found = { outcome: "link", slug: twin.slug, series: { id: twin.id, title: twin.title, managed_by: twin.managed_by ?? null }, tried: [twin.slug] };
       } catch {
         // The catalog is a shortcut; the reads below decide whether crazydramas answers at all.
@@ -160,7 +180,7 @@ export async function assignCrazydramasSlug(session: Session, titleId: string, o
     // 2. The display title as a slug (then the folder's name, when the title has nothing Latin in it).
     if (!found) {
       const base = [title.name_en, title.source_ref?.split("/").pop() ?? null, title.name_zh].map(deriveSlug).find(Boolean) || "series";
-      found = await pickSlug(base, { names, read, heldByOther });
+      found = await pickSlug(base, { names, read, heldByOther, takenInStudio });
     }
     pick = found;
   }

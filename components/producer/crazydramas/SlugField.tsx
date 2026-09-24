@@ -23,12 +23,16 @@ type Props = {
   editable: boolean;
   /** Pick one on open when there is none. */
   auto: boolean;
+  /** Why a locked slug no longer changes, in words (the section's own reading); the fixed sentence when absent. */
+  lockedReason?: string | null;
+  /** The slug of the series the title is linked to, when its slug was changed away from it: offered as "Put the slug back". */
+  restore?: string | null;
   onSaved: (reply: SlugReply) => void;
 };
 
 type Outcome = { kind: "ok"; text: string } | { kind: "error"; text: string; code: string | null; suggestion: string | null } | null;
 
-export default function SlugField({ titleId, slug, editable, auto, onSaved }: Props) {
+export default function SlugField({ titleId, slug, editable, auto, lockedReason, restore, onSaved }: Props) {
   const { tt } = useT();
   const [value, setValue] = useState(slug ?? "");
   const [busy, setBusy] = useState(false);
@@ -118,7 +122,14 @@ export default function SlugField({ titleId, slug, editable, auto, onSaved }: Pr
       ) : (
         <>
           <p className="cdp-slug"><code id={`cdp-slug-${titleId}`}>{slug ?? "—"}</code></p>
-          <small className="hint" data-slug-locked="true">{tt("cdp.slug.locked")}</small>
+          <small className="hint" data-slug-locked="true">{lockedReason ? tt("cdp.slug.lockedBecause", { reason: lockedReason }) : tt("cdp.slug.locked")}</small>
+          {restore && (
+            <small className="hint" data-slug-restore={restore}>
+              {tt("cdp.slug.restoreHint", { slug: restore })}{" "}
+              <button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => void save(restore)}>{busy ? <><span className="spinner" /> {tt("cdp.slug.checking")}</> : tt("cdp.slug.restore", { slug: restore })}</button>
+            </small>
+          )}
+          {outcome?.kind === "ok" ? <small className="cdp-ok" role="status">{outcome.text}</small> : outcome?.kind === "error" ? <small className="err" role="alert">{outcome.text}</small> : null}
         </>
       )}
     </div>

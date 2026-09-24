@@ -211,6 +211,8 @@ export const FormDefaultsSchema = z.object({
   slug_editable: z.boolean().optional(),
   /** Why not, in words, once it may not (ad links point at crazydramas.com/watch/<slug>). */
   slug_locked_reason: z.string().nullable().optional(),
+  /** The slug of the series the title is linked to, when its own slug was changed away from it: "Put the slug back". */
+  slug_restore: z.string().nullable().optional(),
   /** The title has a cover in Studio (the poster field's default source). */
   has_cover: z.boolean().optional(),
   /** Where the poster field starts: the series' own poster, else the title's cover, else none. */

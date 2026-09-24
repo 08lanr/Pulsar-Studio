@@ -30,7 +30,8 @@ const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export default function FilmMetaForm({ slug, initial, busy, onSubmit }: Props) {
   const { tt } = useT();
   const [title, setTitle] = useState(initial?.display_title_en ?? titleFromSlug(slug));
-  const [cdSlug, setCdSlug] = useState(initial?.crazydramas_slug ?? slug.replace(/_/g, "-"));
+  // Empty unless the film names one: the import picks a slug and checks it on crazydramas (a typed one is taken as it is).
+  const [cdSlug, setCdSlug] = useState(initial?.crazydramas_slug ?? "");
   const [spoiler, setSpoiler] = useState<string>(initial?.spoiler_from_s !== null && initial?.spoiler_from_s !== undefined ? String(initial.spoiler_from_s) : "");
   const [poster, setPoster] = useState(initial?.live_poster ?? "");
   const [rows, setRows] = useState<Row[]>(() => (initial?.exclusions ?? []).map((x) => ({ from_s: String(x.from_s), to_s: String(x.to_s), why: x.why, kind: x.kind ?? "" })));
@@ -61,7 +62,7 @@ export default function FilmMetaForm({ slug, initial, busy, onSubmit }: Props) {
       <label className="field">
         <span className="label">{tt("seg.meta.cdSlug")}</span>
         <input className="input" value={cdSlug} onChange={(e) => setCdSlug(e.target.value)} lang="en" spellCheck={false} aria-invalid={!slugOk} />
-        {!slugOk && <span className="err">{tt("seg.intake.slugBad")}</span>}
+        {!slugOk ? <span className="err">{tt("seg.intake.slugBad")}</span> : <small className="hint">{tt("seg.meta.cdSlugHint")}</small>}
       </label>
       <label className="field">
         <span className="label">{tt("seg.meta.spoiler")}</span>

@@ -207,7 +207,7 @@ function heldRefusal(held: HeldLink): CdPublishError {
   return new CdPublishError(
     409,
     "repointed",
-    `This title's slug in film-meta.json now names "${held.names}", but the title is on crazydramas as "${held.slug}" (${held.why}); Studio does not make a second series of a show that is already on crazydramas, nor move the title off it. Set the slug back in the film's film-meta.json, or ask the operator. Nothing was sent.`,
+    `This title's slug was changed to "${held.names}", but the title is on crazydramas as "${held.slug}" (${held.why}); Studio does not make a second series of a show that is already on crazydramas, nor move the title off it. Put the slug back to ${held.slug} with the button under the slug above, or ask staff. Nothing was sent.`,
     { existing: { slug: held.slug, title: held.title } },
   );
 }
@@ -222,7 +222,7 @@ function heldRefusal(held: HeldLink): CdPublishError {
 function requireOneSeriesLedger(rows: readonly CdPublication[], dramaId: string | null): void {
   const id = dramaId?.toLowerCase() ?? null;
   if (rows.some((r) => r.cd_drama_id !== id)) {
-    throw new CdPublishError(409, "repointed", "This title's uploads went to another crazydramas series than the one its slug names now; Studio does not mix two series in one title's uploads. Set the slug back in the film's film-meta.json, or ask staff to resolve it. Nothing was sent.");
+    throw new CdPublishError(409, "repointed", "This title's uploads went to another crazydramas series than the one its slug names now; Studio does not mix two series in one title's uploads. Put the slug back to the series the uploads went to with the button under the slug above, or ask staff to resolve it. Nothing was sent.");
   }
 }
 
@@ -480,6 +480,9 @@ export async function getPublishState(session: Session, titleId: string, opts: {
     poster_url: posterNow,
     slug_editable: !lockReason && !foreign && !held,
     slug_locked_reason: lockReason,
+    // The one way back when the title's slug was changed away from the series it is linked to (held on its link, or
+    // its uploads went there): the link's slug, which the slug route takes even while the slug is locked.
+    slug_restore: held ? held.slug : linked && linked.slug !== (title.crazydramas_slug?.trim() || null) && allRows.some((r) => r.cd_drama_id === linked.cd_drama_id.toLowerCase()) ? linked.slug : null,
     has_cover: !!title.cover_path,
     poster_default: posterNow ? "keep" : title.cover_path ? "cover" : "none",
     poster_preview_url: shownPosterUrl(posterNow),
