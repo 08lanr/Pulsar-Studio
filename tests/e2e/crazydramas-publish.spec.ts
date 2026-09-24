@@ -218,8 +218,8 @@ test("Create draft series, then upload all: every episode walks to verified in t
   await expect(f.locator('input[name="genre"]')).toHaveValue("Romance, Billionaire");
   await expect(f.locator('[data-poster-choice="keep"] input[type="radio"]')).toBeChecked();
   await expect(f.locator(".cdp-cover img")).toHaveAttribute("src", /^\/api\/public-posters\/ttl_[a-z0-9]+\/[0-9a-f]{8}\.jpg$/);
-  // The draft exists: the slug is locked, with the reason.
-  await expect(f.locator("[data-slug-locked]")).toContainText("ad links depend on the slug");
+  // The draft exists: the slug is locked, with the section's own reason (review fix, 2026-09-24).
+  await expect(f.locator("[data-slug-locked]")).toHaveText(/^Locked: the series exists on crazydramas as e2e-up-[a-z0-9]+; ad links point at crazydramas\.com\/watch\/e2e-up-[a-z0-9]+, so the slug no longer changes\.$/);
   await expect(section(page)).toHaveAttribute("data-series-state", "draft");
   await expect(section(page).locator("[data-cdp-state]")).toHaveText("Draft on CrazyDramas");
   await expect(f.getByRole("button", { name: "Save series details" })).toBeVisible();
