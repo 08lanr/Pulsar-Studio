@@ -140,10 +140,12 @@ function spawnFfmpeg(args: string[], opts: { timeoutMs?: number; tolerateExit?: 
     const p = spawn(ffmpegBin(), args);
     let err = "";
     p.stderr.on("data", (d) => (err += String(d)));
+    const limit = opts.timeoutMs ?? RENDER_TIMEOUT_MS;
     const timer = setTimeout(() => {
       p.kill();
-      reject(new Error("the render timed out after 5 minutes"));
-    }, opts.timeoutMs ?? RENDER_TIMEOUT_MS);
+      const minutes = Math.round(limit / 60000);
+      reject(new Error(`the render timed out after ${minutes} minute${minutes === 1 ? "" : "s"}`));
+    }, limit);
     p.on("error", (e) => {
       clearTimeout(timer);
       reject(new Error((e as NodeJS.ErrnoException).code === "ENOENT" ? "ffmpeg is not installed on this machine" : `could not run ffmpeg: ${e.message}`));

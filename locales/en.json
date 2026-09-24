@@ -4442,10 +4442,12 @@
   "montage.episodes": "Episodes {list}",
   "montage.exists": "This ad is already built from the current clips; it is the first one below.",
   "montage.refused.no_clips": "This title has no ad clips yet. Cut clips on its episodes first, then build the 60-second ad.",
-  "montage.refused.too_few": "A 60-second ad needs a hook, at least two scenes and a cliff: four separate moments from before the spoiler line. This title has {n} usable clips. Cut clips on more of its early episodes, then try again.",
+  "montage.refused.too_few": "A 60-second ad needs a hook, at least two scenes and a cliff: four separate moments from before the spoiler line. Usable clips so far: {n}. Cut clips on more of its early episodes, then try again.",
   "montage.cannotBuild": "You can watch and download these ads; building one needs edit rights on this title.",
   "montage.openClips": "Open in Clips",
   "montage.useInLaunch": "Use in Launch",
   "montage.pieces": "What it joins",
-  "montage.previewLabel": "Preview of the 60-second ad"
+  "montage.previewLabel": "Preview of the 60-second ad",
+  "montage.failed.render_failed": "The ad could not be joined from its clips. Press Build again; if it fails twice, tell Pulsar staff.",
+  "montage.failed.stopped": "The build stopped before it finished. Press Build again."
 }

@@ -20,7 +20,9 @@
 // - The scenes (two to four) sit between the two: the strongest clips
 //   (rank 1 of their episode first) nearest to evenly spaced points of the
 //   story, each from its own start, sharing what the hook and the cliff
-//   leave of the 60 s.
+//   leave of the 60 s. Two pieces of one episode keep at least 1.5 s between
+//   them (a piece that starts where another ends is one moment with a jump in
+//   it), so every piece is its own moment and four pieces are four moments.
 // - No piece cuts through a spoken line when a gap is near: an end that
 //   falls inside a line moves back to where the line starts, a start inside
 //   one moves on to where it ends.
@@ -46,6 +48,8 @@ export type MontageOptions = {
   sceneMaxMs: number;
   /** A window shorter than this is not a moment. */
   minPieceMs: number;
+  /** Two pieces of one episode keep at least this between them, so each is its own moment. */
+  gapMs: number;
   scenesMin: number;
   scenesMax: number;
   /** Without a spoiler line, this share of the last episodes stays out of the ad. */
@@ -59,6 +63,7 @@ export const MONTAGE_DEFAULTS: MontageOptions = {
   sceneMinMs: 4_000,
   sceneMaxMs: 20_000,
   minPieceMs: 1_500,
+  gapMs: 1_500,
   scenesMin: 2,
   scenesMax: 4,
   endingShare: 0.2,
@@ -143,13 +148,18 @@ export function snapStart(start: number, end: number, cues: readonly MontageCue[
 
 type Span = { episode_id: string; start: number; end: number };
 
-/** The first stretch of a window between two story positions and outside every taken span of its episode, at least `min` long. */
-function freePart(w: Window, lo: number, hi: number, taken: readonly Span[], min: number): Span | null {
+/**
+ * The first stretch of a window between two story positions and at least `gap` away from every taken span of its
+ * episode (a piece that starts where another ends is one moment with a jump in it, not a second moment), at least
+ * `min` long.
+ */
+function freePart(w: Window, lo: number, hi: number, taken: readonly Span[], min: number, gap: number): Span | null {
   const base = w.episode.number * STORY;
   let parts: Array<[number, number]> = [[Math.max(w.start, lo - base), Math.min(w.end, hi - base)]];
   for (const t of taken) {
     if (t.episode_id !== w.episode.id) continue;
-    parts = parts.flatMap(([s, e]): Array<[number, number]> => (t.end <= s || t.start >= e ? [[s, e]] : ([[s, Math.min(e, t.start)], [Math.max(s, t.end), e]] as Array<[number, number]>).filter(([p, q]) => q > p)));
+    const [a, b] = [t.start - gap, t.end + gap];
+    parts = parts.flatMap(([s, e]): Array<[number, number]> => (b <= s || a >= e ? [[s, e]] : ([[s, Math.min(e, a)], [Math.max(s, b), e]] as Array<[number, number]>).filter(([p, q]) => q > p)));
   }
   const ok = parts.find(([s, e]) => e - s >= min);
   return ok ? { episode_id: w.episode.id, start: ok[0], end: ok[1] } : null;
@@ -227,7 +237,7 @@ export function planMontage(input: MontageInput, options: Partial<MontageOptions
       const target = from + ((to - from) * (i + 1)) / (slots + 1);
       const best = windows
         .filter((w) => w !== hookW && w !== cliffW && !chosen.some((c) => c.w === w))
-        .map((w) => ({ w, part: freePart(w, lo, hi, taken, o.minPieceMs) }))
+        .map((w) => ({ w, part: freePart(w, lo, hi, taken, o.minPieceMs, o.gapMs) }))
         .filter((x): x is { w: Window; part: Span } => x.part !== null)
         .sort((a, b) => Number(a.part.end - a.part.start < o.sceneMinMs) - Number(b.part.end - b.part.start < o.sceneMinMs)
           || a.w.clip.rank - b.w.clip.rank
@@ -262,11 +272,11 @@ export function planMontage(input: MontageInput, options: Partial<MontageOptions
   chosen.sort((a, b) => storyOf(a.w, a.span.start) - storyOf(b.w, b.span.start));
 
   // What the equal shares leave of the 60 s goes to the scenes that can take more, in story order, never into
-  // another piece.
+  // another piece nor up to its edge (the gap keeps them separate moments).
   let left = room - chosen.reduce((n, c) => n + c.span.end - c.span.start, 0);
   for (const c of chosen) {
     if (left <= 0) break;
-    const next = taken.filter((t) => t !== c.span && t.episode_id === c.span.episode_id && t.start >= c.span.end).map((t) => t.start);
+    const next = taken.filter((t) => t !== c.span && t.episode_id === c.span.episode_id && t.start >= c.span.end).map((t) => t.start - o.gapMs);
     const limit = Math.min(c.part.end, ...next);
     const more = Math.min(left, limit - c.span.end, o.sceneMaxMs - (c.span.end - c.span.start));
     if (more > 0) { c.span.end += more; left -= more; }

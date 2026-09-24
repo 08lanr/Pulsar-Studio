@@ -1363,10 +1363,16 @@ export const supabaseData: DataLayer = {
     const hook = input.pieces[0];
     const kept = await many<Pick<Clip, "rank">>(studio(c).from("clips").select("rank").eq("episode_id", hook.episode_id).gte("rank", MONTAGE_RANK_BASE));
     const taken = new Set(kept.map((k) => k.rank));
-    let rank = MONTAGE_RANK_BASE;
-    while (taken.has(rank)) rank++;
-    return one<Clip>(
-      studio(c)
+    const nextRank = () => {
+      let r = MONTAGE_RANK_BASE;
+      while (taken.has(r)) r++;
+      taken.add(r);
+      return r;
+    };
+    // Two builds finishing together can pick the same rank on one episode (unique on episode × rank): the second tries the next one, once.
+    for (let attempt = 0; ; attempt++) {
+      const rank = nextRank();
+      const { data, error } = await studio(c)
         .from("clips")
         .insert({
           title_id: input.title_id,
@@ -1394,9 +1400,12 @@ export const supabaseData: DataLayer = {
           height: input.height,
         })
         .select("*")
-        .maybeSingle(),
-      "clip"
-    );
+        .maybeSingle();
+      if (error?.code === "23505" && attempt === 0) continue;
+      if (error) throw mapError(error);
+      if (!data) throw notFound("clip");
+      return data as Clip;
+    }
   },
 
   // ---- jobs and cost ----

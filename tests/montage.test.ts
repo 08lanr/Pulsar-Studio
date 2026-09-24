@@ -20,7 +20,7 @@ import { FIXTURE_PRODUCER_ID, fixtureSession, systemSession, type Session } from
 import { pickClipsForRound } from "@/lib/clips/creatives";
 import { framePieces, MONTAGE_MAX_MS, MONTAGE_RANK_BASE, montageEpisodesLabel, montageKey, planMontage, snapEnd, snapStart, type MontageClip, type MontageEpisode, type MontageInput } from "@/lib/clips/montage";
 import { frameRate, montageArgs, parseEncodedFrames, parseIntegratedLoudness, parseSourceFacts, seekOf } from "@/lib/clips/montage-render";
-import { montageStatus, startMontage } from "@/lib/clips/montage-run";
+import { MONTAGE_RENDER_FAILED, montageStatus, startMontage } from "@/lib/clips/montage-run";
 import { episodeClipsPayload } from "@/lib/clips/payload";
 import { getData } from "@/lib/data";
 import { fixtureData, resetFixtureStore } from "@/lib/data/fixture";
@@ -150,15 +150,20 @@ test("refusals: no clips, too few that do not overlap; dismissed clips and other
   assert.equal(three.ok, false);
   if (!three.ok) { assert.equal(three.code, "too_few"); assert.equal(three.usable, 3); }
   // Four usable clips in two short episodes are enough: each piece is its whole window, the whole well under 60 s.
-  const four = planMontage({ episodes: [ep(1, { duration_ms: 4_000 }), ep(2, { duration_ms: 5_000 })], clips: [clip(1, 1, 0, 1_800, { moment: "opening" }), clip(1, 2, 2_000, 3_900), clip(2, 1, 0, 1_500), clip(2, 2, 1_600, 3_400)], rules: null });
+  const four = planMontage({ episodes: [ep(1, { duration_ms: 6_000 }), ep(2, { duration_ms: 6_000 })], clips: [clip(1, 1, 0, 1_800, { moment: "opening" }), clip(1, 2, 3_500, 5_400), clip(2, 1, 0, 1_500), clip(2, 2, 3_200, 5_000)], rules: null });
   assert.ok(four.ok, JSON.stringify(four));
   if (four.ok) {
-    assert.deepEqual(four.pieces.map((p) => [p.role, p.episode_number, p.start_ms, p.end_ms]), [["hook", 1, 0, 1_800], ["scene", 1, 2_000, 3_900], ["scene", 2, 0, 1_500], ["cliff", 2, 1_600, 3_400]]);
+    assert.deepEqual(four.pieces.map((p) => [p.role, p.episode_number, p.start_ms, p.end_ms]), [["hook", 1, 0, 1_800], ["scene", 1, 3_500, 5_400], ["scene", 2, 0, 1_500], ["cliff", 2, 3_200, 5_000]]);
     assert.equal(four.duration_ms, 7_000);
   }
+  // A clip that starts where another ends is one moment with a jump in it, not a second one: the same four, the
+  // second clip of episode 1 right after the opening, leave three moments and are refused.
+  const touching = planMontage({ episodes: [ep(1, { duration_ms: 6_000 }), ep(2, { duration_ms: 6_000 })], clips: [clip(1, 1, 0, 1_800, { moment: "opening" }), clip(1, 2, 1_800, 3_600), clip(2, 1, 0, 1_500), clip(2, 2, 3_200, 5_000)], rules: null });
+  assert.equal(touching.ok, false, JSON.stringify(touching));
+  if (!touching.ok) assert.equal(touching.code, "too_few");
 });
 
-test("overlapping clips of one episode are trimmed, not dropped: no two pieces share a frame, and the room left goes to the scenes up to the next piece", () => {
+test("overlapping clips of one episode are trimmed, not dropped: no two pieces share a frame or touch, and the room left goes to the scenes up to 1.5 s before the next piece", () => {
   // The demo catalog's shape: six 62-second episodes, three overlapping 25-28 s clips on each of the first two.
   const episodes = Array.from({ length: 6 }, (_, i) => ep(i + 1, { duration_ms: 62_000 }));
   const clips = [
@@ -170,12 +175,12 @@ test("overlapping clips of one episode are trimmed, not dropped: no two pieces s
   if (!plan.ok) return;
   assert.deepEqual(plan.pieces.map((p) => [p.role, p.episode_number, p.start_ms, p.end_ms]), [
     ["hook", 1, 0, 8_000],
-    ["scene", 1, 15_000, 34_000], // its equal 10.5 s, then the room left up to where the next scene starts
+    ["scene", 1, 15_000, 32_500], // its equal 10.5 s, then the room left up to 1.5 s before the next scene starts
     ["scene", 1, 34_000, 54_000], // the third clip from where the second's window was not taken, up to 20 s
     ["cliff", 2, 20_000, 30_000], // episode 2's strongest clip, its last 10 s
   ]);
-  for (const a of plan.pieces) for (const b of plan.pieces) if (a !== b && a.episode_id === b.episode_id) assert.ok(a.end_ms <= b.start_ms || b.end_ms <= a.start_ms, "no frame twice");
-  assert.equal(plan.duration_ms, 57_000);
+  for (const a of plan.pieces) for (const b of plan.pieces) if (a !== b && a.episode_id === b.episode_id) assert.ok(a.end_ms + 1_500 <= b.start_ms || b.end_ms + 1_500 <= a.start_ms, "no frame twice, and no two pieces touch");
+  assert.equal(plan.duration_ms, 55_500);
 });
 
 test("whole frames: nearest frames, never over 60.0 s (the longest scene gives the excess back), times rewritten to the frames", () => {
@@ -214,6 +219,8 @@ test("the ffmpeg line: each input seeked 0.3 frame early and trimmed to its fram
   assert.doesNotMatch(graph, /drawtext|subtitles|movie=|xfade|acrossfade/, "hard cuts, nothing drawn on the picture");
   assert.deepEqual(args.slice(args.indexOf("-frames:v"), args.indexOf("-frames:v") + 2), ["-frames:v", "165"]);
   assert.ok(args.includes("+faststart"));
+  // The encode is capped so a 60 s ad stays under the 32 MB a clip may be for the zip download and the Meta posting.
+  assert.deepEqual(args.slice(args.indexOf("-maxrate"), args.indexOf("-maxrate") + 4), ["-maxrate", "3500k", "-bufsize", "7000k"]);
 });
 
 test("the log readers: the source's size, rate and sound; the integrated loudness; the encoder's frame count", () => {
@@ -278,6 +285,9 @@ const fakeProbe = async (link: string): Promise<VideoFacts | null> => {
   return { width: 720, height: 1280, fps: 30, frames, duration_s: frames / 30 };
 };
 
+/** The fixture film's episodes are 4-6 s long and its clips sit 0.1-0.2 s apart, so its builds allow pieces 0.1 s apart. */
+const TINY = { gapMs: 100 };
+
 /** The fixture film imported (three 720×1280 episodes of 4, 5 and 6 s, spoiler line at 7.5 s film time), with five clips. */
 async function fixtureFilmWithClips() {
   const r = await importFilm(producer(), { source_ref: FILM, mode: "import" }, { producer_id: FIXTURE_PRODUCER_ID, created_by: producer().userId }, { root: FIXTURE_ROOT, quietMs: 0, probe: fakeProbe });
@@ -300,7 +310,7 @@ test("the build on the fixture film: frame-exact 9:16 at -14 LUFS, a clips row, 
   delete process.env.PROMO_RENDER; // this test renders for real
   const { titleId, e1, e2, e3 } = await fixtureFilmWithClips();
   temps.push(path.join(uploadsDir(), titleId)); // the rendered ad lands under .uploads/<title>/montage/
-  const started = await startMontage(producer(), titleId, { wait: true });
+  const started = await startMontage(producer(), titleId, { wait: true, options: TINY });
   assert.equal(started.outcome, "started", JSON.stringify(started));
   if (started.outcome !== "started") return;
   assert.deepEqual(started.plan.pieces.map((p) => p.role), ["hook", "scene", "scene", "cliff"]);
@@ -352,7 +362,7 @@ test("the build on the fixture film: frame-exact 9:16 at -14 LUFS, a clips row, 
   assert.ok((await getData().listClipLibrary(producer(), { title_id: titleId, episode_id: e2.id })).some((r) => r.id === ad.id));
 
   // Pressing again with the same clips answers the same ad; nothing is rendered twice.
-  const again = await startMontage(producer(), titleId, { wait: true });
+  const again = await startMontage(producer(), titleId, { wait: true, options: TINY });
   assert.equal(again.outcome, "exists");
 
   // Launch: a Spark code made from the ad takes its title (and its link); a Meta draft takes its file.
@@ -377,11 +387,11 @@ test("who may build, and when it cannot: a viewer is forbidden, another company'
   await assert.rejects(startMontage({ ...fixtureSession("producer"), producerId: other.id }, titleId), (e: unknown) => (e as { code?: string }).code === "not_found");
   await assert.rejects(montageStatus({ ...fixtureSession("producer"), producerId: other.id }, titleId), (e: unknown) => (e as { code?: string }).code === "not_found");
   // PROMO_RENDER=off: the build is recorded as failed with the reason, and the page says so.
-  const off = await startMontage(producer(), titleId);
+  const off = await startMontage(producer(), titleId, { options: TINY });
   assert.equal(off.outcome, "failed");
   if (off.outcome === "failed") assert.equal(off.error, "rendering is switched off on this server");
   const status = await montageStatus(producer(), titleId);
-  assert.deepEqual([status.state, status.note], ["failed", "rendering is switched off on this server"]);
+  assert.deepEqual([status.state, status.note, status.note_code], ["failed", "rendering is switched off on this server", null]);
   const job = await fixtureData.latestJobByTarget(staff(), "title", titleId, "build_montage");
   assert.equal(job?.cost_cents, 0);
   // Fewer than four usable clips: refused before any job.
@@ -391,4 +401,28 @@ test("who may build, and when it cannot: a viewer is forbidden, another company'
   if (refused.outcome === "refused") { assert.equal(refused.refusal.code, "too_few"); assert.equal(refused.refusal.usable, 2); assert.equal(refused.refusal.held_back, 1); }
   // A staff administrator may build too (the staff clips page): the same refusal, not a forbidden.
   assert.equal((await startMontage(staff(), titleId)).outcome, "refused");
+});
+
+test("two presses at once start one build; a join that fails says one plain sentence, never ffmpeg's own words or a server path", { skip: !hasFfmpeg && "ffmpeg or ffprobe is not on this machine" }, async () => {
+  delete process.env.PROMO_RENDER;
+  const { titleId, e1 } = await fixtureFilmWithClips();
+  temps.push(path.join(uploadsDir(), titleId));
+  // Episode 1's file goes missing (the link under the media folder is removed; the fixture film itself stays).
+  const wb = await fixtureData.getWorkbench(staff(), titleId, e1.number);
+  rmSync(localPathOf(wb.episode.video_path!), { force: true });
+  const [a, b] = await Promise.all([startMontage(producer(), titleId, { wait: true, options: TINY }), startMontage(staff(), titleId, { wait: true, options: TINY })]);
+  assert.deepEqual([a.outcome, b.outcome].sort(), ["running", "started"], "the second press finds the first build running");
+  const first = a.outcome === "started" ? a : b.outcome === "started" ? b : null;
+  const other = a.outcome === "running" ? a : b.outcome === "running" ? b : null;
+  assert.ok(first && other && first.outcome === "started" && other.outcome === "running");
+  if (first?.outcome !== "started" || other?.outcome !== "running") return;
+  assert.equal(other.job_id, first.job_id);
+  const built = await first.done!;
+  assert.deepEqual(built, { ok: false, error: MONTAGE_RENDER_FAILED });
+  const status = await montageStatus(producer(), titleId);
+  assert.deepEqual([status.state, status.note, status.note_code], ["failed", MONTAGE_RENDER_FAILED, "render_failed"]);
+  assert.doesNotMatch(status.note!, /[A-Z]:[\\/]|\/tmp\/|ffmpeg|Error opening/i, "no server path or ffmpeg output reaches the page");
+  const job = await fixtureData.latestJobByTarget(staff(), "title", titleId, "build_montage");
+  assert.equal(job?.id, first.job_id);
+  assert.match(String((job?.output as { detail?: string } | null)?.detail), /render failed/, "the detail stays on the job for staff");
 });

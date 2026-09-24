@@ -4442,10 +4442,12 @@
   "montage.episodes": "第 {list} 集",
   "montage.exists": "当前切片已经生成过这条广告，就是下方第一条。",
   "montage.refused.no_clips": "这部剧集还没有广告切片。先为分集切片，再生成 60 秒广告。",
-  "montage.refused.too_few": "60 秒广告需要一个开场钩子、至少两个场景和一个悬念结尾，也就是剧透线之前四段互不重叠的内容。这部剧集目前有 {n} 条可用切片。先为更多靠前的分集切片，再试一次。",
+  "montage.refused.too_few": "60 秒广告需要一个开场钩子、至少两个场景和一个悬念结尾，也就是剧透线之前四段互不相连的内容。目前可用切片：{n} 条。先为更多靠前的分集切片，再试一次。",
   "montage.cannotBuild": "你可以观看和下载这些广告；生成需要这部剧集的编辑权限。",
   "montage.openClips": "在切片中打开",
   "montage.useInLaunch": "去投放",
   "montage.pieces": "拼接内容",
-  "montage.previewLabel": "60 秒广告预览"
+  "montage.previewLabel": "60 秒广告预览",
+  "montage.failed.render_failed": "没能把切片拼成广告。再点一次生成；如果连续两次失败，请告诉 Pulsar 工作人员。",
+  "montage.failed.stopped": "生成在完成前中断了。再点一次生成。"
 }

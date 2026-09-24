@@ -75,7 +75,7 @@ export default function AdMontage({ titleId, initial, canBuild, staff = false, o
         return;
       }
       if (r.outcome === "exists") { setMessage({ kind: "info", text: tt("montage.exists") }); await load().catch(() => undefined); return; }
-      setStatus((prev) => ({ state: "building", note: null, building: { started_at: new Date().toISOString(), pieces: r.pieces ?? [], duration_ms: r.duration_ms ?? null }, montages: prev?.montages ?? [] }));
+      setStatus((prev) => ({ state: "building", note: null, note_code: null, building: { started_at: new Date().toISOString(), pieces: r.pieces ?? [], duration_ms: r.duration_ms ?? null }, montages: prev?.montages ?? [] }));
     } catch (e) { setMessage({ kind: "error", text: (e as Error).message }); }
     finally { setBusy(false); }
   }
@@ -103,7 +103,7 @@ export default function AdMontage({ titleId, initial, canBuild, staff = false, o
       <header className="ep-clips-head">
         <strong>{tt("montage.title")}</strong>
         <span className={`pill ${pill}`} role="status">{stateLabel}</span>
-        {state === "failed" && status?.note && <span className="ep-clips-note">{status.note}</span>}
+        {state === "failed" && status?.note && <span className="ep-clips-note">{status.note_code ? tt(`montage.failed.${status.note_code}`) : status.note}</span>}
         {canBuild && <button type="button" className={`btn ${montages.length ? "btn-outline" : "btn-primary"} btn-sm`} disabled={busy || building} onClick={() => void build()}>
           {busy ? tt("common.loading") : montages.length ? tt("montage.buildAgain") : tt("montage.build")}
         </button>}

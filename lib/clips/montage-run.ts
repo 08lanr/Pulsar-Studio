@@ -9,10 +9,18 @@
 // row per build; the file is named by the pick, so the same pick of the same
 // clips is the same ad and pressing again answers the ad that already
 // exists, while new clips make a new pick and a new ad (the one before stays
-// in the library). Every step beats the job's heartbeat, a quiet one reads
-// as a dead build (lib/clips/state.ts) and the next press starts over. The
-// run writes as the system actor after the route checked the caller may
-// edit the title, as the clip cutting does.
+// in the library). The build beats the job's heartbeat every 30 seconds for
+// as long as it runs (the wait for a free ffmpeg slot and a 15-minute render
+// included), so only a build whose process went away reads as dead
+// (lib/clips/state.ts) and lets the next press start over. Two presses at
+// once (two tabs, the producer and the staff page) start one build: the check
+// and the job's record are one step per title on this server, and a build
+// that finds a newer running build of its title after recording stands down.
+// A failure the checks name is shown in its own words; anything else (an
+// ffmpeg error, which names server paths) stays in the log and the job's
+// output, and the page says one plain sentence. The run writes as the system
+// actor after the route checked the caller may edit the title, as the clip
+// cutting does.
 
 import { systemSession, type Session } from "@/lib/auth";
 import { getData, isDataError } from "@/lib/data";
@@ -20,18 +28,40 @@ import { mediaUrl } from "@/lib/data/storage";
 import { ffmpegAvailable } from "@/lib/promote/render";
 import type { Clip, Job, Json, MontagePiece } from "@/lib/types";
 import { montageEpisodesLabel, montageWhy, planMontage, type MontageEpisode, type MontageInput, type MontageOptions, type MontagePlan, type MontageRefusal } from "./montage";
-import { MONTAGE_LUFS, renderMontage } from "./montage-render";
+import { MONTAGE_LUFS, MontageCheckError, renderMontage } from "./montage-render";
 import { jobIsRunning } from "./state";
 
 export const MONTAGE_JOB = "build_montage" as const;
+/** What the page says when the join failed for a reason the checks do not name (the detail is in the log and the job's output). */
+export const MONTAGE_RENDER_FAILED = "The ad could not be joined from its clips. Press Build again; if it fails twice, tell Pulsar staff.";
+/** What the page says when a build's process went away before it finished. */
+export const MONTAGE_STOPPED = "The build stopped before it finished. Press Build again.";
+const HEARTBEAT_MS = 30_000;
+
+/** One check-and-record per title at a time on this server, so two presses at once start one build. */
+const locks = globalThis as unknown as { __studioMontageStarts?: Map<string, Promise<unknown>> };
+async function oneStartPerTitle<T>(titleId: string, fn: () => Promise<T>): Promise<T> {
+  const starts = (locks.__studioMontageStarts ??= new Map());
+  const before = starts.get(titleId) ?? Promise.resolve();
+  const mine = before.then(fn);
+  const tail = mine.catch(() => undefined);
+  starts.set(titleId, tail);
+  try {
+    return await mine;
+  } finally {
+    if (starts.get(titleId) === tail) starts.delete(titleId);
+  }
+}
 
 /** A finished 60-second ad as the title's clips page lists it. */
 export type MontageRow = Clip & { download_url: string | null; episodes_label: string };
 
 export type MontageStatus = {
   state: "none" | "building" | "ready" | "failed";
-  /** Why the newest build failed, in its own words. */
+  /** Why the newest build failed, in plain words (English). */
   note: string | null;
+  /** When the note is one of the build's own sentences, which one (the page says it in its language). */
+  note_code: "render_failed" | "stopped" | null;
   /** While a build runs: when it started and the pieces it is joining. */
   building: { started_at: string | null; pieces: MontagePiece[]; duration_ms: number | null } | null;
   /** Newest first. */
@@ -84,8 +114,12 @@ const rowOf = (c: Clip): MontageRow => ({ ...c, download_url: c.render_status ==
  * back the build's promise (tests); the routes let it run.
  */
 export async function startMontage(session: Session, titleId: string, opts: { options?: Partial<MontageOptions>; wait?: boolean } = {}): Promise<MontageStart> {
+  await getData().assertTitleEditable(session, titleId);
+  return oneStartPerTitle(titleId, () => pickAndStart(titleId, opts));
+}
+
+async function pickAndStart(titleId: string, opts: { options?: Partial<MontageOptions>; wait?: boolean }): Promise<MontageStart> {
   const data = getData();
-  await data.assertTitleEditable(session, titleId);
   const system = systemSession();
   const latest = await data.latestJobByTarget(system, "title", titleId, MONTAGE_JOB);
   if (jobIsRunning(latest)) return { outcome: "running", job_id: latest!.id };
@@ -106,6 +140,12 @@ export async function startMontage(session: Session, titleId: string, opts: { op
     idempotency_key: `build_montage:${titleId}:${plan.key}:${Date.now().toString(36)}`,
     input: { plan_key: plan.key, pieces: plan.pieces, duration_ms: plan.duration_ms, episodes: plan.episodes, source: plan.source } as unknown as Json,
   });
+  // Another server's press may have recorded its build in the same moment: the newer one runs, this one stands down.
+  const newest = await data.latestJobByTarget(system, "title", titleId, MONTAGE_JOB);
+  if (newest && newest.id !== job.id && jobIsRunning(newest)) {
+    await data.finishJob(system, job.id, { status: "cancelled", error: "another build of this title started at the same moment", cost_cents: 0 });
+    return { outcome: "running", job_id: newest.id };
+  }
   if (!(await ffmpegAvailable())) {
     const error = process.env.PROMO_RENDER === "off" ? "rendering is switched off on this server" : "ffmpeg is not installed on this machine";
     await data.finishJob(system, job.id, { status: "failed", error, cost_cents: 0 });
@@ -119,12 +159,14 @@ export async function startMontage(session: Session, titleId: string, opts: { op
 async function runMontageBuild(titleId: string, job: Job, plan: MontagePlan, videoPaths: Map<string, string>): Promise<MontageBuild> {
   const data = getData();
   const system = systemSession();
+  const beat = () => void data.heartbeatJob(system, job.id).catch(() => undefined);
+  const pulse = setInterval(beat, HEARTBEAT_MS);
   try {
     const rendered = await renderMontage({
       pieces: plan.pieces,
       videoPaths,
       storedPath: montageFile(titleId, plan.key, job.id),
-      onStep: () => data.heartbeatJob(system, job.id).catch(() => undefined),
+      onStep: beat,
     });
     const why = montageWhy(plan);
     const off = rendered.lufs !== null && Math.abs(rendered.lufs - MONTAGE_LUFS) > 2;
@@ -148,10 +190,13 @@ async function runMontageBuild(titleId: string, job: Job, plan: MontagePlan, vid
     console.log(`[montage] ${titleId}: ${rendered.pieces.length} pieces, ${rendered.frames} frames at ${rendered.fps} fps, ${rendered.lufs ?? "?"} LUFS`);
     return { ok: true, clip };
   } catch (e) {
-    const error = isDataError(e) || e instanceof Error ? (e as Error).message : String(e);
-    console.error(`[montage] ${titleId}: ${error}`);
-    await data.finishJob(system, job.id, { status: "failed", error, cost_cents: 0 }).catch(() => undefined);
+    const detail = isDataError(e) || e instanceof Error ? (e as Error).message : String(e);
+    console.error(`[montage] ${titleId}: ${detail}`);
+    const error = e instanceof MontageCheckError ? detail : MONTAGE_RENDER_FAILED;
+    await data.finishJob(system, job.id, { status: "failed", error, output: { detail } as Json, cost_cents: 0 }).catch(() => undefined);
     return { ok: false, error };
+  } finally {
+    clearInterval(pulse);
   }
 }
 
@@ -166,10 +211,10 @@ export async function montageStatus(session: Session, titleId: string): Promise<
   const job = await data.latestJobByTarget(systemSession(), "title", titleId, MONTAGE_JOB);
   if (jobIsRunning(job)) {
     const input = (job!.input ?? {}) as { pieces?: MontagePiece[]; duration_ms?: number };
-    return { state: "building", note: null, building: { started_at: job!.started_at, pieces: input.pieces ?? [], duration_ms: input.duration_ms ?? null }, montages };
+    return { state: "building", note: null, note_code: null, building: { started_at: job!.started_at, pieces: input.pieces ?? [], duration_ms: input.duration_ms ?? null }, montages };
   }
   const newest = montages[0]?.created_at ?? "";
-  if (job?.status === "failed" && (job.finished_at ?? job.created_at) > newest) return { state: "failed", note: job.error, building: null, montages };
-  if (job?.status === "running") return { state: "failed", note: "the build stopped before it finished", building: null, montages };
-  return { state: montages.length ? "ready" : "none", note: null, building: null, montages };
+  if (job?.status === "failed" && (job.finished_at ?? job.created_at) > newest) return { state: "failed", note: job.error, note_code: job.error === MONTAGE_RENDER_FAILED ? "render_failed" : null, building: null, montages };
+  if (job?.status === "running") return { state: "failed", note: MONTAGE_STOPPED, note_code: "stopped", building: null, montages };
+  return { state: montages.length ? "ready" : "none", note: null, note_code: null, building: null, montages };
 }

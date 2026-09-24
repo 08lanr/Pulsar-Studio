@@ -12,8 +12,11 @@
 // Nothing is drawn on the picture: no text, no poster, no end card.
 //
 // The file is checked before it is kept: the frame count must be the plan's
-// (ffprobe counts the packets, as the import does), the size 1080×1920, and
-// the length at most 60.0 s; the measured loudness is recorded.
+// (ffprobe counts the packets, as the import does), the size 1080×1920, the
+// length at most 60.0 s and the file no bigger than a clip may be for the zip
+// download and the Meta posting (MAX_CLIP_BYTES; the encode is capped at
+// 3.5 Mbit/s so a grainy or 60 fps title stays well under it); the measured
+// loudness is recorded.
 
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -21,6 +24,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { isLocalTierPath, localPathOf, putStoredBytes, readStoredBytes } from "@/lib/data/storage";
 import { ffprobeFacts } from "@/lib/film-import/import";
+import { MAX_CLIP_BYTES } from "@/lib/launch/clip-bytes";
 import type { MontagePiece } from "@/lib/types";
 import { AD_HEIGHT, AD_WIDTH, frameFilter, runFfmpeg, type SourceSize } from "./cut";
 import { framePieces, MONTAGE_MAX_MS, type FramedPiece } from "./montage";
@@ -31,6 +35,12 @@ const LOUDNORM = `loudnorm=I=${MONTAGE_LUFS}:TP=-1.5:LRA=11`;
 const EDGE_FADE_S = 0.015;
 const END_FADE_S = 0.5;
 const RENDER_TIMEOUT_MS = 15 * 60 * 1000;
+/** The encode's ceiling: about 27 MB for 60 s with the sound, under MAX_CLIP_BYTES whatever the footage. */
+const MAX_RATE = "3500k";
+const BUFFER = "7000k";
+
+/** A finished file the checks refuse, said in plain words (the build shows it as it is; any other failure is logged and shown as one plain sentence). */
+export class MontageCheckError extends Error {}
 
 export type SourceFacts = { size: SourceSize | null; fps: number | null; hasAudio: boolean };
 
@@ -83,7 +93,7 @@ export function montageArgs(pieces: readonly ArgsPiece[], rate: { expr: string; 
     "-filter_complex", graph.join(";"),
     "-map", "[vout]", "-map", "[aout]",
     "-frames:v", String(total),
-    "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-movflags", "+faststart",
+    "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-maxrate", MAX_RATE, "-bufsize", BUFFER, "-pix_fmt", "yuv420p", "-movflags", "+faststart",
     "-c:a", "aac", "-b:a", "128k", "-ar", "48000",
     out,
   );
@@ -151,10 +161,10 @@ async function withSources<T>(stored: readonly string[], fn: (abs: Map<string, s
 }
 
 export async function renderMontage(input: MontageRenderInput): Promise<RenderedMontage> {
-  if (!input.pieces.length) throw new Error("the ad has no pieces");
+  if (!input.pieces.length) throw new MontageCheckError("The ad has no pieces.");
   const stored = input.pieces.map((p) => {
     const v = input.videoPaths.get(p.episode_id);
-    if (!v) throw new Error(`episode ${p.episode_number} has no video`);
+    if (!v) throw new MontageCheckError(`Episode ${p.episode_number} has no video any more. Upload it again, then build the ad again.`);
     return v;
   });
   return withSources(stored, async (abs, work) => {
@@ -172,14 +182,15 @@ export async function renderMontage(input: MontageRenderInput): Promise<Rendered
     await input.onStep?.("checking");
     const probe = await ffprobeFacts(out);
     const counted = probe?.frames ?? parseEncodedFrames(log);
-    if (counted !== total) throw new Error(`the finished ad has ${counted ?? "an unknown number of"} frames; the plan has ${total}`);
-    if (probe && (probe.width !== AD_WIDTH || probe.height !== AD_HEIGHT)) throw new Error(`the finished ad is ${probe.width}×${probe.height}, not ${AD_WIDTH}×${AD_HEIGHT}`);
+    if (counted !== total) throw new MontageCheckError(`The finished ad has ${counted ?? "an unknown number of"} frames; the plan has ${total}. It was not kept.`);
+    if (probe && (probe.width !== AD_WIDTH || probe.height !== AD_HEIGHT)) throw new MontageCheckError(`The finished ad is ${probe.width}×${probe.height}, not ${AD_WIDTH}×${AD_HEIGHT}. It was not kept.`);
     const durationMs = Math.round((total * 1000) / rate.value);
-    if (total / rate.value > (input.maxMs ?? MONTAGE_MAX_MS) / 1000 + 1e-9) throw new Error(`the finished ad runs ${(total / rate.value).toFixed(3)} s, over the ${(input.maxMs ?? MONTAGE_MAX_MS) / 1000} s limit`);
+    if (total / rate.value > (input.maxMs ?? MONTAGE_MAX_MS) / 1000 + 1e-9) throw new MontageCheckError(`The finished ad runs ${(total / rate.value).toFixed(3)} s, over the ${(input.maxMs ?? MONTAGE_MAX_MS) / 1000} s limit. It was not kept.`);
     const loud = await runFfmpeg(["-hide_banner", "-nostats", "-i", out, "-map", "0:a:0", "-af", "ebur128=peak=none", "-f", "null", "-"], { tolerateExit: true });
 
     await input.onStep?.("storing");
     const bytes = await readFile(out);
+    if (bytes.length > MAX_CLIP_BYTES) throw new MontageCheckError(`The finished ad came out at ${(bytes.length / 1048576).toFixed(1)} MB, over the ${MAX_CLIP_BYTES / 1048576} MB a clip may be for the zip download and posting. It was not kept; tell Pulsar staff.`);
     const render_sha256 = createHash("sha256").update(bytes).digest("hex");
     await putStoredBytes(input.storedPath, bytes, "video/mp4");
     return {
