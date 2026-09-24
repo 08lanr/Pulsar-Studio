@@ -6,7 +6,7 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { requireProducer, requireSession } from "@/lib/auth";
+import { getSession, requireProducer, requireSession, requireStaff } from "@/lib/auth";
 import { episodeClipsPayload } from "@/lib/clips/payload";
 import { cutEpisodeClips } from "@/lib/clips/run";
 import { jobIsRunning } from "@/lib/clips/state";
@@ -28,7 +28,9 @@ const Body = z.object({ force: z.boolean().optional() });
 
 export async function POST(req: NextRequest, { params }: { params: { id: string; n: string } }) {
   return handle(req, async () => {
-    const g = await requireProducer({ minRole: "reviewer" });
+    // A reviewer or approver of the title, or a staff administrator (the staff clips page, /titles/[id]/clips).
+    const s = await getSession();
+    const g = s?.kind === "staff" ? await requireStaff({ role: "admin" }) : await requireProducer({ minRole: "reviewer" });
     if (g.response) return g.response;
     const n = episodeNumber(params.n);
     if (isResponse(n)) return n;

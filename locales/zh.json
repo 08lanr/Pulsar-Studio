@@ -4172,7 +4172,7 @@
   "lpx.linkLabel": "TikTok 收到的链接正是",
   "lpx.macroNote": "有人点击广告时，TikTok 会把 __CAMPAIGN_ID__、__AID__ 和 __CID__ 替换为广告活动、广告组和广告的 ID，crazydramas 按这些 ID 记录访问。",
   "lpx.campidTikTok": "该标记用于命名每个 TikTok 广告活动（{names}），不会加进链接。",
-  "lpx.campidInstantPage": "该标记用于命名每个 TikTok 广告活动（{names}）；即时页面按钮链接到 {url}。",
+  "lpx.campidInstantPage": "该标记用于命名每个 TikTok 广告活动（{names}），并加在该广告活动即时页面按钮链接的末尾。",
   "lpx.objectiveWebsite": "网站购买",
   "lpx.event": "像素事件",
   "lpx.event.SHOPPING": "购买（Purchase）",
@@ -4200,5 +4200,10 @@
   "lpx.reachedByNone": "目前没有公司的分配能用到它；请在下方把它所在的 Business Center 关联到公司。",
   "lpx.pixelCode": "像素代码",
   "lpx.pixelOnDefault": "默认账户上的像素",
-  "lpx.pixelOk": "已共享 · 像素 ID {id}（{relation}）"
+  "lpx.pixelOk": "已共享 · 像素 ID {id}（{relation}）",
+  "lpx.buttonLinkLabel": "这条广告打开即时页面。页面按钮打开此链接，链接末尾是每个广告活动自己的 campid（此处显示第一个广告活动的）",
+  "clips.staff.open": "广告切片",
+  "clips.staff.intro": "每集的 20–30 秒广告切片；员工管理员可以重新切片。下载切片，发布到 TikTok，再把 Spark 码粘贴到投放页。",
+  "clips.staff.episode": "第 {n} 集",
+  "clips.staff.noVideo": "这部剧集还没有带视频的分集。"
 }

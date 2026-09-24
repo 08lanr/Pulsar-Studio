@@ -129,6 +129,7 @@ export default async function TitlePage({ params }: { params: { id: string } }) 
             <a className="btn" href={`/titles/${detail.title.id}/pack`}>Creative pack</a>
             {/* The staff mirror of the CrazyDramas section (plan A4.4): where staff read the series' state and may press Check now. */}
             <a className="btn" href={`/titles/${detail.title.id}/crazydramas`}>{t(locale, "cd.admin.open")}</a>
+            <a className="btn" href={`/titles/${detail.title.id}/clips`}>{t(locale, "clips.staff.open")}</a>
             <ExportMenu titleId={detail.title.id} episodes={detail.episodes} />
           </div>
         </div>

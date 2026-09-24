@@ -4172,7 +4172,7 @@
   "lpx.linkLabel": "TikTok receives exactly this link",
   "lpx.macroNote": "TikTok replaces __CAMPAIGN_ID__, __AID__ and __CID__ with the campaign, ad group and ad ids when someone taps the ad; crazydramas records the visit under them.",
   "lpx.campidTikTok": "The tag names each TikTok campaign ({names}); it is not added to the link.",
-  "lpx.campidInstantPage": "The tag names each TikTok campaign ({names}); the Instant Page button links to {url}.",
+  "lpx.campidInstantPage": "The tag names each TikTok campaign ({names}) and ends that campaign's Instant Page button link.",
   "lpx.objectiveWebsite": "Website purchases",
   "lpx.event": "Pixel event",
   "lpx.event.SHOPPING": "Purchase",
@@ -4200,5 +4200,10 @@
   "lpx.reachedByNone": "No company's assignment reaches it yet; link its Business Center to a company below.",
   "lpx.pixelCode": "Pixel code",
   "lpx.pixelOnDefault": "Pixel on the default account",
-  "lpx.pixelOk": "Shared · pixel id {id} ({relation})"
+  "lpx.pixelOk": "Shared · pixel id {id} ({relation})",
+  "lpx.buttonLinkLabel": "This ad opens an Instant Page. Its button opens this link, which ends with each campaign's own campid (the first campaign's is shown)",
+  "clips.staff.open": "Ad clips",
+  "clips.staff.intro": "Every episode with video, its 20–30 s ad clips, and Cut clips again (staff administrators). Download a clip, post it on TikTok, then paste its Spark code in Launch.",
+  "clips.staff.episode": "Episode {n}",
+  "clips.staff.noVideo": "No episode of this title has video yet."
 }

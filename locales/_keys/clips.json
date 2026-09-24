@@ -322,5 +322,21 @@
   "fc.adTextHint": {
     "en": "Shown above the video on TikTok, next to your account name. {left} characters left.",
     "zh": "显示在 TikTok 视频上方、账号名旁边。还可输入 {left} 个字符。"
+  },
+  "clips.staff.open": {
+    "en": "Ad clips",
+    "zh": "广告切片"
+  },
+  "clips.staff.intro": {
+    "en": "Every episode with video, its 20–30 s ad clips, and Cut clips again (staff administrators). Download a clip, post it on TikTok, then paste its Spark code in Launch.",
+    "zh": "每集的 20–30 秒广告切片；员工管理员可以重新切片。下载切片，发布到 TikTok，再把 Spark 码粘贴到投放页。"
+  },
+  "clips.staff.episode": {
+    "en": "Episode {n}",
+    "zh": "第 {n} 集"
+  },
+  "clips.staff.noVideo": {
+    "en": "No episode of this title has video yet.",
+    "zh": "这部剧集还没有带视频的分集。"
   }
 }
