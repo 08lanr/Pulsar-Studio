@@ -4,7 +4,10 @@
 // the role, zod, the lib call, JSON — plus one mapping of a refusal: a
 // CdPublishError (crazydramas' codes passed through with their words, and
 // Studio's own: writes_disabled, paid_needs_confirm, not_linked,
-// series_missing, not_verified, poster_unreachable, catalog_unreadable) is
+// series_missing, not_verified, poster_unreachable, catalog_unreadable; and
+// since the upload automation series_live_confirm, poster_unavailable,
+// poster_failed, and the slug's SlugError: slug_locked, slug_taken,
+// crazydramas_unreachable) is
 // `{error, code, ...details}` with its status. Writes need the title's
 // approver or a staff administrator; a read needs only to see the title. A
 // foreign title is not found, from the data layer, before anything else.
@@ -16,6 +19,7 @@ import type { ZodTypeAny } from "zod";
 import { apiError } from "@/lib/api-guard";
 import { requireProducer, requireSession, requireStaff, type Session } from "@/lib/auth";
 import { isCdPublishError } from "@/lib/crazydramas/publish";
+import { isSlugError } from "@/lib/crazydramas/slug";
 import { handle, parseJson } from "../../../_lib/handler";
 
 const NO_STORE = { "Cache-Control": "no-store" } as const;
@@ -56,7 +60,7 @@ export async function cdRoute<S extends ZodTypeAny>(
     try {
       return json(await run(session, params.id, body));
     } catch (e) {
-      if (isCdPublishError(e)) return json(e.body(), e.status);
+      if (isCdPublishError(e) || isSlugError(e)) return json(e.body(), e.status);
       throw e;
     }
   });

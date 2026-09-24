@@ -1288,3 +1288,18 @@ revision and stops before its next chunk); a row nobody runs fails at once.
 
 **No job kind.** An upload costs no model money and the ledger row is the
 record, as the snapshot row is for a read (0017).
+
+## 12. Upload automation (migration `0020_draft_series_text.sql`, decision 2026-09-23 "Upload automation: poster, slug, series text")
+
+```
+studio.job_kind  + 'draft_series_text'       -- one row per draft of a title's crazydramas tagline, description and genres,
+                                             -- ADS_TEXT_PROVIDER's fast tier, usage and cost_cents as every model call;
+                                             -- target_type 'title'; key series_text:<prompt version>:<title_id>:<transcript sha16>:a<attempt>
+```
+
+Nothing else in the database. The slug Studio picks goes into the existing
+`core.titles.crazydramas_slug` (0015) and the film's `cut/film-meta.json`. The
+poster lives in the public Storage bucket `public-posters` of Studio's own
+project (`<title_external_id>/<sha8>.jpg`), which the app creates on first use
+through the Storage API with the service role; no row records it (the sha is
+the file's name and the series' `poster_url` on crazydramas is the record).

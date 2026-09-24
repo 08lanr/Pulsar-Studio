@@ -18,6 +18,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireSession, requireProducer, requireStaff } from "@/lib/auth";
 import { apiError } from "@/lib/api-guard";
+import { posterAddressRefusal } from "@/lib/crazydramas/poster";
 import { PosterCheckBodySchema, type PosterCheckReply } from "@/lib/crazydramas/publish-types";
 import { crazydramasStudioMode, crazydramasStudioTransport } from "@/lib/crazydramas/studio-client";
 import { getData } from "@/lib/data";
@@ -28,17 +29,6 @@ export const dynamic = "force-dynamic";
 
 function reply(r: PosterCheckReply): NextResponse {
   return NextResponse.json(r, { headers: { "Cache-Control": "no-store" } });
-}
-
-/** Why an address may not be asked at all, or null when it may. */
-function refuseAddress(url: URL): string | null {
-  if (url.protocol !== "https:") return "The poster must be an https:// address.";
-  if (url.username || url.password) return "The poster address must not carry a user name or password.";
-  const host = url.hostname.toLowerCase();
-  if (!host.includes(".") || host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal")) return "The poster must be on a named public web address.";
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.startsWith("[")) return "The poster must be on a named public web address, not an IP address.";
-  if (url.port && url.port !== "443") return "The poster must be on the standard https port.";
-  return null;
 }
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -59,7 +49,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     } catch {
       return reply({ ok: false, status: null, content_type: null, reason: "That is not a web address." });
     }
-    const refused = refuseAddress(url);
+    const refused = posterAddressRefusal(url);
     if (refused) return reply({ ok: false, status: null, content_type: null, reason: refused });
     const fake = crazydramasStudioMode().read === "fake";
     const check = await crazydramasStudioTransport().checkImage(url.toString());

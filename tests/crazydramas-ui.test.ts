@@ -43,7 +43,7 @@ test("every chip state has a tone, words in both locales and no digit in them (a
 test("an unlinked film on the Import page says what to do; elsewhere it only says it is not linked; a complete series with older renders says so in words", () => {
   assert.equal(chipKey("not_linked", "import"), "cd.chip.not_linked.import");
   assert.equal(chipKey("not_linked"), "cd.chip.not_linked");
-  assert.equal(EN["cd.chip.not_linked.import"], "Not linked: add a crazydramas slug");
+  assert.equal(EN["cd.chip.not_linked.import"], "No slug yet: picked on import");
   assert.equal(chipKey("live_complete", "import"), "cd.chip.live_complete");
   assert.equal(chipHintKey("not_live"), "cd.chip.not_live.hint");
   assert.equal(EN["cd.chip.not_live.hint"], "not uploaded, or draft");

@@ -77,10 +77,93 @@ export function suggestIapProductId(slug: string): string {
   return `cd.series.${short}`.slice(0, 40).replace(/[._]+$/, "");
 }
 
-/** The poster Studio suggests (spec §4): Jayden commits every live series' poster to the site's own /posters/. */
-export function suggestPosterUrl(slug: string, base = "https://crazydramas.com"): string {
-  return `${base.replace(/\/+$/, "")}/posters/${slug}.jpg`;
+// ---- the poster Studio hosts (decision 2026-09-23 "Upload automation"; lib/crazydramas/poster.ts) ----------
+
+/** The same-origin route that serves fixture mode's stand-in for the public poster bucket. */
+export const POSTER_ROUTE = "/api/public-posters/";
+
+/**
+ * Fixture mode's made-up public origin for a poster (the `.invalid` TLD
+ * resolves nowhere, so nothing can ever fetch it): crazydramas' fake stores
+ * this https address as it would store the bucket's, and the screens map it
+ * back to the same-origin route (fixturePosterPreview).
+ */
+export const FIXTURE_POSTER_ORIGIN = "https://studio-fixture.invalid";
+
+/** A fixture poster address as the same-origin path a browser may load; null for any other address. Pure. */
+export function fixturePosterPreview(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const prefix = `${FIXTURE_POSTER_ORIGIN}${POSTER_ROUTE}`;
+  if (!url.startsWith(prefix)) return null;
+  const rest = url.slice(prefix.length);
+  return /^[A-Za-z0-9_%-]+\/[0-9a-f]{8}\.jpg$/.test(rest) ? `${POSTER_ROUTE}${rest}` : null;
 }
+
+/** Where the form's poster comes from: the title's cover (the default), a picked file, a pasted address, the series' current one, or none. */
+export const POSTER_CHOICES = ["cover", "file", "url", "keep", "none"] as const;
+export type PosterChoice = (typeof POSTER_CHOICES)[number];
+
+/** POST …/poster (JSON; a picked file is multipart with `file`): store the cover or a pasted address's check, and with `apply` set it on the series. */
+export const PosterBodySchema = z
+  .object({
+    source: z.enum(["cover", "url"]),
+    url: z.string().trim().min(1).max(2000).optional(),
+    /** Set it on the title's Studio series now (the "Set poster" action): a PUT with poster_url alone. */
+    apply: z.boolean().optional(),
+    /** A published series shows a new poster to viewers at once: the person confirmed it. */
+    confirm_live: z.boolean().optional(),
+  })
+  .strict()
+  .refine((b) => b.source !== "url" || !!b.url, { message: "a pasted poster needs its url", path: ["url"] });
+export type PosterBody = z.infer<typeof PosterBodySchema>;
+
+export const PosterReplySchema = z.object({
+  poster: z.object({
+    poster_url: z.string(),
+    /** What the browser may load (the same-origin route in fixture mode); null for a pasted address fixture mode may not fetch. */
+    preview_url: z.string().nullable(),
+    source: z.enum(["cover", "file", "url"]),
+    sha256: z.string().nullable(),
+    bytes: z.number().int().nullable(),
+    width: z.number().int().nullable(),
+    height: z.number().int().nullable(),
+    cropped: z.boolean(),
+  }),
+  applied: z.boolean(),
+  series: z.lazy(() => CdSeriesSchema).nullable().optional(),
+});
+export type PosterReply = z.infer<typeof PosterReplySchema>;
+
+// ---- the slug Studio picks (lib/crazydramas/slug.ts) ------------------------------------------------------
+
+/** POST …/slug: pick one (no `slug`), or check and save the one the person typed. */
+export const SlugBodySchema = z.object({ slug: z.string().trim().min(1).max(80).optional() }).strict();
+export type SlugBody = z.infer<typeof SlugBodySchema>;
+
+export const SlugReplySchema = z.object({
+  outcome: z.enum(["saved", "linked", "kept"]),
+  slug: z.string(),
+  series: z.object({ title: z.string(), managed_by: z.string().nullable() }).nullable().optional(),
+  film_meta: z.string(),
+  film_meta_note: z.string().nullable().optional(),
+});
+export type SlugReply = z.infer<typeof SlugReplySchema>;
+
+// ---- the series text Studio drafts (lib/crazydramas/series-text.ts) ----------------------------------------
+
+/** POST …/series-text: the draft for the title's transcript (reused while it has not changed), or `again` for a new one. */
+export const SeriesTextBodySchema = z.object({ again: z.boolean().optional() }).strict();
+export type SeriesTextBody = z.infer<typeof SeriesTextBodySchema>;
+
+export const SeriesTextReplySchema = z.object({
+  /** drafted / reused: the fields below; demo: fixture mode's canned answer; unavailable: no model key (or no transcript), `note` says which. */
+  status: z.enum(["drafted", "reused", "demo", "unavailable"]),
+  tagline: z.string().nullable(),
+  description: z.string().nullable(),
+  genres: z.array(z.string()),
+  note: z.string().nullable(),
+});
+export type SeriesTextReply = z.infer<typeof SeriesTextReplySchema>;
 
 // ---- the series as crazydramas returns it (the contract's fields, nothing else) --------------------
 
@@ -122,8 +205,18 @@ export const FormDefaultsSchema = z.object({
   series_price_cents: z.number().int().nonnegative(),
   /** `cd.series.<short_name>` from the slug (suggestIapProductId). */
   iap_product_id: z.string().nullable(),
-  /** `https://crazydramas.com/posters/<slug>.jpg` (suggestPosterUrl); optional on the PUT. */
+  /** The series' current poster (null before the series exists, or when it has none). */
   poster_url: z.string().nullable(),
+  /** The slug may still change: no draft series and no upload yet. */
+  slug_editable: z.boolean().optional(),
+  /** Why not, in words, once it may not (ad links point at crazydramas.com/drama/<slug>). */
+  slug_locked_reason: z.string().nullable().optional(),
+  /** The title has a cover in Studio (the poster field's default source). */
+  has_cover: z.boolean().optional(),
+  /** Where the poster field starts: the series' own poster, else the title's cover, else none. */
+  poster_default: z.enum(POSTER_CHOICES).optional(),
+  /** What a browser of Studio may load for the series' current poster (fixture mode: the same-origin route), or null. */
+  poster_preview_url: z.string().nullable().optional(),
 });
 export type FormDefaults = z.infer<typeof FormDefaultsSchema>;
 
@@ -274,7 +367,7 @@ export type PosterCheckReply = z.infer<typeof PosterCheckReplySchema>;
 // ---- refusals ----------------------------------------------------------------------------------------
 
 /** Studio's own refusal codes beside the crazydramas ones that pass through. */
-export const STUDIO_PUBLISH_CODES = ["writes_disabled", "paid_needs_confirm", "not_linked", "series_missing", "upload_running"] as const;
+export const STUDIO_PUBLISH_CODES = ["writes_disabled", "paid_needs_confirm", "not_linked", "series_missing", "upload_running", "series_live_confirm", "poster_unavailable", "slug_locked", "slug_taken", "crazydramas_unreachable"] as const;
 
 /** Every refusal: crazydramas' `{error, code, …}` passed through, or Studio's own. */
 export const PublishErrorSchema = z

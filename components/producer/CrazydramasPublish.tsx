@@ -5,7 +5,9 @@
 // title's CrazyDramas section and on its staff mirror. Three steps, draft
 // first and publish explicitly:
 //
-//   1. Series details   the form, prefilled; "Create draft series" (SeriesForm)
+//   1. Series details   the form, prefilled — the slug Studio picked (SlugField), the tagline,
+//                       description and genres it drafted from the transcript, the poster from
+//                       the title's cover (PosterField); "Create draft series" (SeriesForm)
 //   2. Upload episodes  all, or a range, in the background, per-episode progress (UploadProgress)
 //   3. Publish          exactly the ticked episodes; paid ones need their own confirm (PublishDialog)
 //
@@ -25,6 +27,7 @@ import { fmtPriceCents } from "./CrazydramasChip";
 import PublishDialog, { publishable, ReplaceDialog, UnpublishDialog } from "./crazydramas/PublishDialog";
 import { cdRoute, episodeList, refusalWords, sendJson } from "./crazydramas/request";
 import SeriesForm from "./crazydramas/SeriesForm";
+import SlugField from "./crazydramas/SlugField";
 import UploadProgress, { isActive } from "./crazydramas/UploadProgress";
 
 export type CrazydramasPublishProps = {
@@ -209,7 +212,14 @@ export default function CrazydramasPublish({ titleId, portal, canAct, reason = n
         </p>
       )}
 
-      {s.series_state === "not_linked" && <p className="note note-info">{tt("cdp.notLinked")}</p>}
+      {s.series_state === "not_linked" && (
+        // No slug yet: Studio picks one from the title as the section opens and checks it on crazydramas (decision
+        // 2026-09-23 "Upload automation"); a crazydramas that does not answer is said in words, with Retry.
+        <div className="cdp-step cdp-slug-setup">
+          <p className="hint">{tt("cdp.notLinked")}</p>
+          <SlugField titleId={titleId} slug={null} editable auto onSaved={() => void reload()} />
+        </div>
+      )}
 
       {s.series_state === "linked_elsewhere" && <p className="note note-warn">{tt("cdp.linkedElsewhere")}</p>}
 
@@ -224,10 +234,10 @@ export default function CrazydramasPublish({ titleId, portal, canAct, reason = n
               <details className="cdp-live-form">
                 <summary>{tt("cdp.series.liveEdit")}</summary>
                 <p className="hint">{tt("cdp.series.liveHint")}</p>
-                <SeriesForm titleId={titleId} seriesState={s.series_state} defaults={s.form_defaults} series={s.series} canWrite={writes} coverUrl={coverUrl} onSaved={seriesSaved} />
+                <SeriesForm titleId={titleId} seriesState={s.series_state} defaults={s.form_defaults} series={s.series} canWrite={writes} coverUrl={coverUrl} onSaved={seriesSaved} onSlugSaved={() => void reload()} onChanged={() => void reload()} />
               </details>
             ) : (
-              <SeriesForm titleId={titleId} seriesState={s.series_state} defaults={s.form_defaults} series={s.series} canWrite={writes} coverUrl={coverUrl} onSaved={seriesSaved} />
+              <SeriesForm titleId={titleId} seriesState={s.series_state} defaults={s.form_defaults} series={s.series} canWrite={writes} coverUrl={coverUrl} onSaved={seriesSaved} onSlugSaved={() => void reload()} onChanged={() => void reload()} />
             )}
           </div>
 

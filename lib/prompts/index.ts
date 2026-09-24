@@ -12,3 +12,4 @@ export * from "./alternatives";
 export * from "./rewrite";
 export * from "./creative-pack";
 export * from "./find-clips";
+export * from "./series-text";

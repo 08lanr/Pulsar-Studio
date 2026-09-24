@@ -1,0 +1,22 @@
+-- 0020 · Upload automation: poster, slug, series text (decision 2026-09-23,
+-- "Upload automation: poster, slug, series text").
+--
+-- 1. studio.job_kind gains `draft_series_text`: one row per draft of a
+--    title's crazydramas tagline, description and genres, written from the
+--    film's transcript (its opening and a sample, never the last fifth) on
+--    ADS_TEXT_PROVIDER; usage and cost_cents on the row as for every model
+--    call; keyed `series_text:<prompt version>:<title_id>:<transcript sha16>:a<attempt>`
+--    ("Draft again" is the next attempt). Producers never read the row
+--    (Pulsar's spend); the route answers the text alone.
+--
+-- Nothing else here needs the database. The poster's public bucket,
+-- `public-posters` in Studio's own Supabase project, is created by the app on
+-- its first live poster through the Storage API with the service role
+-- (created public when missing, made public when it is not; idempotent), so
+-- no SQL creates it. The slug Studio picks is written to the existing
+-- core.titles.crazydramas_slug (0015) and to the film's cut/film-meta.json.
+--
+-- Version 0020 follows 0019_cd_publications.sql. Idempotent; the enum value
+-- is added outside a transaction, as 0016 and 0018 do.
+
+alter type studio.job_kind add value if not exists 'draft_series_text';
