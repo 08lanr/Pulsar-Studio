@@ -4485,5 +4485,8 @@
   "uc.hook": "Ad text (optional)",
   "uc.hookHint": "The text shown with the ad",
   "uc.hint": "A finished vertical ad is used exactly as uploaded — never re-cut or re-encoded.",
-  "clips.source.upload": "Uploaded"
+  "clips.source.upload": "Uploaded",
+  "lpx.pixelHandSet": "Set by hand · pixel ID {id}",
+  "lpx.pixelUnverified": "Pixel ID {id} is set by hand; TikTok can't confirm it yet because the pixel permission is still waiting for TikTok's approval. The launch uses it anyway; the first paused launch is the check.",
+  "lpx.pixelUnverifiedOwned": "Pixel ID {id} is set by hand; TikTok can't confirm it yet because the pixel permission is still waiting for TikTok's approval. The launch uses it anyway; the first paused launch is the check. The pixel is owned by {bc} — confirmed through the Business Center."
 }

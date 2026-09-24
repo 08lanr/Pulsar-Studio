@@ -12,7 +12,9 @@
 //                Sales Instant Page, with one button, promotes one)
 //   the pixel    Website purchases only: the signed pixel code is the current
 //                TIKTOK_PIXEL_CODE and resolves, read-only, on every chosen
-//                ad account (lib/tiktok/pixel.ts)
+//                ad account (lib/tiktok/pixel.ts); while TikTok refuses the
+//                pixel read for want of the permission, TIKTOK_PIXEL_ID
+//                stands in and the account is marked unverified (2026-09-24)
 //
 // Server-only; reads, never writes to TikTok or crazydramas (the fresh check
 // writes Studio's own snapshot row, as Check now does).
@@ -140,11 +142,14 @@ export async function tiktokLaunchGate(s: Session, draft: LaunchDraft, producerI
   if (launchShape(settings) !== "website_purchases") return undefined;
   const code = tiktokPixelCode();
   if (settings.pixel_code && settings.pixel_code !== code) throw conflict("The TikTok pixel setting changed since this draft was saved. Save the draft and preview again.");
-  const accounts: { connection_id: string; pixel_id: string }[] = [];
+  const accounts: NonNullable<LaunchPlan["tiktok_pixel"]>["accounts"] = [];
   for (const connection of own.filter((c) => draft.account_ids.includes(c.id))) {
-    const pixel = await probePixel(connection.advertiser_id, code);
+    const pixel = await probePixel(connection.advertiser_id, code, connection.business_id);
     if (!pixel.ok) throw invalid(pixel.message);
-    accounts.push({ connection_id: connection.id, pixel_id: pixel.pixel_id });
+    // An id set by hand is not refused: the preview says so in plain words (lpx.pixelUnverified).
+    accounts.push(pixel.relation === "UNVERIFIED"
+      ? { connection_id: connection.id, pixel_id: pixel.pixel_id, unverified: true, owner: pixel.owner }
+      : { connection_id: connection.id, pixel_id: pixel.pixel_id });
   }
   return { code, event: webEventLabel(settings.optimization_event), attribution: attributionLabel(attributionOf(settings)), accounts };
 }

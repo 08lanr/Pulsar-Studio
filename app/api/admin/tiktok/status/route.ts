@@ -17,7 +17,9 @@ import { handle } from "@/app/api/titles/_lib/handler";
 // calls happen here, so the page fetches on demand; ?force=1 refreshes the
 // 30-minute caches. The launch defaults (decision 2026-09-23): the one ad
 // account launches start on (TIKTOK_DEFAULT_ADVERTISER_ID), which companies'
-// assignments reach it, and the pixel read on it (/pixel/list/, read-only).
+// assignments reach it, and the pixel read on it (/pixel/list/, read-only;
+// TIKTOK_PIXEL_ID, unverified, while TikTok refuses that read for want of the
+// permission, with the owner /bc/pixel/get/ names, since 2026-09-24).
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -56,7 +58,10 @@ export async function GET(req: NextRequest) {
         const inBc = bc?.assigned_by && bc.external_ref ? (await listBcAccounts(bc.external_ref)).accounts.some((a) => a.id === defaultId) : false;
         if (inBc || (account?.assigned_by && account.external_ref === defaultId)) reachedBy.push(p.id);
       }
-      launchDefaults = { advertiserId: defaultId, name: described?.name ?? null, status: described?.status ?? null, reachedBy, pixelCode, pixel: await probePixel(defaultId, pixelCode) };
+      // The Business Center holding the account (cached listings), so a pixel ID set by hand can name the pixel's owner.
+      let bcOfDefault: string | null = null;
+      for (const b of bcs.businessCenters) if (!bcOfDefault && (await listBcAccounts(b.bcId)).accounts.some((a) => a.id === defaultId)) bcOfDefault = b.bcId;
+      launchDefaults = { advertiserId: defaultId, name: described?.name ?? null, status: described?.status ?? null, reachedBy, pixelCode, pixel: await probePixel(defaultId, pixelCode, bcOfDefault) };
     }
     return NextResponse.json({
       connection,

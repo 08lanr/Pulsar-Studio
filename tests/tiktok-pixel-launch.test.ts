@@ -2,7 +2,9 @@
 // (decision 2026-09-23). The link every TikTok website ad carries, the three
 // ad group shapes, the pixel refusals before anything is written, the fake's
 // documented pixel rules, the TikTok-attributed monitor numbers and the
-// default account. Fixture mode only: nothing leaves the process.
+// default account; since 2026-09-24 the pixel ID set by hand (TIKTOK_PIXEL_ID)
+// while TikTok refuses the pixel read. Fixture mode only: nothing leaves the
+// process.
 
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
@@ -16,21 +18,23 @@ import { metaDestination, startingDraft } from "@/lib/launch/draft-defaults";
 import { buildLaunchPlan, defaultLaunchDraft, trackingUrlForCampaign } from "@/lib/launch/plan";
 import type { DriverContext, LaunchCampaign, LaunchConnection, LaunchDraft, LaunchRun, LaunchWorkspace } from "@/lib/launch/types";
 import { crazydramasAdUrl, crazydramasSlugProblem, isCrazydramasAdUrl, slugOfCrazydramasAdUrl, TIKTOK_AD_QUERY } from "@/lib/tiktok/ad-url";
-import { FAKE_PIXEL_ID, fakeTikTokSnapshot, fakeTransport, resetFakeTikTok } from "@/lib/tiktok/fake";
-import { CRAZYDRAMAS_PIXEL_CODE, isPermissionRefusal, pixelFromList, resolvePixel, tiktokPixelCode } from "@/lib/tiktok/pixel";
+import { FAKE_BC_ID, FAKE_PIXEL_ID, fakePixelId, fakeTikTokSnapshot, fakeTransport, resetFakeTikTok } from "@/lib/tiktok/fake";
+import { CRAZYDRAMAS_PIXEL_CODE, isPermissionRefusal, pixelFromList, pixelRefusal, pixelUnverifiedNote, PIXEL_ID_SHAPE, resolvePixel, tiktokPixelCode, tiktokPixelId } from "@/lib/tiktok/pixel";
 import { probePixel } from "@/lib/tiktok/preflight";
 import { adGroupBody, defaultLaunchSettings, defaultSalesLaunchSettings, defaultTikTokLaunchSettings, defaultWebsitePurchaseSettings, launchShape, LaunchSettingsError, planAdGroup, validateLaunchSettings, type LaunchSettings } from "@/lib/tiktok/settings";
 import { tiktokSparkDriver } from "@/lib/tiktok/spark-driver";
 import { webConversionsFromReport } from "@/lib/tiktok/web-metrics";
+import { planPixelNote, pixelHandSetNote } from "@/components/launch/plan-summary";
+import { t } from "@/lib/i18n";
 import { launchTitle, LIVE_AD_URL } from "./launch-title";
 
 const EXACT = "https://crazydramas.com/watch/forced-to-marry-the-mafia-boss?source=tiktok&campaign=__CAMPAIGN_ID__&adgroup=__AID__&creative=__CID__";
-const env = { TIKTOK_FAKE_PIXEL: process.env.TIKTOK_FAKE_PIXEL, TIKTOK_PIXEL_CODE: process.env.TIKTOK_PIXEL_CODE, TIKTOK_DEFAULT_ADVERTISER_ID: process.env.TIKTOK_DEFAULT_ADVERTISER_ID };
+const env = { TIKTOK_FAKE_PIXEL: process.env.TIKTOK_FAKE_PIXEL, TIKTOK_PIXEL_CODE: process.env.TIKTOK_PIXEL_CODE, TIKTOK_PIXEL_ID: process.env.TIKTOK_PIXEL_ID, TIKTOK_DEFAULT_ADVERTISER_ID: process.env.TIKTOK_DEFAULT_ADVERTISER_ID };
 const originalGet = fakeTransport.get;
 const originalPost = fakeTransport.post;
 beforeEach(() => {
   process.env.DATA_SOURCE = "fixture"; process.env.FIXTURE_SEED = "empty"; process.env.FIXTURE_PERSIST = "off";
-  delete process.env.TIKTOK_LIVE; delete process.env.TIKTOK_FAKE_PIXEL; delete process.env.TIKTOK_PIXEL_CODE; delete process.env.TIKTOK_DEFAULT_ADVERTISER_ID;
+  delete process.env.TIKTOK_LIVE; delete process.env.TIKTOK_FAKE_PIXEL; delete process.env.TIKTOK_PIXEL_CODE; delete process.env.TIKTOK_PIXEL_ID; delete process.env.TIKTOK_DEFAULT_ADVERTISER_ID;
   resetFixtureStore(); resetLaunchFixture(); resetFakeTikTok();
 });
 afterEach(() => {
@@ -212,6 +216,116 @@ test("pixelFromList reads the ownership the docs name: owned and transferred pix
   assert.equal(pixelFromList([row("SHARED")], "OTHERCODE1", "1").ok, false, "another pixel's code is not ours");
 });
 
+// ---- the pixel ID set by hand (decision 2026-09-24) -------------------------------------------------------
+
+/** Pulsar Entertainment's pixel as Events Manager shows it (2026-09-24); public, not a secret. */
+const HAND_SET_ID = "7686323395218259976";
+const ACCOUNT = "7000000000000000001";
+const en = (key: string, vars?: Record<string, string | number>) => t("en", key, vars);
+function recordReads(): string[] {
+  const reads: string[] = [];
+  fakeTransport.get = async (path, token, query) => { reads.push(path); return originalGet.call(fakeTransport, path, token, query); };
+  return reads;
+}
+
+test("the pixel ID setting: blank is none, a 15–20 digit id is its shape", () => {
+  assert.equal(tiktokPixelId(), null);
+  process.env.TIKTOK_PIXEL_ID = `  ${HAND_SET_ID} `;
+  assert.equal(tiktokPixelId(), HAND_SET_ID);
+  process.env.TIKTOK_PIXEL_ID = "";
+  assert.equal(tiktokPixelId(), null);
+  for (const good of [HAND_SET_ID, FAKE_PIXEL_ID, "1".repeat(15), "1".repeat(20)]) assert.ok(PIXEL_ID_SHAPE.test(good), good);
+  for (const bad of ["1".repeat(14), "1".repeat(21), "7686-3233-9521-8259976", "D7686323395218259976", CRAZYDRAMAS_PIXEL_CODE]) assert.ok(!PIXEL_ID_SHAPE.test(bad), bad);
+});
+
+test("refused for the permission with TIKTOK_PIXEL_ID set: ok, unverified, in plain words, never a refusal", async () => {
+  process.env.TIKTOK_FAKE_PIXEL = "unreadable"; // TikTok's 40001 on /pixel/list/, in the live words
+  process.env.TIKTOK_PIXEL_ID = HAND_SET_ID;
+  const reads = recordReads();
+  const handSet = await resolvePixel(fakeTransport, "fake-token", ACCOUNT, CRAZYDRAMAS_PIXEL_CODE);
+  assert.deepEqual(handSet, { ok: true, code: CRAZYDRAMAS_PIXEL_CODE, pixel_id: HAND_SET_ID, relation: "UNVERIFIED", name: null, owner: null,
+    note: `Pixel ID ${HAND_SET_ID} is set by hand; TikTok can't confirm it yet because the pixel permission is still waiting for TikTok's approval. The launch uses it anyway; the first paused launch is the check.` });
+  assert.deepEqual(reads, ["/pixel/list/"], "no Business Center known, nothing else is read");
+  // The screens say the same words from their locale keys.
+  assert.equal(pixelHandSetNote(en, HAND_SET_ID), pixelUnverifiedNote(HAND_SET_ID, null));
+  assert.equal(pixelHandSetNote(en, HAND_SET_ID, ["Pulsar Entertainment"]), pixelUnverifiedNote(HAND_SET_ID, "Pulsar Entertainment"));
+  assert.match(pixelHandSetNote((key, vars) => t("zh", key, vars), HAND_SET_ID), new RegExp(`像素 ID ${HAND_SET_ID} 是手动设置的`));
+  // The explicit option wins over the setting (the gate and the driver pass none, so both read TIKTOK_PIXEL_ID).
+  const explicit = await resolvePixel(fakeTransport, "fake-token", ACCOUNT, CRAZYDRAMAS_PIXEL_CODE, { pixelId: FAKE_PIXEL_ID });
+  assert.equal(explicit.ok && explicit.pixel_id, FAKE_PIXEL_ID);
+});
+
+test("the account's Business Center, when known, names the pixel's owner; a failed BC read fails soft", async () => {
+  process.env.TIKTOK_FAKE_PIXEL = "unreadable";
+  process.env.TIKTOK_PIXEL_ID = HAND_SET_ID;
+  const reads = recordReads();
+  const owned = await resolvePixel(fakeTransport, "fake-token", ACCOUNT, CRAZYDRAMAS_PIXEL_CODE, { businessCenterId: FAKE_BC_ID });
+  assert.equal(owned.ok && owned.relation, "UNVERIFIED", "still unverified: the BC names the code, not the numeric id");
+  assert.equal(owned.ok && owned.relation === "UNVERIFIED" && owned.owner, "Pulsar Business Center (fake)");
+  assert.equal(owned.ok && owned.name, "crazydramas.com (fake)");
+  assert.match(owned.ok && owned.relation === "UNVERIFIED" ? owned.note : "", /The pixel is owned by Pulsar Business Center \(fake\) — confirmed through the Business Center\.$/);
+  assert.deepEqual(reads, ["/pixel/list/", "/bc/pixel/get/", "/bc/get/"]);
+  // A Business Center that does not answer (or does not list the code) leaves the id unverified with no owner.
+  const unknown = await resolvePixel(fakeTransport, "fake-token", ACCOUNT, CRAZYDRAMAS_PIXEL_CODE, { businessCenterId: "7999999999999999999" });
+  assert.deepEqual(unknown.ok && unknown.relation === "UNVERIFIED" && [unknown.pixel_id, unknown.owner], [HAND_SET_ID, null]);
+  // A Business Center that lists the code under another numeric id is refused, with both numbers.
+  fakeTransport.get = async (path, token, query) => path === "/bc/pixel/get/"
+    ? { code: 0, message: "OK", data: { pixels: [{ pixel_code: CRAZYDRAMAS_PIXEL_CODE, pixel_id: "7686323395218250000" }], page_info: { total_page: 1 } } }
+    : originalGet.call(fakeTransport, path, token, query);
+  const differs = await resolvePixel(fakeTransport, "fake-token", ACCOUNT, CRAZYDRAMAS_PIXEL_CODE, { businessCenterId: FAKE_BC_ID });
+  assert.equal(!differs.ok && differs.reason, "pixel_id_differs");
+  assert.match(!differs.ok ? differs.message : "", new RegExp(`lists pixel ${CRAZYDRAMAS_PIXEL_CODE} as pixel ID 7686323395218250000, but the pixel ID set by hand \\(TIKTOK_PIXEL_ID\\) is ${HAND_SET_ID}`));
+});
+
+test("refused for the permission without TIKTOK_PIXEL_ID: the refusal is today's, word for word", async () => {
+  process.env.TIKTOK_FAKE_PIXEL = "unreadable";
+  const refused = await resolvePixel(fakeTransport, "fake-token", ACCOUNT, CRAZYDRAMAS_PIXEL_CODE, { businessCenterId: FAKE_BC_ID });
+  assert.deepEqual(refused, { ok: false, code: CRAZYDRAMAS_PIXEL_CODE, reason: "no_permission",
+    message: pixelRefusal("no_permission", CRAZYDRAMAS_PIXEL_CODE, ACCOUNT, "advertiser does not grant you /pixel/list/:GET permission") });
+  // Another failed read is not stood in for, even with the setting: it says to try again.
+  process.env.TIKTOK_PIXEL_ID = HAND_SET_ID;
+  fakeTransport.get = async () => ({ code: 50002, message: "Internal error" });
+  const failed = await resolvePixel(fakeTransport, "fake-token", ACCOUNT, CRAZYDRAMAS_PIXEL_CODE);
+  assert.equal(!failed.ok && failed.reason, "unreadable");
+});
+
+test("when /pixel/list/ answers, it wins: the setting is ignored when it agrees and refused, with both numbers, when it does not", async () => {
+  // Agrees (the fake's pixel carries a well-formed setting, so a fixture server sharing .env.local agrees too).
+  process.env.TIKTOK_PIXEL_ID = HAND_SET_ID;
+  assert.equal(fakePixelId(), HAND_SET_ID);
+  const reads = recordReads();
+  const agrees = await resolvePixel(fakeTransport, "fake-token", ACCOUNT, CRAZYDRAMAS_PIXEL_CODE, { businessCenterId: FAKE_BC_ID });
+  assert.deepEqual(agrees, { ok: true, code: CRAZYDRAMAS_PIXEL_CODE, pixel_id: HAND_SET_ID, relation: "SHARED", name: "crazydramas.com (fake)" });
+  assert.deepEqual(reads, ["/pixel/list/"], "the list answered: no Business Center read");
+  // Not shared: the list's refusal stands, the setting does not stand in for it.
+  process.env.TIKTOK_FAKE_PIXEL = "missing";
+  const missing = await resolvePixel(fakeTransport, "fake-token", ACCOUNT, CRAZYDRAMAS_PIXEL_CODE);
+  assert.equal(!missing.ok && missing.reason, "not_found");
+  delete process.env.TIKTOK_FAKE_PIXEL;
+  // Disagrees: TikTok lists the pixel as FAKE_PIXEL_ID, the setting says another id.
+  delete process.env.TIKTOK_PIXEL_ID;
+  const differs = await resolvePixel(fakeTransport, "fake-token", ACCOUNT, CRAZYDRAMAS_PIXEL_CODE, { pixelId: HAND_SET_ID });
+  assert.equal(differs.ok, false);
+  assert.equal(!differs.ok && differs.reason, "pixel_id_differs");
+  assert.equal(!differs.ok && differs.message,
+    `TikTok lists ad account ${ACCOUNT}'s pixel ${CRAZYDRAMAS_PIXEL_CODE} as pixel ID ${FAKE_PIXEL_ID}, but the pixel ID set by hand (TIKTOK_PIXEL_ID) is ${HAND_SET_ID}. They must be the same pixel: change the setting to ${FAKE_PIXEL_ID} or clear it, then preview again.`);
+});
+
+test("a TIKTOK_PIXEL_ID that is not 15–20 digits is refused by name, before anything is read", async () => {
+  for (const bad of ["7686-3233", "768632339521825997612", "DALLBMJC77U250DBQUR0"]) {
+    process.env.TIKTOK_PIXEL_ID = bad;
+    process.env.TIKTOK_FAKE_PIXEL = "unreadable";
+    const reads = recordReads();
+    const refused = await resolvePixel(fakeTransport, "fake-token", ACCOUNT, CRAZYDRAMAS_PIXEL_CODE);
+    assert.equal(!refused.ok && refused.reason, "bad_pixel_id", bad);
+    assert.match(!refused.ok ? refused.message : "", new RegExp(`The pixel ID set by hand \\(TIKTOK_PIXEL_ID\\) is "${bad}", which is not a TikTok pixel ID: that is the 15–20 digit number Events Manager shows for pixel ${CRAZYDRAMAS_PIXEL_CODE}`));
+    assert.deepEqual(reads, [], "refused before any read");
+    delete process.env.TIKTOK_FAKE_PIXEL;
+    const listWorks = await resolvePixel(fakeTransport, "fake-token", ACCOUNT, CRAZYDRAMAS_PIXEL_CODE);
+    assert.equal(!listWorks.ok && listWorks.reason, "bad_pixel_id", "a malformed setting is refused even when the list would answer");
+  }
+});
+
 // ---- the fake enforces the documented rules ---------------------------------------------------------------
 
 async function fakeCampaign(objective: string): Promise<string> {
@@ -244,7 +358,7 @@ test("the fake refuses what /adgroup/create/ documents: pixel_id off CONVERT, CO
 
 // ---- the driver -----------------------------------------------------------------------------------------
 
-function context(settings: LaunchSettings, landing = LIVE_AD_URL): DriverContext {
+function context(settings: LaunchSettings, landing = LIVE_AD_URL, businessId = "bc-1"): DriverContext {
   const campaign: LaunchCampaign = {
     id: "row-1", run_id: "run-1", index: 1, connection_id: "connection-1", advertiser_id: "7000000000000000001", name: "pixel-a1b2c3d4e5f6-001",
     campid: "pixel-a1b2c3d4e5f6-001", tracking_url: landing,
@@ -259,7 +373,7 @@ function context(settings: LaunchSettings, landing = LIVE_AD_URL): DriverContext
     draft: { ...defaultLaunchDraft("tiktok"), name: "Pixel launch", account_ids: ["connection-1"], content_per_campaign: 1, content: campaign.content,
       destination_url: landing, total_budget_cents: 12000, daily_budget_cents: 3000, start_paused: true, tiktok_settings: settings },
   };
-  run.connections = [{ id: "connection-1", producer_id: FIXTURE_PRODUCER_ID, provider: "tiktok", advertiser_id: campaign.advertiser_id, name: "TikTok test", currency: "USD", timezone: "", page_id: null, instagram_id: null, business_id: "bc-1", assigned_by: "staff-1", verified_at: "", enabled: true }];
+  run.connections = [{ id: "connection-1", producer_id: FIXTURE_PRODUCER_ID, provider: "tiktok", advertiser_id: campaign.advertiser_id, name: "TikTok test", currency: "USD", timezone: "", page_id: null, instagram_id: null, business_id: businessId, assigned_by: "staff-1", verified_at: "", enabled: true }];
   run.snapshot_hash = launchHash(run.draft, run.connections, run.campaigns);
   return { run, campaign, connection: run.connections[0],
     checkpoint: async (patch) => { campaign.state = { ...campaign.state, ...structuredClone(patch) }; }, assertActive: async () => {} };
@@ -284,6 +398,52 @@ test("a Website purchases launch resolves the pixel, sends it on the ad group an
   assert.equal(ads[0].body.landing_page_url, LIVE_AD_URL, "the macros reach TikTok literally");
   assert.equal(ads[0].body.page_id, undefined);
   assert.equal(writes.some((w) => w.path.startsWith("/page/")), false, "no Instant Page is built");
+});
+
+test("refused for the permission with TIKTOK_PIXEL_ID set, the driver launches with that id: recorded unverified, on the ad group with Purchase", async () => {
+  process.env.TIKTOK_FAKE_PIXEL = "unreadable";
+  process.env.TIKTOK_PIXEL_ID = HAND_SET_ID;
+  const ctx = context(website(), LIVE_AD_URL, FAKE_BC_ID);
+  const reads = recordReads();
+  const writes: { path: string; body: Record<string, unknown> }[] = [];
+  fakeTransport.post = async (path, token, body) => { writes.push({ path, body: structuredClone(body) }); return originalPost(path, token, body); };
+  await tiktokSparkDriver.launch(ctx);
+  assert.deepEqual(ctx.campaign.state.pixel, { code: CRAZYDRAMAS_PIXEL_CODE, pixel_id: HAND_SET_ID, unverified: true });
+  assert.deepEqual(reads.filter((p) => p.includes("pixel")), ["/pixel/list/", "/bc/pixel/get/"], "one resolution, the preview's");
+  const group = writes.find((w) => w.path === "/adgroup/create/")!.body;
+  assert.deepEqual([group.pixel_id, group.optimization_event, group.optimization_goal, group.billing_event], [HAND_SET_ID, "SHOPPING", "CONVERT", "OCPM"]);
+  assert.deepEqual([group.click_attribution_window, group.view_attribution_window, group.attribution_event_count], ["SEVEN_DAYS", "ONE_DAY", "EVERY"]);
+  assert.equal(group.promotion_website_type, undefined);
+  assert.equal(fakeTikTokSnapshot().ads[0].body.landing_page_url, LIVE_AD_URL);
+  // Without the setting the same refusal stops the driver before any write.
+  resetFakeTikTok();
+  delete process.env.TIKTOK_PIXEL_ID;
+  const refused = context(website());
+  writes.length = 0;
+  await assert.rejects(tiktokSparkDriver.launch(refused), /doesn't have the pixel permission/);
+  assert.deepEqual(writes, []);
+});
+
+test("a wrong hand-set id is caught by the paused ad group's create; the corrected setting takes effect on Retry, one campaign", async () => {
+  process.env.TIKTOK_FAKE_PIXEL = "unreadable";
+  process.env.TIKTOK_PIXEL_ID = "7686323395218250000"; // mistyped
+  // TikTok knows the pixel as HAND_SET_ID only (the fake otherwise takes any well-formed setting).
+  fakeTransport.post = async (path, token, body) => path === "/adgroup/create/" && body.pixel_id !== HAND_SET_ID
+    ? { code: 40002, message: "pixel_id is not available to this advertiser" } : originalPost(path, token, body);
+  const ctx = context(website());
+  await assert.rejects(tiktokSparkDriver.launch(ctx), /pixel_id is not available/);
+  assert.deepEqual(ctx.campaign.state.pixel, { code: CRAZYDRAMAS_PIXEL_CODE, pixel_id: "7686323395218250000", unverified: true });
+  assert.equal(fakeTikTokSnapshot().campaigns.length, 1, "the paused campaign exists, with no ad group");
+  assert.equal(fakeTikTokSnapshot().adgroups.length, 0);
+  process.env.TIKTOK_PIXEL_ID = HAND_SET_ID;
+  await tiktokSparkDriver.launch(ctx);
+  assert.deepEqual(ctx.campaign.state.pixel, { code: CRAZYDRAMAS_PIXEL_CODE, pixel_id: HAND_SET_ID, unverified: true });
+  assert.equal(fakeTikTokSnapshot().campaigns.length, 1, "adopted by name, never a second campaign");
+  assert.equal(fakeTikTokSnapshot().adgroups[0].body.pixel_id, HAND_SET_ID);
+  // Once an ad group carries the id, the recorded id is the group's: a later setting change does not move it.
+  process.env.TIKTOK_PIXEL_ID = "7686323395218250000";
+  await tiktokSparkDriver.launch(ctx);
+  assert.equal((ctx.campaign.state.pixel as { pixel_id: string }).pixel_id, HAND_SET_ID);
 });
 
 test("the pixel is checked before any TikTok write: not shared, nothing is authorized or created", async () => {
@@ -446,6 +606,24 @@ test("without the pixel permission a Website purchases preview says what to do, 
   assert.ok(!reads.includes("/pixel/list/"));
   assert.equal(fakeTikTokSnapshot().ads[0].body.landing_page_url, LIVE_AD_URL);
   assert.equal(fakeTikTokSnapshot().adgroups[0].body.pixel_id, undefined);
+});
+
+test("refused for the permission with TIKTOK_PIXEL_ID set, preview and approval pass and say the id is set by hand", async () => {
+  const accounts = await tiktokAccounts(1);
+  const live = await launchTitle();
+  process.env.TIKTOK_FAKE_PIXEL = "unreadable";
+  process.env.TIKTOK_PIXEL_ID = HAND_SET_ID;
+  const saved = await getData().saveLaunchDraft(producer(), await websiteDraft(live.id, accounts));
+  const preview = await getData().previewLaunchRun(producer(), saved.id);
+  assert.deepEqual(preview.tiktok_pixel, { code: CRAZYDRAMAS_PIXEL_CODE, event: "Purchase", attribution: "7-day click · 1-day view · every conversion",
+    accounts: [{ connection_id: accounts[0].id, pixel_id: HAND_SET_ID, unverified: true, owner: null }] });
+  assert.deepEqual(preview.warnings, [], "no scary refusal");
+  // What the preview and the confirm dialog print, word for word.
+  assert.equal(planPixelNote(en, preview.tiktok_pixel),
+    `Pixel ID ${HAND_SET_ID} is set by hand; TikTok can't confirm it yet because the pixel permission is still waiting for TikTok's approval. The launch uses it anyway; the first paused launch is the check.`);
+  assert.equal(planPixelNote(en, { accounts: [{ pixel_id: FAKE_PIXEL_ID }] }), undefined, "a pixel TikTok confirmed needs no note");
+  const approved = await getData().submitLaunchRun(producer(), saved.id, saved.revision);
+  assert.equal(approved.status, "pending");
 });
 
 test("the default account: the operator's when the company reaches it, else the preferred, else the only one", async () => {

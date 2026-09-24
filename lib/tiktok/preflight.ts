@@ -168,10 +168,13 @@ export async function describeAdvertisers(ids: string[]): Promise<Array<{ advert
  * /pixel/list/, read-only. The preview gate, the /tiktok card and the driver
  * all answer with the same refusal sentences (lib/tiktok/pixel.ts): the pixel
  * isn't shared with this ad account in Business Center, it was unbound, or
- * the pixels could not be read.
+ * the pixels could not be read. While TikTok refuses the read for want of the
+ * permission, TIKTOK_PIXEL_ID stands in, unverified (decision 2026-09-24);
+ * `businessCenterId`, the account's Business Center when known, lets that
+ * answer name the pixel's owner.
  */
-export async function probePixel(advertiserId: string, code: string = tiktokPixelCode()): Promise<PixelResolution> {
+export async function probePixel(advertiserId: string, code: string = tiktokPixelCode(), businessCenterId: string | null = null): Promise<PixelResolution> {
   const token = accessTokenFor(advertiserId);
   if (!token) return { ok: false, code, reason: "unreadable", message: `No TikTok authorization covers ad account ${advertiserId}.` };
-  return resolvePixel(tiktokTransport(), token, advertiserId, code);
+  return resolvePixel(tiktokTransport(), token, advertiserId, code, { businessCenterId });
 }

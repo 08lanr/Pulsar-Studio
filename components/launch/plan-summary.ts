@@ -28,3 +28,20 @@ export function planSummary(
 export function launchButtonLabel(tt: Translate, count: number, state: string): string {
   return count === 1 ? tt("lv2.launchButtonOne", { state }) : tt("lv2.launchButton", { count, state });
 }
+
+/**
+ * The plain words for a TikTok pixel ID set by hand (TIKTOK_PIXEL_ID while
+ * TikTok refuses the pixel read for want of the permission; decision
+ * 2026-09-24), shared by the preview, the confirm dialog and /tiktok so they
+ * say it the same way. `owners` are the Business Centers that list the pixel.
+ */
+export function pixelHandSetNote(tt: Translate, pixelId: string, owners: readonly (string | null | undefined)[] = []): string {
+  const named = [...new Set(owners.filter((o): o is string => !!o))];
+  return named.length ? tt("lpx.pixelUnverifiedOwned", { id: pixelId, bc: named.join(" · ") }) : tt("lpx.pixelUnverified", { id: pixelId });
+}
+
+/** A plan's hand-set pixel note, or undefined when TikTok confirmed the pixel on every chosen account. */
+export function planPixelNote(tt: Translate, pixel?: { accounts: { pixel_id: string; unverified?: true; owner?: string | null }[] }): string | undefined {
+  const handSet = pixel?.accounts.filter((a) => a.unverified) ?? [];
+  return handSet.length ? pixelHandSetNote(tt, handSet[0].pixel_id, handSet.map((a) => a.owner)) : undefined;
+}

@@ -4485,5 +4485,8 @@
   "uc.hook": "广告文案（选填）",
   "uc.hookHint": "投放时显示的文字",
   "uc.hint": "已剪好的竖版广告直接上传，不会重新剪辑或转码。",
-  "clips.source.upload": "上传成片"
+  "clips.source.upload": "上传成片",
+  "lpx.pixelHandSet": "手动设置 · 像素 ID {id}",
+  "lpx.pixelUnverified": "像素 ID {id} 是手动设置的；像素权限还在等 TikTok 审核，所以 TikTok 暂时无法确认它。投放照常使用这个 ID，第一次暂停状态的投放就是检验。",
+  "lpx.pixelUnverifiedOwned": "像素 ID {id} 是手动设置的；像素权限还在等 TikTok 审核，所以 TikTok 暂时无法确认它。投放照常使用这个 ID，第一次暂停状态的投放就是检验。该像素归 {bc} 所有，已通过 Business Center 确认。"
 }

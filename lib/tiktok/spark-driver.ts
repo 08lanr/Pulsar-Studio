@@ -22,8 +22,8 @@ type SparkState = {
   settings?: LaunchSettings; plan?: AdGroupPlan; budget_cents?: number; daily_budget_cents?: number | null;
   planned_budgets?: number[];
   instant_page?: { name: string; phase: "creating" | "created" | "published"; id?: string } | null;
-  /** Website purchases: the pixel resolved on this ad account before anything was written (lib/tiktok/pixel.ts). */
-  pixel?: { code: string; pixel_id: string } | null;
+  /** Website purchases: the pixel resolved on this ad account before anything was written (lib/tiktok/pixel.ts); `unverified` when the id was set by hand. */
+  pixel?: { code: string; pixel_id: string; unverified?: true } | null;
   activated?: boolean; ended?: boolean; tiktok_mode?: string;
   pending_copy?: { key: string; allocations: Record<string, number>; new_budget: number; was_on: boolean } | null;
   pending_bid?: { bid_cents: number; was_on: boolean; replacements: { old_id: string; key: string; budget: number; enabled: boolean }[] } | null;
@@ -183,7 +183,13 @@ async function findInstantPageByName(c: Client, name: string): Promise<{ id: str
  * TikTok write (the Spark authorizations included), so a launch on an account
  * the pixel is not shared with creates nothing. The code is the signed one
  * (stamped into the draft on save); the numeric id is resolved read-only and
- * recorded, and a retry reuses the recorded id.
+ * recorded, and a retry reuses the recorded id. The resolution is the
+ * preview's (resolvePixel): while TikTok refuses the pixel read for want of
+ * the permission, TIKTOK_PIXEL_ID stands in and is recorded as unverified;
+ * the ad group's create is then TikTok's own check of it. An unverified id
+ * is resolved again on every attempt until an ad group is recorded, so a
+ * corrected setting (or TikTok's own answer, once the permission arrives)
+ * takes effect on Retry; after that the recorded id is the group's.
  */
 async function ensurePixel(ctx: DriverContext, c: Client): Promise<void> {
   const settings = state(ctx).settings;
@@ -192,10 +198,10 @@ async function ensurePixel(ctx: DriverContext, c: Client): Promise<void> {
     throw new Error("This Website purchases launch has no crazydramas ad link; create a new round from the title.");
   const code = settings.pixel_code ?? tiktokPixelCode();
   const recorded = state(ctx).pixel;
-  if (recorded?.code === code && recorded.pixel_id) return;
-  const found = await resolvePixel(c.tt, c.token, c.advertiser, code);
+  if (recorded?.code === code && recorded.pixel_id && (!recorded.unverified || (state(ctx).groups ?? []).length > 0)) return;
+  const found = await resolvePixel(c.tt, c.token, c.advertiser, code, { businessCenterId: ctx.connection?.business_id ?? null });
   if (!found.ok) throw new Error(found.message);
-  await ctx.checkpoint({ pixel: { code, pixel_id: found.pixel_id } });
+  await ctx.checkpoint({ pixel: found.relation === "UNVERIFIED" ? { code, pixel_id: found.pixel_id, unverified: true } : { code, pixel_id: found.pixel_id } });
 }
 
 async function ensureSalesPage(ctx: DriverContext): Promise<void> {

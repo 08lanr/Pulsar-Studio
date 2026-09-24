@@ -82,8 +82,14 @@ export type LaunchPlanIssue = { code: string; message: string; vars?: Record<str
 export type LaunchPlan = {
   rows: LaunchPlanRow[]; total_budget_cents: number; daily_total_cents: number | null;
   campaign_count: number; account_count: number; content_count: number; warnings: string[];
-  /** TikTok Website purchases: the pixel the preview resolved on every chosen account, and what the ad groups optimize toward. */
-  tiktok_pixel?: { code: string; event: string; attribution: string; accounts: { connection_id: string; pixel_id: string }[] };
+  /**
+   * TikTok Website purchases: the pixel the preview resolved on every chosen
+   * account, and what the ad groups optimize toward. `unverified`: the id is
+   * TIKTOK_PIXEL_ID, set by hand while TikTok refuses the pixel read for want
+   * of the permission; `owner` is the Business Center that lists the pixel,
+   * when it was asked and answered (lib/tiktok/pixel.ts).
+   */
+  tiktok_pixel?: { code: string; event: string; attribution: string; accounts: { connection_id: string; pixel_id: string; unverified?: true; owner?: string | null }[] };
 };
 export type DeliveryState = "submitted" | "review" | "live" | "paused" | "ended" | "rejected" | "failed" | "suspended" | "unknown";
 export type DeliverySnapshot = {

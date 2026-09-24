@@ -39,5 +39,8 @@
   "lpx.reachedByNone": { "en": "No company's assignment reaches it yet; link its Business Center to a company below.", "zh": "目前没有公司的分配能用到它；请在下方把它所在的 Business Center 关联到公司。" },
   "lpx.pixelCode": { "en": "Pixel code", "zh": "像素代码" },
   "lpx.pixelOnDefault": { "en": "Pixel on the default account", "zh": "默认账户上的像素" },
-  "lpx.pixelOk": { "en": "Shared · pixel id {id} ({relation})", "zh": "已共享 · 像素 ID {id}（{relation}）" }
+  "lpx.pixelOk": { "en": "Shared · pixel id {id} ({relation})", "zh": "已共享 · 像素 ID {id}（{relation}）" },
+  "lpx.pixelHandSet": { "en": "Set by hand · pixel ID {id}", "zh": "手动设置 · 像素 ID {id}" },
+  "lpx.pixelUnverified": { "en": "Pixel ID {id} is set by hand; TikTok can't confirm it yet because the pixel permission is still waiting for TikTok's approval. The launch uses it anyway; the first paused launch is the check.", "zh": "像素 ID {id} 是手动设置的；像素权限还在等 TikTok 审核，所以 TikTok 暂时无法确认它。投放照常使用这个 ID，第一次暂停状态的投放就是检验。" },
+  "lpx.pixelUnverifiedOwned": { "en": "Pixel ID {id} is set by hand; TikTok can't confirm it yet because the pixel permission is still waiting for TikTok's approval. The launch uses it anyway; the first paused launch is the check. The pixel is owned by {bc} — confirmed through the Business Center.", "zh": "像素 ID {id} 是手动设置的；像素权限还在等 TikTok 审核，所以 TikTok 暂时无法确认它。投放照常使用这个 ID，第一次暂停状态的投放就是检验。该像素归 {bc} 所有，已通过 Business Center 确认。" }
 }

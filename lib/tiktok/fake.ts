@@ -24,6 +24,9 @@
 //   /bc/get/ /bc/asset/get/    one Business Center holding two ad accounts
 //   /pixel/list/               the configured pixel (TIKTOK_PIXEL_CODE, else
 //                              crazydramas.com's) SHARED with every account
+//   /bc/pixel/get/             that Business Center owns the configured pixel
+//                              (its code and name, no numeric id, as the live
+//                              answer read 2026-09-24)
 //
 // /adgroup/create/ enforces the documented pixel rules (docs?id=1739499616346114):
 // pixel_id only with CONVERT or VALUE; CONVERT on a website (not an Instant
@@ -35,7 +38,9 @@
 // group and landing_page_url in any other.
 //
 // TIKTOK_FAKE_PIXEL=missing lists no pixel, =unbound lists it UNBOUND and
-// =unreadable refuses the listing (a token without the pixel permission).
+// =unreadable refuses the listing with TikTok's 40001, in the live words (a
+// token without the pixel permission). The pixel stays usable on
+// /adgroup/create/ then (the pixel's id is fakePixelId()).
 //
 // TIKTOK_FAKE_ACCOUNT=suspended models a punished account: status
 // STATUS_DISABLE, campaigns report PUNISH, and a status update answers
@@ -46,7 +51,7 @@
 
 import type { TikTokResponse, TikTokTransport, UploadField } from "./transport";
 import { CLICK_WINDOWS, EVENT_COUNTS, VIEW_WINDOWS, WEB_EVENTS } from "./options";
-import { tiktokPixelCode } from "./pixel";
+import { PIXEL_ID_SHAPE, tiktokPixelCode, tiktokPixelId } from "./pixel";
 
 /** The fake Business Center and the two ad accounts inside it (the seed assigns the BC to the demo studio). */
 export const FAKE_BC_ID = "7000000000000000000";
@@ -104,10 +109,20 @@ const DEMO_CAMPAIGN_IDS = ["1700000000000000001", "1700000000000000004"];
 
 /** The fake's pixel: one id for the configured code, shared with every ad account. */
 export const FAKE_PIXEL_ID = "1790000000000000001";
+/**
+ * The id the fake's pixel carries: a well-formed TIKTOK_PIXEL_ID when one is
+ * set (the fake has no real pixel to hold it against, so a fixture server
+ * sharing .env.local with the live one never contradicts the setting), else
+ * FAKE_PIXEL_ID.
+ */
+export function fakePixelId(): string {
+  const handSet = tiktokPixelId();
+  return handSet && PIXEL_ID_SHAPE.test(handSet) ? handSet : FAKE_PIXEL_ID;
+}
 function fakePixels(advertiserId: string, code: string): Record<string, unknown>[] {
   const mode = process.env.TIKTOK_FAKE_PIXEL;
   if (mode === "missing" || !advertiserId || code !== tiktokPixelCode()) return [];
-  return [{ pixel_id: FAKE_PIXEL_ID, pixel_code: code, pixel_name: "crazydramas.com (fake)", pixel_setup_mode: "STANDARD",
+  return [{ pixel_id: fakePixelId(), pixel_code: code, pixel_name: "crazydramas.com (fake)", pixel_setup_mode: "STANDARD",
     asset_ownership: { asset_relation_status: mode === "unbound" ? "UNBOUND" : "SHARED", ownership_status: false } }];
 }
 /** The optimization goal → billing event table of /adgroup/create/ for the goals Studio sends. */
@@ -439,13 +454,19 @@ export const fakeTransport: TikTokTransport = {
       case "/tool/region/":
         return ok({ region_info: FAKE_REGIONS });
       case "/bc/get/":
+        if (params.bc_id !== undefined && String(params.bc_id) !== FAKE_BC_ID) return ok({ list: [], page_info: { total_page: 1 } });
         return ok({ list: [{ bc_info: { bc_id: FAKE_BC_ID, name: "Pulsar Business Center (fake)", company: "Pulsar", verification_status: "VERIFIED" } }], page_info: { total_page: 1 } });
+      case "/bc/pixel/get/": {
+        if (String(params.bc_id) !== FAKE_BC_ID) return refuse("Business Center not found");
+        const pixels = [{ pixel_code: tiktokPixelCode(), pixel_name: "crazydramas.com (fake)" }];
+        return ok({ pixels, page_info: { page: 1, page_size: Number(params.page_size ?? 10), total_number: pixels.length, total_page: 1 } });
+      }
       case "/bc/asset/get/": {
         if (String(params.bc_id) !== FAKE_BC_ID) return refuse("Business Center not found");
         return ok({ list: FAKE_BC_ACCOUNTS.map((id, i) => ({ asset_id: id, asset_name: `Fake ad account ${i + 1}` })), page_info: { total_page: 1 } });
       }
       case "/pixel/list/": {
-        if (process.env.TIKTOK_FAKE_PIXEL === "unreadable") return { code: 40001, message: "No permission to operate pixel of this advertiser" };
+        if (process.env.TIKTOK_FAKE_PIXEL === "unreadable") return { code: 40001, message: "advertiser does not grant you /pixel/list/:GET permission" };
         const size = Number(params.page_size ?? 10);
         if (!Number.isInteger(size) || size < 1 || size > 20) return refuse("page_size must be between 1 and 20");
         const pixels = fakePixels(String(params.advertiser_id ?? ""), String(params.code ?? tiktokPixelCode()));

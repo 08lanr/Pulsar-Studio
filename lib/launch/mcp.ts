@@ -59,7 +59,9 @@ function summary(run: LaunchRun) {
 function preview(plan: LaunchPlan, run: LaunchRun, connections: LaunchConnection[]) {
   return { launch_id: run.id, revision: run.revision, name: run.draft.name,
     provider: run.draft.provider, destination_url: run.draft.destination_url,
-    title_id: run.draft.title_id ?? null, tiktok_pixel: plan.tiktok_pixel ? { code: plan.tiktok_pixel.code, event: plan.tiktok_pixel.event, attribution: plan.tiktok_pixel.attribution } : null,
+    title_id: run.draft.title_id ?? null, tiktok_pixel: plan.tiktok_pixel ? { code: plan.tiktok_pixel.code, event: plan.tiktok_pixel.event, attribution: plan.tiktok_pixel.attribution,
+      // The pixel ID was set by hand and TikTok cannot confirm it yet (lib/tiktok/pixel.ts); the first paused launch is the check.
+      set_by_hand: plan.tiktok_pixel.accounts.some((a) => a.unverified) } : null,
     start_paused: run.draft.start_paused, allocation: run.draft.allocation,
     settings: run.draft.provider === "meta" ? run.draft.meta_settings : run.draft.tiktok_settings,
     total_budget_cents: plan.total_budget_cents, daily_total_cents: plan.daily_total_cents,

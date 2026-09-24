@@ -18,6 +18,7 @@ import type { AccountFingerprint } from "@/lib/tiktok/fingerprint";
 import type { AccountRequest } from "@/lib/types";
 import { call } from "@/components/tiktok/api";
 import MetaSetup from "@/components/launch/MetaSetup";
+import { pixelHandSetNote } from "@/components/launch/plan-summary";
 
 type Bc = { bcId: string; bcName: string; company?: string; verified?: boolean };
 type BcAccount = { id: string; name?: string; status?: string; health: AccountHealth; statusLabel: string };
@@ -31,9 +32,9 @@ type Status = {
   producers: Array<{ id: string; name_zh: string; name_en: string | null }>;
   assignments: Record<string, { producerId: string; kind: "business_center" | "ad_account" }>;
   scheduler: { started: boolean; lastTickAt: string | null; lastSummary: { polled: number; synced: number; duplicated?: number; errors: string[] } | null };
-  /** The one account launches start on and the pixel read on it (decision 2026-09-23). */
+  /** The one account launches start on and the pixel read on it (decision 2026-09-23); relation UNVERIFIED: the id is set by hand (2026-09-24). */
   launchDefaults?: { advertiserId: string | null; name: string | null; status: string | null; reachedBy: string[]; pixelCode: string;
-    pixel: { ok: true; pixel_id: string; relation: string } | { ok: false; reason: string; message: string } | null };
+    pixel: { ok: true; pixel_id: string; relation: string; owner?: string | null } | { ok: false; reason: string; message: string } | null };
 };
 
 const HEALTH_CLASS: Record<AccountHealth, string> = { ready: "pill-success", blocked: "pill-error", pending: "pill-warning", unknown: "pill-neutral" };
@@ -196,7 +197,11 @@ export default function TikTokSetup({ isAdmin, connect, connectDetail }: { isAdm
           : <span className="pd-muted">{tt("lpx.defaultAccountNone")}</span>}</dd>
         <dt>{tt("lpx.pixelCode")}</dt><dd className="pd-mono">{status.launchDefaults.pixelCode}</dd>
         {status.launchDefaults.pixel && <><dt>{tt("lpx.pixelOnDefault")}</dt><dd>{status.launchDefaults.pixel.ok
-          ? <span className="pill pill-success">{tt("lpx.pixelOk", { id: status.launchDefaults.pixel.pixel_id, relation: status.launchDefaults.pixel.relation })}</span>
+          ? status.launchDefaults.pixel.relation === "UNVERIFIED"
+            // A pixel ID set by hand while TikTok cannot confirm it: said plainly, not as a refusal.
+            ? <><span className="pill pill-neutral">{tt("lpx.pixelHandSet", { id: status.launchDefaults.pixel.pixel_id })}</span><br />
+              <small className="pd-muted" data-testid="tiktok-pixel-unverified">{pixelHandSetNote(tt, status.launchDefaults.pixel.pixel_id, [status.launchDefaults.pixel.owner])}</small></>
+            : <span className="pill pill-success">{tt("lpx.pixelOk", { id: status.launchDefaults.pixel.pixel_id, relation: status.launchDefaults.pixel.relation })}</span>
           : <span className="note note-warn" role="status">{status.launchDefaults.pixel.message}</span>}</dd></>}
       </dl>
       <p className="pd-muted">{tt("lpx.pixelServer")}</p>
