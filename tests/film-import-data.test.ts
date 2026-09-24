@@ -426,6 +426,9 @@ test("the upload-time clip run skips an imported episode (auto_cut false) and re
   assert.equal(skipped.job_id, null);
   assert.deepEqual(skipped.failed, []);
   assert.equal(await fixtureData.latestEpisodeJob(staff(), title.id, 1, "cut_clips"), null, "no job row for an episode the engine does not cut");
+  const asked = await cutEpisodeClips(title.id, 1, { force: true });
+  assert.notEqual(asked.outcome, "skipped", "a person's explicit Cut clips again still cuts an imported episode");
+  assert.ok(asked.job_id, "and records its job");
 
   await fixtureData.addVideoOnlyEpisode(producer(), title.id, 2, `${title.id}/folder/ep2.mp4`);
   const run = await cutEpisodeClips(title.id, 2);

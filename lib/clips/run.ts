@@ -48,8 +48,9 @@ export async function cutEpisodeClips(titleId: string, episodeNumber: number, op
   const wb = await data.getWorkbench(session, titleId, episodeNumber);
   const episode = wb.episode;
   if (!episode.video_path) return { outcome: "refused", source: null, selected: 0, rendered: 0, failed: ["this episode has no video"], job_id: null };
-  // An imported episode (auto_cut false, decision 2026-09-22) is the ad engine's to cut: no upload-time run, no job row.
-  if (episode.auto_cut === false) {
+  // An imported episode (auto_cut false, decision 2026-09-22) gets no upload-time run and no job row; a person's
+  // explicit "Cut clips again" (force) still cuts it (Ruobin, 2026-09-23: clips for the imported titles' first ads).
+  if (episode.auto_cut === false && !opts.force) {
     log(`${wb.title.id}/${episode.number}: skipped, the episode is not cut automatically`);
     return { outcome: "skipped", source: null, selected: 0, rendered: 0, failed: [], job_id: null };
   }
