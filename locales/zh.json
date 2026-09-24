@@ -4172,7 +4172,7 @@
   "lpx.linkLabel": "TikTok 收到的链接正是",
   "lpx.macroNote": "有人点击广告时，TikTok 会把 __CAMPAIGN_ID__、__AID__ 和 __CID__ 替换为广告活动、广告组和广告的 ID，crazydramas 按这些 ID 记录访问。",
   "lpx.campidTikTok": "该标记用于命名每个 TikTok 广告活动（{names}），不会加进链接。",
-  "lpx.campidInstantPage": "该标记用于命名每个 TikTok 广告活动（{names}），并加在该广告活动即时页面按钮链接的末尾。",
+  "lpx.campidInstantPage": "该标记用于命名每个 TikTok 广告活动（{names}）；即时页面按钮链接到 {url}。",
   "lpx.objectiveWebsite": "网站购买",
   "lpx.event": "像素事件",
   "lpx.event.SHOPPING": "购买（Purchase）",
@@ -4207,5 +4207,12 @@
   "clips.staff.episode": "第 {n} 集",
   "clips.staff.noVideo": "这部剧集还没有带视频的分集。",
   "mr4.landing": "打开落地页 ↗",
-  "mr4.landingHint": "这条广告的落地页，已填入真实的广告系列、广告组和广告 ID（点击广告时打开的就是它）。你在这里的访问会像其他访问一样计入 CrazyDramas。"
+  "mr4.landingHint": "这条广告的落地页，已填入真实的广告系列、广告组和广告 ID（点击广告时打开的就是它）。你在这里的访问会像其他访问一样计入 CrazyDramas。",
+  "uc.cta": "上传成片广告",
+  "uc.busy": "正在上传…",
+  "uc.file": "广告视频文件",
+  "uc.hook": "广告文案（选填）",
+  "uc.hookHint": "投放时显示的文字",
+  "uc.hint": "已剪好的竖版广告直接上传，不会重新剪辑或转码。",
+  "clips.source.upload": "上传成片"
 }

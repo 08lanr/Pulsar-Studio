@@ -4172,7 +4172,7 @@
   "lpx.linkLabel": "TikTok receives exactly this link",
   "lpx.macroNote": "TikTok replaces __CAMPAIGN_ID__, __AID__ and __CID__ with the campaign, ad group and ad ids when someone taps the ad; crazydramas records the visit under them.",
   "lpx.campidTikTok": "The tag names each TikTok campaign ({names}); it is not added to the link.",
-  "lpx.campidInstantPage": "The tag names each TikTok campaign ({names}) and ends that campaign's Instant Page button link.",
+  "lpx.campidInstantPage": "The tag names each TikTok campaign ({names}); the Instant Page button links to {url}.",
   "lpx.objectiveWebsite": "Website purchases",
   "lpx.event": "Pixel event",
   "lpx.event.SHOPPING": "Purchase",
@@ -4207,5 +4207,12 @@
   "clips.staff.episode": "Episode {n}",
   "clips.staff.noVideo": "No episode of this title has video yet.",
   "mr4.landing": "Open landing page ↗",
-  "mr4.landingHint": "The page this ad sends people to, with its real campaign, ad group and ad ids filled in (what a tap on the ad opens). A visit you make here is counted on crazydramas like any other."
+  "mr4.landingHint": "The page this ad sends people to, with its real campaign, ad group and ad ids filled in (what a tap on the ad opens). A visit you make here is counted on crazydramas like any other.",
+  "uc.cta": "Upload a finished ad",
+  "uc.busy": "Uploading…",
+  "uc.file": "Ad video file",
+  "uc.hook": "Ad text (optional)",
+  "uc.hookHint": "The text shown with the ad",
+  "uc.hint": "A finished vertical ad is used exactly as uploaded — never re-cut or re-encoded.",
+  "clips.source.upload": "Uploaded"
 }

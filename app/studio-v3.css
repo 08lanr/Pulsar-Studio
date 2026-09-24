@@ -1421,3 +1421,12 @@ button.metric-label { border:0; background:none; padding:0; font:inherit; color:
 .ep-clip-player { margin-top: 8px; display: grid; gap: 4px; justify-items: start; }
 .ep-clip-player video { width: 216px; max-width: 100%; aspect-ratio: 9 / 16; height: auto; background: #000; border-radius: 10px; }
 .ep-clip-player span { font-size: 11px; color: var(--v3-muted); }
+
+/* Upload a finished ad as a clip (decision 2026-09-24): sits under the
+   episode's ad clips, aligned with the transcribe row above it. */
+.ep-upload-clip { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; padding: 0 16px 12px 74px; }
+.ep-upload-clip label { display: grid; gap: 4px; min-width: 0; font-size: 12px; color: var(--v3-muted); }
+.ep-upload-clip-hook { flex: 1 1 220px; }
+.ep-upload-clip .input { min-height: 32px; font-size: 13px; }
+.ep-upload-clip .err { flex-basis: 100%; margin: 0; }
+@media (max-width: 760px) { .ep-upload-clip { padding-left: 16px; } }

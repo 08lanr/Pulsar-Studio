@@ -1,0 +1,30 @@
+{
+  "uc.cta": {
+    "zh": "上传成片广告",
+    "en": "Upload a finished ad"
+  },
+  "uc.busy": {
+    "zh": "正在上传…",
+    "en": "Uploading…"
+  },
+  "uc.file": {
+    "zh": "广告视频文件",
+    "en": "Ad video file"
+  },
+  "uc.hook": {
+    "zh": "广告文案（选填）",
+    "en": "Ad text (optional)"
+  },
+  "uc.hookHint": {
+    "zh": "投放时显示的文字",
+    "en": "The text shown with the ad"
+  },
+  "uc.hint": {
+    "zh": "已剪好的竖版广告直接上传，不会重新剪辑或转码。",
+    "en": "A finished vertical ad is used exactly as uploaded — never re-cut or re-encoded."
+  },
+  "clips.source.upload": {
+    "zh": "上传成片",
+    "en": "Uploaded"
+  }
+}

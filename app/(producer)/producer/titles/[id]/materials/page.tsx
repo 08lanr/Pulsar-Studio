@@ -1,5 +1,6 @@
 import { chipReading } from "@/components/producer/CrazydramasChip";
 import EpisodeClips from "@/components/producer/EpisodeClips";
+import UploadClip from "@/components/producer/UploadClip";
 import TitleShell from "@/components/producer/TitleShell";
 import TranscribeEpisode from "@/components/producer/TranscribeEpisode";
 import UploadEpisodes from "@/components/producer/UploadEpisodes";
@@ -104,6 +105,7 @@ export default async function MaterialsPage({ params }: { params: { id: string }
                 <TranscribeEpisode titleId={detail.title.id} episodeNumber={e.number} available={asr.available} reason={asr.available ? undefined : asr.reason} />
               )}
               {clips && <EpisodeClips titleId={detail.title.id} episodeNumber={e.number} initial={clips} canEdit={canEdit} hasVideo={e.has_video} locale={locale} />}
+              {canEdit && <UploadClip titleId={detail.title.id} episodeNumber={e.number} />}
             </div>
           );
         })}

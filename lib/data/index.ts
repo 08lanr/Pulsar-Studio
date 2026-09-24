@@ -432,6 +432,23 @@ export type ClipRenderInput = {
   height?: number | null;
 };
 
+/**
+ * A finished ad file the partner supplied (decision 2026-09-24). The bytes are
+ * stored and hashed exactly as delivered and never re-encoded, so a graded ad
+ * keeps its own framing and quality. Created 'shortlisted' and 'rendered' by
+ * the data layer, so a later re-cut (which replaces 'suggested' rows) can
+ * never delete it.
+ */
+export type UploadedClipInput = {
+  render_path: string;
+  /** Over the exact bytes stored; the launch path re-verifies it before upload. */
+  render_sha256: string;
+  hook_en: string;
+  duration_ms?: number | null;
+  width?: number | null;
+  height?: number | null;
+};
+
 export type NewJob = {
   kind: JobKind;
   title_id: string | null;
@@ -828,6 +845,8 @@ export interface DataLayer {
   listEpisodeClips(session: Session, titleId: string, episodeNumber?: number): Promise<Clip[]>;
   /** System, staff or a title editor: the clip's finished file (or why there is none). */
   setClipRender(session: Session, clipId: string, render: ClipRenderInput): Promise<Clip>;
+  /** File a partner-supplied finished ad under an episode as a launchable clip. Staff / system actor only. */
+  addUploadedClip(session: Session, episodeId: string, input: UploadedClipInput): Promise<Clip>;
 
   // jobs and cost
   /** Idempotent: an existing 'done' row for the key is returned as is (callers check status). */
