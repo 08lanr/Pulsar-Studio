@@ -18,7 +18,9 @@ import { loudness, sceneCuts } from "./signals";
 export const FOOTAGE_WHY_EN = "Chosen from footage signals (scene cuts and loudness); no script was available for this episode.";
 export const FOOTAGE_WHY_ZH = "根据画面切换和音量选出，这一集没有台词可参考。";
 
-export type Selection = { source: ClipSource; clips: Clip[]; skipped: boolean };
+/** The cutter chooses from the script or the footage; an uploaded clip never reaches it. */
+export type CutSource = Exclude<ClipSource, "upload">;
+export type Selection = { source: CutSource; clips: Clip[]; skipped: boolean };
 
 export async function selectClips(session: Session, wb: WorkbenchPayload, srcAbs: string, durationMs: number | null, opts: { force?: boolean } = {}): Promise<Selection> {
   const timedLines = wb.lines.filter((l) => !l.merged_into_id && l.start_ms !== null && l.end_ms !== null).length;

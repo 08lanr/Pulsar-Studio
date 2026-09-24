@@ -173,6 +173,19 @@ export function safeFilename(filename: string): string {
   return cleaned || "file";
 }
 
+/**
+ * The object name for a partner-uploaded finished ad (decision 2026-09-24).
+ * CONTENT-ADDRESSED on purpose: storagePath is <title>/<episode>/<name> and
+ * putObject upserts, so a bare caller filename would let a second `ad.mp4`
+ * overwrite the first clip's bytes — its recorded SHA-256 would then fail the
+ * launch re-verification and silently drop an approved ad — and would let an
+ * ad sharing the episode video's name overwrite the master. Identical bytes
+ * intentionally reuse one object, which makes a genuine re-upload idempotent.
+ */
+export function uploadedClipFilename(sha256: string, originalName: string): string {
+  return `upload-${sha256.slice(0, 16)}-${safeFilename(originalName)}`;
+}
+
 export function storagePath(titleId: string, episodeId: string, filename: string): string {
   return `${titleId}/${episodeId}/${safeFilename(filename)}`;
 }

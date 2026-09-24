@@ -46,6 +46,15 @@
       ]
     },
     {
+      "name": "studio-live-local",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev:live"
+      ],
+      "port": 3203
+    },
+    {
       "name": "studio-live-3203",
       "runtimeExecutable": "cmd",
       "runtimeArgs": [

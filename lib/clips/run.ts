@@ -18,7 +18,7 @@ import { ffmpegAvailable } from "@/lib/promote/render";
 import { CLIP_PROMPT_VERSION } from "@/lib/prompts";
 import type { Clip, Json } from "@/lib/types";
 import { cutClip, probeSourceSize, withSourceFile } from "./cut";
-import { selectClips } from "./select";
+import { selectClips, type CutSource } from "./select";
 import { probeDurationMs } from "./signals";
 import { jobIsRunning } from "./state";
 
@@ -27,7 +27,7 @@ export const RENDER_LIMIT = 6;
 
 export type CutRunResult = {
   outcome: "done" | "skipped" | "refused" | "failed";
-  source: "script" | "footage" | null;
+  source: CutSource | null;
   selected: number;
   rendered: number;
   failed: string[];
