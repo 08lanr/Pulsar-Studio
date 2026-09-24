@@ -35,6 +35,8 @@ import path from "node:path";
 import { z } from "zod";
 import { cuesToVtt, restoreMachineLines, transcriptToCues, type AsrSegment, type AsrWord } from "@/lib/asr";
 import { systemSession, type Session } from "@/lib/auth";
+import type { SlugReader } from "@/lib/crazydramas/slug";
+import { slugOnImport } from "@/lib/crazydramas/slug-assign";
 import { checkAfterImport } from "@/lib/crazydramas/sweep";
 import { DataError, getData, isDataError, type EpisodeImportInput, type NewJob } from "@/lib/data";
 import { normalizeSourceRef } from "@/lib/data/film-import";
@@ -396,6 +398,8 @@ export type ImportOptions = {
   now?: () => number;
   /** Test hooks: run between the episode loop and the transcripts (a plan rewritten mid-import). */
   hooks?: { afterEpisodes?: () => Promise<void> };
+  /** The crazydramas read the slug pick uses (tests inject one; the mode's by default). */
+  slugReader?: SlugReader;
 };
 
 /** The body both import routes take (a route file may export only Next's own fields, so the schema lives here). */
@@ -744,6 +748,13 @@ async function run(p: Prepared): Promise<ImportResult> {
   const flags: string[] = [];
   const warnings: string[] = [];
   const beat = () => data.heartbeatJob(sys, job.id).catch(() => undefined);
+
+  // Step 2b (decision 2026-09-23 "Upload automation"): a film whose film-meta names no crazydramas slug gets one — picked
+  // from the display title and checked on crazydramas, saved on the title and written into cut/film-meta.json — before
+  // the index is read, so the film_meta asset below carries it. Failure-soft: crazydramas not answering is a warning, and
+  // the upload form tries again when it opens.
+  const slugStep = await slugOnImport(title.id, { root, folder: p.slug, hasMetaSlug: !!scan.meta?.crazydramas_slug, read: opts.slugReader });
+  if (slugStep.warning) warnings.push(slugStep.warning);
 
   // Step 1 happened in prepare (the re-scan); the whole index is read now, once.
   const index = await loadFilmIndex(nodeScanFs, root, ref);

@@ -56,7 +56,6 @@ import {
   UnpublishBodySchema,
   needsReplace,
   suggestIapProductId,
-  suggestPosterUrl,
   type CdSeries,
   type CdSeriesState,
   type FormDefaults,
@@ -65,7 +64,9 @@ import {
 } from "./publish-types";
 import { studioClient, cdWriteGate, crazydramasStudioMode, isTransient, type GetSeriesAnswer, type StudioClient, type StudioFail, type StudioEpisode, type UploadStatusAnswer } from "./studio-client";
 import { checkCrazydramasTitle, loadCrazydramasStatus, resolveReadSlug } from "./sweep";
-import { crazydramasBaseUrl } from "./transport";
+import { shownPosterUrl } from "./pick";
+import { KNOWN_LIVE_SERIES, titleKey } from "./slug";
+import { slugLockReason } from "./slug-assign";
 import { PLATFORM } from "./types";
 
 // ---- constants ----------------------------------------------------------------------------------------------
@@ -88,23 +89,8 @@ const EPISODE_BUSY_WAIT_MS = 2 * 60_000 + 5_000;
 /** How long the live series read is reused by the screens' poll (the uploader never uses it). */
 const SERIES_CACHE_MS = 20_000;
 
-/**
- * The shows that were live before Studio could write (STUDIO_API.md, "Which
- * series Studio may change", 2026-09-23): the working name (the pipeline's
- * folder name) and the live slug. Checked before Studio creates a series,
- * together with the public catalog; crazydramas' `series_title_exists` only
- * catches identical titles and a working name is rarely the live title.
- */
-export const KNOWN_LIVE_SERIES: readonly { working: string; slug: string }[] = [
-  { working: "Forced to Marry the Mafia Boss", slug: "forced-to-marry-the-mafia-boss" },
-  { working: "he mocked her crush on him and sent her", slug: "he-mocked-her-crush-on-him-and-sent-her" },
-  { working: "he treated our love like a prank", slug: "he-treated-our-love-like-a-prank" },
-  { working: "My New billionare husband", slug: "my-new-billionaire-husband" },
-  { working: "One night with the billionare who hated women", slug: "one-night-with-the-billionaire-who-hated-women" },
-  { working: "Ever Since I Played That Game Paranormal", slug: "ever-since-i-played-that-game-paranormal" },
-  { working: "she returned with her son", slug: "i-came-back-with-his-abandoned-son-to-ruin-his-wedding" },
-  { working: "the cold ceo", slug: "hired-as-his-secretary-claimed-as-his-wife" },
-];
+// KNOWN_LIVE_SERIES (the working-name table of STUDIO_API.md) and titleKey live in ./slug, which the slug pick shares.
+export { KNOWN_LIVE_SERIES, titleKey } from "./slug";
 
 /** The sentence spec §3 asks for, beside the extra confirm. */
 export const PAID_WARNING = "Paid episodes can be streamed free until the paywall fix is live on crazydramas.";
@@ -158,11 +144,6 @@ function requireWrites(): void {
 }
 
 // ---- small helpers --------------------------------------------------------------------------------------------
-
-/** crazydramas titleKey: case, spacing and punctuation ignored. */
-export function titleKey(title: string | null | undefined): string {
-  return (title ?? "").normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
-}
 
 /**
  * The slug and link the publish flow works under. `repointed`: the title
@@ -478,6 +459,14 @@ export async function getPublishState(session: Session, titleId: string, opts: {
     };
   });
 
+  // The slug may change until the draft series exists (decision 2026-09-23 "Upload automation"): no series under it on
+  // crazydramas, no link, no upload in the ledger. After that ad links point at crazydramas.com/drama/<slug>.
+  const lockReason = series
+    ? `the series exists on crazydramas as ${series.slug}; ad links point at crazydramas.com/drama/${series.slug}, so the slug no longer changes`
+    : seriesState === "not_linked" || seriesState === "not_uploaded"
+      ? await slugLockReason(titleId)
+      : "the series is on crazydramas; ad links depend on its slug";
+  const posterNow = series?.poster_url ?? null;
   const defaults: FormDefaults = {
     slug,
     title: series?.title ?? title.name_en ?? title.name_zh,
@@ -488,7 +477,12 @@ export async function getPublishState(session: Session, titleId: string, opts: {
     free_episode_count: series?.free_episode_count ?? 5,
     series_price_cents: series?.series_price_cents ?? 999,
     iap_product_id: series ? series.iap_product_id ?? null : slug ? suggestIapProductId(slug) : null,
-    poster_url: series ? series.poster_url ?? null : slug ? suggestPosterUrl(slug, crazydramasBaseUrlSafe()) : null,
+    poster_url: posterNow,
+    slug_editable: !lockReason && !foreign && !held,
+    slug_locked_reason: lockReason,
+    has_cover: !!title.cover_path,
+    poster_default: posterNow ? "keep" : title.cover_path ? "cover" : "none",
+    poster_preview_url: shownPosterUrl(posterNow),
   };
 
   return {
@@ -504,14 +498,6 @@ export async function getPublishState(session: Session, titleId: string, opts: {
     frame_rule: FRAME_RULE,
     paid_warning: PAID_WARNING,
   };
-}
-
-function crazydramasBaseUrlSafe(): string {
-  try {
-    return crazydramasBaseUrl();
-  } catch {
-    return "https://crazydramas.com";
-  }
 }
 
 /** Spec §5: a series made in the CMS is read-only for Studio; refused before any write is sent. */
@@ -576,7 +562,7 @@ export async function saveSeries(session: Session, titleId: string, input: unkno
   // A re-pointed title works under the slug it names now, with no link: its write creates (or updates) that series and moves
   // the link. One held on its link (it is on crazydramas already, as a show a second series would duplicate) writes nothing.
   const { slug, link, held } = await publishTarget(client, title, linked, rows, { fresh: true, onFail: "throw" });
-  if (!slug) throw new CdPublishError(409, "not_linked", "This title has no crazydramas slug; add it to the film's film-meta.json and import the film again. Nothing was sent.");
+  if (!slug) throw new CdPublishError(409, "not_linked", "This title has no crazydramas slug yet. Studio picks one and checks it is free when the upload form opens (Retry there if crazydramas did not answer). Nothing was sent.");
   if (held) throw heldRefusal(held);
   // The link already says the series is the CMS's (an authenticated read recorded it): refused before any call.
   if (link?.managed_by === "cms") throw cmsRefusal({ slug: link.slug, managed_by: "cms" });
@@ -627,6 +613,43 @@ export async function saveSeries(session: Session, titleId: string, input: unkno
   return { series, created: r.data.created, changed: r.data.changed };
 }
 
+// ---- the "Set poster" action (decision 2026-09-23 "Upload automation") ------------------------------------------
+
+/**
+ * Set the poster of the title's own Studio series and nothing else: a PUT
+ * with `poster_url` alone (Ghostly Night Bus' draft existed before Studio
+ * hosted posters). The same guards as every write to an existing series
+ * (writableSeries: the link holds it, it is Studio's, no other title's; the
+ * CMS's is refused before any call), the poster checked to answer 200 image/*
+ * before it is sent, and a series that is not a draft needs `confirmLive`
+ * (viewers see the new poster at once; crazydramas' `update_live`).
+ */
+export async function setSeriesPoster(session: Session, titleId: string, posterUrl: string, opts: { confirmLive?: boolean; client?: StudioClient } = {}): Promise<SaveSeriesResult> {
+  const title = await requirePublisher(session, titleId);
+  const url = SeriesBodySchema.shape.poster_url.safeParse(posterUrl);
+  if (!url.success || !url.data) throw new CdPublishError(400, "bad_request", "The poster must be an https:// address.");
+  requireWrites();
+  const data = getData();
+  const sys = systemSession();
+  const client = opts.client ?? studioClient();
+  const link = await data.getPlatformLink(sys, titleId, PLATFORM);
+  const { answer } = await writableSeries(client, title, link);
+  const existing = answer.series;
+  const live = existing.status !== "draft";
+  if (live && opts.confirmLive !== true) {
+    throw new CdPublishError(409, "series_live_confirm", `The series is ${existing.status} on crazydramas: viewers see a new poster at once. Confirm to set it. Nothing was sent.`, { series_status: existing.status });
+  }
+  if (url.data !== (existing.poster_url ?? null)) {
+    const check = await client.checkImage(url.data);
+    if (!check.ok) throw new CdPublishError(400, "poster_unreachable", `The poster ${check.reason ?? "does not answer with an image"} Nothing was sent.`, { poster: { status: check.status, content_type: check.content_type } });
+  }
+  const r = await client.putSeries(existing.slug, { poster_url: url.data, ...(live ? { update_live: true } : {}) }, { managed_by: "studio" });
+  forgetSeriesRead();
+  if (!r.ok) throw passThrough(r);
+  await checkCrazydramasTitle(sys, titleId, { force: true }).catch((e) => console.warn(`[crazydramas] after the poster write, the check failed: ${(e as Error).message}`));
+  return { series: seriesOut(r.data.series), created: false, changed: r.data.changed };
+}
+
 // ---- POST …/uploads ------------------------------------------------------------------------------------------------
 
 /**
@@ -643,7 +666,7 @@ export async function saveSeries(session: Session, titleId: string, input: unkno
 async function writableSeries(client: StudioClient, title: Title, linked: PlatformLink | null): Promise<{ answer: GetSeriesAnswer; at: number }> {
   const rows = await getData().getCdPublications(systemSession(), title.id);
   const { slug, link, held } = await publishTarget(client, title, linked, rows, { fresh: true, onFail: "throw" });
-  if (!slug) throw new CdPublishError(409, "not_linked", "This title has no crazydramas slug; add it to the film's film-meta.json and import the film again. Nothing was sent.");
+  if (!slug) throw new CdPublishError(409, "not_linked", "This title has no crazydramas slug yet. Studio picks one and checks it is free when the upload form opens (Retry there if crazydramas did not answer). Nothing was sent.");
   if (held) throw heldRefusal(held);
   // The link already says the series is the CMS's (an authenticated read recorded it): refused before any call.
   if (link?.managed_by === "cms") throw cmsRefusal({ slug: link.slug, managed_by: "cms" });

@@ -25,7 +25,11 @@ import {
   UnpublishBodySchema,
   UploadsBodySchema,
   suggestIapProductId,
-  suggestPosterUrl,
+  fixturePosterPreview,
+  FIXTURE_POSTER_ORIGIN,
+  PosterBodySchema,
+  SeriesTextBodySchema,
+  SlugBodySchema,
   type PublishEpisode,
 } from "@/lib/crazydramas/publish-types";
 import en from "@/locales/en.json";
@@ -44,7 +48,34 @@ test("the IAP id suggestion follows the contract: cd.series.<short_name>, at mos
   assert.match(long, IAP_PRODUCT_ID);
   assert.doesNotMatch(long, /[._]$/);
   for (const bad of ["CD.series.x", "cd series x", "_cd.series", "cd.series.this_name_is_far_too_long_for_google_play"]) assert.doesNotMatch(bad, IAP_PRODUCT_ID, bad);
-  assert.equal(suggestPosterUrl("fixture-film"), "https://crazydramas.com/posters/fixture-film.jpg");
+});
+
+test("the poster Studio hosts: fixture mode's made-up https address maps back to the same-origin route and nothing else does; the new bodies are strict", () => {
+  assert.equal(fixturePosterPreview(`${FIXTURE_POSTER_ORIGIN}/api/public-posters/ttl_abc123/0123abcd.jpg`), "/api/public-posters/ttl_abc123/0123abcd.jpg");
+  assert.equal(fixturePosterPreview("https://crazydramas.com/posters/fixture-film.jpg"), null, "a real address is not the fixture bucket's");
+  assert.equal(fixturePosterPreview(`${FIXTURE_POSTER_ORIGIN}/api/public-posters/../etc/passwd`), null);
+  assert.equal(fixturePosterPreview(`${FIXTURE_POSTER_ORIGIN}/api/public-posters/ttl_abc/0123abcd.png`), null, "only the bucket's own shape");
+  assert.match(FIXTURE_POSTER_ORIGIN, /^https:\/\/[^/]+\.invalid$/, "the .invalid TLD resolves nowhere");
+  assert.ok(PosterBodySchema.safeParse({ source: "cover" }).success);
+  assert.ok(PosterBodySchema.safeParse({ source: "cover", apply: true, confirm_live: true }).success);
+  assert.equal(PosterBodySchema.safeParse({ source: "url" }).success, false, "a pasted poster names its address");
+  assert.equal(PosterBodySchema.safeParse({ source: "file" }).success, false, "a picked file is multipart, not JSON");
+  assert.equal(PosterBodySchema.safeParse({ source: "cover", poster_url: "x" }).success, false, "strict");
+  assert.ok(SlugBodySchema.safeParse({}).success, "no slug: Studio picks one");
+  assert.ok(SlugBodySchema.safeParse({ slug: "the-midnight-contract" }).success);
+  assert.equal(SlugBodySchema.safeParse({ slug: "x".repeat(81) }).success, false);
+  assert.ok(SeriesTextBodySchema.safeParse({ again: true }).success);
+  assert.equal(SeriesTextBodySchema.safeParse({ again: true, model: "x" }).success, false);
+});
+
+test("no screen tells a person to edit film-meta, run Update or send a poster to Jayden for routine work (Ruobin's rule, 2026-09-23)", () => {
+  for (const key of ["cdp.notLinked", "cd.notLinked.note", "cd.notLinked.notImported", "cd.chip.not_linked.import", "cd.unmatched.sub", "cdp.form.cover", "cdp.form.poster.hint", "cdp.form.slug"]) {
+    for (const [name, words] of [["en", EN[key]], ["zh", ZH[key]]] as const) {
+      assert.ok(words, `${name} has ${key}`);
+      assert.doesNotMatch(words, /film-meta\.json|crazydramas_slug|Jayden|\/posters\/|run Update|点“更新”/, `${name} ${key}: ${words}`);
+    }
+  }
+  assert.equal(EN["cdp.form.cover.download"], undefined, "the cover download for Jayden is gone");
 });
 
 test("the route bodies are strict and carry the contract's rules: the IAP format and an https poster on the series, episodes or 'all' on uploads, something to change on publish and unpublish", () => {

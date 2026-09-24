@@ -42,6 +42,23 @@ export async function sendJson<T>(method: "GET" | "PUT" | "POST", url: string, b
   return { ok: true, status: res.status, body: data as T };
 }
 
+/** One multipart call to our own API (a picked poster file); the same answers as sendJson. */
+export async function sendForm<T>(url: string, form: FormData): Promise<Answer<T>> {
+  let res: Response;
+  try {
+    res = await fetch(url, { method: "POST", headers: { accept: "application/json" }, body: form, cache: "no-store" });
+  } catch (e) {
+    return { ok: false, status: 0, body: { error: (e as Error).message || "The request did not reach Studio" } };
+  }
+  if (res.status === 401) {
+    window.location.href = "/login";
+    return new Promise<Answer<T>>(() => {});
+  }
+  const data = (await res.json().catch(() => ({}))) as unknown;
+  if (!res.ok) return { ok: false, status: res.status, body: (data && typeof data === "object" ? data : {}) as Refusal };
+  return { ok: true, status: res.status, body: data as T };
+}
+
 function pathText(path: unknown): string {
   if (Array.isArray(path)) return path.join(".");
   return typeof path === "string" ? path : "";

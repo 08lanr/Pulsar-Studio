@@ -16,9 +16,11 @@ import { test, expect, type Page } from "@playwright/test";
 // earlier project created in the same server), imports that copy, and
 // removes the copy again at the end — the other specs list the fixture
 // workspace's three films exactly. Then, in order: the Import row offers
-// "Upload to CrazyDramas" and the form is prefilled; a title another series
-// has and a malformed IAP id are refused in their own words, and a poster
-// that answers 404 is not sent; the draft is created and every episode is
+// "Upload to CrazyDramas" and the form is prefilled (the slug editable, the
+// series text drafted, the poster defaulting to the title's cover); a title
+// another series has and a malformed IAP id are refused in their own words,
+// and a pasted poster that answers 404 is not sent; the draft is created
+// with Studio's own poster and the slug locks; every episode is
 // uploaded in the background to "verified" with nothing published; Publish
 // lists exactly the episodes that go live, free and paid apart, and a paid
 // one needs its own confirm (the route refuses it without); Unpublish sets
@@ -135,17 +137,23 @@ test("an imported film not on crazydramas offers Upload to CrazyDramas on its Im
 
   await expect(section(page)).toHaveAttribute("data-series-state", "not_uploaded");
   await expect(section(page).locator("[data-cdp-state]")).toHaveText("Not on CrazyDramas yet");
-  await expect(section(page)).toContainText(`Slug (from the title's film-meta): ${film.slug}`);
   const f = form(page);
+  // The slug is the film-meta's, still editable (no draft series yet): Studio checks a typed one before it saves it.
+  await expect(f.locator('input[name="slug"]')).toHaveValue(film.slug);
   await expect(f.locator('input[name="title"]')).toHaveValue(film.title);
   await expect(f.locator('select[name="language"]')).toHaveValue("en");
   await expect(f.locator('input[name="free_episode_count"]')).toHaveValue("5");
   await expect(f.locator('input[name="series_price"]')).toHaveValue("9.99");
   await expect(f.locator('input[name="iap_product_id"]')).toHaveValue(film.iap);
-  await expect(f.locator('input[name="poster_url"]')).toHaveValue(film.poster);
-  // The title's own cover in Studio sits beside the poster field, to hand to Jayden.
+  // The tagline, description and genres are drafted from the transcript as the form opens (fixture mode: the canned draft).
+  await expect(f.locator("[data-series-text]")).toContainText("Demo mode: a sample draft");
+  await expect(f.locator('input[name="tagline"]')).not.toHaveValue("");
+  await expect(f.locator('input[name="genre"]')).toHaveValue("Romance, Billionaire");
+  // The poster defaults to the title's own cover in Studio (its preview beside the choice); Studio hosts it on Create.
+  await expect(f.locator('[data-poster-choice="cover"] input[type="radio"]')).toBeChecked();
   await expect(f.locator(".cdp-cover img")).toHaveAttribute("src", /^\/api\/media\//);
-  await expect(f.locator(".cdp-cover")).toContainText(`/posters/${film.slug}.jpg`);
+  await expect(f.locator(".cdp-cover")).toContainText("The title's cover in Studio");
+  await expect(f).not.toContainText("Jayden");
   // Before the draft exists nothing can be uploaded or published; the three episodes are listed with their frame counts.
   await expect(rows(page)).toHaveCount(3);
   for (const stage of await rows(page).evaluateAll((els) => els.map((e) => e.getAttribute("data-stage")))) expect(stage).toBe("none");
@@ -180,13 +188,14 @@ test("a title another series has and a malformed IAP id are refused in their own
   await f.getByRole("button", { name: `Use ${film.iap}` }).click();
   await expect(f.locator('input[name="iap_product_id"]')).toHaveValue(film.iap);
 
-  // The poster is checked (200, an image) before it is sent; fixture mode answers from the fake's rule and fetches nothing.
+  // A pasted poster is checked (200, an image) before it is sent; fixture mode answers from the fake's rule and fetches nothing.
+  await f.locator('[data-poster-choice="url"] input[type="radio"]').check();
   const poster = f.locator('input[name="poster_url"]');
   await poster.fill(`https://crazydramas.com/posters/${film.slug}-missing.jpg`);
   await f.getByRole("button", { name: "Check poster" }).click();
   await expect(f).toContainText("Not usable: It answers HTTP 404, not 200.");
   await create.click();
-  await expect(f.locator(".cdp-refusal")).toContainText("The poster address did not pass the check, so nothing was sent");
+  await expect(f.locator(".cdp-refusal")).toContainText("The poster was not ready, so nothing was sent");
   await expect(section(page)).toHaveAttribute("data-series-state", "not_uploaded");
   await poster.fill(film.poster);
   await f.getByRole("button", { name: "Check poster" }).click();
@@ -199,8 +208,18 @@ test("Create draft series, then upload all: every episode walks to verified in t
   const f = form(page);
   // Two free episodes, so the third is paid for the publish step.
   await f.locator('input[name="free_episode_count"]').fill("2");
+  // The default poster: the title's cover, stored by Studio as a 1200×1600 JPEG and checked before the series is sent.
+  await expect(f.locator('[data-poster-choice="cover"] input[type="radio"]')).toBeChecked();
   await f.getByRole("button", { name: "Create draft series" }).click();
-  await expect(f).toContainText("Draft series created.");
+  await expect(f).toContainText("Draft series created.", { timeout: 60_000 });
+  // The drafted text went with it (Create waits for the draft), and so did Studio's poster, which the page shows from
+  // Studio's own route, never another host.
+  await expect(f.locator('input[name="tagline"]')).toHaveValue("One contract. One lie. One marriage she never agreed to.");
+  await expect(f.locator('input[name="genre"]')).toHaveValue("Romance, Billionaire");
+  await expect(f.locator('[data-poster-choice="keep"] input[type="radio"]')).toBeChecked();
+  await expect(f.locator(".cdp-cover img")).toHaveAttribute("src", /^\/api\/public-posters\/ttl_[a-z0-9]+\/[0-9a-f]{8}\.jpg$/);
+  // The draft exists: the slug is locked, with the reason.
+  await expect(f.locator("[data-slug-locked]")).toContainText("ad links depend on the slug");
   await expect(section(page)).toHaveAttribute("data-series-state", "draft");
   await expect(section(page).locator("[data-cdp-state]")).toHaveText("Draft on CrazyDramas");
   await expect(f.getByRole("button", { name: "Save series details" })).toBeVisible();

@@ -131,7 +131,14 @@ test("the state the section polls, in every series state: not_linked, not_upload
       free_episode_count: 5,
       series_price_cents: 999,
       iap_product_id: "cd.series.a_brand_new_studio_series_with",
-      poster_url: "https://crazydramas.com/posters/a-brand-new-studio-series-with-a-very-long-name.jpg",
+      // No poster suggestion on crazydramas.com any more (decision 2026-09-23 "Upload automation"): the series has none
+      // yet, and the title has no cover, so the poster field starts at "none".
+      poster_url: null,
+      slug_editable: true,
+      slug_locked_reason: null,
+      has_cover: false,
+      poster_default: "none",
+      poster_preview_url: null,
     }
   );
   assert.ok(s1.form_defaults.iap_product_id!.length <= 40, "the IAP id fits Google Play's 40 characters");
@@ -144,6 +151,8 @@ test("the state the section polls, in every series state: not_linked, not_upload
   assert.equal(s2.series?.managed_by, "studio");
   assert.equal(s2.series?.free_episode_count, 1);
   assert.equal(s2.form_defaults.series_price_cents, 499, "the form now starts from the series itself");
+  assert.equal(s2.form_defaults.slug_editable, false, "the draft exists: the slug is locked");
+  assert.match(s2.form_defaults.slug_locked_reason ?? "", /ad links point at crazydramas\.com\/drama\/a-brand-new-studio-series-with-a-very-long-name/);
   assert.deepEqual(s2.episodes.map((e) => e.is_free), [true, false, false]);
   PublishStateSchema.parse(s2);
 

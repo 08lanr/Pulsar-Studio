@@ -20,6 +20,7 @@
 
 import { dataSource } from "@/lib/data-source";
 import { fakeCrazydramasTransport } from "./fake";
+import { fixturePosterPreview } from "./publish-types";
 import { liveCrazydramasTransport, type CrazydramasTransport } from "./transport";
 
 export type CrazydramasReadMode = "fake" | "live";
@@ -43,9 +44,14 @@ export function crazydramasTransport(): CrazydramasTransport {
  * plain fixture run would otherwise have the browser fetch them from
  * crazydramas.com (the phase 3a review, round two). The facts about the
  * poster (set, placeholder) are still shown; only the picture is withheld.
+ * A poster fixture mode's stand-in bucket holds (its made-up
+ * `https://studio-fixture.invalid/api/public-posters/…` address, decision
+ * 2026-09-23 "Upload automation") is shown through the same-origin route.
  */
 export function shownPosterUrl(url: string | null | undefined): string | null {
   if (!url) return null;
+  const fixture = fixturePosterPreview(url);
+  if (fixture) return fixture;
   if (crazydramasReadMode() === "fake" && !(url.startsWith("/") && !url.startsWith("//"))) return null;
   return url;
 }

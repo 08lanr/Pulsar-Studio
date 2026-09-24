@@ -105,7 +105,7 @@ test("My catalog shows one chip per crazydramas state, in words only, each cell 
   await expect(partial.getByRole("link", { name: /View series check/ })).toHaveAttribute("href", `/producer/titles/${partialId}/crazydramas`);
   const unlinked = page.locator('.pf-table tbody tr:has(.tw-chip-cd[data-cd-state="not_linked"])').first();
   const unlinkedId = (await unlinked.getByRole("link", { name: /^Open/ }).getAttribute("href"))!.replace("/producer/titles/", "");
-  await expect(unlinked.getByRole("link", { name: /How to link/ })).toHaveAttribute("href", `/producer/titles/${unlinkedId}/crazydramas`);
+  await expect(unlinked.getByRole("link", { name: /Link to CrazyDramas/ })).toHaveAttribute("href", `/producer/titles/${unlinkedId}/crazydramas`);
   await page.screenshot({ path: `docs/demo/e2e/${test.info().project.name}/crazydramas-catalog.jpg`, type: "jpeg", quality: 72, fullPage: true });
 });
 
@@ -157,7 +157,7 @@ test("the imported fixture film is live and complete: the header chip on the sec
   }
 });
 
-test("each other state's section shows the verdict or note that defines it, and an unlinked title has no Check now", async ({ page }) => {
+test("each other state's section shows the verdict or note that defines it, and Studio picks a slug for an unlinked title", async ({ page }) => {
   const partial = await titleInState(page, "live_partial");
   await page.goto(`/producer/titles/${partial}/crazydramas`);
   await expect(page.locator(".tw-chips .tw-chip-cd")).toHaveAttribute("data-cd-state", "live_partial");
@@ -182,12 +182,16 @@ test("each other state's section shows the verdict or note that defines it, and 
   await expect(page.locator(".tw-chips .tw-chip-cd")).toHaveAttribute("data-cd-state", "read_failed");
   await expect(page.locator(".cd-panel .note-warn").first()).toContainText("The last read failed");
 
+  // A title with no slug (decision 2026-09-23 "Upload automation"): the section says Studio picks one, and it does, as the
+  // upload section opens — derived from the title, checked on crazydramas (the fake), saved on the title. Nothing asks a
+  // person to edit film-meta or run Update.
   const unlinked = await titleInState(page, "not_linked");
   await page.goto(`/producer/titles/${unlinked}/crazydramas`);
-  await expect(page.locator(".tw-chips .tw-chip-cd")).toHaveAttribute("data-cd-state", "not_linked");
-  await expect(page.locator(".cd-panel .note")).toContainText(/no crazydramas slug|not imported from the film workspace/);
-  await expect(page.getByRole("button", { name: "Check now" })).toHaveCount(0);
-  await expect(page.locator(".cd-episodes")).toHaveCount(0);
+  await expect(page.locator("main")).not.toContainText("film-meta.json");
+  await expect.poll(async () => ((await (await page.request.get(`/api/titles/${unlinked}/crazydramas/publish`)).json()) as { series_state: string }).series_state, { timeout: 30_000, message: "Studio picked a slug" }).not.toBe("not_linked");
+  await page.reload();
+  await expect(page.locator(".tw-chips .tw-chip-cd")).not.toHaveAttribute("data-cd-state", "not_linked");
+  await expect(page.locator('#cd-publish input[name="slug"]')).toHaveValue(/^[a-z0-9]+(-[a-z0-9]+)*$/);
 });
 
 test("Check now reads the series again and a second read inside 30 s is refused", async ({ page }) => {
@@ -215,8 +219,8 @@ test("the Import films rows carry the chip: an unlinked film says what to do, an
   await page.goto("/producer/films/import");
   const ready = page.locator(`.gt-row[data-source-ref="${FILM}"]`);
   await expect(ready).toBeVisible();
-  await expect(page.locator('.gt-row[data-source-ref="low-quality/rendering-film"] .tw-chip-cd')).toHaveText("Not linked: add a crazydramas slug");
-  await expect(page.locator('.gt-row[data-source-ref="low-quality/undelivered-film"] .tw-chip-cd')).toHaveText("Not linked: add a crazydramas slug");
+  await expect(page.locator('.gt-row[data-source-ref="low-quality/rendering-film"] .tw-chip-cd')).toHaveText("No slug yet: picked on import");
+  await expect(page.locator('.gt-row[data-source-ref="low-quality/undelivered-film"] .tw-chip-cd')).toHaveText("No slug yet: picked on import");
   await expect(ready.locator(".film-import-cd .tw-chip-cd")).toHaveAttribute("data-cd-state", "live_complete");
   await expect(ready.locator(".film-import-cd a")).toHaveAttribute("href", /^\/producer\/titles\/[0-9a-f-]{36}\/crazydramas$/);
   await expect(page.getByRole("heading", { name: "Unmatched on CrazyDramas" })).toHaveCount(0);
