@@ -123,6 +123,8 @@ export type FakeDrama = {
   managed_by: PlatformManagedBy;
   created_at: string;
   updated_at: string;
+  /** When the series last went live (the public read's cache lag counts from here); absent for the seeded ones. */
+  live_since?: number;
 };
 
 export type FakeEpisode = {
@@ -138,6 +140,8 @@ export type FakeEpisode = {
   duration_seconds: number | null;
   thumbnail_url: string | null;
   updated_at: string;
+  /** When the episode was last published (the public read's cache lag counts from here); absent for the seeded ones. */
+  published_since?: number;
 };
 
 export type FakeUpload = {
@@ -250,6 +254,12 @@ const uniqueSorted = (nums: number[] | undefined) => [...new Set(nums ?? [])].so
 
 type Media = { state: "empty" | "in_flight" | "ready" | "dead"; upload: FakeUpload | null; asset: FakeAsset | null };
 
+/** CRAZYDRAMAS_FAKE_PUBLIC_LAG_MS (fixture mode): how far the fake's public read trails a publish; 0 when unset or not a number. */
+function fakePublicLagMs(): number {
+  const n = Number(process.env.CRAZYDRAMAS_FAKE_PUBLIC_LAG_MS ?? "");
+  return Number.isFinite(n) && n > 0 ? Math.min(n, 120_000) : 0;
+}
+
 /** The rule of the fake poster check (the poster-check route's fixture answer): an https image name answers 200, one named "missing" 404. */
 const IMAGE_NAME = /\.(jpe?g|png|webp|avif|gif)$/i;
 
@@ -259,7 +269,7 @@ const IMAGE_NAME = /\.(jpe?g|png|webp|avif|gif)$/i;
 export class FakeCrazydramasTransport implements CrazydramasTransport, CrazydramasStudioTransport {
   readonly mode = "fake" as const;
   /** The phase 3a reads, in order. */
-  readonly calls: { what: "catalog" | "series"; slug?: string }[] = [];
+  readonly calls: { what: "catalog" | "series" | "public"; slug?: string }[] = [];
   /** Every Studio API request, in order (method, path and the status answered; never a body). */
   readonly requests: { method: string; path: string; status: number }[] = [];
   /** Every chunk PUT to a fake Mux upload URL. */
@@ -292,6 +302,13 @@ export class FakeCrazydramasTransport implements CrazydramasTransport, Crazydram
   onChunk: ((log: FakeChunkLog) => void) | null = null;
   /** The clock (episode_busy's two minutes). */
   now: () => number = () => Date.now();
+  /**
+   * The public API's cache (up to 60 s on the live site): a series or an
+   * episode published less than this long ago is not in `publicSeries` yet.
+   * 0 by default (tests); fixture mode reads CRAZYDRAMAS_FAKE_PUBLIC_LAG_MS so
+   * the publish progress can be seen waiting.
+   */
+  publicLagMs = fakePublicLagMs();
 
   private dramas: FakeDrama[] = [];
   private episodes: FakeEpisode[] = [];
@@ -325,6 +342,7 @@ export class FakeCrazydramasTransport implements CrazydramasTransport, Crazydram
     this.flipOnPublish = [];
     this.onChunk = null;
     this.now = () => Date.now();
+    this.publicLagMs = fakePublicLagMs();
     this.switches = [];
     this.fpsBySha.clear();
     this.seed();
@@ -525,6 +543,19 @@ export class FakeCrazydramasTransport implements CrazydramasTransport, Crazydram
     const rows = this.episodes.filter((e) => e.drama_id === drama.id && (studio || e.is_published)).sort((a, b) => a.episode_number - b.episode_number);
     const episodes: PlatformEpisode[] = rows.map((e) => ({ n: e.episode_number, duration_s: e.duration_seconds, status: e.status, is_published: e.is_published }));
     return { http_status: 200, drama: this.platformDrama(drama, episodes.length, studio), episodes, read_via: this.readVia };
+  }
+
+  /** The public read (`GET /api/dramas/<slug>`): published only, and nothing published within `publicLagMs` (the cache). */
+  async publicSeries(slug: string): Promise<SeriesRead> {
+    this.calls.push({ what: "public", slug });
+    const drama = this.dramas.find((d) => d.slug === slug);
+    const cutoff = this.now() - this.publicLagMs;
+    const seen = (at: number | undefined) => at === undefined || at <= cutoff;
+    if (!drama || isMockSlug(slug) || drama.status !== "published" || !seen(drama.live_since)) return { http_status: 404, drama: null, episodes: null, read_via: "public" };
+    if (this.failing.has(slug)) throw new CrazydramasApiError("crazydramas answered HTTP 502.", 502);
+    const rows = this.episodes.filter((e) => e.drama_id === drama.id && e.is_published && seen(e.published_since)).sort((a, b) => a.episode_number - b.episode_number);
+    const episodes: PlatformEpisode[] = rows.map((e) => ({ n: e.episode_number, duration_s: e.duration_seconds, status: e.status, is_published: e.is_published }));
+    return { http_status: 200, drama: this.platformDrama(drama, episodes.length, false), episodes, read_via: "public" };
   }
 
   // ---- the Studio API -----------------------------------------------------------------------------------------
@@ -890,6 +921,7 @@ export class FakeCrazydramasTransport implements CrazydramasTransport, Crazydram
       const e = byNumber.get(n)!;
       if (e.status === "ready") {
         e.is_published = true;
+        e.published_since = this.now();
         e.updated_at = iso(this.now());
         published.push(n);
       }
@@ -899,6 +931,7 @@ export class FakeCrazydramasTransport implements CrazydramasTransport, Crazydram
     const before = drama.status;
     if (seriesToo && drama.status === "draft" && missed.length === 0) {
       drama.status = "published";
+      drama.live_since = this.now();
       changed.push("series.status");
     }
     const out = { series: { id: drama.id, slug: drama.slug, status_before: before, status: drama.status }, published, already_published: already, changed };

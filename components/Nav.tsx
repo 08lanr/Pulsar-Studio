@@ -60,7 +60,7 @@ export default function Nav({ displayName, role }: NavProps) {
 
   // The staff rail reads the same words in the same order as the producer's
   // (plan §5.3): Clips · Launch · Monitor · Connections · Legacy campaigns ·
-  // Titles · Producers. Connections is /tiktok, which carries a Meta section
+  // Titles · CrazyDramas · Import films · Segment a film · Producers. Connections is /tiktok, which carries a Meta section
   // as well, so one entry covers both providers; /meta keeps working.
   const items: NavItem[] = [
     { href: "/clips", label: tt("lv2.clips.title"), icon: <IconSparkle /> },
@@ -69,6 +69,8 @@ export default function Nav({ displayName, role }: NavProps) {
     { href: "/tiktok", label: tt("admin.nav.connections"), icon: <IconSparkle /> },
     { href: "/promote", label: tt("lv2.legacyCampaigns"), icon: <IconSparkle /> },
     { href: "/titles", label: tt("admin.nav.projects"), icon: <IconProjects /> },
+    // One page for every film and title on crazydramas.com and its next step (2026-09-24).
+    { href: "/crazydramas", label: tt("cdh.nav"), icon: <IconFilm /> },
     { href: "/films/import", label: tt("fi.nav"), icon: <IconFilm /> },
     { href: "/films/runs", label: tt("seg.nav"), icon: <IconFilm /> },
     { href: "/producers", label: tt("admin.nav.producers"), icon: <IconProducers /> },
@@ -76,7 +78,7 @@ export default function Nav({ displayName, role }: NavProps) {
 
   // The header names the screen with the same word the rail uses; derived from
   // the path so no page threads a prop through. Deeper routes are matched first.
-  const title = pathname.startsWith("/films/runs") ? tt("seg.nav") : pathname.startsWith("/films") ? tt("fi.nav") : pathname.startsWith("/clips") ? tt("lv2.clips.title") : pathname.startsWith("/meta") ? tt("lv2.meta.title") : pathname.startsWith("/promote/launches") ? tt("lv2.launch.title") : pathname.startsWith("/promote/monitor") ? tt("lv2.monitor.title") : pathname.startsWith("/tiktok")
+  const title = pathname.startsWith("/crazydramas") ? tt("cdh.nav") : pathname.startsWith("/films/runs") ? tt("seg.nav") : pathname.startsWith("/films") ? tt("fi.nav") : pathname.startsWith("/clips") ? tt("lv2.clips.title") : pathname.startsWith("/meta") ? tt("lv2.meta.title") : pathname.startsWith("/promote/launches") ? tt("lv2.launch.title") : pathname.startsWith("/promote/monitor") ? tt("lv2.monitor.title") : pathname.startsWith("/tiktok")
     ? tt("admin.nav.connections")
     : pathname.startsWith("/promote")
     ? tt("lv2.legacyCampaigns")

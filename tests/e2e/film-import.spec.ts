@@ -74,10 +74,15 @@ test("the import desk lists the fixture films: one ready, one rendering with the
   await expect(ready).toContainText("Source title: The Fixture Film");
   await expect(ready).toContainText("720×1280 · 30 fps");
   await expect(ready.getByRole("button", { name: "Import", exact: true })).toBeEnabled();
-  const rendering = page.locator('.gt-row[data-source-ref="low-quality/rendering-film"]');
+  // The two that cannot be imported yet fold into one line with their reasons (2026-09-24), below the rows that can.
+  await expect(page.locator('.gt-row[data-source-ref="low-quality/rendering-film"]')).toHaveCount(0);
+  const fold = page.locator(".fi-not-ready");
+  await expect(fold.locator("summary")).toContainText("Not ready (2)");
+  await fold.locator("summary").click();
+  const rendering = fold.locator('li[data-source-ref="low-quality/rendering-film"]');
   await expect(rendering).toContainText("Rendering now: ep02.part.mp4");
   await expect(rendering.getByRole("button")).toHaveCount(0);
-  const undelivered = page.locator('.gt-row[data-source-ref="low-quality/undelivered-film"]');
+  const undelivered = fold.locator('li[data-source-ref="low-quality/undelivered-film"]');
   await expect(undelivered).toContainText("Not delivered");
   await expect(undelivered).toContainText("No delivered plan yet");
   // The poster thumbnail comes from the workspace before the film is imported.

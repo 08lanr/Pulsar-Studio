@@ -9,6 +9,7 @@ import { resetFakeTikTokForDemo } from "@/lib/tiktok/fake";
 import { resetFakeMetaForClipPosts, resetFakeMetaForRuns } from "@/lib/meta/fake";
 import { resetMetaPagePostCache } from "@/lib/meta/publish";
 import { resetLaunchFixtureForProducer } from "@/lib/data/launch";
+import { resetCrazydramasSweep } from "@/lib/crazydramas/sweep";
 import { handle, parseJson } from "@/app/api/titles/_lib/handler";
 
 // Fixture mode only: rebuild the in-memory demo dataset from data/fixture so a
@@ -40,6 +41,9 @@ export async function POST(req: NextRequest) {
     // The demo company's organic posts go with it, on the fake Page too.
     resetFakeMetaForClipPosts(removedPosts);
     resetMetaPagePostCache();
+    // The rebuilt store holds none of the crazydramas reads the sweep recorded, so the sweep's "last read" goes with them
+    // (the CrazyDramas page then says the catalog is not read yet, instead of listing nothing as if it were).
+    resetCrazydramasSweep();
     return NextResponse.json({ ok: true, seed, reset_at: new Date().toISOString() });
   });
 }

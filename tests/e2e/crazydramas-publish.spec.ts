@@ -260,6 +260,17 @@ test("Publish lists exactly the episodes that go live, free and paid apart; a pa
   await shot(page, "publish-dialog");
   await dialog.getByRole("button", { name: "Publish 2 episodes" }).click();
   await expect(dialog).toHaveCount(0);
+  // The progress (2026-09-24): the episodes one by one, the series, the public page, then Live with its link.
+  const progress = section(page).locator(".cdp-progress");
+  await expect(progress).toHaveAttribute("data-finished", "true", { timeout: 60_000 });
+  await expect(progress.locator('[data-step="episodes"]')).toHaveAttribute("data-state", "done");
+  await expect(progress.locator('[data-step="episodes"]')).toContainText("2 of 2 episodes published.");
+  await expect(progress.locator('[data-step="series"]')).toHaveAttribute("data-state", "done");
+  await expect(progress.locator('[data-step="public"]')).toHaveAttribute("data-state", "done");
+  await expect(progress.locator('[data-step="public"]')).toContainText("The public page shows the series with episodes 1, 2.");
+  await expect(progress.locator('[data-step="live"]')).toHaveAttribute("data-state", "done");
+  await expect(progress.getByRole("link", { name: /Open on CrazyDramas/ })).toHaveAttribute("href", new RegExp(`/drama/${film.slug}$`));
+  await shot(page, "publish-progress");
   await expect(section(page)).toContainText("Published: episodes 1, 2. The series is live.");
   await expect(section(page)).toHaveAttribute("data-series-state", "published");
   await expect.poll(async () => (await rows(page).evaluateAll((els) => els.map((e) => e.getAttribute("data-stage")))).join(",")).toBe("published,published,verified");
@@ -287,6 +298,8 @@ test("Publish lists exactly the episodes that go live, free and paid apart; a pa
   await shot(page, "paid-confirm");
   await go.click();
   await expect(dialog).toHaveCount(0);
+  await expect(section(page).locator(".cdp-progress")).toHaveAttribute("data-finished", "true", { timeout: 60_000 });
+  await expect(section(page).locator('.cdp-progress [data-step="series"]')).toContainText("The series was already live.");
   await expect(section(page)).toContainText("Published: episodes 3.");
   await expect.poll(async () => (await publishState(page, titleId)).episodes.map((e) => e.is_published).join(",")).toBe("true,true,true");
 });

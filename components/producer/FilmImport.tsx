@@ -10,11 +10,13 @@
 // the counts. The producer page renders this in Chinese, the staff desk in
 // English with a company picker (staff may not act in the producer portal).
 
+import "@/app/crazydramas-hub.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiRequestError, getJson, postJson } from "@/lib/api-client";
 import { useT } from "@/components/locale";
 import type { FilmListing, FilmRow, ImportProgress, ImportStarted } from "@/lib/film-import/import";
 import { CrazydramasChip, type CrazydramasChipReading } from "./CrazydramasChip";
+import { filmReasonText, importProgressText, importResultText, isNotReady } from "./film-import-words";
 
 type Props = {
   /** Which routes and title links to use. */
@@ -110,54 +112,9 @@ export default function FilmImport({ portal, canImport, producers = [], crazydra
     }
   }
 
-  function reasonText(film: FilmRow): string | null {
-    const r = film.reason;
-    if (!r) return null;
-    switch (r.code) {
-      case "bad_delivered":
-        return tt("fi.reason.bad_delivered", { file: r.file, detail: r.detail });
-      case "part_file":
-        return tt("fi.reason.part_file", { file: r.file });
-      case "recent_write":
-        return tt("fi.reason.recent_write", { file: r.file, seconds: r.seconds_ago });
-      case "episode_gap":
-        return tt("fi.reason.episode_gap", { missing: r.missing.join(", ") || "—" });
-      case "count_mismatch":
-        return tt("fi.reason.count_mismatch", { planned: r.planned, found: r.found });
-      case "placeholder":
-        return tt("fi.reason.placeholder", { file: r.file });
-      case "files_changed":
-        return tt("fi.reason.files_changed", { n: r.episodes.length, episodes: r.episodes.join(", ") });
-      default:
-        return tt(`fi.reason.${r.code}`);
-    }
-  }
-
-  function progressText(p: ImportProgress): string {
-    switch (p.step) {
-      case "episodes":
-        return tt("fi.progress.episodes", { n: p.episode ?? 0, total: p.total, what: tt(`fi.progress.what.${p.what ?? "link"}`) });
-      case "transcripts":
-        return tt("fi.progress.transcripts", { n: p.episode ?? 0, total: p.total });
-      case "done":
-      case "failed":
-        return "";
-      default:
-        return tt(`fi.progress.${p.step}`);
-    }
-  }
-
-  function resultText(p: ImportProgress): { text: string; error: boolean } | null {
-    if (p.step === "failed") return { text: tt("fi.result.failed", { detail: p.error ?? "" }), error: true };
-    if (p.step === "done" && p.result) {
-      const c = p.result.counts;
-      const parts = [tt("fi.result.done", { added: c.added, updated: c.updated, unchanged: c.unchanged, flagged: c.flagged })];
-      if (c.transcripts) parts.push(tt("fi.result.transcripts", { n: c.transcripts }));
-      if (p.result.changed_during_import) parts.push(tt("fi.result.changed"));
-      return { text: parts.join(" "), error: false };
-    }
-    return null;
-  }
+  const reasonText = (film: Pick<FilmRow, "reason">) => filmReasonText(tt, film.reason);
+  const progressText = (p: ImportProgress) => importProgressText(tt, p);
+  const resultText = (p: ImportProgress) => importResultText(tt, p);
 
   const statePill: Record<FilmRow["state"], string> = {
     READY: "pill-success",
@@ -209,6 +166,9 @@ export default function FilmImport({ portal, canImport, producers = [], crazydra
   }
 
   const cols = "56px minmax(220px,2fr) 70px 90px 130px 70px minmax(160px,1.4fr) 190px 150px";
+  // Films that can be imported, are imported or are importing get a row; the rest fold into "Not ready (n)" below.
+  const rows = listing ? listing.films.filter((f) => !isNotReady(f)) : [];
+  const notReady = listing ? listing.films.filter(isNotReady) : [];
 
   return (
     <section className="film-import" aria-label={tt("fi.title")}>
@@ -236,7 +196,8 @@ export default function FilmImport({ portal, canImport, producers = [], crazydra
       {!listing && !loadError && <p className="hint" role="status">{tt("fi.loading")}</p>}
       {listing && !listing.configured && <p className="note note-info">{tt("fi.notConfigured")}</p>}
       {listing && listing.configured && listing.films.length === 0 && <p className="hint">{tt("fi.empty")}</p>}
-      {listing && listing.configured && listing.films.length > 0 && (
+      {listing && listing.configured && listing.films.length > 0 && rows.length === 0 && <p className="hint">{tt("fi.noneReady")}</p>}
+      {listing && listing.configured && rows.length > 0 && (
         <div className="gtable film-import-table" role="region" aria-label={tt("fi.title")} tabIndex={0} style={{ "--cols": cols } as React.CSSProperties}>
           <div className="gt-head">
             <span />
@@ -249,7 +210,7 @@ export default function FilmImport({ portal, canImport, producers = [], crazydra
             <span>{tt("pf.col.crazydramas")}</span>
             <span>{tt("fi.col.action")}</span>
           </div>
-          {listing.films.map((film) => {
+          {rows.map((film) => {
             const p = film.progress;
             const editable = canImport && !film.imported && film.state === "READY" && !running(p);
             const reason = reasonText(film);
@@ -295,6 +256,21 @@ export default function FilmImport({ portal, canImport, producers = [], crazydra
             );
           })}
         </div>
+      )}
+      {notReady.length > 0 && (
+        <details className="fi-not-ready" data-count={notReady.length}>
+          <summary>{tt("fi.notReady", { n: notReady.length })} <small className="gt-muted">{tt("fi.notReady.hint")}</small></summary>
+          <ul>
+            {notReady.map((film) => (
+              <li key={film.source_ref} data-source-ref={film.source_ref} data-state={film.state}>
+                <strong lang="en">{film.display_title}</strong>
+                <small className="gt-muted">{film.folder}</small>
+                <span className={`pill ${statePill[film.state]}`}>{tt(`fi.state.${film.state}`)}</span>
+                {reasonText(film) && <small className="gt-muted">{reasonText(film)}</small>}
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
     </section>
   );

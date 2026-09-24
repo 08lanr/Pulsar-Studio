@@ -50,6 +50,14 @@ export interface CrazydramasTransport {
    * (`read_via: "public"`: published episodes only). Anything else throws.
    */
   series(slug: string): Promise<SeriesRead>;
+  /**
+   * The PUBLIC read of one series, always (`GET /api/dramas/<slug>`, what a
+   * viewer's browser gets, up to 60 s behind a publish): published series
+   * and episodes only, a 404 for anything else. The publish progress polls it
+   * to say when the public page shows the series (2026-09-24). Optional so a
+   * test's stand-in need not have it; callers fall back to `series`.
+   */
+  publicSeries?(slug: string): Promise<SeriesRead>;
 }
 
 /** One answer of the Studio API: its status and JSON body, whatever the status (crazydramas' error codes pass through verbatim). */
@@ -401,7 +409,7 @@ export const liveCrazydramasStudioTransport: CrazydramasStudioTransport = {
 // ---- the read transport -----------------------------------------------------------------------------------
 
 /** The public series read. */
-async function publicSeries(slug: string): Promise<SeriesRead> {
+async function readPublicSeries(slug: string): Promise<SeriesRead> {
   const { status, body } = await get(`/api/dramas/${encodeURIComponent(slug)}`);
   if (status === 404) return { http_status: 404, drama: null, episodes: null, read_via: "public" };
   try {
@@ -443,10 +451,14 @@ export const liveCrazydramasTransport: CrazydramasTransport = {
           fallbackWarned = true;
           console.warn(`[crazydramas] the Studio API refused the token (HTTP ${status}); reading the public API instead`);
         }
-        return publicSeries(slug);
+        return readPublicSeries(slug);
       }
       throw new CrazydramasApiError(`crazydramas answered HTTP ${status}.`, status);
     }
-    return publicSeries(slug);
+    return readPublicSeries(slug);
+  },
+  async publicSeries(slug: string) {
+    if (!CRAZYDRAMAS_SLUG.test(slug)) throw new CrazydramasApiError("Invalid crazydramas slug.");
+    return readPublicSeries(slug);
   },
 };

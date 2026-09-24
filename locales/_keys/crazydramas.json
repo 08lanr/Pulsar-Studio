@@ -96,5 +96,5 @@
   "cd.unmatched.col.read": { "zh": "读取于", "en": "Read" },
   "cd.unmatched.open": { "zh": "打开公开页面", "en": "Open public page" },
   "cd.admin.back": { "zh": "返回剧集", "en": "Back to the title" },
-  "cd.admin.open": { "zh": "CrazyDramas 检查", "en": "CrazyDramas check" }
+  "cd.admin.open": { "zh": "CrazyDramas", "en": "CrazyDramas" }
 }

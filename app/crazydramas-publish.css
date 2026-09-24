@@ -83,3 +83,31 @@
   .cdp-fields { grid-template-columns: minmax(0, 1fr); }
   .cdp-summary > div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
 }
+
+/* The whole upload / publish at a glance (2026-09-24): a bar with its counts. */
+.cdp-bar { display: grid; grid-template-columns: minmax(120px, 320px) minmax(0, 1fr); gap: 12px; align-items: center; }
+.cdp-bar .track { width: 100%; }
+.cdp-bar small { font-size: 13px; color: var(--text-muted); overflow-wrap: anywhere; }
+.cdp-bar small strong { color: var(--text); font-weight: var(--w-medium); }
+
+/* After pressing Publish: the four steps, each with its state (PublishProgress). */
+.cdp-progress { display: grid; gap: 12px; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); scroll-margin-top: 80px; }
+.cdp-progress-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.cdp-progress-head h4 { margin: 0; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.cdp-progress-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.cdp-progress-step { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 10px; align-items: start; color: var(--text-faint); }
+.cdp-progress-step.is-running, .cdp-progress-step.is-done, .cdp-progress-step.is-failed { color: var(--text); }
+.cdp-progress-dot { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border-strong); display: inline-grid; place-items: center; font-size: 12px; background: var(--surface); }
+.cdp-progress-step.is-running .cdp-progress-dot { border-color: var(--brand); background: var(--brand-tint); }
+.cdp-progress-step.is-done .cdp-progress-dot { border-color: var(--success); background: var(--success-bg); color: var(--success); }
+.cdp-progress-step.is-failed .cdp-progress-dot { border-color: var(--error); color: var(--error); background: var(--error-bg); }
+.cdp-progress-dot .spinner { width: 12px; height: 12px; }
+.cdp-progress-text { display: grid; gap: 4px; justify-items: start; min-width: 0; font-size: 14px; }
+.cdp-progress-text strong { font-size: 13px; font-weight: var(--w-medium); }
+.cdp-progress-text small { font-size: 12px; overflow-wrap: anywhere; }
+.cdp-progress-text code { font-size: 12px; overflow-wrap: anywhere; }
+.cdp-progress > .note, .cdp-progress > .hint { margin: 0; }
+
+@media (max-width: 720px) {
+  .cdp-bar { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+}

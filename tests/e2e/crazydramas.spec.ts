@@ -219,8 +219,10 @@ test("the Import films rows carry the chip: an unlinked film says what to do, an
   await page.goto("/producer/films/import");
   const ready = page.locator(`.gt-row[data-source-ref="${FILM}"]`);
   await expect(ready).toBeVisible();
-  await expect(page.locator('.gt-row[data-source-ref="low-quality/rendering-film"] .tw-chip-cd')).toHaveText("No slug yet: picked on import");
-  await expect(page.locator('.gt-row[data-source-ref="low-quality/undelivered-film"] .tw-chip-cd')).toHaveText("No slug yet: picked on import");
+  // The films that cannot be imported yet fold into "Not ready (2)" (2026-09-24): no row, no chip, their reasons in the fold.
+  await expect(page.locator('.gt-row[data-source-ref="low-quality/rendering-film"]')).toHaveCount(0);
+  await expect(page.locator('.fi-not-ready li[data-source-ref="low-quality/rendering-film"]')).toHaveCount(1);
+  await expect(page.locator('.fi-not-ready li[data-source-ref="low-quality/undelivered-film"]')).toHaveCount(1);
   await expect(ready.locator(".film-import-cd .tw-chip-cd")).toHaveAttribute("data-cd-state", "live_complete");
   await expect(ready.locator(".film-import-cd a")).toHaveAttribute("href", /^\/producer\/titles\/[0-9a-f-]{36}\/crazydramas$/);
   await expect(page.getByRole("heading", { name: "Unmatched on CrazyDramas" })).toHaveCount(0);
@@ -230,22 +232,30 @@ test("the Import films rows carry the chip: an unlinked film says what to do, an
 test("staff see the series live on crazydramas that match no Studio title, and the staff mirror of the section", async ({ page }) => {
   const titleId = await titleInState(page, "live_complete");
   await signIn(page, "staff");
+  // The series live on crazydramas that match no Studio title are rows of the CrazyDramas page (2026-09-24); Import films points there.
   await page.goto("/films/import");
-  await expect(page.getByRole("heading", { name: "Unmatched on CrazyDramas" })).toBeVisible();
-  // Only the sweep records the catalog's title-less rows, and the e2e server runs with SCHEDULER_DISABLED=1: until a staff
-  // "read the catalog now" exists the list says the catalog has not been read; when a sweep did run, it names the three
-  // real series and never a fixture or mock slug.
-  const section = page.locator(".cd-unmatched");
-  const rows = section.locator(".gt-row[data-cd-slug]");
-  if (await rows.count()) {
-    const slugs = await rows.evaluateAll((els) => els.map((e) => e.getAttribute("data-cd-slug")));
-    for (const slug of slugs) expect(slug).not.toMatch(/^(mock-|fixture-film)/);
-    expect(slugs).toContain("he-mocked-her-crush-on-him-and-sent-her");
-    await expect(rows.first().getByRole("link", { name: "Open public page" })).toHaveAttribute("target", "_blank");
-    await expect(rows.first()).toContainText("Observed");
-  } else {
-    await expect(section).toContainText("has not been read yet");
+  await expect(page.getByRole("link", { name: /are listed on the CrazyDramas page/ })).toHaveAttribute("href", "/crazydramas");
+  await page.goto("/crazydramas");
+  await expect(page.getByRole("heading", { name: "CrazyDramas", level: 1 })).toBeVisible();
+  // Only a sweep records the catalog's title-less rows, and the e2e server runs with SCHEDULER_DISABLED=1: until someone reads
+  // CrazyDramas the page says so; once read, the rows name the real series and never a fixture or mock slug.
+  const seriesRows = page.locator('.cdh-row[data-kind="series"]');
+  if (!(await seriesRows.count())) await expect(page.locator(".cdh")).toContainText("once CrazyDramas' catalog is read");
+  const readNow = page.getByRole("button", { name: "Read CrazyDramas now" });
+  await readNow.click();
+  await expect(page.locator(".cdh")).toContainText(/Read CrazyDramas: \d+ live series in its catalog\.|a moment ago/);
+  // The other project may have read it seconds ago (the read is refused for fifteen seconds): read again once it may.
+  if (!(await page.locator(".cdh").textContent())?.includes("live series in its catalog")) {
+    await page.waitForTimeout(16_000);
+    await readNow.click();
   }
+  await expect.poll(async () => seriesRows.count(), { timeout: 20_000 }).toBeGreaterThan(0);
+  const slugs = await seriesRows.evaluateAll((els) => els.map((e) => e.getAttribute("data-row")));
+  for (const slug of slugs) expect(slug).not.toMatch(/^series:(mock-|fixture-film)/);
+  expect(slugs).toContain("series:he-mocked-her-crush-on-him-and-sent-her");
+  await expect(seriesRows.first().getByRole("link", { name: /Open on site/ })).toHaveAttribute("target", "_blank");
+  await expect(seriesRows.first()).toContainText("Not in Studio");
+  await page.goto("/films/import");
   // The staff desk's own rows carry the chip too, once the picker names the company the film was imported for (it opens on
   // the first company by name, whose row reads "import to check"), with the way into the staff mirror beside it.
   await page.getByLabel("Company", { exact: true }).selectOption({ label: DEMO_COMPANY });
@@ -255,7 +265,7 @@ test("staff see the series live on crazydramas that match no Studio title, and t
 
   // The staff title page links to the mirror, which shows the same panel with Check now for staff.
   await page.goto(`/titles/${titleId}`);
-  await page.locator(".title-actions").getByRole("link", { name: "CrazyDramas check" }).click();
+  await page.locator(".title-actions").getByRole("link", { name: "CrazyDramas", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/titles/${titleId}/crazydramas$`));
   await expect(page.locator(".title-row .tw-chip-cd")).toHaveAttribute("data-cd-state", "live_complete");
   await expect(page.locator(".cd-episodes tbody tr")).toHaveCount(3);

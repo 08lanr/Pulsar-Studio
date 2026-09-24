@@ -168,6 +168,19 @@ export function percentAdapted(episodes: EpisodeSummary[]): number {
   return Math.min(100, Math.round((100 * adapted) / total));
 }
 
+/**
+ * Whether a title uses the subtitle / translation workflow (2026-09-24, the
+ * imported-title labels): every title made in Studio does (it is how those
+ * titles are built), and an imported film does only once someone started it
+ * — a line adapted, or an episode that moved past `ingested`. An imported
+ * film whose transcript was attached and nothing more reads as imported, not
+ * as "ingesting · 0%".
+ */
+export function usesTranslationWorkflow(title: Pick<Title, "source_ref">, episodes: readonly Pick<EpisodeSummary, "status" | "lines_adapted">[]): boolean {
+  if (!title.source_ref) return true;
+  return episodes.some((e) => e.lines_adapted > 0 || e.status !== "ingested");
+}
+
 export function buildTitleSummary(i: {
   title: Title;
   producer: Producer;
@@ -189,6 +202,11 @@ export function buildTitleSummary(i: {
     percent_adapted: percentAdapted(i.episodes),
     cost_cents: i.cost_cents,
     updated_at: i.title.updated_at,
+    source_ref: i.title.source_ref ?? null,
+    crazydramas_slug: i.title.crazydramas_slug ?? null,
+    cover_path: i.title.cover_path ?? null,
+    episodes_with_video: i.episodes.filter((e) => e.has_video).length,
+    uses_translation: usesTranslationWorkflow(i.title, i.episodes),
   };
 }
 

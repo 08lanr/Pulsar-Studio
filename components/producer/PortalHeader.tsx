@@ -32,6 +32,7 @@ const GROUPS: Group[] = [
       { href: "/producer/monitor", key: "lv2.monitor.title", Icon: IconMarket, match: (p) => p.startsWith("/producer/monitor") },
       { href: "/producer/promote", key: "lv2.legacyCampaigns", Icon: IconPromote, match: (p) => p.startsWith("/producer/promote") },
       { href: "/producer/tiktok", key: "ws.nav.tiktok", Icon: IconMarket, match: (p) => p.startsWith("/producer/tiktok") },
+      { href: "/producer/crazydramas", key: "cdh.nav", Icon: IconFilm, match: (p) => p.startsWith("/producer/crazydramas") },
       { href: "/producer/films/import", key: "fi.nav", Icon: IconFilm, match: (p) => p.startsWith("/producer/films") },
     ],
   },

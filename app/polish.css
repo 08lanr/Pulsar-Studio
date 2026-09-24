@@ -93,3 +93,11 @@
 /* Freshness line: chips sit in the run of text without breaking its rhythm. */
 .an-fresh { row-gap: 6px; }
 .an-fresh .ev { vertical-align: baseline; }
+
+/* ---- 4. title header and stat tiles (2026-09-24) ------------------------------ */
+/* A stat tile's label and number are two lines, never one run of text. */
+.stat > .stat-label, .stat > .stat-value { display: block; }
+.stat-grid + .card, .stat-grid + section { margin-top: 16px; }
+/* The staff title page's buttons wrap on a narrow screen instead of pushing the page sideways. */
+.title-actions { flex-wrap: wrap; }
+@media (max-width: 767.98px) { .title-actions { flex: 1 1 100%; } .title-actions .btn { white-space: nowrap; } }

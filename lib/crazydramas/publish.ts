@@ -332,8 +332,8 @@ export type PublishStateOut = PublishState & {
   paid_warning: string;
 };
 
-/** The latest row per episode worth showing: the active one, else the newest not superseded. */
-function rowsByEpisode(rows: readonly CdPublication[]): Map<number, CdPublication> {
+/** The latest row per episode worth showing: the active one, else the newest not superseded (the CrazyDramas hub reads it too). */
+export function rowsByEpisode(rows: readonly CdPublication[]): Map<number, CdPublication> {
   const out = new Map<number, CdPublication>();
   for (const r of rows) {
     if (r.step === "superseded") continue;

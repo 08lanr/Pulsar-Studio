@@ -356,7 +356,7 @@ export async function sweepCrazydramas(opts: { transport?: CrazydramasTransport;
 // ---- the scheduler's step ----------------------------------------------------------------------------
 
 type SweepState = { running: boolean; lastAt: number | null; nextAt: number; lastSummary: SweepSummary | null };
-const holder = globalThis as unknown as { __studioCrazydramasSweep?: SweepState };
+const holder = globalThis as unknown as { __studioCrazydramasSweep?: SweepState; __studioCdPublicChecks?: Map<string, number> };
 function state(): SweepState {
   return (holder.__studioCrazydramasSweep ??= { running: false, lastAt: null, nextAt: 0, lastSummary: null });
 }
@@ -395,6 +395,86 @@ export async function tickCrazydramas(opts: { now?: () => number } = {}): Promis
     s.nextAt = nextSweepAt(now, summary.hot);
     s.lastSummary = summary;
     log(`sweep: catalog ${summary.catalog ?? "failed"}, ${summary.titles} titles, ${summary.unmatched} unmatched, ${summary.pruned} pruned${summary.errors.length ? `, ${summary.errors.length} errors` : ""}; next in ${summary.hot ? 15 : 60} min`);
+    return { ran: true, summary };
+  } finally {
+    s.running = false;
+  }
+}
+
+// ---- the public page, after a publish (2026-09-24) ---------------------------------------------------------
+
+/** The publish progress polls the public page at most this often per title. */
+export const PUBLIC_CHECK_MIN_MS = 3_000;
+
+export type PublicPageCheck =
+  | { outcome: "read"; slug: string; url: string; http_status: number; live: boolean; episodes: number[] }
+  | { outcome: "failed"; slug: string; url: string; error: string }
+  | { outcome: "not_linked" }
+  | { outcome: "too_soon"; retry_after_ms: number };
+
+function publicCheckTimes(): Map<string, number> {
+  return (holder.__studioCdPublicChecks ??= new Map<string, number>());
+}
+
+/**
+ * What a viewer's browser gets for the title's series right now: the PUBLIC
+ * read (`transport.publicSeries`, up to 60 s behind a publish on the live
+ * site), never the authenticated one — so "Live" on the publish progress
+ * means the public page shows it. The series is live when the read answers
+ * 200 with a published series; `episodes` are the numbers it lists. Nothing
+ * is recorded (the publish already recorded its own check). A foreign title
+ * is not found; a viewer is refused as Check now refuses one; at most one
+ * read per title every three seconds.
+ */
+export async function checkPublicPage(session: Session, titleId: string, opts: { transport?: CrazydramasTransport; now?: () => number } = {}): Promise<PublicPageCheck> {
+  const data = getData();
+  const detail = await data.getTitle(session, titleId); // not_found for a foreign title, before anything is read
+  if (session.kind === "producer" && (session.producerRole ?? "viewer") === "viewer") throw forbidden("Requires the reviewer role");
+  const link = await data.getPlatformLink(systemSession(), titleId, PLATFORM);
+  const read = resolveReadSlug(detail.title, link, null);
+  if (!read) return { outcome: "not_linked" };
+  const now = (opts.now ?? Date.now)();
+  const times = publicCheckTimes();
+  const last = times.get(titleId);
+  if (last !== undefined && now - last >= 0 && now - last < PUBLIC_CHECK_MIN_MS) return { outcome: "too_soon", retry_after_ms: PUBLIC_CHECK_MIN_MS - (now - last) };
+  times.set(titleId, now);
+  const transport = opts.transport ?? crazydramasTransport();
+  const url = crazydramasPublicUrl(read.slug);
+  try {
+    const answer = transport.publicSeries ? await transport.publicSeries(read.slug) : await transport.series(read.slug);
+    const live = answer.http_status === 200 && !!answer.drama && answer.drama.status === "published";
+    const episodes = live ? (answer.episodes ?? []).filter((e) => e.is_published).map((e) => e.n).sort((a, b) => a - b) : [];
+    return { outcome: "read", slug: read.slug, url, http_status: answer.http_status, live, episodes };
+  } catch (e) {
+    return { outcome: "failed", slug: read.slug, url, error: errorText(e) };
+  }
+}
+
+/** "Read CrazyDramas now" (the hub, 2026-09-24) is refused while the last sweep is younger than this. */
+export const SWEEP_NOW_MIN_AGE_MS = 15_000;
+
+export type SweepNowResult = { ran: true; summary: SweepSummary } | { ran: false; reason: "running" | "too_soon"; retry_after_s: number };
+
+/**
+ * The sweep, now, for staff on the CrazyDramas hub: the same reads as the
+ * hourly one (the catalog, each linked title, each unmatched series), so the
+ * page does not wait for the scheduler to learn what is on the site. Refused
+ * while one runs or within fifteen seconds of the last; it moves the scheduler's
+ * next sweep on as a scheduled one would. Reads only: nothing is written to
+ * crazydramas.
+ */
+export async function sweepCrazydramasNow(opts: { transport?: CrazydramasTransport; now?: () => number } = {}): Promise<SweepNowResult> {
+  const s = state();
+  const now = (opts.now ?? Date.now)();
+  if (s.running) return { ran: false, reason: "running", retry_after_s: 5 };
+  if (s.lastAt && now - s.lastAt >= 0 && now - s.lastAt < SWEEP_NOW_MIN_AGE_MS) return { ran: false, reason: "too_soon", retry_after_s: Math.ceil((SWEEP_NOW_MIN_AGE_MS - (now - s.lastAt)) / 1000) };
+  s.running = true;
+  try {
+    const summary = await sweepCrazydramas({ transport: opts.transport, now: opts.now });
+    s.lastAt = now;
+    s.nextAt = nextSweepAt(now, summary.hot);
+    s.lastSummary = summary;
+    log(`sweep (asked for): catalog ${summary.catalog ?? "failed"}, ${summary.titles} titles, ${summary.unmatched} unmatched${summary.errors.length ? `, ${summary.errors.length} errors` : ""}`);
     return { ran: true, summary };
   } finally {
     s.running = false;

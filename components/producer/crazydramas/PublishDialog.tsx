@@ -6,7 +6,8 @@
 // and paid — and whether the draft series goes live with them; publishing
 // any paid episode shows the paywall warning and needs its own confirm
 // until CRAZYDRAMAS_PAYWALL_LIVE=1 (paid episodes can be streamed free
-// until the paywall fix is live on crazydramas). Unpublish hides the ticked
+// until the paywall fix is live on crazydramas); pressing Publish closes it
+// and the section shows the progress (PublishProgress). Unpublish hides the ticked
 // episodes and may set the series back to draft. Replace sends a re-cut
 // over an episode crazydramas already holds, after the viewer-impact
 // warning of plan A6. Each dialog is the side panel the launch dialogs use.
@@ -14,7 +15,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "@/components/locale";
-import type { CdSeriesState, PublishBody, PublishEpisode, PublishReply, UnpublishBody, UnpublishReply } from "@/lib/crazydramas/publish-types";
+import type { CdSeriesState, PublishEpisode, UnpublishBody, UnpublishReply } from "@/lib/crazydramas/publish-types";
+import type { PublishPlan } from "./PublishProgress";
 import { cdRoute, episodeList, refusalWords, sendJson } from "./request";
 import { rowStage } from "./UploadProgress";
 
@@ -61,16 +63,19 @@ export function publishable(e: PublishEpisode): boolean {
 }
 
 type PublishProps = {
-  titleId: string;
   seriesState: CdSeriesState;
   episodes: readonly PublishEpisode[];
   paywallLive: boolean;
   onClose: () => void;
-  /** After any answer that changed something (a 200, or the partial 409 episodes_changed). */
-  onDone: (result: { published: number[]; not_published: number[]; series_live: boolean }) => void;
+  /**
+   * The person pressed Publish: the dialog closes and the section runs the
+   * plan with its progress view (PublishProgress: the episodes a batch at a
+   * time, then the series, then the public page).
+   */
+  onStart: (plan: PublishPlan) => void;
 };
 
-export default function PublishDialog({ titleId, seriesState, episodes, paywallLive, onClose, onDone }: PublishProps) {
+export default function PublishDialog({ seriesState, episodes, paywallLive, onClose, onStart }: PublishProps) {
   const { tt } = useT();
   const candidates = useMemo(() => [...episodes].filter(publishable).sort((a, b) => a.n - b.n), [episodes]);
   const alreadyLive = episodes.filter((e) => e.is_published).length;
@@ -78,8 +83,6 @@ export default function PublishDialog({ titleId, seriesState, episodes, paywallL
   const [picked, setPicked] = useState<Set<number>>(() => new Set(candidates.filter((e) => e.is_free).map((e) => e.n)));
   const [withSeries, setWithSeries] = useState(seriesState === "draft");
   const [confirmPaid, setConfirmPaid] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [refusal, setRefusal] = useState<string | null>(null);
 
   const chosen = candidates.filter((e) => picked.has(e.n));
   const free = chosen.filter((e) => e.is_free).map((e) => e.n);
@@ -87,7 +90,7 @@ export default function PublishDialog({ titleId, seriesState, episodes, paywallL
   const needsConfirm = paid.length > 0 && !paywallLive;
   const seriesGoesLive = seriesState === "draft" && withSeries;
   const nothingLive = seriesGoesLive && chosen.length === 0 && alreadyLive === 0;
-  const canSend = !busy && (chosen.length > 0 || seriesGoesLive) && (!needsConfirm || confirmPaid) && !nothingLive;
+  const canSend = (chosen.length > 0 || seriesGoesLive) && (!needsConfirm || confirmPaid) && !nothingLive;
 
   const toggle = (n: number) => setPicked((s) => {
     const next = new Set(s);
@@ -96,28 +99,9 @@ export default function PublishDialog({ titleId, seriesState, episodes, paywallL
     return next;
   });
 
-  async function send() {
+  function send() {
     if (!canSend) return;
-    setBusy(true);
-    setRefusal(null);
-    try {
-      const body: PublishBody = { episodes: chosen.map((e) => e.n), publish_series: seriesGoesLive, ...(paid.length ? { confirm_paid: confirmPaid || paywallLive } : {}) };
-      const r = await sendJson<PublishReply>("POST", cdRoute(titleId, "publish"), body);
-      if (r.ok) {
-        onDone({ published: r.body.published ?? [], not_published: r.body.not_published ?? [], series_live: (r.body.series_status ?? (seriesGoesLive ? "published" : seriesState)) === "published" });
-        return;
-      }
-      const b = r.body as { code?: string; published?: number[]; not_published?: number[] };
-      if (r.status === 409 && b.code === "episodes_changed") {
-        // The one 409 that changed something (STUDIO_API.md, publish): the others went live; the series stayed as it was.
-        onDone({ published: b.published ?? [], not_published: b.not_published ?? [], series_live: seriesState === "published" });
-        return;
-      }
-      if (r.status === 409 && b.code === "paid_needs_confirm") setConfirmPaid(false);
-      setRefusal(refusalWords(r.body, r.status));
-    } finally {
-      setBusy(false);
-    }
+    onStart({ episodes: chosen.map((e) => e.n), publish_series: seriesGoesLive, confirm_paid: paid.length > 0 && (confirmPaid || paywallLive), series_was: seriesState });
   }
 
   const lede = tt("cdp.publish.lede");
@@ -130,8 +114,8 @@ export default function PublishDialog({ titleId, seriesState, episodes, paywallL
       footer={
         <>
           <button type="button" className="btn btn-outline" onClick={onClose}>{tt("cdp.dialog.cancel")}</button>
-          <button type="button" className="btn btn-primary" disabled={!canSend} onClick={() => void send()}>
-            {busy ? <><span className="spinner" /> {tt("cdp.publish.busy")}</> : chosen.length ? (chosen.length === 1 ? tt("cdp.publish.goOne") : tt("cdp.publish.go", { n: chosen.length })) : tt("cdp.publish.goSeries")}
+          <button type="button" className="btn btn-primary" disabled={!canSend} onClick={send}>
+            {chosen.length ? (chosen.length === 1 ? tt("cdp.publish.goOne") : tt("cdp.publish.go", { n: chosen.length })) : tt("cdp.publish.goSeries")}
           </button>
         </>
       }
@@ -195,7 +179,7 @@ export default function PublishDialog({ titleId, seriesState, episodes, paywallL
           </label>
         </div>
       ))}
-      {refusal && <p className="note note-warn" role="alert">{refusal}</p>}
+      <p className="hint">{tt("cdp.publish.progressHint")}</p>
     </Shell>
   );
 }

@@ -92,6 +92,19 @@ function percent(e: PublishEpisode): number | null {
   return Math.max(0, Math.min(100, Math.floor((e.bytes_sent / e.bytes_total) * 100)));
 }
 
+/** The bar's counts: episode files, those crazydramas holds (verified, published or already there), those on their way, failed, published. */
+export function uploadTotals(rows: readonly PublishEpisode[]): { files: number; onCd: number; moving: number; failed: number; published: number } {
+  const files = rows.filter((e) => e.studio_frames !== null);
+  const stages = files.map(rowStage);
+  return {
+    files: files.length,
+    onCd: stages.filter((st) => st === "verified" || st === "published" || st === "on_cd").length,
+    moving: files.filter(isActive).length,
+    failed: stages.filter((st) => st === "failed").length,
+    published: stages.filter((st) => st === "published").length,
+  };
+}
+
 const COLS = "84px 110px 76px minmax(220px,2fr) minmax(150px,1fr) 128px";
 
 export default function UploadProgress({ episodes, seriesReady, canWrite, busy, onUpload, onCancel, onReplace }: Props) {
@@ -110,6 +123,7 @@ export default function UploadProgress({ episodes, seriesReady, canWrite, busy, 
   const b = Number(to);
   const rangeOk = Number.isInteger(a) && Number.isInteger(b) && a >= 1 && b >= a && b <= 500;
   const range = rangeOk ? rows.filter((e) => e.n >= a && e.n <= b && canUploadEpisode(e)).map((e) => e.n) : [];
+  const totals = uploadTotals(rows);
 
   function stageCell(e: PublishEpisode) {
     const stage = rowStage(e);
@@ -178,6 +192,18 @@ export default function UploadProgress({ episodes, seriesReady, canWrite, busy, 
         </div>
       )}
       {canWrite && !seriesReady && <p className="hint">{tt("cdp.upload.needSeries")}</p>}
+      {seriesReady && totals.files > 0 && (
+        // The whole upload at a glance (2026-09-24): how many of the title's episode files crazydramas holds, and what is on its way.
+        <div className="cdp-bar cdp-upload-bar" role="status" data-uploaded={totals.onCd} data-total={totals.files}>
+          <span className="track" aria-hidden="true"><span style={{ width: `${Math.round((100 * totals.onCd) / totals.files)}%` }} /></span>
+          <small>
+            <strong>{tt("cdp.upload.bar", { n: totals.onCd, total: totals.files })}</strong>
+            {totals.moving > 0 && <> · {tt("cdp.upload.bar.moving", { n: totals.moving })}</>}
+            {totals.failed > 0 && <> · <span className="err">{tt("cdp.upload.bar.failed", { n: totals.failed })}</span></>}
+            {totals.published > 0 && <> · {tt("cdp.upload.bar.published", { n: totals.published })}</>}
+          </small>
+        </div>
+      )}
       {active.length > 0 && <p className="hint" role="status"><span className="spinner" /> {active.length === 1 ? tt("cdp.upload.runningOne") : tt("cdp.upload.running", { n: active.length })}</p>}
       {rows.length === 0 ? (
         <p className="hint">{tt("cdp.upload.none")}</p>

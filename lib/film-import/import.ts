@@ -42,7 +42,7 @@ import { DataError, getData, isDataError, type EpisodeImportInput, type NewJob }
 import { normalizeSourceRef } from "@/lib/data/film-import";
 import { linkIntoLocalTier, localPathOf, localStoredPath, mediaUrl, putStoredBytes, uploadImport, workspaceRoot } from "@/lib/data/storage";
 import { ingestEpisodeFile } from "@/lib/ingest";
-import type { AdRules, Episode, FilmAsset, FilmAssetKind, Job, JobKind, Json, Title } from "@/lib/types";
+import type { AdRules, Episode, FilmAsset, FilmAssetKind, Job, JobKind, Json, Title, TitleSummary } from "@/lib/types";
 import { POSTER_FILE, listBandFixFiles, loadFilmIndex, playedPieces, sha256Hex, skippedWithin } from "./manifest";
 import { applyImportState, nodeScanFs, resolveProject, scanFilm, scanWorkspace, workspacePath, type ProbeFn, type ScanOptions } from "./scan";
 import type { BoundaryNote, DeliveredEpisode, FilmIndex, FilmScan, FilmScanState, PlanSkip, ScanReason, WhisperIndex } from "./types";
@@ -474,7 +474,10 @@ export type FilmRow = {
 
 export type FilmListing = { configured: boolean; films: FilmRow[] };
 
-function toRow(scan: FilmScan, title: Title | null, record: ImportRecord | null, progress: ImportProgress | null): FilmRow {
+/** What a listing row needs of the title a film became (a full Title, or a list summary). */
+type RowTitle = Pick<Title, "id" | "name_en" | "name_zh" | "cover_path" | "crazydramas_slug">;
+
+function toRow(scan: FilmScan, title: RowTitle | null, record: ImportRecord | null, progress: ImportProgress | null): FilmRow {
   const state = title ? stateAgainstRecord(scan, record) : scan;
   return {
     source_ref: scan.source_ref,
@@ -522,6 +525,44 @@ export async function listFilms(session: Session, producerId: string | null, opt
     // A finished import's progress belongs to the title it made; after a demo reset (fixture) the title is gone and so is the line.
     const progress = producerId ? importProgress(producerId, scan.source_ref) : null;
     films.push(toRow(scan, title, record, progress && (importIsRunning(progress) || progress.title_id === title?.id) ? progress : null));
+  }
+  return { configured: true, films };
+}
+
+/** One film of the CrazyDramas hub's listing: the row, and the company whose title it became (null while no company imported it). */
+export type HubFilmRow = FilmRow & { producer_id: string | null };
+
+/**
+ * Every film under the workspace against every title the session can read
+ * that was imported from it, whatever the company (the CrazyDramas hub,
+ * 2026-09-24): one row per film nobody imported, one per (film, title)
+ * otherwise, each with IMPORTED / K_CHANGED from that title's own record and
+ * the progress of its company's import. One scan; no episode is opened.
+ */
+export async function listFilmsForHub(session: Session, opts: ImportOptions = {}, known?: readonly TitleSummary[]): Promise<{ configured: boolean; films: HubFilmRow[] }> {
+  const root = opts.root ?? workspaceRoot();
+  if (!root) return { configured: false, films: [] };
+  const data = getData();
+  const [scans, titles] = await Promise.all([scanWorkspace(scanOptions(root, opts)), known ? Promise.resolve(known) : data.listTitles(session)]);
+  const byRef = new Map<string, TitleSummary[]>();
+  for (const t of titles) {
+    if (!t.source_ref) continue;
+    const key = t.source_ref.toLowerCase();
+    byRef.set(key, [...(byRef.get(key) ?? []), t]);
+  }
+  const films: HubFilmRow[] = [];
+  for (const scan of scans) {
+    const mine = byRef.get(scan.source_ref.toLowerCase()) ?? [];
+    if (!mine.length) {
+      films.push({ ...toRow(scan, null, null, null), producer_id: null });
+      continue;
+    }
+    for (const t of mine) {
+      const record = latestImportRecord(await data.listFilmAssets(session, t.id));
+      const progress = importProgress(t.producer_id, scan.source_ref);
+      const row = toRow(scan, { id: t.id, name_en: t.name_en, name_zh: t.name_zh, cover_path: t.cover_path ?? null, crazydramas_slug: t.crazydramas_slug ?? null }, record, progress && (importIsRunning(progress) || progress.title_id === t.id) ? progress : null);
+      films.push({ ...row, producer_id: t.producer_id });
+    }
   }
   return { configured: true, films };
 }

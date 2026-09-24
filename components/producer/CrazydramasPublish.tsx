@@ -12,7 +12,9 @@
 //   3. Publish          exactly the ticked episodes; paid ones need their own confirm (PublishDialog)
 //
 // Everything is read from GET /api/titles/[id]/crazydramas/publish, polled
-// every two seconds while an episode is on its way. A series made in the
+// every two seconds while an episode is on its way. Pressing Publish shows
+// the progress (PublishProgress): the episodes, the series, the public page,
+// Live with its link. A series made in the
 // crazydramas CMS is shown read-only with the hand-over note; when real
 // writes are off the banner names the setting that is missing (never a
 // value) and every write control is off. Only the title's approver (or a
@@ -25,6 +27,7 @@ import { useT } from "@/components/locale";
 import type { CdSeriesState, PublishEpisode, PublishState, SeriesReply, UploadsReply } from "@/lib/crazydramas/publish-types";
 import { fmtPriceCents } from "./CrazydramasChip";
 import PublishDialog, { publishable, ReplaceDialog, UnpublishDialog } from "./crazydramas/PublishDialog";
+import PublishProgress, { type PublishPlan } from "./crazydramas/PublishProgress";
 import { cdRoute, episodeList, refusalWords, sendJson } from "./crazydramas/request";
 import SeriesForm from "./crazydramas/SeriesForm";
 import SlugField from "./crazydramas/SlugField";
@@ -40,6 +43,10 @@ export type CrazydramasPublishProps = {
   reason?: "preview" | "readOnly" | "notAdmin" | null;
   /** Studio's own cover of the title (mediaUrl of cover_path), the preview beside the poster field. */
   coverUrl: string | null;
+  /** Open the Publish dialog as soon as the state is read, when something can be published (the CrazyDramas hub's Publish button). */
+  autoOpen?: "publish" | null;
+  /** After anything changed (a publish, an upload settling): the hub reads its rows again. */
+  onChanged?: () => void;
 };
 
 const POLL_MS = 2000;
@@ -55,7 +62,7 @@ const STATE_PILL: Record<CdSeriesState, string> = {
 
 type Note = { text: string; error: boolean } | null;
 
-export default function CrazydramasPublish({ titleId, portal, canAct, reason = null, coverUrl }: CrazydramasPublishProps) {
+export default function CrazydramasPublish({ titleId, portal, canAct, reason = null, coverUrl, autoOpen = null, onChanged }: CrazydramasPublishProps) {
   const { tt } = useT();
   const router = useRouter();
   const [state, setState] = useState<PublishState | null>(null);
@@ -63,8 +70,13 @@ export default function CrazydramasPublish({ titleId, portal, canAct, reason = n
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<Note>(null);
   const [dialog, setDialog] = useState<null | { kind: "publish" } | { kind: "unpublish" } | { kind: "replace"; n: number }>(null);
+  const [progress, setProgress] = useState<{ key: number; plan: PublishPlan } | null>(null);
+  const [publishing, setPublishing] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const alive = useRef(true);
+  const autoOpened = useRef(false);
+  const changed = useRef(onChanged);
+  changed.current = onChanged;
 
   const load = useCallback(async () => {
     const r = await sendJson<PublishState>("GET", cdRoute(titleId, "publish"));
@@ -108,7 +120,15 @@ export default function CrazydramasPublish({ titleId, portal, canAct, reason = n
     const next = await load();
     schedule(next);
     router.refresh();
+    changed.current?.();
   }, [load, schedule, router]);
+
+  // The hub's Publish button: open the dialog once, when the state says something can go live.
+  useEffect(() => {
+    if (autoOpen !== "publish" || autoOpened.current || !state || !canAct || !state.writes_enabled) return;
+    autoOpened.current = true;
+    if (state.episodes.some(publishable)) setDialog({ kind: "publish" });
+  }, [autoOpen, state, canAct]);
 
   async function upload(episodes: number[] | "all", replace = false) {
     setBusy(true);
@@ -193,7 +213,7 @@ export default function CrazydramasPublish({ titleId, portal, canAct, reason = n
   const s = state;
   const writes = s.writes_enabled;
   const studioSeries = s.series_state === "draft" || s.series_state === "published";
-  const canWrite = writes && !busy;
+  const canWrite = writes && !busy && !publishing;
   const ready = s.episodes.filter(publishable);
   const live = s.episodes.filter((e) => e.is_published);
   const replaceEpisode = dialog?.kind === "replace" ? s.episodes.find((e) => e.n === dialog.n) ?? null : null;
@@ -273,26 +293,23 @@ export default function CrazydramasPublish({ titleId, portal, canAct, reason = n
         </>
       )}
 
+      {progress && (
+        <PublishProgress key={progress.key} titleId={titleId} plan={progress.plan} onChanged={() => void reload()} onClose={() => setProgress(null)} onSettled={() => setPublishing(false)} />
+      )}
+
       {note && <p className={note.error ? "note note-warn" : "hint cdp-ok"} role={note.error ? "alert" : "status"}>{note.text}</p>}
 
       {dialog?.kind === "publish" && (
         <PublishDialog
-          titleId={titleId}
           seriesState={s.series_state}
           episodes={s.episodes}
           paywallLive={s.paywall_live}
           onClose={() => setDialog(null)}
-          onDone={(r) => {
+          onStart={(plan) => {
             setDialog(null);
-            setNote({
-              text: [
-                r.published.length ? tt("cdp.publish.done", { list: episodeList(r.published) }) : tt("cdp.publish.doneNone"),
-                r.not_published.length ? tt("cdp.publish.notDone", { list: episodeList(r.not_published) }) : null,
-                r.series_live && s.series_state === "draft" ? tt("cdp.publish.seriesLive") : null,
-              ].filter(Boolean).join(" "),
-              error: r.not_published.length > 0,
-            });
-            void reload();
+            setNote(null);
+            setPublishing(true);
+            setProgress((p) => ({ key: (p?.key ?? 0) + 1, plan }));
           }}
         />
       )}

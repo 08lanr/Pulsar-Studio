@@ -1611,6 +1611,16 @@ export type TitleSummary = {
   /** sum(jobs.cost_cents) for the title: "API cost to date". */
   cost_cents: number;
   updated_at: string;
+  // The CrazyDramas hub and the imported-title labels (2026-09-24). Optional so
+  // older literals still compile; buildTitleSummary always fills them.
+  /** The workspace film the title was imported from; null = made in Studio. */
+  source_ref?: string | null;
+  crazydramas_slug?: string | null;
+  cover_path?: string | null;
+  /** Episodes with a stored video file. */
+  episodes_with_video?: number;
+  /** The translation workflow is in use: a line adapted, or an episode past `ingested` (`usesTranslationWorkflow`). */
+  uses_translation?: boolean;
 };
 
 export type EpisodeSummary = {

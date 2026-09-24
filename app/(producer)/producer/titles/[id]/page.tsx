@@ -9,6 +9,8 @@ import { parseRange } from "@/lib/analytics/types";
 import { BENCHMARK } from "@/lib/research/assessment";
 import { adCtr, adSpend } from "@/lib/research/title-status";
 import { loadTitleWorkspace } from "@/lib/research/title-workspace";
+import TitleFlow from "@/components/TitleFlow";
+import { loadTitleFlow } from "@/lib/titles/flow";
 
 // /producer/titles/[id] — the title overview (decision 2026-09-09): one
 // screen that says where the title is on TikTok, what advertising is doing,
@@ -32,6 +34,8 @@ export default async function TitleOverview({ params, searchParams }: { params: 
   const spend = adSpend(x.results);
   const ctr = adCtr(x.results);
   const tiktokHref = sectionHref(params.id, "tiktok", `?range=${range}`);
+  // Where the film is on its way from the pipeline to its ad results (2026-09-24).
+  const flow = await loadTitleFlow(session, w.detail.title, withVideo, w.crazydramas.state, "producer");
   const step = w.ads.flow ? t(locale, `workflow.step.${w.ads.flow.step}`) : null;
 
   // The next action: the campaign's own next step when one is waiting on the
@@ -46,6 +50,7 @@ export default async function TitleOverview({ params, searchParams }: { params: 
     <TitleShell locale={locale} titleId={params.id} name_zh={w.detail.title.name_zh} name_en={w.detail.title.name_en} platform={w.platform} ads={w.ads.status} adStep={step} crazydramas={chipReading(w.crazydramas)} section="overview" tiktokQuery={`?range=${range}`}
       actions={<><a className="btn btn-outline" href={`/producer/titles/${params.id}/report`}>{t(locale, "rp.export")}</a><a className="btn btn-primary" href={next.href}>{next.label}</a></>}>
       <p className="tw-next-hint">{next.hint}</p>
+      <TitleFlow locale={locale} steps={flow} />
 
       <div className="tw-grid">
         <section className="tw-card tw-card-tiktok" aria-labelledby="tw-tiktok">
