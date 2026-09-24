@@ -254,6 +254,10 @@ async function launch(ctx: DriverContext, transport: MetaTransport) {
   if (daily !== null) amount(daily);
   const campaignPayload: MetaObject = {
     name: ctx.campaign.campid ?? `${ctx.run.external_id}/${ctx.campaign.index}`, objective: "OUTCOME_TRAFFIC", special_ad_categories: [], status: "PAUSED",
+    // Meta requires this whenever the budget is not on the campaign.
+    // Studio always budgets per ad set, and the signed per-campaign
+    // ceiling is exact, so ad sets must never borrow from each other.
+    is_adset_budget_sharing_enabled: false,
     ...(daily !== null ? { spend_cap: ctx.campaign.budget_cents } : {}),
   };
   if (!current.campaign_id) {
