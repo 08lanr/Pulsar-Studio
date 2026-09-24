@@ -94,6 +94,20 @@ test("both existing post types follow paused-first hierarchy and preserve separa
   assert.equal(transport.snapshot().length, rows.length, "retry creates no additional paid objects");
 });
 
+test("every campaign declares that its ad sets never share budget", async () => {
+  // Meta refuses campaign creation with code 100/4834011 unless this field is
+  // present whenever the budget is not on the campaign, and Studio always
+  // budgets per ad set. Verified against the live API on 2026-09-24: without
+  // it Meta answers "You must specify True or False in the field
+  // is_adset_budget_sharing_enabled". False is the only correct value here:
+  // the signed per-campaign ceiling is exact, so ad sets may not borrow.
+  const transport = new FakeMetaTransport();
+  await createMetaDriver(transport).launch(context([{ kind: "facebook_post", value: "demo-page_123" }]));
+  const campaigns = transport.snapshot().filter(row => row.edge === "campaigns");
+  assert.ok(campaigns.length > 0);
+  assert.ok(campaigns.every(row => row.is_adset_budget_sharing_enabled === false));
+});
+
 test("invalid post creates no campaign or ad set", async () => {
   const transport = new FakeMetaTransport();
   transport.rejectSource("demo-page_bad");
