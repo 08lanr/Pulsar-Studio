@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { apiError } from "@/lib/api-guard";
 import { requireStaff } from "@/lib/auth";
+import { thisComputer } from "@/lib/computer";
 import { getData } from "@/lib/data";
 import { FILM_SLUG } from "@/lib/data/film-runs";
 import { createRun } from "@/lib/segment/view";
@@ -9,7 +10,7 @@ import { ensureInProcessWorker } from "@/lib/segment/worker";
 import { handle, parseJson } from "../../../titles/_lib/handler";
 
 // The segmenting runs (decision 2026-09-23; docs/segment-a-film.md).
-//   GET  ?producer_id=  → { runs } newest first (staff read every company's)
+//   GET  ?producer_id=  → { runs, computer } newest first (staff read every company's; `computer` is this one, so the list marks the runs started elsewhere)
 //   POST { producer_id, source_path, bucket, slug, mode, lang, settings } → { run } (201; admin)
 // The source must be a file under one of the picker's roots; one live run
 // per film folder. In fixture mode the first call boots the in-process
@@ -53,7 +54,7 @@ export async function GET(req: NextRequest) {
     if (!parsed.success) return apiError("Invalid request", parsed.error.flatten(), 400);
     ensureInProcessWorker();
     const runs = await getData().listFilmRuns(g.session, parsed.data.producer_id ? { producerId: parsed.data.producer_id } : {});
-    return NextResponse.json({ runs });
+    return NextResponse.json({ runs, computer: thisComputer() });
   });
 }
 

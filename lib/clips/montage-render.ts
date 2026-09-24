@@ -22,7 +22,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { isLocalTierPath, localPathOf, putStoredBytes, readStoredBytes } from "@/lib/data/storage";
+import { ensureLocalTierFile, isLocalTierPath, putStoredBytes, readStoredBytes } from "@/lib/data/storage";
 import { ffprobeFacts } from "@/lib/film-import/import";
 import { MAX_CLIP_BYTES } from "@/lib/launch/clip-bytes";
 import type { MontagePiece } from "@/lib/types";
@@ -147,7 +147,7 @@ async function withSources<T>(stored: readonly string[], fn: (abs: Map<string, s
     const abs = new Map<string, string>();
     let n = 0;
     for (const s of new Set(stored)) {
-      if (isLocalTierPath(s)) abs.set(s, localPathOf(s));
+      if (isLocalTierPath(s)) abs.set(s, await ensureLocalTierFile(s));
       else {
         const file = path.join(work, `source-${n++}${path.extname(s) || ".mp4"}`);
         await writeFile(file, await readStoredBytes(s));

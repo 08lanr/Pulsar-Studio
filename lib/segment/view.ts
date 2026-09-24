@@ -11,6 +11,7 @@
 import { existsSync, statSync } from "node:fs";
 import path from "node:path";
 import type { Session } from "@/lib/auth";
+import { runComputerOf, runIsHere, thisComputer, type Computer } from "@/lib/computer";
 import { getData, type NewFilmRun } from "@/lib/data";
 import { conflict, invalid, notFound } from "@/lib/data/errors";
 import { leaseLive } from "@/lib/data/film-runs";
@@ -28,7 +29,7 @@ import { existingFolderRefusal, folderFactsOf, resolveSourcePath } from "./intak
 import { lengthsAround, moveRefusal, reviewStateOf, type BoundaryReview, type ReviewState } from "./plan";
 import { readQa, type QaEpisode } from "./qa";
 import { readPlan } from "./render";
-import { DECISION, decisionData, decisionOf, fakePipeline, isTerminal, newestDelivered, pendingDecision, readJson, runDirs, sourceFacts, sourceRefOf, visionLabel, waitingOf, type Env } from "./stages";
+import { DECISION, decisionData, decisionOf, fakePipeline, filmRoot, isTerminal, newestDelivered, pendingDecision, readJson, runDirs, sourceFacts, sourceRefOf, visionLabel, waitingOf, type Env } from "./stages";
 import { validRegion, watermarkView, isUnmarkAction, type Region } from "./watermark";
 
 // ---- the view ------------------------------------------------------------------------------------------------------------------
@@ -233,12 +234,28 @@ export async function createRun(session: Session, input: CreateRunInput, env: En
   const data = getData();
   const live = (await data.listFilmRuns(session)).find((r) => r.bucket === input.bucket && r.slug === input.slug && !isTerminal(r.stage));
   if (live) throw conflict(`run ${live.id} is already driving ${input.bucket}/${input.slug} (stage ${live.stage}); cancel it first or choose another slug`);
-  const row: NewFilmRun = { producer_id: input.producer_id, source_path: abs, bucket: input.bucket, slug: input.slug, mode: input.mode, lang: input.lang ?? "en", settings: input.settings ?? {} };
+  // The run belongs to this computer (lib/computer.ts): the source and the film folder are on its disk.
+  const settings: FilmRunSettings = { ...(input.settings ?? {}), computer: thisComputer() };
+  const row: NewFilmRun = { producer_id: input.producer_id, source_path: abs, bucket: input.bucket, slug: input.slug, mode: input.mode, lang: input.lang ?? "en", settings };
   const dirs = runDirs({ id: "new", bucket: row.bucket, slug: row.slug }, env);
   const folder = await folderFactsOf({ run: { producer_id: row.producer_id, bucket: row.bucket, slug: row.slug }, dirs, data, session, env });
   const refusal = existingFolderRefusal({ bucket: row.bucket, slug: row.slug, settings: row.settings ?? {} }, folder);
   if (refusal) throw conflict(refusal);
   return data.createFilmRun(session, row);
+}
+
+// ---- which computer ----------------------------------------------------------------------------------------------------------
+
+/** The computer a run belongs to when that is not this one (the screens show it read-only), else null. */
+export function elsewhereOf(run: FilmRun, env: Env = process.env): Computer | null {
+  if (runIsHere(run, filmRoot(env))) return null;
+  return runComputerOf(run) ?? { id: "", name: "another computer" };
+}
+
+/** Refuse a decision or a cancel on another computer's run: its folder, pictures and worker are there. */
+function requireHere(run: FilmRun, env: Env): void {
+  const other = elsewhereOf(run, env);
+  if (other) throw conflict(`This film is being cut on ${other.name}. Open Studio on that computer to review or stop it.`);
 }
 
 // ---- decide ----------------------------------------------------------------------------------------------------------------------
@@ -264,6 +281,7 @@ function requireStage(run: FilmRun, ...stages: FilmRun["stage"][]): void {
 export async function decideRun(session: Session, runId: string, input: DecisionInput, env: Env = process.env): Promise<FilmRun> {
   const data = getData();
   const run = await data.getFilmRun(session, runId);
+  requireHere(run, env);
   if (isTerminal(run.stage) && input.kind !== "retry" && input.kind !== "note") throw conflict(`the run is ${run.stage}`);
   const by = session.displayName || session.userId;
   const dirs = runDirs(run, env);
@@ -388,6 +406,7 @@ export async function decideRun(session: Session, runId: string, input: Decision
 export async function cancelRun(session: Session, runId: string, env: Env = process.env): Promise<FilmRun> {
   const data = getData();
   const run = await data.getFilmRun(session, runId);
+  requireHere(run, env);
   if (isTerminal(run.stage)) throw conflict(`the run is already ${run.stage}`);
   const detail = { ...(run.stage_detail as Record<string, Json>), cancelled_from: run.stage, waiting: null };
   const out = await data.setFilmRunStage(session, runId, { stage: "cancelled", stage_detail: detail as Json, revision: run.revision });

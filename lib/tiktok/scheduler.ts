@@ -14,6 +14,10 @@
 //   3. read metrics back, at most hourly
 //   4. resume organic clip posts left open (lib/meta/publish.ts)
 //   5. read crazydramas back (lib/crazydramas/sweep.ts), on its own cadence
+//   6. start the cloud copy of imported films (lib/cloud-copy.ts), not
+//      waited for: it uploads one file at a time for as long as it takes
+//   7. keep the segment worker running once the computer has a films
+//      folder (lib/segment/worker.ts), so a restart resumes its runs
 //
 // State lives on globalThis (Next bundles lib/ per route). `tick()` is also
 // what the staff "Sync now" button runs, so the desk never waits five minutes.
@@ -110,6 +114,12 @@ export async function tick(opts: { metrics?: boolean } = {}): Promise<TickSummar
     //    while a title is partial or differs; skipped under SCHEDULER_DISABLED=1 and in tests
     try { await (await import("@/lib/crazydramas/sweep")).tickCrazydramas(); }
     catch (e) { summary.errors.push(`crazydramas sweep: ${(e as Error).message}`); }
+    // 6. the cloud copy of imported films (decision 2026-09-24): started, never awaited
+    try { (await import("@/lib/cloud-copy")).tickCloudCopies(); }
+    catch (e) { summary.errors.push(`cloud copy: ${(e as Error).message}`); }
+    // 7. the segment worker, started once this computer has a films folder (idempotent)
+    try { (await import("@/lib/segment/worker")).ensureInProcessWorker(); }
+    catch (e) { summary.errors.push(`segment worker: ${(e as Error).message}`); }
   } finally {
     s.ticking = false;
     s.lastTickAt = Date.now();

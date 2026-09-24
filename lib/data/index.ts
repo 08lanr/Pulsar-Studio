@@ -980,6 +980,8 @@ export interface DataLayer {
   prunePlatformSnapshots(session: Session, platform: PlatformName, keep?: number): Promise<number>;
   /** The titles carrying a slug on the platform (`crazydramas_slug`), the ones the session may read: staff and the system every company's, a producer their own. */
   listTitlesWithPlatformSlug(session: Session, platform: PlatformName): Promise<Title[]>;
+  /** The titles imported from a workspace film (`source_ref` set) the session may read — the system session every company's, outside any request too (the cloud copy's sweep, lib/cloud-copy.ts). */
+  listImportedTitles(session: Session): Promise<Title[]>;
   /** The full episode rows of a title by number (the import fields included), for whoever reads the title; a foreign title is not found. */
   listTitleEpisodes(session: Session, titleId: string): Promise<Episode[]>;
 

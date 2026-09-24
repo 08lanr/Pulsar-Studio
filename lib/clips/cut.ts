@@ -10,15 +10,16 @@
 // temp dir once per run (`withSourceFile`) and every cut of that run reads
 // it; the temp dir is removed afterwards whatever happened. A local-tier
 // source (an imported episode's hardlink, decision 2026-09-22) is already a
-// disk file and is read in place through `localPathOf` — no copy of a film
-// per run, and never the pipeline's own path.
+// disk file and is read in place through `ensureLocalTierFile` — no copy of a
+// film per run, and never the pipeline's own path; on a computer that did
+// not import the film it is fetched from its cloud copy into the tier once.
 
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { isLocalTierPath, localPathOf, putStoredBytes, readStoredBytes } from "@/lib/data/storage";
+import { ensureLocalTierFile, isLocalTierPath, putStoredBytes, readStoredBytes } from "@/lib/data/storage";
 
 export const AD_WIDTH = 1080;
 export const AD_HEIGHT = 1920;
@@ -38,7 +39,8 @@ export async function withSourceFile<T>(sourcePath: string, fn: (srcAbs: string,
   try {
     let src: string;
     if (isLocalTierPath(sourcePath)) {
-      src = localPathOf(sourcePath);
+      // Read in place; another computer's import is fetched from its cloud copy first.
+      src = await ensureLocalTierFile(sourcePath);
     } else {
       src = path.join(work, `source${path.extname(sourcePath) || ".mp4"}`);
       await writeFile(src, await readStoredBytes(sourcePath));

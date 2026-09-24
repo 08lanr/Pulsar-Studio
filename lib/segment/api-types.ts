@@ -19,6 +19,7 @@
 // never composes an evidence path.
 
 import { z } from "zod";
+import type { Computer } from "@/lib/computer";
 import type { FilmMetaForm } from "@/lib/segment/handoff";
 import type { SourceEntry, SourceListing, SourceRoot } from "@/lib/segment/intake";
 import type { BoundaryReview, BoundaryStatus, ReviewReason, ReviewState } from "@/lib/segment/plan";
@@ -81,7 +82,8 @@ export const NewRunBodySchema = z.object({
 export type NewRunBody = z.input<typeof NewRunBodySchema>;
 
 export type RunReply = { run: FilmRun };
-export type RunsReply = { runs: FilmRun[] };
+/** The runs, and the computer answering (a run started on another one is shown read-only; lib/computer.ts). */
+export type RunsReply = { runs: FilmRun[]; computer: Computer };
 
 // ---- POST /api/admin/films/runs/[runId]/decide ----------------------------------------------------------
 
@@ -129,8 +131,12 @@ export type FilmMetaDecision = Extract<DecisionBody, { kind: "film_meta" }>;
 
 // ---- GET /api/admin/films/runs/[runId] ------------------------------------------------------------------
 
-/** The run row plus the stage view `lib/segment/view.ts` builds from the film folder as it is. */
-export type RunDetailReply = { run: FilmRun; stage_view: StageView };
+/**
+ * The run row plus the stage view `lib/segment/view.ts` builds from the film
+ * folder as it is — or, for a run started on another computer, no view (the
+ * folder is on that disk) and the computer's name (decision 2026-09-24).
+ */
+export type RunDetailReply = { run: FilmRun; stage_view: StageView; elsewhere: null } | { run: FilmRun; stage_view: null; elsewhere: Computer };
 
 /** The watermark part of the stage view, as `view.ts` builds it from `watermarkView()` plus the served URLs. */
 export type WatermarkJson = {

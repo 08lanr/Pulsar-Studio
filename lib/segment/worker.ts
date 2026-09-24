@@ -1,11 +1,14 @@
 // The segment worker (plan B1): claims runs, drives the stage machine, and
-// lets go. One process, `scripts/segment-worker.ts`, in Supabase mode
-// (stages run for an hour and a dev-server restart would kill their
-// children); in fixture mode the same loop runs inside the dev server
-// (`ensureInProcessWorker`), because the fixture store is that process's
-// memory — a second process would see no runs. Either way a restart is
-// safe: the row says the stage, the artifacts on disk say what is done, and
-// every stage skips what it finds finished.
+// lets go. It runs inside the dev server (`ensureInProcessWorker`): in
+// fixture mode because the fixture store is that process's memory, and since
+// 2026-09-24 in Supabase mode too once the computer has a films folder, so
+// `npm run dev` is all a computer runs. `scripts/segment-worker.ts` is the
+// same loop as its own process, for a machine that restarts its dev server
+// mid-stage (a restart kills the stage's children, and the stage starts
+// over). Either way a restart is safe: the row says the stage, the
+// artifacts on disk say what is done, and every stage skips what it finds
+// finished. Each computer drives only the runs started on it
+// (lib/computer.ts `runIsHere`): the film folder is on that disk alone.
 //
 // One tick: list the runs, pick the actionable ones (not terminal, not
 // waiting for a decision that has not come, no other worker's live lease),
@@ -22,6 +25,7 @@ import { appendFileSync, mkdirSync, renameSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { systemSession, type Session } from "@/lib/auth";
+import { runIsHere } from "@/lib/computer";
 import { getData, isDataError, type DataLayer, type FilmRunStageInput } from "@/lib/data";
 import { dataSource } from "@/lib/data-source";
 import { ffprobeFacts, type VideoFacts } from "@/lib/film-import/import";
@@ -44,6 +48,7 @@ import {
   DECISION,
   RunCancelled,
   fakePipeline,
+  filmRoot,
   isActionable,
   isTerminal,
   runDirs,
@@ -214,6 +219,8 @@ export async function executeRun(runId: string, opts: WorkerOptions = {}): Promi
   const from = run.stage;
   const skip = (why: string): RunOutcome => ({ run_id: runId, from, to: run.stage, waiting: null, error: null, cancelled: false, skipped: why });
   if (!isActionable(run)) return skip("not actionable");
+  // A run is driven only on the computer it was started on: its film folder is on that disk (lib/computer.ts).
+  if (!runIsHere(run, filmRoot(env))) return skip("another computer's run");
   const claimed = await data.claimFilmRun(session, runId, { owner, revision: run.revision });
   if (!claimed) return skip("claim lost");
   run = claimed;
@@ -380,8 +387,14 @@ export async function runTick(opts: WorkerOptions & { executing?: Set<string> } 
   const runs = await data.listFilmRuns(session);
   const result: TickResult = { considered: runs.length, started: [], skipped: [] };
   const now = Date.now();
+  const root = filmRoot(opts.env ?? process.env);
   for (const run of runs) {
     if (executing.has(run.id) || isTerminal(run.stage) || !isActionable(run, now)) continue;
+    // Another computer's run: its folder is not on this disk, so it is never claimed here.
+    if (!runIsHere(run, root)) {
+      result.skipped.push(run.id);
+      continue;
+    }
     const until = Date.parse(run.leased_until ?? "");
     if (run.lease_owner && run.lease_owner !== owner && Number.isFinite(until) && until > now) {
       result.skipped.push(run.id);
@@ -434,20 +447,29 @@ export class SegmentWorker {
 }
 
 /**
- * Fixture mode runs the worker inside the dev server (the store is this
- * process's memory). Idempotent; a no-op in Supabase mode (the separate
- * process), in tests, on the edge runtime, and with STUDIO_SEGMENT_WORKER=off.
+ * The worker inside the dev server. Fixture mode needs it (the store is this
+ * process's memory); since 2026-09-24 ("two computers, one database") it
+ * runs in Supabase mode too, once this computer has a films folder, so
+ * `npm run dev` is all a computer runs — the separate process
+ * (scripts/segment-worker.ts) still works, and the runs' leases keep the two
+ * from driving one run at once. It drives this computer's runs only
+ * (`runIsHere`). Idempotent; a no-op without a films folder in Supabase
+ * mode (checked again on every call until it starts), in tests, on the edge
+ * runtime, and with STUDIO_SEGMENT_WORKER=off.
  */
 export function ensureInProcessWorker(): SegmentWorker | null {
   const g = globalThis as unknown as { __studioSegmentWorker?: SegmentWorker | null };
-  if (g.__studioSegmentWorker !== undefined) return g.__studioSegmentWorker;
-  if (dataSource() !== "fixture" || process.env.NEXT_RUNTIME === "edge" || process.env.NODE_ENV === "test" || process.env.STUDIO_SEGMENT_WORKER === "off") {
+  if (g.__studioSegmentWorker) return g.__studioSegmentWorker;
+  if (g.__studioSegmentWorker === null) return null;
+  if (process.env.NEXT_RUNTIME === "edge" || process.env.NODE_ENV === "test" || process.env.STUDIO_SEGMENT_WORKER === "off") {
     g.__studioSegmentWorker = null;
     return null;
   }
-  const worker = new SegmentWorker({ owner: `${workerName()}:inproc`, pollMs: 2000 });
+  const mode = dataSource();
+  if (mode === "supabase" && !filmRoot()) return null; // no films folder yet: nothing here to drive
+  const worker = new SegmentWorker({ owner: `${workerName()}:inproc`, pollMs: mode === "fixture" ? 2000 : 5000 });
   worker.start();
-  console.log(`[segment-worker] in-process worker started (fixture mode${fakePipeline() ? ", fake pipeline" : ""})`);
+  console.log(`[segment-worker] in-process worker started (${mode} mode${fakePipeline() ? ", fake pipeline" : ""})`);
   g.__studioSegmentWorker = worker;
   return worker;
 }

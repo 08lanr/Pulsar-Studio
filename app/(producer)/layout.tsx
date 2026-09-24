@@ -4,6 +4,7 @@ import { dataSource } from "@/lib/data-source";
 import PortalHeader from "@/components/producer/PortalHeader";
 import { isStaffPreview, portalSession, producerLocale } from "@/components/producer/server";
 import { t } from "@/lib/i18n";
+import { ensureComputerSettings } from "@/lib/computer";
 import { ensureScheduler } from "@/lib/tiktok/scheduler";
 
 // The partner portal shell. Chinese by default (decision #8: the route group
@@ -16,6 +17,7 @@ import { ensureScheduler } from "@/lib/tiktok/scheduler";
 export const dynamic = "force-dynamic";
 
 export default async function ProducerLayout({ children }: { children: React.ReactNode }) {
+  ensureComputerSettings();
   ensureScheduler();
   const session = await portalSession();
   const locale = producerLocale();

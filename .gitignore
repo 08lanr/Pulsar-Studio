@@ -11,6 +11,8 @@ out/
 .env*.bak
 # TikTok authorizations written by the admin OAuth callback (lib/tiktok/tokens.ts).
 .tokens.json
+# This computer's own settings: its id, name, films folder, Python (lib/computer.ts).
+.studio-computer.json
 
 # Next.js auto-generated types + TypeScript incremental cache
 next-env.d.ts

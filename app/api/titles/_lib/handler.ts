@@ -17,6 +17,7 @@ import type { ZodTypeAny, z } from "zod";
 import { apiError, guardApiRequest } from "@/lib/api-guard";
 import { DATA_ERROR_STATUS, isDataError } from "@/lib/data";
 import { LlmError, LlmUnavailableError } from "@/lib/llm";
+import { ensureComputerSettings } from "@/lib/computer";
 import { ensureScheduler } from "@/lib/tiktok/scheduler";
 
 /** Any thrown value to the response the client should see. */
@@ -45,7 +46,8 @@ export function errorResponse(e: unknown): NextResponse {
 export async function handle(req: NextRequest, fn: () => Promise<Response>): Promise<Response> {
   const blocked = guardApiRequest(req);
   if (blocked) return blocked;
-  // The TikTok scheduler boots with the first request of the process (lib/tiktok/scheduler.ts).
+  // This computer's settings file, then the TikTok scheduler, boot with the first request of the process (lib/computer.ts, lib/tiktok/scheduler.ts).
+  ensureComputerSettings();
   ensureScheduler();
   try {
     return await fn();

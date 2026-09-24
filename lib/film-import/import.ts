@@ -1077,6 +1077,9 @@ export type ImportStarted = { job_id: string; title_id: string; key: string; cre
  */
 export async function startImport(caller: Session, request: ImportRequest, ctx: ImportContext = {}, opts: ImportOptions = {}): Promise<ImportStarted> {
   const p = await prepare(caller, request, ctx, opts);
-  void runGuarded(p).catch(() => undefined);
+  // A finished import starts the film's cloud copy (lib/cloud-copy.ts; nothing without a bucket or with the switch off).
+  void runGuarded(p)
+    .then(() => import("@/lib/cloud-copy").then((m) => void m.syncCloudCopies({ titleId: p.title.id })))
+    .catch(() => undefined);
   return { job_id: p.job.id, title_id: p.title.id, key: p.progress.key, created: p.created };
 }

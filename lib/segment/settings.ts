@@ -92,6 +92,11 @@ export function validateFilmRunSettings(settings: FilmRunSettings | null | undef
     if (out[k] !== undefined && typeof out[k] !== "boolean") throw invalid(`settings.${k} must be a boolean`);
   }
   if (out.vision !== undefined && out.vision !== "api" && out.vision !== "handoff") throw invalid("settings.vision must be api or handoff");
+  if (out.computer !== undefined) {
+    const c = out.computer as unknown;
+    const ok = !!c && typeof c === "object" && !Array.isArray(c) && /^cmp_[0-9a-f]{16}$/.test(String((c as { id?: unknown }).id)) && typeof (c as { name?: unknown }).name === "string";
+    if (!ok) throw invalid("settings.computer must name a computer ({ id: cmp_…, name })");
+  }
   if (out.watermark_region !== undefined && out.watermark_region !== null && !/^\s*\d*\.?\d+\s*(,\s*\d*\.?\d+\s*){3}$/.test(String(out.watermark_region))) {
     throw invalid("settings.watermark_region must be x0,y0,x1,y1 fractions");
   }

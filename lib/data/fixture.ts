@@ -2879,6 +2879,12 @@ export const fixtureData: DataLayer = {
     return clone(db.titles.filter((t) => !!t.crazydramas_slug?.trim() && canReadTitle(session, t.producer_id)).sort((a, b) => a.created_at.localeCompare(b.created_at)));
   },
 
+  async listImportedTitles(session) {
+    const { db } = store();
+    requireMemberSession(session);
+    return clone(db.titles.filter((t) => !!t.source_ref && canReadTitle(session, t.producer_id)).sort((a, b) => a.created_at.localeCompare(b.created_at)));
+  },
+
   async listTitleEpisodes(session, titleId) {
     const { db } = store();
     readableTitle(db, session, titleId);

@@ -18,11 +18,16 @@
 // refuses a value that would leave the tier or point into WORKSPACE_ROOT:
 // Studio never opens the pipeline's own files (a render holding the
 // original path open would crash the pipeline's os.replace), it reads the
-// link. Rendered ads and every upload still go to the bucket.
+// link. Rendered ads and every upload still go to the bucket. Since
+// 2026-09-24 the tier's files are also copied to the bucket under the same
+// key (lib/cloud-copy.ts), so another computer on the same database plays
+// and cuts an imported film too (`ensureLocalTierFile`, at the end).
 
-import { copyFileSync, linkSync, mkdirSync, realpathSync, statSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { copyFileSync, createReadStream, linkSync, mkdirSync, realpathSync, statSync } from "node:fs";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { ensureComputerSettings } from "@/lib/computer";
 import { dataSource } from "@/lib/data-source";
 import { invalid } from "./errors";
 
@@ -46,6 +51,7 @@ export function localMediaDir(): string {
 
 /** The pipeline's projects folder (read-only for Studio), or null when none is configured. */
 export function workspaceRoot(): string | null {
+  ensureComputerSettings(); // this computer's films folder, when one is connected (lib/computer.ts)
   const configured = process.env.WORKSPACE_ROOT?.trim();
   return configured ? path.resolve(configured) : null;
 }
@@ -246,15 +252,14 @@ export function putStoredBytes(stored: string, bytes: Uint8Array, contentType: s
 
 /**
  * The bytes behind a stored path: the file under .uploads/ in fixture mode,
- * a download from the private bucket in supabase mode. The launch engine
- * reads the rendered ad through here to upload it to TikTok, and the render
- * step reads the episode source through here.
+ * a download from the private bucket in supabase mode, a local-tier file
+ * from disk (or from its cloud copy when this computer lacks it). The launch
+ * engine reads the rendered ad through here to upload it to TikTok, and the
+ * render step reads the episode source through here.
  */
 export async function readStoredBytes(stored: string): Promise<Buffer> {
-  if (dataSource() === "fixture" || isLocalTierPath(stored)) {
-    const { readFile } = await import("node:fs/promises");
-    return readFile(resolveUploadPath(stored));
-  }
+  if (isLocalTierPath(stored)) return readFile(await ensureLocalTierFile(stored));
+  if (dataSource() === "fixture") return readFile(resolveUploadPath(stored));
   const { createServiceSupabase } = await import("@/lib/supabase/server");
   const supabase = createServiceSupabase();
   const { data, error } = await supabase.storage.from(MEDIA_BUCKET).download(stored);
@@ -292,4 +297,164 @@ export async function signedMediaUrl(stored: string): Promise<string> {
     .createSignedUrl(stored, SIGNED_URL_SECONDS);
   if (error || !data) throw invalid(`signed url failed: ${error?.message ?? "no data"}`);
   return data.signedUrl;
+}
+
+// ---- the cloud copy of the local tier (decision 2026-09-24, "two computers, one database") -------
+//
+// An imported film's files live on the computer that imported it (the local
+// tier above). lib/cloud-copy.ts copies them to the bucket under the SAME
+// key (`local/<title_id>/ws/<slug>/<file>`), so a computer without a file
+// finds it by the value the row already holds: the media route sends the
+// browser to a signed URL, and a reader that needs the bytes on disk (ffmpeg,
+// the CrazyDramas upload, readStoredBytes) downloads it into its own local
+// tier first (`ensureLocalTierFile`), checked against the SHA-256 prefix the
+// file name carries. Only the files of imported films go there: nothing of
+// the pipeline's folders, sources or work files. Service role throughout —
+// the local/ keys sit outside the per-title folder policy, and every caller
+// authorized on the title already. Fixture mode has no bucket: the local
+// tier stays a disk folder there, as before.
+
+export type CloudObject = { name: string; size: number };
+
+export type CloudErrorCode = "too_big" | "exists" | "missing" | "failed";
+
+export class CloudError extends Error {
+  constructor(readonly code: CloudErrorCode, message: string) {
+    super(message);
+    this.name = "CloudError";
+  }
+}
+
+/** The bucket as the cloud copy uses it; the Supabase one in live mode, a fake in the tests. */
+export interface CloudStore {
+  /** The files directly under `folder` (no recursion), with their sizes. */
+  list(folder: string): Promise<CloudObject[]>;
+  /** Upload a disk file to `key`; never overwrites (an existing key is CloudError `exists`). */
+  upload(key: string, file: string, contentType: string): Promise<void>;
+  /** Download `key` to the disk file `to` (the caller renames it into place); a missing key is CloudError `missing`. */
+  download(key: string, to: string): Promise<void>;
+  /** A signed URL for `key`, or null when the bucket has no such object. */
+  signedUrl(key: string, seconds: number): Promise<string | null>;
+}
+
+/** A storage answer as a CloudError: 413 / "maximum allowed size" is too big, 409 exists, 404 missing. */
+export function cloudErrorOf(error: { message?: string; status?: number; statusCode?: string | number }): CloudError {
+  const message = error.message || "storage error";
+  const status = Number(error.statusCode ?? error.status);
+  if (status === 413 || /maximum allowed size|payload too large|too large/i.test(message)) return new CloudError("too_big", message);
+  if (status === 409 || /already exists|duplicate/i.test(message)) return new CloudError("exists", message);
+  if (status === 404 || /not found/i.test(message)) return new CloudError("missing", message);
+  return new CloudError("failed", message);
+}
+
+function supabaseCloudStore(): CloudStore {
+  const bucket = async () => {
+    const { createServiceSupabase } = await import("@/lib/supabase/server");
+    return createServiceSupabase().storage.from(MEDIA_BUCKET);
+  };
+  return {
+    async list(folder) {
+      const b = await bucket();
+      const out: CloudObject[] = [];
+      for (let offset = 0; ; offset += 1000) {
+        const { data, error } = await b.list(folder, { limit: 1000, offset });
+        if (error) throw cloudErrorOf(error);
+        for (const o of data ?? []) {
+          if (o.id === null) continue; // a sub-folder
+          out.push({ name: o.name, size: Number((o.metadata as { size?: number } | null)?.size ?? 0) });
+        }
+        if (!data || data.length < 1000) break;
+      }
+      return out;
+    },
+    async upload(key, file, contentType) {
+      const bytes = await readFile(file);
+      const { error } = await (await bucket()).upload(key, bytes, { contentType, upsert: false });
+      if (error) throw cloudErrorOf(error);
+    },
+    async download(key, to) {
+      const { data, error } = await (await bucket()).download(key);
+      if (error || !data) throw cloudErrorOf(error ?? { message: "no data" });
+      await writeFile(to, Buffer.from(await data.arrayBuffer()));
+    },
+    async signedUrl(key, seconds) {
+      const { data, error } = await (await bucket()).createSignedUrl(key, seconds);
+      if (error || !data) {
+        if (error && cloudErrorOf(error).code !== "missing") throw cloudErrorOf(error);
+        return null;
+      }
+      return data.signedUrl;
+    },
+  };
+}
+
+type CloudSlot = { store?: CloudStore | null };
+const cloudSlot = (): CloudSlot => {
+  const g = globalThis as unknown as { __studioCloudStore?: CloudSlot };
+  if (!g.__studioCloudStore) g.__studioCloudStore = {};
+  return g.__studioCloudStore;
+};
+
+/** For tests: a fake bucket (or null for none); undefined restores the real choice. */
+export function setCloudStoreForTests(store: CloudStore | null | undefined): void {
+  cloudSlot().store = store;
+}
+
+/** The bucket in live mode, null in fixture mode (no bucket; the local tier is the only copy). */
+export function cloudStore(): CloudStore | null {
+  const slot = cloudSlot();
+  if (slot.store !== undefined) return slot.store;
+  return dataSource() === "supabase" ? supabaseCloudStore() : null;
+}
+
+/** The first 8 hex of the SHA-256 a local-tier file name carries (`ep07-1a2b3c4d.mp4`), or null. */
+export function sha8OfStored(stored: string): string | null {
+  const m = stored.match(/-([0-9a-f]{8})\.[A-Za-z0-9]+$/);
+  return m ? m[1] : null;
+}
+
+const inflight = new Map<string, Promise<string>>();
+
+/**
+ * The disk file behind a local-tier value, fetched from the cloud copy when
+ * this computer does not have it: downloaded beside its final name, its
+ * SHA-256 checked against the prefix in the name when there is one, then
+ * renamed into place, so a half-written file is never read. Two readers of
+ * one file share one download. Without a bucket (fixture) this is
+ * `localPathOf`. A file in neither place is a plain `invalid`.
+ */
+export async function ensureLocalTierFile(stored: string): Promise<string> {
+  const abs = localPathOf(stored);
+  if (statSync(abs, { throwIfNoEntry: false })?.isFile()) return abs;
+  const cloud = cloudStore();
+  if (!cloud) return abs;
+  const running = inflight.get(abs);
+  if (running) return running;
+  const job = (async () => {
+    await mkdir(path.dirname(abs), { recursive: true });
+    const tmp = `${abs}.download-${process.pid}-${Date.now()}`;
+    try {
+      await cloud.download(stored, tmp);
+      const want = sha8OfStored(stored);
+      if (want) {
+        const hash = createHash("sha256");
+        await new Promise<void>((resolve, reject) => {
+          createReadStream(tmp).on("data", (c) => hash.update(c)).on("end", () => resolve()).on("error", reject);
+        });
+        if (!hash.digest("hex").startsWith(want)) throw invalid(`the cloud copy of ${path.basename(abs)} does not match its name; it was not used`);
+      }
+      await rename(tmp, abs);
+      return abs;
+    } catch (e) {
+      await rm(tmp, { force: true }).catch(() => undefined);
+      if (e instanceof CloudError && e.code === "missing") {
+        throw invalid(`${path.basename(abs)} is only on the computer that imported the film, and it is not in the cloud yet`);
+      }
+      throw e;
+    } finally {
+      inflight.delete(abs);
+    }
+  })();
+  inflight.set(abs, job);
+  return job;
 }

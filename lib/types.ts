@@ -497,6 +497,8 @@ export type FilmRunSettings = {
   claim_existing?: boolean;
   /** Cut the rest of a delivered film (a first proof) under its pinned episodes; without it a delivered, ready or imported film is refused at intake. */
   extend?: boolean;
+  /** The computer the run was started on (lib/computer.ts), stamped by createRun: only its worker drives the run, only there is it decided on. */
+  computer?: { id: string; name: string };
 
   // ---- the narrated route (narrated spec N2; lib/segment/settings.ts validates and fills the defaults) ----
   /** The picture readers' model (one per pass; the stamp `fv-2+api:<model>` names it); absent = the frame judge's default. */

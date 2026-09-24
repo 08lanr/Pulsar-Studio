@@ -32,8 +32,9 @@
 // crazydramas' own series_title_exists is the backstop); create a second Mux
 // upload for a file whose upload is still alive (the ledger's upload id is
 // asked for first; a repeat of the upload call with the same sha answers the
-// same upload); send bytes from anywhere but the local-tier hardlink
-// (`localPathOf`); send the last chunk after a CMS upload took the episode
+// same upload); send bytes from anywhere but the local-tier file (the
+// hardlink, or on another computer its cloud copy fetched into the tier by
+// `ensureLocalTierFile`, SHA-256 checked as ever); send the last chunk after a CMS upload took the episode
 // over; publish an episode whose asset failed verification; delete anything.
 // No upload URL and no playback id ever reaches a row, a log or a response.
 
@@ -43,7 +44,7 @@ import { hostname } from "node:os";
 import { isSystemSession, systemSession, type Session } from "@/lib/auth";
 import { getData, isDataError } from "@/lib/data";
 import { forbidden, invalid } from "@/lib/data/errors";
-import { isLocalTierPath, localPathOf } from "@/lib/data/storage";
+import { ensureLocalTierFile, isLocalTierPath } from "@/lib/data/storage";
 import type { CdPublication, Episode, PlatformLink, Title } from "@/lib/types";
 import { cdLeaseHeldByOther, cdLeaseLive, isActiveStep } from "./ledger";
 import { FRAME_RULE, MUX_FRAME_OFFSET, frameDelta, inferFps, matchEpisodes, verdictForDelta, type LedgerRow } from "./match";
@@ -1320,10 +1321,10 @@ class Pass {
       this.url = again.data.upload_url;
     }
 
-    // The file: the local-tier link only, and still the file the row names.
-    const abs = localPathOf(this.row.source_path);
-    const facts = await stat(abs).catch(() => null);
-    if (!facts?.isFile()) return this.fail("file_missing", `episode ${this.row.episode_number}'s file is not in the local tier any more; import the film again`);
+    // The file: the local-tier link only (another computer's import comes from its cloud copy), and still the file the row names.
+    const abs = await ensureLocalTierFile(this.row.source_path).catch(() => null);
+    const facts = abs ? await stat(abs).catch(() => null) : null;
+    if (!abs || !facts?.isFile()) return this.fail("file_missing", `episode ${this.row.episode_number}'s file is not on this computer or in the cloud; import the film again`);
     if (facts.size !== this.row.bytes) return this.fail("file_changed", `episode ${this.row.episode_number}'s file is ${facts.size} bytes, not the ${this.row.bytes} Studio planned; nothing more was sent`);
     if ((await sha256Of(abs)) !== this.row.sha256) return this.fail("file_changed", `episode ${this.row.episode_number}'s file no longer has the SHA-256 Studio planned; nothing more was sent`);
 

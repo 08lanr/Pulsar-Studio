@@ -14,6 +14,7 @@ import "@/app/crazydramas-hub.css";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiRequestError, getJson, postJson } from "@/lib/api-client";
 import { useT } from "@/components/locale";
+import { COMPUTER_CHANGED } from "@/components/admin/computer-events";
 import type { FilmListing, FilmRow, ImportProgress, ImportStarted } from "@/lib/film-import/import";
 import { CrazydramasChip, type CrazydramasChipReading } from "./CrazydramasChip";
 import { filmReasonText, importProgressText, importResultText, isNotReady } from "./film-import-words";
@@ -84,6 +85,13 @@ export default function FilmImport({ portal, canImport, producers = [], crazydra
     setListing(null);
     void load();
   }, [load, listUrl]);
+
+  // The "This computer" card (staff) connects or changes the films folder: read the list again when it does.
+  useEffect(() => {
+    const again = () => void load();
+    window.addEventListener(COMPUTER_CHANGED, again);
+    return () => window.removeEventListener(COMPUTER_CHANGED, again);
+  }, [load]);
 
   const anyRunning = useMemo(() => !!listing?.films.some((f) => running(f.progress)), [listing]);
   useEffect(() => {
@@ -193,7 +201,7 @@ export default function FilmImport({ portal, canImport, producers = [], crazydra
       {portal === "admin" && !producerId && <p className="hint">{tt("fi.company.hint")}</p>}
       {loadError && <p className="err" role="alert">{tt("fi.loadFailed", { detail: loadError })}</p>}
       {!listing && !loadError && <p className="hint" role="status">{tt("fi.loading")}</p>}
-      {listing && !listing.configured && <p className="note note-info">{tt("fi.notConfigured")}</p>}
+      {listing && !listing.configured && <p className="note note-info">{tt(portal === "admin" ? "fi.notConfigured.staff" : "fi.notConfigured")}</p>}
       {listing && listing.configured && listing.films.length === 0 && <p className="hint">{tt("fi.empty")}</p>}
       {listing && listing.configured && listing.films.length > 0 && rows.length === 0 && <p className="hint">{tt("fi.noneReady")}</p>}
       {listing && listing.configured && rows.length > 0 && (

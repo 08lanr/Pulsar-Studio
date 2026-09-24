@@ -1839,6 +1839,10 @@ export const supabaseData: DataLayer = {
     return many<Title>(core(dbFor(session)).from("titles").select("*").not("crazydramas_slug", "is", null).neq("crazydramas_slug", "").order("created_at"));
   },
 
+  async listImportedTitles(session) {
+    return many<Title>(core(dbFor(session)).from("titles").select("*").not("source_ref", "is", null).order("created_at"));
+  },
+
   async listTitleEpisodes(session, titleId) {
     const c = dbFor(session);
     await one<Pick<Title, "id">>(core(c).from("titles").select("id").eq("id", titleId).maybeSingle(), "title", titleId);

@@ -34,6 +34,7 @@ function when(iso: string, locale: string): string {
 export default function RunList() {
   const { tt, locale } = useT();
   const [runs, setRuns] = useState<FilmRun[] | null>(null);
+  const [me, setMe] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -41,6 +42,7 @@ export default function RunList() {
     try {
       const r = await getJson<RunsReply>("/api/admin/films/runs");
       setRuns(r.runs);
+      setMe(r.computer?.id ?? null);
       setError(null);
     } catch (e) {
       setError(e instanceof ApiRequestError ? e.message : (e as Error).message);
@@ -86,7 +88,11 @@ export default function RunList() {
               <div className="gt-row" key={run.id} data-run-id={run.id} data-slug={run.slug} data-stage={run.stage}>
                 <span style={{ display: "grid", gap: 2 }}>
                   <strong lang="en">{run.slug}</strong>
-                  <small className="gt-muted">{run.bucket} · {run.lang}</small>
+                  <small className="gt-muted">
+                    {run.bucket} · {run.lang}
+                    {/* A run started on another computer is driven and reviewed there (lib/computer.ts). */}
+                    {run.settings.computer && me && run.settings.computer.id !== me ? <> · {tt("seg.list.onComputer", { computer: run.settings.computer.name })}</> : null}
+                  </small>
                 </span>
                 <span className="gt-muted" title={run.source_path} style={{ overflowWrap: "anywhere" }}>{baseName(run.source_path)}</span>
                 <span className="gt-muted">{tt(`seg.mode.${run.mode}`)}</span>

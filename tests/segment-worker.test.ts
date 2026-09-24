@@ -495,6 +495,26 @@ test("executeRun on a run another worker leases is skipped; a lost claim is answ
   assert.equal(direct.skipped, "claim lost");
 });
 
+test("a run is stamped with this computer; another computer's run is never driven, decided on or cancelled here", async () => {
+  const { thisComputer } = await import("@/lib/computer");
+  const { elsewhereOf } = await import("@/lib/segment/view");
+  const mine = await newRun();
+  assert.deepEqual(mine.settings.computer, thisComputer(), "createRun names the computer it runs on");
+  assert.equal(elsewhereOf(mine), null);
+  await cancelRun(staff(), mine.id);
+
+  const andrew = { id: "cmp_0123456789abcdef", name: "Andrew's Mac" };
+  const theirs = await fixtureData.createFilmRun(staff(), { producer_id: FIXTURE_PRODUCER_ID, source_path: "/Users/andrew/Downloads/film.mp4", bucket: "low-quality", slug: "their-film", mode: "by_eye_2min", lang: "en", settings: { computer: andrew } });
+  const r = await runTick(opts());
+  assert.ok(r.skipped.includes(theirs.id) && !r.started.includes(theirs.id), "the worker leaves it alone");
+  assert.equal((await get(theirs.id)).stage, "queued");
+  assert.equal((await executeRun(theirs.id, opts())).skipped, "another computer's run");
+  assert.deepEqual(elsewhereOf(theirs), andrew);
+  await expectCode("conflict", () => decideRun(staff(), theirs.id, { kind: "retry" }), "a decision from here", /being cut on Andrew's Mac/);
+  await expectCode("conflict", () => cancelRun(staff(), theirs.id), "a cancel from here", /being cut on Andrew's Mac/);
+  await expectCode("invalid", () => fixtureData.createFilmRun(staff(), { producer_id: FIXTURE_PRODUCER_ID, source_path: "/x.mp4", bucket: "low-quality", slug: "bad-computer", mode: "by_eye_2min", lang: "en", settings: { computer: { id: "laptop", name: "x" } } }), "a malformed computer");
+});
+
 test("the source picker lists the file with its parsed name and refuses a folder outside the roots", async () => {
   const { listSources } = await import("@/lib/segment/intake");
   const listing = await listSources("extra1");

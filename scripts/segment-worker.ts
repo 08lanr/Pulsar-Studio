@@ -18,6 +18,8 @@ loadEnvConfig(process.cwd());
 process.env.PROMO_RENDER ??= "off";
 
 async function main(): Promise<void> {
+  // This computer's films folder and Python (.studio-computer.json) over the environment, as the dev server does.
+  (await import("@/lib/computer")).ensureComputerSettings();
   const { dataSource } = await import("@/lib/data-source");
   const { SegmentWorker, runTick } = await import("@/lib/segment/worker");
   const { fakePipeline, filmRoot, segmentWorkDir } = await import("@/lib/segment/stages");

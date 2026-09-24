@@ -13,14 +13,18 @@
 //   local     a local-tier path, `local/<title_id>/ws/<slug>/<file>` (an
 //             imported episode's hardlink, decision 2026-09-22): the title
 //             id is the SECOND segment, and the file is streamed from disk
-//             with Range in both modes — nothing of the local tier is in the
-//             bucket, so there is no signed URL to send the browser to.
+//             with Range in both modes. A computer that did not import the
+//             film has no such file: in supabase mode the browser is sent to
+//             a signed URL of the tier's cloud copy, the same key in the
+//             bucket (lib/cloud-copy.ts, decision 2026-09-24); 404 while the
+//             file has not reached the cloud.
 
+import { existsSync } from "node:fs";
 import { NextResponse, type NextRequest } from "next/server";
 import { apiError } from "@/lib/api-guard";
 import { requireSession, type Session } from "@/lib/auth";
 import { getData } from "@/lib/data";
-import { isLocalTierPath, localPathOf, resolveUploadPath, signedMediaUrl } from "@/lib/data/storage";
+import { cloudStore, isLocalTierPath, localPathOf, resolveUploadPath, signedMediaUrl } from "@/lib/data/storage";
 import { dataSource } from "@/lib/data-source";
 import { handle } from "../../titles/_lib/handler";
 import { streamFile, titleIdOfMediaPath } from "../_lib/stream";
@@ -53,7 +57,11 @@ export async function GET(req: NextRequest, { params }: { params: { path: string
     if (isLocalTierPath(stored)) {
       // The local tier is a disk folder in both modes; localPathOf refuses a
       // path that leaves the tier or points into the read-only workspace.
-      return streamFile(req, localPathOf(stored));
+      const abs = localPathOf(stored);
+      const cloud = existsSync(abs) ? null : cloudStore();
+      if (!cloud) return streamFile(req, abs);
+      const url = await cloud.signedUrl(stored, 60 * 60);
+      return url ? NextResponse.redirect(url, 302) : apiError("Not found", undefined, 404);
     }
     if (dataSource() === "supabase") {
       return NextResponse.redirect(await signedMediaUrl(stored), 302);

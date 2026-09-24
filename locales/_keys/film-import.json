@@ -11,6 +11,7 @@
   "fi.loading": { "zh": "正在读取工作区…", "en": "Reading the workspace…" },
   "fi.empty": { "zh": "工作区里还没有影片。", "en": "No films in the workspace yet." },
   "fi.notConfigured": { "zh": "影片工作区尚未接入，请联系 Pulsar。", "en": "The film workspace is not connected — contact Pulsar." },
+  "fi.notConfigured.staff": { "zh": "这台电脑还没有影片文件夹：在上方“这台电脑”里连接一个。", "en": "This computer has no films folder yet: connect one in This computer above." },
   "fi.loadFailed": { "zh": "读取工作区失败：{detail}", "en": "Could not read the workspace: {detail}" },
   "fi.col.film": { "zh": "影片", "en": "Film" },
   "fi.col.title": { "zh": "显示标题", "en": "Display title" },

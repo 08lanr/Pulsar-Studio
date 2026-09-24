@@ -4,6 +4,7 @@ import { LocaleProvider } from "@/components/locale";
 import { adminLocale } from "@/components/admin/server";
 import { getSession } from "@/lib/auth";
 import { t } from "@/lib/i18n";
+import { ensureComputerSettings } from "@/lib/computer";
 import { ensureScheduler } from "@/lib/tiktok/scheduler";
 
 // The admin portal's route group: Pulsar staff only, English chrome unless
@@ -16,6 +17,7 @@ import { ensureScheduler } from "@/lib/tiktok/scheduler";
 export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  ensureComputerSettings();
   ensureScheduler();
   const session = await getSession();
   if (!session || session.kind !== "staff") redirect("/login");

@@ -16,6 +16,7 @@ import { ApiRequestError, getJson, postJson } from "@/lib/api-client";
 import { useT } from "@/components/locale";
 import type { DecisionBody, RunDetailReply, RunReply } from "@/lib/segment/api-types";
 import BoundaryCard, { type ReviewGeometry } from "./BoundaryCard";
+import Elsewhere from "./Elsewhere";
 import JoinReview from "./JoinReview";
 import { applyReady, buildCards, fixedStartOf, fmtT, isRendered, isTerminal, orderCards, stageIndex, type ReviewCard } from "./model";
 import { stagePill } from "./RunList";
@@ -48,7 +49,7 @@ export default function BoundaryReview({ runId }: { runId: string }) {
   }, [load]);
 
   // Poll while the run moves on its own (a re-judge, a render, a re-pin); a review waiting on a person needs no poll.
-  const polling = !!data && !isTerminal(data.run.stage) && !(data.run.stage === "review" && (data.stage_view.review?.rejudging ?? 0) === 0);
+  const polling = !!data && !!data.stage_view && !isTerminal(data.run.stage) && !(data.run.stage === "review" && (data.stage_view.review?.rejudging ?? 0) === 0);
   useEffect(() => {
     if (!polling) return;
     timer.current = setTimeout(() => void load(), POLL_MS);
@@ -71,11 +72,11 @@ export default function BoundaryReview({ runId }: { runId: string }) {
     }
   }, [runId, load]);
 
-  const review = data?.stage_view.review ?? null;
+  const review = data?.stage_view?.review ?? null;
   const geometry: ReviewGeometry | null = useMemo(() => {
     if (!review) return null;
     const fixedStart = fixedStartOf(review);
-    const plan = data?.stage_view.plan;
+    const plan = data?.stage_view?.plan;
     const delivered = plan ? plan.episodes.filter((e) => e.end <= fixedStart + 0.0015).length : 0;
     return { fixedStart, duration: review.duration, band: review.band, firstN: delivered + 1 };
   }, [review, data]);
@@ -96,6 +97,7 @@ export default function BoundaryReview({ runId }: { runId: string }) {
     );
   }
   if (!data) return <p className="hint" role="status">{tt("seg.loading")}</p>;
+  if (data.elsewhere) return <Elsewhere run={data.run} computer={data.elsewhere.name} />;
 
   const { run, stage_view: view } = data;
   const runHref = `/films/runs/${run.id}`;

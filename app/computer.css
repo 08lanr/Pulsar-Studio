@@ -1,0 +1,128 @@
+/* The "This computer" card (decision 2026-09-24, "two computers, one
+   database"; components/admin/ThisComputer.tsx) on Import films and New
+   film run: a head with the computer's name, then one labelled row each for
+   the films folder, the pipeline, the readiness checks and the cloud copy.
+   Tokens and existing components only; every class is prefixed tc-. */
+
+.tc {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.tc-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.tc-name {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.tc-name .input {
+  width: 16rem;
+  max-width: 100%;
+}
+.tc-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-light);
+}
+@media (min-width: 900px) {
+  .tc-row {
+    grid-template-columns: 180px minmax(0, 1fr);
+    gap: 16px;
+  }
+}
+.tc-label {
+  font-size: var(--t-label);
+  font-weight: var(--w-medium);
+  color: var(--text-muted);
+  letter-spacing: var(--track-label);
+}
+.tc-body {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.tc-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 0;
+}
+.tc-path {
+  overflow-wrap: anywhere;
+  font-size: var(--t-small);
+}
+.tc-actions,
+.tc-folder {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.tc-folder .input {
+  flex: 1 1 22rem;
+  min-width: 0;
+}
+.tc-hint {
+  flex-basis: 100%;
+  margin: 0;
+}
+.tc-task {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.tc-tail {
+  margin: 0;
+  max-height: 9rem;
+  overflow: auto;
+  font-size: var(--t-micro);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text-muted);
+}
+.tc-checks,
+.tc-cloud {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tc-checks li,
+.tc-cloud li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  font-size: var(--t-small);
+}
+.tc-mark {
+  width: 1.2em;
+  text-align: center;
+  font-weight: var(--w-strong);
+}
+.tc-checks li.ok .tc-mark,
+.tc-done {
+  color: var(--success);
+}
+.tc-checks li.bad .tc-mark {
+  color: var(--error);
+}
+.tc-warn {
+  color: var(--warning);
+}
+.tc-link {
+  white-space: nowrap;
+}

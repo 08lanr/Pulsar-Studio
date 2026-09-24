@@ -16,6 +16,7 @@ import { ApiRequestError, getJson, postJson } from "@/lib/api-client";
 import { useT } from "@/components/locale";
 import type { DecisionBody, RunDetailReply, RunReply, WatermarkJson } from "@/lib/segment/api-types";
 import type { Json } from "@/lib/types";
+import Elsewhere from "./Elsewhere";
 import FilmMetaForm from "./FilmMetaForm";
 import { fmtT, isTerminal, progressText, sourceFactsOf, stageIndex, waitingFor } from "./model";
 import { stagePill } from "./RunList";
@@ -127,6 +128,7 @@ export default function RunDetail({ runId }: { runId: string }) {
     );
   }
   if (!data) return <p className="hint" role="status">{tt("seg.loading")}</p>;
+  if (data.elsewhere) return <Elsewhere run={data.run} computer={data.elsewhere.name} />;
 
   const { run, stage_view: view } = data;
   const stage = run.stage;
