@@ -44,6 +44,7 @@ import type {
   PlatformLink,
   PlatformName,
   PlatformSnapshot,
+  CdPublication,
   Producer,
   ProducerTitleSummary,
   PromoApproval,
@@ -94,6 +95,7 @@ import {
   stageFields,
 } from "./film-runs";
 import { normalizePlatformSnapshot, platformLinkRow, platformSnapshotRow, PLATFORM_SNAPSHOTS_KEEP, PLATFORMS } from "@/lib/crazydramas/types";
+import { cdCancelFields, cdClaimFields, cdPublicationRow, cdReleaseFields, cdRenewFields, cdStepAudited, cdUpdateFields, isActiveStep, newRowConflict, normalizeCdPublication } from "@/lib/crazydramas/ledger";
 import type { DataLayer, ExportSnapshot, LaunchedCampaign } from "./index";
 import { mediaUrl } from "./storage";
 import {
@@ -1662,7 +1664,14 @@ export const supabaseData: DataLayer = {
     if (existingError) throw mapError(existingError);
     const linkedBy = isSystemSession(session) ? null : session.userId;
     if (existing) {
-      const have = existing as PlatformLink;
+      let have = existing as PlatformLink;
+      // Who manages the series (migration 0019) is a fact the reads and Studio's own create keep current; it moves nothing.
+      if (row.managed_by !== undefined && (have.managed_by ?? null) !== row.managed_by) {
+        const { data: set, error: setError } = await svc.update({ managed_by: row.managed_by }).eq("id", have.id).select("*").single();
+        if (setError) throw mapError(setError);
+        await auditEvent(session, "set_platform_link_managed_by", "core.platform_links", have.id, have.title_id, null, { managed_by: have.managed_by ?? null }, { managed_by: row.managed_by });
+        have = set as PlatformLink;
+      }
       if (have.slug === row.slug && have.title_slug === row.title_slug && have.cd_drama_id === row.cd_drama_id) return have;
       const { data, error } = await svc.update({ slug: row.slug, title_slug: row.title_slug, cd_drama_id: row.cd_drama_id, linked_at: now(), linked_by: linkedBy }).eq("id", have.id).select("*").single();
       if (error) throw mapError(error);
@@ -1731,6 +1740,128 @@ export const supabaseData: DataLayer = {
     const c = dbFor(session);
     await one<Pick<Title, "id">>(core(c).from("titles").select("id").eq("id", titleId).maybeSingle(), "title", titleId);
     return many<Episode>(core(c).from("episodes").select("*").eq("title_id", titleId).order("number"));
+  },
+
+  // ---- the crazydramas ledger (phase 5; migration 0019) ----
+  // Reads through the session's own client (RLS: can_read_title); writes
+  // checked here (staff or the system) and made as the service role,
+  // revision-conditionally, with the same pure rules as the fixture
+  // (lib/crazydramas/ledger.ts). The one-active-row rule is checked here
+  // first so both backends refuse in the same words; 0019's partial unique
+  // index is the backstop against a race.
+
+  async getCdPublications(session, titleId) {
+    const c = dbFor(session);
+    await one<Pick<Title, "id">>(core(c).from("titles").select("id").eq("id", titleId).maybeSingle(), "title", titleId); // a foreign title is not found
+    const rows = await many<CdPublication>(studio(c).from("cd_publications").select("*").eq("title_id", titleId).order("episode_number").order("created_at"));
+    return rows.map(normalizeCdPublication);
+  },
+
+  async getCdPublication(session, id) {
+    return normalizeCdPublication(await one<CdPublication>(studio(dbFor(session)).from("cd_publications").select("*").eq("id", id).maybeSingle(), "ledger row", id));
+  },
+
+  async listActiveCdPublications(session) {
+    requireSystemOrStaff(session);
+    const rows = await many<CdPublication>(studio(createServiceSupabase()).from("cd_publications").select("*").in("step", ["planned", "upload_created", "bytes_sent", "asset_ready"]).order("created_at"));
+    return rows.map(normalizeCdPublication);
+  },
+
+  async createCdPublication(session, input) {
+    const row = cdPublicationRow(input);
+    const c = dbFor(session);
+    await one<Pick<Title, "id">>(core(c).from("titles").select("id").eq("id", row.title_id).maybeSingle(), "title", row.title_id); // not_found before forbidden
+    requireSystemOrStaff(session);
+    const svc = createServiceSupabase();
+    if (row.episode_id) {
+      const ep = await one<Pick<Episode, "id" | "title_id" | "number">>(core(svc).from("episodes").select("id, title_id, number").eq("id", row.episode_id).maybeSingle(), "episode", row.episode_id);
+      if (ep.title_id !== row.title_id || ep.number !== row.episode_number) throw invalid("episode_id must be this title's episode with that number");
+    }
+    const existing = await many<Pick<CdPublication, "episode_number" | "sha256" | "step" | "idempotency_key">>(
+      studio(svc).from("cd_publications").select("episode_number, sha256, step, idempotency_key").eq("title_id", row.title_id).eq("episode_number", row.episode_number)
+    );
+    const clash = newRowConflict(row, existing);
+    if (clash) throw conflict(clash);
+    if (existing.some((r) => r.idempotency_key === row.idempotency_key && r.step !== "superseded")) throw conflict(`${row.idempotency_key} is already in the ledger`);
+    const { data, error } = await studio(svc).from("cd_publications").insert(row).select("*").single();
+    if (error) throw mapError(error); // 23505 on the live index is the clash above, raced
+    const created = normalizeCdPublication(data as CdPublication);
+    await auditEvent(session, "cd_publication_planned", "studio.cd_publications", created.id, created.title_id, null, null, { episode_number: created.episode_number, sha256: created.sha256, replace: created.replace, slug: created.slug });
+    return created;
+  },
+
+  async updateCdPublication(session, id, input) {
+    requireSystemOrStaff(session);
+    const row = normalizeCdPublication(await one<CdPublication>(studio(dbFor(session)).from("cd_publications").select("*").eq("id", id).maybeSingle(), "ledger row", id));
+    const fields = cdUpdateFields(row, input);
+    const nextStep = fields.step ?? row.step;
+    const svc = createServiceSupabase();
+    if (isActiveStep(nextStep) && !isActiveStep(row.step)) {
+      const others = await many<Pick<CdPublication, "id" | "step">>(studio(svc).from("cd_publications").select("id, step").eq("title_id", row.title_id).eq("episode_number", row.episode_number).neq("id", row.id).in("step", ["planned", "upload_created", "bytes_sent", "asset_ready"]));
+      if (others.length) throw conflict(`episode ${row.episode_number} already has an upload in the ledger (${others[0].step})`);
+    }
+    const { data, error } = await studio(svc).from("cd_publications").update(fields).eq("id", id).eq("revision", row.revision).select("*").maybeSingle();
+    if (error) throw mapError(error);
+    if (!data) throw conflict(`ledger row ${id} changed under this write (revision ${row.revision} moved); re-read it`);
+    const out = normalizeCdPublication(data as CdPublication);
+    if (cdStepAudited(row, out)) {
+      await auditEvent(session, `cd_publication_${out.step}`, "studio.cd_publications", out.id, out.title_id, null, { step: row.step, revision: row.revision, error_code: row.error_code }, { step: out.step, revision: out.revision, error_code: out.error_code, upload_id: out.upload_id, asset_id: out.asset_id });
+    }
+    return out;
+  },
+
+  async claimCdPublication(session, id, input) {
+    requireSystemOrStaff(session);
+    const row = normalizeCdPublication(await one<CdPublication>(studio(dbFor(session)).from("cd_publications").select("*").eq("id", id).maybeSingle(), "ledger row", id));
+    const fields = cdClaimFields(row, input);
+    if (!fields) return null;
+    const { data, error } = await studio(createServiceSupabase()).from("cd_publications").update(fields).eq("id", id).eq("revision", row.revision).select("*").maybeSingle();
+    if (error) throw mapError(error);
+    return data ? normalizeCdPublication(data as CdPublication) : null;
+  },
+
+  async renewCdPublicationLease(session, id, input) {
+    requireSystemOrStaff(session);
+    const row = normalizeCdPublication(await one<CdPublication>(studio(dbFor(session)).from("cd_publications").select("*").eq("id", id).maybeSingle(), "ledger row", id));
+    const fields = cdRenewFields(row, input);
+    const { data, error } = await studio(createServiceSupabase()).from("cd_publications").update(fields).eq("id", id).eq("lease_owner", input.owner.trim()).select("*").maybeSingle();
+    if (error) throw mapError(error);
+    if (!data) throw conflict(`ledger row ${id} is no longer leased by ${input.owner}`);
+    return normalizeCdPublication(data as CdPublication);
+  },
+
+  async releaseCdPublication(session, id, input) {
+    requireSystemOrStaff(session);
+    // Gated on the lease's owner, not on a revision the caller holds: a write that moved the revision between this read and
+    // the update (a person's Stop) is re-read and the release tried again, as the fixture releases in one step.
+    let row = normalizeCdPublication(await one<CdPublication>(studio(dbFor(session)).from("cd_publications").select("*").eq("id", id).maybeSingle(), "ledger row", id));
+    for (let attempt = 0; ; attempt++) {
+      const fields = cdReleaseFields(row, input);
+      if (!fields) return row;
+      const { data, error } = await studio(createServiceSupabase()).from("cd_publications").update(fields).eq("id", id).eq("revision", row.revision).select("*").maybeSingle();
+      if (error) throw mapError(error);
+      if (data) return normalizeCdPublication(data as CdPublication);
+      if (attempt >= 4) throw conflict(`ledger row ${id} kept changing under the release; re-read it`);
+      row = normalizeCdPublication(await one<CdPublication>(studio(dbFor(session)).from("cd_publications").select("*").eq("id", id).maybeSingle(), "ledger row", id));
+    }
+  },
+
+  async requestCdPublicationCancel(session, id) {
+    requireSystemOrStaff(session);
+    let row = normalizeCdPublication(await one<CdPublication>(studio(dbFor(session)).from("cd_publications").select("*").eq("id", id).maybeSingle(), "ledger row", id));
+    for (let attempt = 0; ; attempt++) {
+      const fields = cdCancelFields(row);
+      if (!fields) return row;
+      const { data, error } = await studio(createServiceSupabase()).from("cd_publications").update(fields).eq("id", id).eq("revision", row.revision).select("*").maybeSingle();
+      if (error) throw mapError(error);
+      if (data) {
+        const out = normalizeCdPublication(data as CdPublication);
+        await auditEvent(session, out.step === "failed" ? "cd_publication_failed" : "cd_publication_cancel_requested", "studio.cd_publications", out.id, out.title_id, null, { step: row.step, revision: row.revision, error_code: row.error_code }, { step: out.step, revision: out.revision, error_code: out.error_code, cancel_requested: true });
+        return out;
+      }
+      if (attempt >= 4) throw conflict(`ledger row ${id} kept changing under the stop; re-read it`);
+      row = normalizeCdPublication(await one<CdPublication>(studio(dbFor(session)).from("cd_publications").select("*").eq("id", id).maybeSingle(), "ledger row", id));
+    }
   },
 
   // ---- partner portal ----

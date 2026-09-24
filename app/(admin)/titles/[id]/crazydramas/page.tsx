@@ -4,11 +4,14 @@ import { chipReading, CrazydramasChip } from "@/components/producer/CrazydramasC
 import CrazydramasPanel from "@/components/producer/CrazydramasPanel";
 import { crazydramasPublicUrl, loadCrazydramasStatus, shownPosterUrl } from "@/lib/crazydramas";
 import { getData, isDataError } from "@/lib/data";
+import { mediaUrl } from "@/lib/data/storage";
 import { t } from "@/lib/i18n";
 
 // /titles/[id]/crazydramas — the staff mirror of the producer's CrazyDramas
 // section (plan A4.4): the same panel over the same snapshots, and Check now
-// for staff (the route admits requireStaff as it does requireProducer).
+// for staff (the route admits requireStaff as it does requireProducer); and
+// "Upload to crazydramas" below it (phase 5, publish spec §1), which a staff
+// administrator may drive and other staff read about.
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +45,7 @@ export default async function StaffCrazydramasPage({ params }: { params: { id: s
           posterUrl={shownPosterUrl(status.series?.poster_url)}
           imported={!!detail.title.source_ref}
           canCheck
+          publish={{ portal: "admin", canAct: session.staffRole === "admin", reason: session.staffRole === "admin" ? null : "notAdmin", coverUrl: mediaUrl(detail.title.cover_path ?? null) }}
         />
       </>
     );

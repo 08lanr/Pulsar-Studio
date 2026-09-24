@@ -16,8 +16,11 @@
 // link and a snapshot row, the way lib/data/film-import.ts is for the import.
 
 import { z } from "zod";
-import type { PlatformDrama, PlatformEpisode, PlatformLink, PlatformName, PlatformSnapshot } from "@/lib/types";
+import type { PlatformDrama, PlatformEpisode, PlatformLink, PlatformManagedBy, PlatformName, PlatformReadVia, PlatformSnapshot } from "@/lib/types";
 import { invalid } from "@/lib/data/errors";
+
+const MANAGED_BY: readonly PlatformManagedBy[] = ["studio", "cms"];
+const READ_VIA: readonly PlatformReadVia[] = ["public", "studio"];
 
 export const PLATFORM: PlatformName = "crazydramas";
 export const PLATFORMS: readonly PlatformName[] = ["crazydramas"];
@@ -75,10 +78,16 @@ export type PublicEpisode = z.infer<typeof PublicEpisodeSchema>;
 /** The catalog as the transport hands it out: parsed, whitelisted, the mock series dropped. */
 export type CatalogEntry = PlatformDrama;
 
-/** One series read as the transport hands it out. A 404 is a value, not a throw: "not live" is an answer. */
+/**
+ * One series read as the transport hands it out. A 404 is a value, not a
+ * throw: "not live" is an answer. `read_via` says which read it was (phase 5,
+ * spec §7): `studio` = the authenticated `GET /api/studio/series/:series`
+ * (drafts, archived series and unpublished episodes included, so a 404 there
+ * is "not uploaded"); `public` or absent = the public API.
+ */
 export type SeriesRead =
-  | { http_status: 200; drama: PlatformDrama; episodes: PlatformEpisode[] }
-  | { http_status: 404; drama: null; episodes: null };
+  | { http_status: 200; drama: PlatformDrama; episodes: PlatformEpisode[]; read_via?: PlatformReadVia }
+  | { http_status: 404; drama: null; episodes: null; read_via?: PlatformReadVia };
 
 /** The public object in the row's own field names (snake_case, like every other jsonb Studio keeps). */
 export function toPlatformDrama(d: PublicDrama): PlatformDrama {
@@ -115,6 +124,73 @@ export function parseSeries(body: unknown): Extract<SeriesRead, { http_status: 2
     http_status: 200,
     drama: toPlatformDrama(rest),
     episodes: episodes.map(toPlatformEpisode).sort((a, b) => a.n - b.n),
+    read_via: "public",
+  };
+}
+
+// ---- the authenticated read, whitelisted (phase 5, spec §7) --------------------------------------
+//
+// `GET /api/studio/series/:series` (crazydramas docs/STUDIO_API.md) answers
+// the series with every episode, drafts and unpublished ones included, AND
+// each episode's `playback_id`, `mux_upload_id` and `mux_asset_id` — the
+// read token is sensitive for that reason. The snapshot keeps the same
+// whitelisted fields as a public read (plus `managed_by`), never an id of
+// Mux's: those stay with the ledger (studio.cd_publications), which Studio
+// wrote itself.
+
+export const StudioSeriesReadSchema = z.object({
+  series: z.object({
+    id: z.string().regex(UUID),
+    slug: z.string().min(1),
+    title: z.string(),
+    status: z.string(),
+    language: nullableString,
+    free_episode_count: z.number().int().nonnegative().nullish().transform((v) => v ?? 0),
+    series_price_cents: nullableNumber,
+    iap_product_id: nullableString,
+    cta_mode: nullableString,
+    poster_url: nullableString,
+    poster_blurhash: nullableString,
+    managed_by: z.string().nullish().transform((v) => (v === "studio" || v === "cms" ? v : null)),
+  }),
+  episodes: z
+    .array(
+      z.object({
+        episode_number: z.number().int().positive(),
+        status: z.string(),
+        is_published: z.boolean().nullish().transform((v) => v === true),
+        duration_seconds: z.union([z.number(), z.string()]).nullish().transform((v) => {
+          const n = typeof v === "string" ? Number(v) : v;
+          return typeof n === "number" && Number.isFinite(n) ? n : null;
+        }),
+      })
+    )
+    .default([]),
+});
+
+/** Parse an authenticated series body (a 200): the snapshot's fields and `managed_by`, every episode with its `is_published`, sorted. */
+export function parseStudioSeries(body: unknown): Extract<SeriesRead, { http_status: 200 }> {
+  const { series, episodes } = StudioSeriesReadSchema.parse(body);
+  const list = episodes.map((e) => ({ n: e.episode_number, duration_s: e.duration_seconds, status: e.status, is_published: e.is_published })).sort((a, b) => a.n - b.n);
+  return {
+    http_status: 200,
+    drama: {
+      id: series.id.toLowerCase(),
+      slug: series.slug,
+      title: series.title,
+      status: series.status,
+      language: series.language,
+      free_episode_count: series.free_episode_count,
+      series_price_cents: series.series_price_cents,
+      iap_product_id: series.iap_product_id,
+      poster_url: series.poster_url,
+      poster_blurhash: series.poster_blurhash,
+      episode_count: list.length,
+      cta_mode: series.cta_mode,
+      managed_by: series.managed_by,
+    },
+    episodes: list,
+    read_via: "studio",
   };
 }
 
@@ -128,10 +204,18 @@ export type NewPlatformLinkInput = {
   cd_drama_id: string;
   /** The title's own slug at link time; `slug` when absent (a first link, a re-point). A followed CMS rename passes the existing link's so it stays. */
   title_slug?: string | null;
+  /** Who may change the series (migration 0019): absent leaves the link's as it is; null clears it. */
+  managed_by?: PlatformManagedBy | null;
 };
 
-/** The link an upsert writes, validated. */
+/** The link an upsert writes, validated. `managed_by` is in the row only when the input named it. */
 export function platformLinkRow(input: NewPlatformLinkInput): Omit<PlatformLink, "id" | "linked_at" | "linked_by"> {
+  if (input.managed_by !== undefined && input.managed_by !== null && !MANAGED_BY.includes(input.managed_by)) throw invalid("managed_by must be studio or cms");
+  const row = platformLinkRowBase(input);
+  return input.managed_by === undefined ? row : { ...row, managed_by: input.managed_by };
+}
+
+function platformLinkRowBase(input: NewPlatformLinkInput): Omit<PlatformLink, "id" | "linked_at" | "linked_by" | "managed_by"> {
   if (!PLATFORMS.includes(input.platform)) throw invalid(`unknown platform: ${String(input.platform)}`);
   if (typeof input.title_id !== "string" || !input.title_id.trim()) throw invalid("title_id is required");
   const slug = typeof input.slug === "string" ? input.slug.trim() : "";
@@ -154,6 +238,8 @@ export type NewPlatformSnapshotInput = {
   error?: string | null;
   /** Test hook; now when absent. */
   read_at?: string;
+  /** Which read made the row (migration 0019); null when not said. */
+  read_via?: PlatformReadVia | null;
 };
 
 /** The snapshot an insert writes, validated: a good read carries a drama and episodes, a failed one an error. */
@@ -174,7 +260,11 @@ export function platformSnapshotRow(input: NewPlatformSnapshotInput): Omit<Platf
   if (drama) assertNoLeak(drama);
   const readAt = input.read_at ?? new Date().toISOString();
   if (Number.isNaN(Date.parse(readAt))) throw invalid("read_at must be a timestamp");
+  const readVia = input.read_via ?? null;
+  if (readVia !== null && !READ_VIA.includes(readVia)) throw invalid("read_via must be public or studio");
+  if (drama?.managed_by !== undefined && drama.managed_by !== null && !MANAGED_BY.includes(drama.managed_by)) throw invalid("drama.managed_by must be studio or cms");
   return {
+    read_via: readVia,
     platform: input.platform,
     slug,
     cd_drama_id: id ? id.toLowerCase() : drama?.id ?? null,

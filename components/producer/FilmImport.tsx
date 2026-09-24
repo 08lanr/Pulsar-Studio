@@ -34,6 +34,9 @@ type StartReply = Partial<ImportStarted> & { error?: string; code?: string };
 
 const POLL_MS = 2000;
 
+/** Chip states of an imported title that is not on crazydramas yet, whose row offers "Upload to crazydramas" (phase 5). `not_uploaded` / `draft` are the token-read split of `not_live` (publish spec §7). */
+const NOT_ON_CRAZYDRAMAS: ReadonlySet<string> = new Set(["not_checked", "not_live", "not_uploaded", "draft"]);
+
 function running(p: ImportProgress | null): boolean {
   return !!p && p.step !== "done" && p.step !== "failed";
 }
@@ -189,10 +192,16 @@ export default function FilmImport({ portal, canImport, producers = [], crazydra
     if (!film.crazydramas_slug) return <CrazydramasChip state="not_linked" context="import" locale={locale} />;
     const known = film.imported ? crazydramas[film.imported.title_id] : undefined;
     if (known && film.imported) {
+      // Not on crazydramas yet (phase 5, publish spec §1): the row's way into "Upload to crazydramas" on the section (or its staff mirror).
+      const notYet = NOT_ON_CRAZYDRAMAS.has(known.state);
       return (
-        <span style={{ display: "grid", gap: 2, justifyItems: "start" }}>
+        <span style={{ display: "grid", gap: 4, justifyItems: "start" }}>
           <CrazydramasChip {...known} locale={locale} />
-          <a className="pf-cell-link" href={`${openUrl(film.imported.title_id)}/crazydramas`}>{tt("pf.cell.crazydramas.open")}&nbsp;→</a>
+          {notYet ? (
+            <a className="btn btn-outline btn-sm film-import-cd-upload" style={{ whiteSpace: "nowrap" }} href={`${openUrl(film.imported.title_id)}/crazydramas#cd-publish`}>{tt("cdp.import.upload")}</a>
+          ) : (
+            <a className="pf-cell-link" href={`${openUrl(film.imported.title_id)}/crazydramas`}>{tt("pf.cell.crazydramas.open")}&nbsp;→</a>
+          )}
         </span>
       );
     }

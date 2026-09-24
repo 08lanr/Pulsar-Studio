@@ -1222,6 +1222,69 @@ when another title holds that drama, and until that slug answers 200 the
 screens read it with no link ("not checked yet", or "not live" on a 404),
 never the old drama. A title's reading is built from its own
 snapshot rows of the slug (`title_id`), never another title's, since two
-companies' titles can carry one slug. `identical` and `local_newer` in the
-reading need the ledger of plan A6 (`studio.cd_publications`, the write
-path), which is not built.
+companies' titles can carry one slug. `identical` in the reading needs the
+ledger of section 11 (a row whose sha is the file's and whose Mux length
+passes the frame rule); `local_newer` is still never produced.
+
+## 11. Upload to crazydramas (migration `0019_cd_publications.sql`, decision 2026-09-23 "Upload to crazydramas")
+
+Studio creates a draft series on crazydramas through crazydramas' Studio API
+(its `docs/STUDIO_API.md`), uploads episodes to Mux in the background and
+publishes exactly the episodes a person lists (`docs/crazydramas-connection.md`,
+"Upload to crazydramas"). One new table in `studio`, two new columns on the
+0017 tables, implemented in both backends through `getData()`
+(`getCdPublications`, `getCdPublication`, `listActiveCdPublications`,
+`createCdPublication`, `updateCdPublication`, `claimCdPublication`,
+`renewCdPublicationLease`, `releaseCdPublication`,
+`requestCdPublicationCancel`) with the one rule set in
+`lib/crazydramas/ledger.ts` (`cdPublicationRow`, `newRowConflict`,
+`cdClaimFields`, `cdUpdateFields`, `cdCancelFields`, …).
+
+```
+studio.cd_publications                       -- what Studio uploaded to crazydramas: one row per title × episode × file
+  id uuid pk, title_id uuid* references core.titles on delete cascade,
+  episode_id uuid references core.episodes on delete set null, episode_number int* (1..500),
+  cd_drama_id uuid*, slug text* (the slug rule, ≤ 80), cd_episode_id uuid,   -- crazydramas dramas.id / episodes.id
+  idempotency_key text*,                     -- cd:<title_id>:ep<k>:<sha8>; unique among rows not superseded
+  step text* in ('planned','upload_created','bytes_sent','asset_ready','verified','published','failed','superseded'),
+  sha256 text* (64 hex), bytes bigint* (> 0), frames int, fps numeric,       -- the file sent; sha256 is also Mux meta.external_id
+  source_path text* (like 'local/%'),        -- the local-tier hardlink the bytes are read from (localPathOf), never the workspace original
+  "replace" boolean*,                        -- a re-cut over media crazydramas holds (the contract's replace: true)
+  upload_id, asset_id, previous_asset_id, previous_upload_id text (Mux ids, [A-Za-z0-9]{1,128}),
+  bytes_acked bigint* (0..bytes),            -- the offset the resumable upload's storage acknowledged (Range); the resume point
+  duration_s numeric,                        -- the ready asset's length (Mux)
+  verify jsonb (object),                     -- {external_id_ok, d_frames, verdict} of the verify step
+  error text, error_code text,               -- a crazydramas code passed through, or Studio's own (taken_over, taken_over_late,
+                                             --   verify_failed, cancelled, upload_dead, file_changed, chunk_refused, …)
+  cancel_requested boolean*, attempts int*, attempted_at, next_attempt_at timestamptz,
+  lease_owner text, leased_until timestamptz, revision int* (> 0),           -- a ten-minute lease and the CAS revision
+  created_by uuid references core.profiles on delete set null, created_at, updated_at, published_at timestamptz
+  -- indexes: (title_id, episode_number, created_at); (step, next_attempt_at) where active;
+  --   unique (title_id, episode_number) where step in ('planned','upload_created','bytes_sent','asset_ready') -- one active row
+  --   unique (idempotency_key) where step <> 'superseded'
+  -- RLS: SELECT under core.can_read_title(title_id); no session write — the data layer writes as the service role after its
+  --   staff-or-system check (a producer session is forbidden in both modes, a foreign title or row is not_found).
+  -- Never an upload URL (a capability) or a playback id (the paywall leak) in any column; verify is checked for both.
+
+core.platform_links.managed_by text ('studio' | 'cms' | null)   -- crazydramas dramas.managed_by: Studio writes only 'studio'
+core.platform_snapshots.read_via text ('public' | 'studio' | null) -- which read made the row; a 'studio' 404 is "not uploaded"
+```
+
+**Steps.** Each is persisted before the next external call (STUDIO_API.md
+"What Studio must do, per episode"): `planned` (the upload call's
+`attempted_at` is written first, so a lost answer is settled by repeating it
+with the same sha — crazydramas answers the same upload) → `upload_created`
+(the upload id recorded before any byte) → `bytes_sent` (every byte
+acknowledged; `bytes_acked` follows each chunk) → `asset_ready` (the asset
+id and length) → `verified` (external_id = sha256 and the frame rule) →
+`published` (only by the explicit publish, or when a replace lands on an
+episode that is already published). `failed` keeps its reason and code; a
+Retry (queueing the same file again) brings the row back where it stopped.
+`superseded`: a later file of the episode was verified or published. A
+worker claims a row with the CAS and a ten-minute lease renewed by every
+write; a stale lease is adopted. A person's Stop sets `cancel_requested`
+(allowed whoever holds the lease; the worker's next write sees the moved
+revision and stops before its next chunk); a row nobody runs fails at once.
+
+**No job kind.** An upload costs no model money and the ledger row is the
+record, as the snapshot row is for a read (0017).

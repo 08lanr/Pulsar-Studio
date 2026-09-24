@@ -227,6 +227,8 @@ export type CrazydramasSeriesFacts = {
   /** The poster URL contains `-placeholder`: the series still shows the stand-in art. */
   poster_placeholder: boolean;
   episode_count: number;
+  /** Who may change the series (an authenticated read, phase 5): `cms` series are read-only for Studio. Null when the read did not say (a public read). */
+  managed_by: "studio" | "cms" | null;
 };
 
 export type CrazydramasStatus = {
@@ -244,6 +246,16 @@ export type CrazydramasStatus = {
   http_status: number | null;
   /** `slug_reassigned`: the slug now serves another drama than the one linked (a CMS edit); the series is read as not live. */
   note: "slug_reassigned" | null;
+  /**
+   * Why a series reads `not_live`, when the read can tell (phase 5, spec §7):
+   * `not_uploaded` (the authenticated read answered 404: nothing on
+   * crazydramas), `draft` or `archived` (the authenticated read sees the
+   * series; it is not published). Null otherwise — a public 404 is still
+   * "not uploaded, or draft".
+   */
+  detail: "not_uploaded" | "draft" | "archived" | null;
+  /** Which read the reading comes from (`studio` = authenticated, `public`), null when nothing was read or the row predates it. */
+  read_via: "public" | "studio" | null;
   series: CrazydramasSeriesFacts | null;
   episodes: EpisodeReading[];
   counts: MatchResult["counts"];
@@ -283,6 +295,7 @@ function seriesFacts(d: NonNullable<PlatformSnapshot["drama"]>): CrazydramasSeri
     poster_url: d.poster_url,
     poster_placeholder: !!d.poster_url && d.poster_url.includes("-placeholder"),
     episode_count: d.episode_count,
+    managed_by: d.managed_by === "studio" || d.managed_by === "cms" ? d.managed_by : null,
   };
 }
 
@@ -316,6 +329,8 @@ export function crazydramasStatusFor(
     error: null,
     http_status: null,
     note: null,
+    detail: null,
+    read_via: null,
     series: null,
     episodes: [],
     counts: emptyCounts(episodes.length),
@@ -339,9 +354,12 @@ export function crazydramasStatusFor(
   }
   const read = good!;
   base.checked_at = read.read_at;
+  base.read_via = read.read_via ?? null;
   if (!failed) base.http_status = read.http_status;
   if (read.http_status !== 200 || !read.drama || !read.episodes) {
     if (!failed) base.state = "not_live";
+    // The authenticated read sees drafts: its 404 is "nothing uploaded" (spec §7); a public 404 cannot tell.
+    if (read.http_status === 404 && read.read_via === "studio") base.detail = "not_uploaded";
     return base;
   }
   // The link names the drama; a 200 for another drama under the same slug is a CMS rename, not this series.
@@ -350,15 +368,22 @@ export function crazydramasStatusFor(
     base.note = "slug_reassigned";
     return base;
   }
-  const match = matchEpisodes(episodes, read.episodes, { fps: opts.fps, free_episode_count: read.drama.free_episode_count, ledger: opts.ledger });
-  const free = read.episodes.filter((e) => e.n <= read.drama!.free_episode_count).length;
+  // The authenticated read sees a series that is not published (a draft, or archived): not live, with the reason, and its
+  // episodes read against Studio's so the screens can say which are there. A published series is judged, as in v1, on the
+  // episodes viewers see: an unpublished one reads missing.
+  const status = read.drama.status;
+  const notPublished = status === "draft" || status === "archived";
+  const liveEpisodes = notPublished ? read.episodes : read.episodes.filter((e) => e.is_published);
+  const match = matchEpisodes(episodes, liveEpisodes, { fps: opts.fps, free_episode_count: read.drama.free_episode_count, ledger: opts.ledger });
+  const free = liveEpisodes.filter((e) => e.n <= read.drama!.free_episode_count).length;
   return {
     ...base,
-    state: failed ? "read_failed" : stateFromMatch(match, { ledger: opts.ledger, studio: episodes }),
+    state: failed ? "read_failed" : notPublished ? "not_live" : stateFromMatch(match, { ledger: opts.ledger, studio: episodes }),
+    detail: notPublished ? (status as "draft" | "archived") : null,
     series: seriesFacts(read.drama),
     episodes: match.episodes,
     counts: match.counts,
-    free_paid: { free, paid: read.episodes.length - free },
+    free_paid: { free, paid: liveEpisodes.length - free },
     numbered_1_to_n: match.numbered_1_to_n,
   };
 }

@@ -1,0 +1,85 @@
+/* "Upload to crazydramas" (phase 5, publish spec §1–5): the three steps
+   under the series check, the per-episode progress table and the publish
+   dialogs. Tokens only; the table is the house .gtable with a fixed action
+   column, the dialogs the launch side panel (.launch-dialog). Imported by
+   components/producer/CrazydramasPublish.tsx. */
+
+.cdp { display: grid; gap: 16px; scroll-margin-top: 80px; }
+.cd-panel + .cdp { margin-top: 16px; }
+.cdp-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.cdp-head h2 { margin: 0; font-size: 18px; }
+.cdp-intro { margin: 0; max-width: 80ch; }
+.cdp-writes-off { margin: 0; }
+.cdp-writes-off code { font-size: 12px; }
+.cdp-ok { color: var(--success); font-size: 13px; }
+
+.cdp-step { display: grid; gap: 10px; padding-top: 16px; border-top: 1px solid var(--border-light); min-width: 0; }
+.cdp-step h3 { margin: 0; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.cdp-step > .hint { margin: 0; }
+.cdp-step-n { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--brand-tint); color: var(--accent-text); font-size: 12px; font-weight: var(--w-strong); flex-shrink: 0; }
+
+.cdp-live-form { display: grid; gap: 10px; }
+.cdp-live-form > summary { cursor: pointer; font-size: 14px; color: var(--accent-text); }
+.cdp-live-form[open] > summary { margin-bottom: 10px; }
+.cdp-form { display: grid; gap: 12px; min-width: 0; }
+.cdp-slug { margin: 0; }
+.cdp-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; }
+.cdp-fields .field + .field { margin-top: 0; }
+.cdp-fields .cdp-wide { grid-column: 1 / -1; }
+.cdp-fields .hint, .cdp-fields .err { display: block; margin-top: 4px; font-size: 12px; }
+.cdp-inline { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.cdp-inline .input { flex: 1 1 auto; min-width: 0; }
+.cdp-inline .btn { white-space: nowrap; flex-shrink: 0; }
+.cdp-poster-row { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+.cdp-poster-field { flex: 1 1 320px; min-width: 0; display: grid; gap: 4px; }
+.cdp-cover { margin: 0; display: flex; gap: 10px; align-items: flex-start; flex: 0 1 280px; }
+.cdp-cover-frame { width: 72px; aspect-ratio: 3 / 4; border-radius: var(--radius-sm); overflow: hidden; background: var(--surface-3); flex-shrink: 0; display: block; }
+.cdp-cover-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cdp-cover figcaption { display: grid; gap: 2px; }
+.cdp-cover .pf-cell-link { margin-top: 2px; }
+.cdp-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.cdp-actions .btn { white-space: nowrap; }
+.cdp-refusal { margin: 0; overflow-wrap: anywhere; }
+
+.cdp-uploads { display: grid; gap: 10px; min-width: 0; }
+.cdp-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.cdp-toolbar .btn { white-space: nowrap; }
+.cdp-range { display: inline-flex; gap: 6px; align-items: center; flex-wrap: nowrap; }
+.cdp-range .input-inline { width: 64px; }
+.cdp-table .gt-row { align-items: center; }
+.cdp-stage { display: grid; gap: 4px; min-width: 0; }
+.cdp-stage small { font-size: 12px; overflow-wrap: anywhere; }
+.cdp-track { flex: none; width: 100%; max-width: 220px; }
+.cdp-action { display: flex; justify-content: flex-start; }
+.cdp-action .btn { white-space: nowrap; }
+
+.cdp-dialog { display: flex; flex-direction: column; gap: 14px; }
+.cdp-dialog > header { margin-bottom: 0; }
+.cdp-lede { margin: 0; color: var(--text-muted); font-size: 14px; }
+.cdp-dialog-body { display: grid; gap: 14px; align-content: start; flex: 1 1 auto; }
+.cdp-dialog-footer { display: flex; justify-content: flex-end; gap: 10px; padding-top: 14px; border-top: 1px solid var(--border); }
+.cdp-dialog-footer .btn { white-space: nowrap; }
+.cdp-picks { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; margin: 0; min-width: 0; }
+.cdp-picks legend { padding: 0 4px; }
+.cdp-pick-tools { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+.cdp-pick-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 12px; }
+.cdp-pick-list label { display: flex; gap: 8px; align-items: center; font-size: 14px; cursor: pointer; }
+.cdp-summary { display: grid; gap: 8px; margin: 0; }
+.cdp-summary > div { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 12px; }
+.cdp-summary dt { font-size: 13px; color: var(--text-muted); }
+.cdp-summary dd { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
+.cdp-check { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; cursor: pointer; }
+.cdp-check input { margin-top: 3px; }
+.cdp-paid { display: grid; gap: 8px; }
+.cdp-paid p { margin: 0; }
+.cdp-impact { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 14px; }
+
+.cdp-cms { display: grid; gap: 12px; }
+.cdp-handover { margin: 0; }
+.cdp-sql summary { cursor: pointer; font-size: 13px; color: var(--text-muted); }
+.cdp-sql code { display: block; margin-top: 6px; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--surface-3); font-size: 12px; overflow-wrap: anywhere; }
+
+@media (max-width: 720px) {
+  .cdp-fields { grid-template-columns: minmax(0, 1fr); }
+  .cdp-summary > div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+}

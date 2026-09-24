@@ -6,6 +6,26 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-09-23 · Upload to crazydramas
+
+Ruobin, 2026-09-23: "yeah lets do it. thats what i want to build." The crazydramas side is live — its Studio API (PR #1, merged into crazydramas `main` with Jayden's two follow-ups: series ownership and product ids, and the title guard) — and its contract, crazydramas' `docs/STUDIO_API.md`, is what Studio follows. The defaults below were chosen for him from the phase 5 spec; he can change any of them. In plain words:
+
+- **Where.** The title's crazydramas section gets "Upload to crazydramas": a series details form filled from the title (display title, tagline, description, genres, language, five free episodes, $9.99, the IAP id `cd.series.<short_name>` from the slug, the poster), **Create draft series**, **Upload episodes** (all, or a chosen range, in the background with per-episode progress) and **Publish** with an explicit episode list. The Import page gets a row action for titles not yet on crazydramas; staff get the same on the admin side.
+- **Draft first, publish explicitly.** Uploading never publishes. Publish shows exactly which episodes go live.
+- **Paid episodes.** Everything uploads as a draft. Publishing an episode past the free count warns that paid episodes can be streamed free until the paywall fix is live on crazydramas, and needs an extra confirm — until `CRAZYDRAMAS_PAYWALL_LIVE=1` is set.
+- **Poster.** Optional. The suggestion is `https://crazydramas.com/posters/<slug>.jpg` (Jayden commits the posters there); Studio checks the address answers with an image before sending it and shows the title's own cover as a preview to send to Jayden. No new hosting.
+- **The series already live** (all eight were made in the CMS) are shown read-only: "made in the CMS — ask Jayden to hand it over (one SQL line) to manage it from Studio". Studio never tries to write to them. Before creating a series Studio also checks the show is not already live under another name (the contract's working-name table and the public catalog).
+- **Live writes need both switches.** Real writes need `DATA_SOURCE=supabase` and `CRAZYDRAMAS_LIVE_WRITES=enabled` (and `CRAZYDRAMAS_STUDIO_TOKEN`), as with Meta and TikTok. Fixture mode talks to a fake crazydramas that models every route, every error code and the Mux upload. `CRAZYDRAMAS_LIVE_READ=1` still lets an engineer read the live site from fixture mode — and write nowhere.
+- **Reads upgrade.** With the token, the phase 3a status reads use the authenticated series read, so "not live" can say "not uploaded" or "draft"; without it, the public read stands in.
+- **The ledger.** Every upload is recorded step by step before the next call (`studio.cd_publications`, migration 0019): planned → upload created → bytes sent → asset ready → verified → published, or failed / superseded. The uploader survives a crash: it picks the row up where it stopped, asks for the upload it already made instead of making a second one, and sends bytes from where Mux says it got to. Bytes come only from Studio's local-tier link of the file. One upload at a time per title, at most two on the machine.
+- **Verify before publish.** Once Mux has the file, its length must pass the frame rule against the episode's own frame count and Mux's `external_id` must be the file's SHA-256; if not, the episode is marked failed with the reason and is never published. The frame rule is still calibrated on one film: the first Studio-made upload is where it is confirmed.
+- **Replace** (a re-cut) uses the contract's replace path, only while the crazydramas episode is ready or errored, after the viewer warning (the old cut plays until the new one is ready; watch positions then refer to the old timing). The old asset is recorded, never deleted.
+- **No rights gate. No push. No change to crazydramas.** Studio code only; **no real write to crazydramas in this phase** — the first real upload happens when Ruobin says go, on a series he names.
+
+**Open item for Ruobin.** The live Studio Supabase is missing migrations 0015–0018 (checked read-only with the service role on 2026-09-23: the film-import columns, `studio.film_assets`, `studio.film_runs`, `core.platform_links`, `core.platform_snapshots` and `studio.film_run_episodes` are absent; 0014 is there), and 0019 is new. Real uploads need live mode and those migrations applied — a production database change that needs his OK.
+
+How it works — the flow, the uploader's steps, the gates and what it never does — is in `docs/crazydramas-connection.md`, "Upload to crazydramas"; the table in `docs/data-model.md` section 11.
+
 ## 2026-09-23 · Narrated mode in Studio
 
 Ruobin, 2026-09-23, on the narrated plan (`narrated-spec.md` N0–N11): the high-quality skip-through route (narration, kept dialogue, captions, the 9:16 reframe; `mini-drama-system/drama-remix/scripts/skip-through/`) runs from Studio the way the cut-only route does. His decisions, in plain words:

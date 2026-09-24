@@ -97,6 +97,8 @@ import {
   stageFields,
 } from "./film-runs";
 import { normalizePlatformSnapshot, platformLinkRow, platformSnapshotRow, PLATFORM_SNAPSHOTS_KEEP, PLATFORMS } from "@/lib/crazydramas/types";
+import { cdCancelFields, cdClaimFields, cdPublicationRow, cdReleaseFields, cdRenewFields, cdStepAudited, cdUpdateFields, isActiveStep, newRowConflict, normalizeCdPublication } from "@/lib/crazydramas/ledger";
+import type { CdPublication } from "@/lib/types";
 import type {
   ApproveOptions,
   DataLayer,
@@ -174,6 +176,8 @@ function store(): Store {
   platformTables(s.db);
   // So do the narrated episodes (migration 0018).
   episodeTable(s.db);
+  // And the crazydramas ledger (migration 0019).
+  cdTable(s.db);
   // Rows seeded or saved before the workspace import (migration 0015) lack its columns; a reader sees one shape.
   for (const t of s.db.titles) {
     t.source_ref ??= null;
@@ -461,6 +465,7 @@ function mergeOtherCompanies(fresh: FixtureDb, old: FixtureDb): FixtureDb {
   const replaced = new Set(fresh.producers.filter((p) => p.id !== FIXTURE_PRODUCER_ID && (carried.has(p.id) || carriedNames.has((p.name_en ?? p.name_zh).trim().toLowerCase()))).map((p) => p.id));
   // Tables that live beside the seed's shape are merged too: default them on the fresh store first.
   episodeTable(fresh);
+  cdTable(fresh);
   const dropFresh = companyRows(fresh, replaced);
   const keepOld = companyRows(old, carried);
   const out = fresh as unknown as Record<string, unknown>;
@@ -650,7 +655,10 @@ function platformTables(db: FixtureDb): PlatformTables {
   ext.platform_links ??= [];
   ext.platform_snapshots ??= [];
   // A link persisted before the review added title_slug (fixture-state.json) reads as made under its own slug, as the migration fills it.
-  for (const l of ext.platform_links) l.title_slug ??= l.slug;
+  for (const l of ext.platform_links) {
+    l.title_slug ??= l.slug;
+    l.managed_by ??= null; // migration 0019's column default
+  }
   return ext as PlatformTables;
 }
 
@@ -664,6 +672,25 @@ function canReadSnapshot(db: FixtureDb, session: Session, row: PlatformSnapshot)
   if (!row.title_id) return false;
   const title = db.titles.find((t) => t.id === row.title_id);
   return !!title && canReadTitle(session, title.producer_id);
+}
+
+/** studio.cd_publications (migration 0019) lives beside the seed's shape, like the platform tables: defaulted on every store. */
+type CdTable = { cd_publications: CdPublication[] };
+
+function cdTable(db: FixtureDb): CdTable {
+  const ext = db as unknown as Partial<CdTable>;
+  ext.cd_publications ??= [];
+  return ext as CdTable;
+}
+
+/** A ledger row the session may read (its title's readers, as 0019's RLS answers); anything else is not found. */
+function readableCdRow(db: FixtureDb, session: Session, id: string): CdPublication {
+  requireMemberSession(session);
+  const row = cdTable(db).cd_publications.find((r) => r.id === id);
+  if (!row) throw notFound("ledger row", id);
+  const title = db.titles.find((t) => t.id === row.title_id);
+  if (!title || !canReadTitle(session, title.producer_id)) throw notFound("ledger row", id);
+  return row;
 }
 
 /** studio.film_run_episodes (migration 0018) lives beside the seed's shape, like the platform tables: defaulted on every store. */
@@ -2676,12 +2703,17 @@ export const fixtureData: DataLayer = {
     const linkedBy = isSystemSession(session) ? null : session.userId;
     if (existing) {
       const before: Json = { slug: existing.slug, title_slug: existing.title_slug, cd_drama_id: existing.cd_drama_id };
+      // Who manages the series (migration 0019) is a fact the reads and Studio's own create keep current; it moves nothing.
+      if (row.managed_by !== undefined && (existing.managed_by ?? null) !== row.managed_by) {
+        audit(s, session, "set_platform_link_managed_by", "core.platform_links", existing.id, existing.title_id, { managed_by: existing.managed_by ?? null }, { managed_by: row.managed_by });
+        existing.managed_by = row.managed_by;
+      }
       if (existing.slug === row.slug && existing.title_slug === row.title_slug && existing.cd_drama_id === row.cd_drama_id) return clone(existing);
       Object.assign(existing, { slug: row.slug, title_slug: row.title_slug, cd_drama_id: row.cd_drama_id, linked_at: now(), linked_by: linkedBy });
       audit(s, session, "move_platform_link", "core.platform_links", existing.id, existing.title_id, before, { slug: existing.slug, title_slug: existing.title_slug, cd_drama_id: existing.cd_drama_id });
       return clone(existing);
     }
-    const link: PlatformLink = { id: randomUUID(), ...row, linked_at: now(), linked_by: linkedBy };
+    const link: PlatformLink = { id: randomUUID(), managed_by: null, ...row, linked_at: now(), linked_by: linkedBy };
     platform_links.push(link);
     audit(s, session, "create_platform_link", "core.platform_links", link.id, link.title_id, null, { platform: link.platform, slug: link.slug, title_slug: link.title_slug, cd_drama_id: link.cd_drama_id });
     return clone(link);
@@ -2756,6 +2788,107 @@ export const fixtureData: DataLayer = {
     const { db } = store();
     readableTitle(db, session, titleId);
     return clone(db.episodes.filter((e) => e.title_id === titleId).sort((a, b) => a.number - b.number));
+  },
+
+  // ---- the crazydramas ledger (phase 5; migration 0019) ----
+
+  async getCdPublications(session, titleId) {
+    const { db } = store();
+    requireMemberSession(session);
+    readableTitle(db, session, titleId); // a foreign title is not found
+    const rows = cdTable(db)
+      .cd_publications.map((r, i) => ({ r, i }))
+      .filter(({ r }) => r.title_id === titleId)
+      .sort((a, b) => a.r.episode_number - b.r.episode_number || a.r.created_at.localeCompare(b.r.created_at) || a.i - b.i)
+      .map(({ r }) => normalizeCdPublication(r));
+    return clone(rows);
+  },
+
+  async getCdPublication(session, id) {
+    const { db } = store();
+    return clone(normalizeCdPublication(readableCdRow(db, session, id)));
+  },
+
+  async listActiveCdPublications(session) {
+    const { db } = store();
+    requireSystemOrStaff(session);
+    return clone(cdTable(db).cd_publications.filter((r) => isActiveStep(r.step)).sort((a, b) => a.created_at.localeCompare(b.created_at)).map(normalizeCdPublication));
+  },
+
+  async createCdPublication(session, input) {
+    const s = store();
+    const row = cdPublicationRow(input);
+    readableTitle(s.db, session, row.title_id); // not_found before forbidden, like RLS
+    requireSystemOrStaff(session);
+    if (row.episode_id) {
+      const ep = s.db.episodes.find((e) => e.id === row.episode_id);
+      if (!ep || ep.title_id !== row.title_id || ep.number !== row.episode_number) throw invalid("episode_id must be this title's episode with that number");
+    }
+    const table = cdTable(s.db).cd_publications;
+    const clash = newRowConflict(row, table.filter((r) => r.title_id === row.title_id));
+    if (clash) throw conflict(clash);
+    if (table.some((r) => r.idempotency_key === row.idempotency_key && r.step !== "superseded")) throw conflict(`${row.idempotency_key} is already in the ledger`);
+    const at = now();
+    const created: CdPublication = { id: randomUUID(), ...row, created_at: at, updated_at: at };
+    table.push(created);
+    audit(s, session, "cd_publication_planned", "studio.cd_publications", created.id, created.title_id, null, { episode_number: created.episode_number, sha256: created.sha256, replace: created.replace, slug: created.slug });
+    return clone(normalizeCdPublication(created));
+  },
+
+  async updateCdPublication(session, id, input) {
+    const s = store();
+    const row = readableCdRow(s.db, session, id);
+    requireSystemOrStaff(session);
+    const before = { step: row.step, revision: row.revision, error_code: row.error_code };
+    const fields = cdUpdateFields(row, input);
+    const nextStep = fields.step ?? row.step;
+    if (isActiveStep(nextStep) && !isActiveStep(row.step)) {
+      // A Retry brings a row back: still one active row per title × episode.
+      const other = cdTable(s.db).cd_publications.find((r) => r.id !== row.id && r.title_id === row.title_id && r.episode_number === row.episode_number && isActiveStep(r.step));
+      if (other) throw conflict(`episode ${row.episode_number} already has an upload in the ledger (${other.step})`);
+    }
+    Object.assign(row, fields);
+    if (cdStepAudited(before, row)) audit(s, session, `cd_publication_${row.step}`, "studio.cd_publications", row.id, row.title_id, before, { step: row.step, revision: row.revision, error_code: row.error_code, upload_id: row.upload_id, asset_id: row.asset_id });
+    return clone(normalizeCdPublication(row));
+  },
+
+  async claimCdPublication(session, id, input) {
+    const s = store();
+    const row = readableCdRow(s.db, session, id);
+    requireSystemOrStaff(session);
+    const fields = cdClaimFields(row, input);
+    if (!fields) return null;
+    Object.assign(row, fields);
+    return clone(normalizeCdPublication(row));
+  },
+
+  async renewCdPublicationLease(session, id, input) {
+    const s = store();
+    const row = readableCdRow(s.db, session, id);
+    requireSystemOrStaff(session);
+    Object.assign(row, cdRenewFields(row, input));
+    return clone(normalizeCdPublication(row));
+  },
+
+  async releaseCdPublication(session, id, input) {
+    const s = store();
+    const row = readableCdRow(s.db, session, id);
+    requireSystemOrStaff(session);
+    const fields = cdReleaseFields(row, input);
+    if (fields) Object.assign(row, fields);
+    return clone(normalizeCdPublication(row));
+  },
+
+  async requestCdPublicationCancel(session, id) {
+    const s = store();
+    const row = readableCdRow(s.db, session, id);
+    requireSystemOrStaff(session);
+    const before = { step: row.step, revision: row.revision, error_code: row.error_code };
+    const fields = cdCancelFields(row);
+    if (!fields) return clone(normalizeCdPublication(row));
+    Object.assign(row, fields);
+    audit(s, session, row.step === "failed" ? "cd_publication_failed" : "cd_publication_cancel_requested", "studio.cd_publications", row.id, row.title_id, before, { step: row.step, revision: row.revision, error_code: row.error_code, cancel_requested: true });
+    return clone(normalizeCdPublication(row));
   },
 
   // ---- partner portal ----

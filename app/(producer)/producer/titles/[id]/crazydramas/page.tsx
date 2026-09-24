@@ -3,13 +3,16 @@ import CrazydramasPanel from "@/components/producer/CrazydramasPanel";
 import TitleShell from "@/components/producer/TitleShell";
 import { isStaffPreview, portalSession, producerLocale } from "@/components/producer/server";
 import { crazydramasPublicUrl, shownPosterUrl } from "@/lib/crazydramas";
+import { mediaUrl } from "@/lib/data/storage";
 import { t } from "@/lib/i18n";
 import { loadTitleWorkspace } from "@/lib/research/title-workspace";
 
 // /producer/titles/[id]/crazydramas — the CrazyDramas section of the title
 // workspace (plan A4.2): where the series stands on crazydramas.com, read
-// from the newest public snapshot, and Check now. Staff previewing the
-// portal see the state and cannot act (CLAUDE.md); viewers read only.
+// from the newest public snapshot, and Check now; below it "Upload to
+// crazydramas" (phase 5, publish spec §1), which only the title's approver
+// may drive. Staff previewing the portal see the state and cannot act
+// (CLAUDE.md); viewers read only.
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +22,7 @@ export default async function CrazydramasPage({ params }: { params: { id: string
   const w = await loadTitleWorkspace(session, params.id);
   const preview = isStaffPreview(session);
   const canCheck = !preview && (session.producerRole === "approver" || session.producerRole === "reviewer");
+  const canPublish = !preview && session.producerRole === "approver";
   const adStep = w.ads.flow ? t(locale, `workflow.step.${w.ads.flow.step}`) : null;
   return (
     <TitleShell locale={locale} titleId={params.id} name_zh={w.detail.title.name_zh} name_en={w.detail.title.name_en} platform={w.platform} ads={w.ads.status} adStep={adStep} crazydramas={chipReading(w.crazydramas)} section="crazydramas">
@@ -31,6 +35,7 @@ export default async function CrazydramasPage({ params }: { params: { id: string
         imported={!!w.detail.title.source_ref}
         canCheck={canCheck}
         reason={preview ? "preview" : canCheck ? null : "readOnly"}
+        publish={{ portal: "producer", canAct: canPublish, reason: preview ? "preview" : canPublish ? null : "readOnly", coverUrl: mediaUrl(w.detail.title.cover_path ?? null) }}
       />
     </TitleShell>
   );

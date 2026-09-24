@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation";
 import { useT } from "@/components/locale";
 import type { CrazydramasStatus } from "@/lib/crazydramas/match";
 import { checkedAtText, chipReading, fmtDelta, fmtPriceCents, fmtSeconds, CrazydramasChip, VERDICT_PILL } from "./CrazydramasChip";
+import CrazydramasPublish, { type CrazydramasPublishProps } from "./CrazydramasPublish";
 
 type Props = {
   titleId: string;
@@ -28,11 +29,22 @@ type Props = {
   /** Whether this session may press Check now; when not, `reason` says why in portal words. */
   canCheck: boolean;
   reason?: "preview" | "readOnly" | null;
+  /** "Upload to crazydramas" below the series check (phase 5, publish spec §1): who may act there and the title's own cover. Absent, the panel is the check alone. */
+  publish?: Omit<CrazydramasPublishProps, "titleId">;
 };
 
 type CheckReply = { error?: string; code?: string };
 
-export default function CrazydramasPanel({ titleId, status, publicUrl, posterUrl, imported, canCheck, reason = null }: Props) {
+/** Why a series is not live, when the read can tell (phase 5, spec §7: the authenticated read sees drafts, so its 404 is "nothing uploaded"). */
+function notLiveKey(status: CrazydramasStatus): string {
+  if (status.note === "slug_reassigned") return "cd.slugReassigned.note";
+  if (status.detail === "not_uploaded") return "cdp.notLive.notUploaded";
+  if (status.detail === "draft") return "cdp.notLive.draft";
+  if (status.detail === "archived") return "cdp.notLive.archived";
+  return "cd.notLive.note";
+}
+
+export default function CrazydramasPanel({ titleId, status, publicUrl, posterUrl, imported, canCheck, reason = null, publish }: Props) {
   const { tt, locale } = useT();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -73,10 +85,11 @@ export default function CrazydramasPanel({ titleId, status, publicUrl, posterUrl
   const rule = status.frame_rule;
 
   return (
+    <>
     <div className="cd-panel" style={{ display: "grid", gap: 16 }}>
       {status.state === "not_linked" && <p className="note note-info">{tt(imported ? "cd.notLinked.note" : "cd.notLinked.notImported")}</p>}
       {status.state === "not_checked" && <p className="note note-info">{tt("cd.notChecked.note")}</p>}
-      {status.state === "not_live" && <p className="note note-info">{tt(status.note === "slug_reassigned" ? "cd.slugReassigned.note" : "cd.notLive.note")}</p>}
+      {status.state === "not_live" && <p className="note note-info">{tt(notLiveKey(status))}</p>}
       {status.state === "read_failed" && <p className="note note-warn">{tt(series ? "cd.readFailed.note" : "cd.readFailed.none", { time: failedAt, error: failure })}</p>}
       {status.state === "live_unverified" && <p className="note note-info">{tt("cd.unverified.note")}</p>}
 
@@ -196,5 +209,8 @@ export default function CrazydramasPanel({ titleId, status, publicUrl, posterUrl
 
       <p className="tw-note">{tt("cd.lengthRule", { offset: rule.offset, film: rule.calibrated_on, files: rule.calibrated_files })}</p>
     </div>
+    {/* Beside the check, not inside it: the check's own notes and table stay the only ones under .cd-panel. */}
+    {publish && <CrazydramasPublish titleId={titleId} {...publish} />}
+    </>
   );
 }

@@ -207,7 +207,7 @@ export async function checkCrazydramasTitle(session: Session, titleId: string, o
         try {
           const own = title.crazydramas_slug?.trim() || null;
           const titleSlug = !link || read.reason === "title_edited" ? read.slug : own && (own === link.title_slug || own === link.slug) ? own : link.title_slug;
-          currentLink = await data.upsertPlatformLink(sys, { title_id: titleId, platform: PLATFORM, slug: read.slug, title_slug: titleSlug, cd_drama_id: answer.drama.id });
+          currentLink = await data.upsertPlatformLink(sys, { title_id: titleId, platform: PLATFORM, slug: read.slug, title_slug: titleSlug, cd_drama_id: answer.drama.id, ...(answer.drama.managed_by !== undefined ? { managed_by: answer.drama.managed_by } : {}) });
           linked = !link || currentLink.cd_drama_id !== link.cd_drama_id;
         } catch (e) {
           if (!isDataError(e) || e.code !== "conflict") throw e;
@@ -215,10 +215,20 @@ export async function checkCrazydramasTitle(session: Session, titleId: string, o
           error = `${read.slug} is a series linked to a different title, so the link was not moved; staff can resolve it`;
         }
       }
+      // An authenticated read says who manages the series (phase 5): the link keeps it current (Jayden handing a series over,
+      // or taking it back, changes it), so a write is refused before any call when the series is the CMS's.
+      const managed = answer.drama.managed_by;
+      if (managed !== undefined && currentLink && currentLink.cd_drama_id === answer.drama.id && (currentLink.managed_by ?? null) !== managed) {
+        try {
+          currentLink = await data.upsertPlatformLink(sys, { title_id: titleId, platform: PLATFORM, slug: currentLink.slug, title_slug: currentLink.title_slug, cd_drama_id: currentLink.cd_drama_id, managed_by: managed });
+        } catch (e) {
+          if (!isDataError(e)) throw e;
+        }
+      }
       // A 200 that could not be linked keeps its body AND the refusal: the reading shows it as a failed read with that sentence.
-      snapshot = await data.recordPlatformSnapshot(sys, { platform: PLATFORM, slug: read.slug, cd_drama_id: answer.drama.id, title_id: titleId, http_status: 200, drama: answer.drama, episodes: answer.episodes, error });
+      snapshot = await data.recordPlatformSnapshot(sys, { platform: PLATFORM, slug: read.slug, cd_drama_id: answer.drama.id, title_id: titleId, http_status: 200, drama: answer.drama, episodes: answer.episodes, error, read_via: answer.read_via ?? null });
     } else {
-      snapshot = await data.recordPlatformSnapshot(sys, { platform: PLATFORM, slug: read.slug, cd_drama_id: link?.cd_drama_id ?? null, title_id: titleId, http_status: 404 });
+      snapshot = await data.recordPlatformSnapshot(sys, { platform: PLATFORM, slug: read.slug, cd_drama_id: link?.cd_drama_id ?? null, title_id: titleId, http_status: 404, read_via: answer.read_via ?? null });
     }
   } catch (e) {
     if (isDataError(e)) throw e; // a refused row is a bug, never a "read failure"
@@ -300,9 +310,9 @@ export async function sweepCrazydramas(opts: { transport?: CrazydramasTransport;
       try {
         const answer = await transport.series(entry.slug);
         if (answer.http_status === 200) {
-          await data.recordPlatformSnapshot(sys, { platform: PLATFORM, slug: entry.slug, cd_drama_id: answer.drama.id, title_id: null, http_status: 200, drama: answer.drama, episodes: answer.episodes });
+          await data.recordPlatformSnapshot(sys, { platform: PLATFORM, slug: entry.slug, cd_drama_id: answer.drama.id, title_id: null, http_status: 200, drama: answer.drama, episodes: answer.episodes, read_via: answer.read_via ?? null });
         } else {
-          await data.recordPlatformSnapshot(sys, { platform: PLATFORM, slug: entry.slug, cd_drama_id: entry.id, title_id: null, http_status: 404 });
+          await data.recordPlatformSnapshot(sys, { platform: PLATFORM, slug: entry.slug, cd_drama_id: entry.id, title_id: null, http_status: 404, read_via: answer.read_via ?? null });
         }
         summary.unmatched += 1;
       } catch (e) {
@@ -354,6 +364,9 @@ export type TickResult = { ran: boolean; skipped?: "tests" | "disabled" | "not_d
 export async function tickCrazydramas(opts: { now?: () => number } = {}): Promise<TickResult> {
   if (process.env.NODE_TEST_CONTEXT || process.env.NODE_ENV === "test") return { ran: false, skipped: "tests" };
   if (process.env.SCHEDULER_DISABLED === "1") return { ran: false, skipped: "disabled" };
+  // Phase 5: every tick also wakes the uploads to crazydramas that no worker is running (a restart, a stale lease, a wait
+  // that is due). Fire and forget; imported here so this module never loads the uploader for a page that only reads.
+  void import("./publish").then((m) => m.resumeCrazydramasUploads()).catch((e) => console.warn(`[crazydramas] resuming uploads failed: ${errorText(e)}`));
   const s = state();
   const now = (opts.now ?? Date.now)();
   if (s.running) return { ran: false, skipped: "running" };
@@ -406,12 +419,13 @@ export async function listUnmatchedCrazydramas(session: Session): Promise<Unmatc
   const linked = new Set((await data.listPlatformLinks(session, PLATFORM)).map((l) => l.cd_drama_id));
   const out: UnmatchedSeries[] = [];
   for (const r of rows) {
-    if (r.title_id || r.http_status !== 200 || !r.drama || r.error || linked.has(r.drama.id)) continue;
+    // Live means published: an authenticated read also sees drafts and archived series, which are not on the site.
+    if (r.title_id || r.http_status !== 200 || !r.drama || r.error || linked.has(r.drama.id) || r.drama.status !== "published") continue;
     out.push({
       slug: r.slug,
       cd_drama_id: r.drama.id,
       title: r.drama.title,
-      episode_count: r.episodes?.length ?? r.drama.episode_count,
+      episode_count: r.episodes ? r.episodes.filter((e) => e.is_published).length : r.drama.episode_count,
       free_episode_count: r.drama.free_episode_count,
       series_price_cents: r.drama.series_price_cents,
       iap_product_set: !!r.drama.iap_product_id,

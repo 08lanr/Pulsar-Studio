@@ -684,7 +684,18 @@ export type PlatformLink = {
   linked_at: string;
   /** Null for the system actor (the sweep). */
   linked_by: string | null;
+  /**
+   * Who may change the series on the platform (migration 0019; crazydramas
+   * `dramas.managed_by`): `studio` when Studio created it, `cms` when it was
+   * made in the crazydramas CMS (read-only for Studio), null until an
+   * authenticated read or Studio's own create said which. Optional in the
+   * type: a link written before 0019 has none.
+   */
+  managed_by?: PlatformManagedBy | null;
 };
+
+/** crazydramas `dramas.managed_by` (its migration 0007): Studio writes only the series it created. */
+export type PlatformManagedBy = "studio" | "cms";
 
 /** The whitelisted series fields of one public read (`drama` jsonb); never a playback id or a thumbnail URL. */
 export type PlatformDrama = {
@@ -700,6 +711,13 @@ export type PlatformDrama = {
   poster_blurhash: string | null;
   episode_count: number;
   cta_mode: string | null;
+  /**
+   * Only on an authenticated read (`GET /api/studio/series/:series`, phase 5,
+   * spec §7): who may change the series. The public API never says, so a
+   * public read leaves it absent. `status` is then `draft`, `published` or
+   * `archived` (a public read only ever sees `published`).
+   */
+  managed_by?: PlatformManagedBy | null;
 };
 
 /** One episode as the public read listed it (`episodes` jsonb entries). */
@@ -729,6 +747,91 @@ export type PlatformSnapshot = {
   episodes: PlatformEpisode[] | null;
   read_at: string;
   error: string | null;
+  /**
+   * Which read made the row (migration 0019): `studio` = the authenticated
+   * `GET /api/studio/series/:series`, which sees drafts and unpublished
+   * episodes, so a 404 there means "not uploaded"; `public` = the public API,
+   * where a 404 is "not uploaded, or draft". Null on rows written before 0019.
+   */
+  read_via?: PlatformReadVia | null;
+};
+
+export type PlatformReadVia = "public" | "studio";
+
+// ---- studio.cd_publications (phase 5, "Upload to crazydramas"; migration 0019) ----
+
+/**
+ * One ledger row's step (publish spec §8, plan A6): planned → upload_created →
+ * bytes_sent → asset_ready → verified → published, or failed / superseded.
+ * Each step is persisted before the next external call.
+ */
+export type CdPublicationStep = "planned" | "upload_created" | "bytes_sent" | "asset_ready" | "verified" | "published" | "failed" | "superseded";
+
+export const CD_PUBLICATION_STEPS: readonly CdPublicationStep[] = ["planned", "upload_created", "bytes_sent", "asset_ready", "verified", "published", "failed", "superseded"];
+
+/** Steps in which the background uploader still owns the row (one such row per title × episode). */
+export const CD_ACTIVE_STEPS: readonly CdPublicationStep[] = ["planned", "upload_created", "bytes_sent", "asset_ready"];
+
+/**
+ * studio.cd_publications — what Studio uploaded to crazydramas, one row per
+ * title × episode × file (`idempotency_key` = `cd:<title_id>:ep<k>:<sha8>`).
+ * At most one active row (CD_ACTIVE_STEPS) per title × episode number; a
+ * re-cut is a new row, and the row it replaces becomes `superseded` once the
+ * new one is published. Never an upload URL (a capability) or a playback id
+ * (the paywall leak) in any column. Producers read the rows of their own
+ * titles; every write is the system's or staff's.
+ */
+export type CdPublication = {
+  id: string;
+  title_id: string;
+  /** Studio's episode (core.episodes.id); null once that row is gone. */
+  episode_id: string | null;
+  episode_number: number;
+  /** crazydramas `dramas.id` and the slug the series was addressed by. */
+  cd_drama_id: string;
+  slug: string;
+  /** crazydramas `episodes.id` once the upload call answered. */
+  cd_episode_id: string | null;
+  idempotency_key: string;
+  step: CdPublicationStep;
+  /** The file sent: SHA-256 (also Mux `meta.external_id`), size, frame count and rate, and its local-tier stored path (`localPathOf`). */
+  sha256: string;
+  bytes: number;
+  frames: number | null;
+  fps: number | null;
+  source_path: string;
+  /** The upload is a re-cut over media crazydramas already holds (`replace: true`, spec §10). */
+  replace: boolean;
+  /** Mux ids: the direct upload, its asset, the asset a replace put aside, and an upload of this row that died (timed out, errored, cancelled). */
+  upload_id: string | null;
+  asset_id: string | null;
+  previous_asset_id: string | null;
+  previous_upload_id: string | null;
+  /** Bytes Mux acknowledged (the resumable upload's Range); the uploader resumes from here. */
+  bytes_acked: number;
+  /** The ready asset's length, seconds (Mux). */
+  duration_s: number | null;
+  /** The verify step's facts: `{external_id_ok, d_frames, verdict}`. */
+  verify: Json | null;
+  error: string | null;
+  /** A machine code for the error (a crazydramas code passed through, or Studio's own: taken_over, verify_failed, cancelled, …). */
+  error_code: string | null;
+  /** A person asked Studio to stop (POST …/uploads/cancel); the uploader stops before its next chunk. */
+  cancel_requested: boolean;
+  /** Transient refusals in a row; reset by a step forward or a Retry. */
+  attempts: number;
+  /** When the uploader last sent an external call for this row (a lost answer is settled by repeating the idempotent call). */
+  attempted_at: string | null;
+  /** A transient refusal (episode_busy, 5xx, unreachable) waits until then. */
+  next_attempt_at: string | null;
+  lease_owner: string | null;
+  leased_until: string | null;
+  /** Bumped by every write except a lease renewal (CAS). */
+  revision: number;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  published_at: string | null;
 };
 
 export type AuditEvent = {

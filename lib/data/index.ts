@@ -19,6 +19,7 @@
 
 import type { AnalyticsLink, AnalyticsListing, AnalyticsRange, AnalyticsWindow, TitleAnalytics, TitlePerformanceRow } from "@/lib/analytics/types";
 import type { Session } from "@/lib/auth";
+import type { CdPublicationUpdate, ClaimCdPublicationInput, NewCdPublicationInput } from "@/lib/crazydramas/ledger";
 import type { NewPlatformLinkInput, NewPlatformSnapshotInput } from "@/lib/crazydramas/types";
 import { dataSource } from "@/lib/data-source";
 import type { IngestResult } from "@/lib/ingest";
@@ -47,6 +48,7 @@ import type {
   PlatformLink,
   PlatformName,
   PlatformSnapshot,
+  CdPublication,
   CreativeResult,
   LaunchPreset,
   InstantPageTemplate,
@@ -306,6 +308,13 @@ export type NewPlatformLink = NewPlatformLinkInput;
 export type NewPlatformSnapshot = NewPlatformSnapshotInput;
 
 export { PLATFORM_SNAPSHOTS_KEEP } from "@/lib/crazydramas/types";
+
+// ---- the crazydramas ledger (phase 5, "Upload to crazydramas"; migration 0019) ----
+
+/** One episode's planned upload; validated by lib/crazydramas/ledger.ts cdPublicationRow. */
+export type NewCdPublication = NewCdPublicationInput;
+export type { CdPublicationUpdate, ClaimCdPublicationInput };
+export { CD_LEASE_MS } from "@/lib/crazydramas/ledger";
 
 /** Storage paths (lib/data/storage.ts) of what the ingest route stored; both optional. */
 export type IngestFiles = {
@@ -921,6 +930,33 @@ export interface DataLayer {
   listTitlesWithPlatformSlug(session: Session, platform: PlatformName): Promise<Title[]>;
   /** The full episode rows of a title by number (the import fields included), for whoever reads the title; a foreign title is not found. */
   listTitleEpisodes(session: Session, titleId: string): Promise<Episode[]>;
+
+  // the crazydramas ledger (phase 5, "Upload to crazydramas"; migration 0019).
+  // What Studio uploaded to crazydramas, one row per title × episode × file.
+  // Producers read the rows of their own titles (can_read_title); every write
+  // is the system's or staff's, revision-conditional (CAS) and, for a worker,
+  // under a ten-minute lease (lib/crazydramas/ledger.ts holds the rules both
+  // backends apply). The same refusals in both: a foreign title or row is
+  // not_found, a producer write is forbidden, a bad field is invalid, a stale
+  // revision, a foreign live lease or a second active row per episode is a
+  // conflict — as is the same file already on crazydramas.
+  /** Every ledger row of the title, by episode number then oldest first; whoever reads the title. */
+  getCdPublications(session: Session, titleId: string): Promise<CdPublication[]>;
+  /** One row; not found when the session cannot read its title. */
+  getCdPublication(session: Session, id: string): Promise<CdPublication>;
+  /** System or staff: every row still in an active step (planned … asset_ready), every title — the resume sweep and the machine-wide slot count. */
+  listActiveCdPublications(session: Session): Promise<CdPublication[]>;
+  /** System or staff: plan one episode's upload (step `planned`). */
+  createCdPublication(session: Session, input: NewCdPublication): Promise<CdPublication>;
+  /** System or staff: a revision-conditional write of the step and its facts (audited when the step leaves the uploader's own steps). */
+  updateCdPublication(session: Session, id: string, input: CdPublicationUpdate): Promise<CdPublication>;
+  /** A worker takes the row: CAS on `revision` plus a ten-minute lease (a stale one is adopted); null when the race was lost. */
+  claimCdPublication(session: Session, id: string, input: ClaimCdPublicationInput): Promise<CdPublication | null>;
+  renewCdPublicationLease(session: Session, id: string, input: { owner: string; leaseMs?: number }): Promise<CdPublication>;
+  /** Let the lease go (a no-op when `owner` does not hold it). */
+  releaseCdPublication(session: Session, id: string, input: { owner: string }): Promise<CdPublication>;
+  /** System or staff: a person's Stop — flags a running row, fails one nobody runs; a no-op on a row past its bytes. */
+  requestCdPublicationCancel(session: Session, id: string): Promise<CdPublication>;
 
   // partner portal
   getProducerTitles(session: Session): Promise<ProducerTitleSummary[]>;
