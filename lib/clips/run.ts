@@ -85,8 +85,9 @@ export async function cutEpisodeClips(titleId: string, episodeNumber: number, op
       const [probedDuration, sourceSize] = await Promise.all([probeDurationMs(srcAbs), probeSourceSize(srcAbs)]);
       const durationMs = probedDuration ?? episode.duration_ms ?? null;
       const selection = await selectClips(session, wb, srcAbs, durationMs, { force: opts.force });
+      // A 60-second ad that hangs on this episode (moment `montage`, lib/clips/montage.ts) is never re-cut from it.
       const toRender = selection.clips
-        .filter((c) => c.status !== "dismissed")
+        .filter((c) => c.status !== "dismissed" && c.moment !== "montage")
         .sort((a, b) => a.rank - b.rank)
         .filter((c) => opts.force || c.render_status !== "rendered")
         .slice(0, RENDER_LIMIT);

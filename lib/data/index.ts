@@ -66,6 +66,7 @@ import type {
   ClipSource,
   ClipStatus,
   Episode,
+  MontagePiece,
   FeedbackDisposition,
   Job,
   JobKind,
@@ -430,6 +431,31 @@ export type ClipRenderInput = {
   duration_ms?: number | null;
   width?: number | null;
   height?: number | null;
+};
+
+/**
+ * A finished 60-second ad (decision 2026-09-24, lib/clips/montage.ts): a
+ * clips row of moment `montage`, born rendered — the build writes it only
+ * once its file exists and passed the checks. It hangs on its hook's
+ * episode (`episode_id`, the hook's range as start/end) and takes a rank
+ * from 1001 up there, so it never shares a rank with the episode's own clips;
+ * it is `shortlisted` (a person asked for it), so a re-run of the episode's
+ * clips never replaces it.
+ */
+export type NewMontageClip = {
+  title_id: string;
+  pieces: MontagePiece[];
+  hook_en: string;
+  why_en: string;
+  why_zh: string;
+  source: ClipSource;
+  job_id: string | null;
+  render_path: string;
+  render_sha256: string;
+  duration_ms: number;
+  width: number;
+  height: number;
+  render_note?: string | null;
 };
 
 export type NewJob = {
@@ -828,6 +854,13 @@ export interface DataLayer {
   listEpisodeClips(session: Session, titleId: string, episodeNumber?: number): Promise<Clip[]>;
   /** System, staff or a title editor: the clip's finished file (or why there is none). */
   setClipRender(session: Session, clipId: string, render: ClipRenderInput): Promise<Clip>;
+  /**
+   * System or staff only (the build runs as the system after the route's edit
+   * check): a finished 60-second ad as a clips row (NewMontageClip). Refused
+   * without pieces, with a piece on another title's episode, or without a
+   * finished file.
+   */
+  addMontageClip(session: Session, input: NewMontageClip): Promise<Clip>;
 
   // jobs and cost
   /** Idempotent: an existing 'done' row for the key is returned as is (callers check status). */

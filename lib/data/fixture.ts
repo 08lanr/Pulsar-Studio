@@ -22,6 +22,7 @@ import { canReadTitle, isSystemSession, type Session } from "@/lib/auth";
 import { budgetCheck, overBudgetMessage } from "@/lib/angles";
 import { AD_TEXT_MAX, clipIdOf, creativesFromClips, NO_CLIPS_MESSAGE, pickClipsForRound } from "@/lib/clips/creatives";
 import { cutClip, withSourceFile } from "@/lib/clips/cut";
+import { MONTAGE_RANK_BASE, montageClipProblem } from "@/lib/clips/montage";
 import { ffmpegAvailable } from "@/lib/promote/render";
 import { blockerMessage, isAssignedBusinessCenter, isReadyLaunchAccount, launchReadiness } from "@/lib/promote/launch-gate";
 import { launchMode } from "@/lib/tiktok";
@@ -2428,6 +2429,52 @@ export const fixtureData: DataLayer = {
     if (render.width !== undefined) clip.width = render.width;
     if (render.height !== undefined) clip.height = render.height;
     return clone(clip);
+  },
+
+  async addMontageClip(session, input) {
+    requireSystemOrStaff(session); // the build runs as the system after the route's edit check
+    const { db } = store();
+    const title = findTitle(db, input.title_id);
+    const check = montageClipProblem(input, (id) => db.episodes.find((e) => e.id === id)?.title_id ?? null);
+    if (check) throw invalid(check);
+    const hook = input.pieces[0];
+    const taken = new Set(db.clips.filter((c) => c.episode_id === hook.episode_id).map((c) => c.rank));
+    let rank = MONTAGE_RANK_BASE;
+    while (taken.has(rank)) rank++;
+    const row: Clip = {
+      id: randomUUID(),
+      external_id: extId("clip"),
+      title_id: title.id,
+      episode_id: hook.episode_id,
+      adaptation_id: findAdaptation(db, title.id).id,
+      rank,
+      start_ms: hook.start_ms,
+      end_ms: hook.end_ms,
+      scene_ids: [],
+      hook_en: input.hook_en,
+      why_en: input.why_en,
+      why_zh: input.why_zh,
+      opening_text_en: null,
+      cut_length_s: Math.max(1, Math.round(input.duration_ms / 1000)),
+      angle: null,
+      status: "shortlisted",
+      model: null,
+      prompt_version: null,
+      job_id: input.job_id,
+      source: input.source,
+      moment: "montage",
+      render_path: input.render_path,
+      render_sha256: input.render_sha256,
+      render_status: "rendered",
+      render_note: input.render_note ?? null,
+      duration_ms: input.duration_ms,
+      width: input.width,
+      height: input.height,
+      pieces: clone(input.pieces),
+      created_at: now(),
+    };
+    db.clips.push(row);
+    return clone(row);
   },
 
   // ---- jobs and cost ----

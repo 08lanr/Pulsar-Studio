@@ -513,7 +513,7 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
                   <label className="launch-ad-cell"><span className="launch-ad-cell-label">{tt("lpt.clip")}</span>
                     <select className="select" aria-label={tt("lpt.clipFor", { n: i + 1 })} value={clip ? clip.id : ""} onChange={(e) => setAdClip(item.value, e.target.value)}>
                       <option value="">{tt("lpt.noClip")}</option>
-                      {liveTitles.map((t) => { const own = adClips.filter((c) => c.title_id === t.id); return own.length ? <optgroup key={t.id} label={t.name}>{own.map((c) => <option key={c.id} value={c.id}>{c.episode_label ? `${tt("lpt.episode", { n: c.episode_label })} · ` : ""}{c.label}</option>)}</optgroup> : null; })}
+                      {liveTitles.map((t) => { const own = adClips.filter((c) => c.title_id === t.id); return own.length ? <optgroup key={t.id} label={t.name}>{own.map((c) => <option key={c.id} value={c.id}>{c.montage ? `${tt("montage.pill")} · ` : c.episode_label ? `${tt("lpt.episode", { n: c.episode_label })} · ` : ""}{c.label}</option>)}</optgroup> : null; })}
                     </select>
                     {mismatch && <small className="launch-ad-mismatch" role="alert">{tt("lpt.mismatch", { clip: clip!.title_name, title: current?.name ?? "—" })}</small>}</label>
                   <span className="launch-ad-cell"><span className="launch-ad-cell-label">{tt("lpt.link")}</span>

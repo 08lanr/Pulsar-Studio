@@ -14,11 +14,15 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useT } from "@/components/locale";
 import { call } from "@/components/tiktok/api";
 import PostClipDialog from "@/components/launch/PostClipDialog";
+import AdMontage from "@/components/launch/AdMontage";
 import { postOn, publishedOn, shortDate } from "@/components/launch/clip-state";
 import type { ClipLibraryRow, ClipPost, ClipPostPlatform } from "@/lib/launch/clip-posts";
+import type { MontageStatus } from "@/lib/clips/montage-run";
 import type { LaunchConnection, LaunchWorkspace } from "@/lib/launch/types";
 
-type Props = { staff?: boolean; titleId?: string };
+/** On one title's page: its 60-second ad panel (components/launch/AdMontage.tsx) above the table, which reloads when an ad lands. */
+type MontagePanel = { canBuild: boolean; initial: MontageStatus | null };
+type Props = { staff?: boolean; titleId?: string; montage?: MontagePanel };
 type PostedFilter = "any" | "not_posted" | "posted" | "failed";
 type Opening = { clip: ClipLibraryRow; platform: ClipPostPlatform };
 
@@ -34,7 +38,7 @@ const duration = (ms: number | null) => {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 };
 
-export default function ClipsTable({ staff = false, titleId }: Props) {
+export default function ClipsTable({ staff = false, titleId, montage }: Props) {
   const { tt, locale } = useT();
   const router = useRouter();
   const pathname = usePathname() ?? (staff ? "/clips" : "/producer/clips");
@@ -159,7 +163,8 @@ export default function ClipsTable({ staff = false, titleId }: Props) {
   if (options.current.producer !== producer) options.current = { producer, titles: new Map(), episodes: new Map() };
   for (const row of rows) {
     if (row.title_id) options.current.titles.set(row.title_id, row.title_name);
-    if (row.episode_id) options.current.episodes.set(row.episode_id, { titleId: row.title_id, title: row.title_name, number: row.episode_label ?? row.episode_id });
+    // A 60-second ad names several episodes, so it adds none to the Episode filter.
+    if (row.episode_id && !row.montage) options.current.episodes.set(row.episode_id, { titleId: row.title_id, title: row.title_name, number: row.episode_label ?? row.episode_id });
   }
   const titleOptions = [...options.current.titles.entries()];
   // `episode_label` is the bare number, so across several titles the list would
@@ -246,6 +251,7 @@ export default function ClipsTable({ staff = false, titleId }: Props) {
       <div className="rs-tool-row"><Link className="btn btn-primary" href={staff ? "/promote/launches" : "/producer/launch"}>{tt("lv2.launch.title")}</Link></div>
     </div>
     <div className="note"><p>{tt("lv2.clips.steps")}</p></div>
+    {titleId && montage && <div className="card pd-panel ad-montage-card"><AdMontage titleId={titleId} initial={montage.initial} canBuild={montage.canBuild} staff={staff} onBuilt={() => void load()} /></div>}
 
     <div className="clips-filters" role="group" aria-label={tt("clipsPosting.filters")}>
       {staff && <label><span>{tt("clipsPosting.filter.producer")}</span>
@@ -306,8 +312,8 @@ export default function ClipsTable({ staff = false, titleId }: Props) {
         </span>
         {showProducer && <span>{row.producer_name}</span>}
         <span><strong>{row.title_name}</strong></span>
-        <span>{row.episode_label ?? "—"}</span>
-        <span className="clips-hook">{row.label}</span>
+        <span>{row.montage ? row.montage.episodes : row.episode_label ?? "—"}</span>
+        <span className="clips-hook">{row.montage && <span className="pill pill-accent clips-montage-pill">{tt("montage.pill")}</span>}{row.label}</span>
         <span className="gt-num">{duration(row.duration_ms)}</span>
         <span>{shortDate(row.rendered_at, locale)}</span>
         <span data-platform="facebook">{platformCell(row, "facebook")}</span>

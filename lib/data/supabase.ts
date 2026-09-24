@@ -70,6 +70,7 @@ import { examplesFromApprovedVersions } from "@/lib/translation-memory";
 import { isSystemSession } from "@/lib/auth";
 import { budgetCheck, overBudgetMessage } from "@/lib/angles";
 import { AD_TEXT_MAX, clipIdOf, creativesFromClips, NO_CLIPS_MESSAGE, pickClipsForRound } from "@/lib/clips/creatives";
+import { MONTAGE_RANK_BASE, montageClipProblem } from "@/lib/clips/montage";
 import { blockerMessage, isAssignedBusinessCenter, isReadyLaunchAccount, launchReadiness } from "@/lib/promote/launch-gate";
 import { launchMode } from "@/lib/tiktok";
 import { launchSettingsSchema, LaunchSettingsError, normalizeLaunchSettings, validateLaunchSettings, type LaunchSettings } from "@/lib/tiktok/settings";
@@ -1348,6 +1349,54 @@ export const supabaseData: DataLayer = {
     if (render.width !== undefined) patch.width = render.width;
     if (render.height !== undefined) patch.height = render.height;
     return one<Clip>(studio(c).from("clips").update(patch).eq("id", clipId).select("*").maybeSingle(), "clip", clipId);
+  },
+
+  async addMontageClip(session, input) {
+    requireSystemOrStaff(session); // the build runs as the system (service role) after the route's edit check
+    const c = dbFor(session);
+    const ids = [...new Set(input.pieces.map((p) => p.episode_id))];
+    const owners = ids.length ? await many<Pick<Episode, "id" | "title_id">>(core(c).from("episodes").select("id, title_id").in("id", ids)) : [];
+    const titleOf = new Map(owners.map((e) => [e.id, e.title_id]));
+    const check = montageClipProblem(input, (id) => titleOf.get(id) ?? null);
+    if (check) throw invalid(check);
+    const adaptation = await adaptationOf(c, input.title_id);
+    const hook = input.pieces[0];
+    const kept = await many<Pick<Clip, "rank">>(studio(c).from("clips").select("rank").eq("episode_id", hook.episode_id).gte("rank", MONTAGE_RANK_BASE));
+    const taken = new Set(kept.map((k) => k.rank));
+    let rank = MONTAGE_RANK_BASE;
+    while (taken.has(rank)) rank++;
+    return one<Clip>(
+      studio(c)
+        .from("clips")
+        .insert({
+          title_id: input.title_id,
+          episode_id: hook.episode_id,
+          adaptation_id: adaptation.id,
+          rank,
+          start_ms: hook.start_ms,
+          end_ms: hook.end_ms,
+          scene_ids: [],
+          hook_en: input.hook_en,
+          why_en: input.why_en,
+          why_zh: input.why_zh,
+          cut_length_s: Math.max(1, Math.round(input.duration_ms / 1000)),
+          status: "shortlisted",
+          job_id: input.job_id,
+          source: input.source,
+          moment: "montage",
+          pieces: input.pieces,
+          render_path: input.render_path,
+          render_sha256: input.render_sha256,
+          render_status: "rendered",
+          render_note: input.render_note ?? null,
+          duration_ms: input.duration_ms,
+          width: input.width,
+          height: input.height,
+        })
+        .select("*")
+        .maybeSingle(),
+      "clip"
+    );
   },
 
   // ---- jobs and cost ----

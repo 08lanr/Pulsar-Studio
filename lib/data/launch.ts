@@ -14,6 +14,8 @@ import { launchShape } from "@/lib/tiktok/settings";
 import type { ClipLibraryFilter, ClipLibraryRow, ClipPost, ClipPostPlatform, ClipPostStatus, ClipPostStep } from "@/lib/launch/clip-posts";
 import type { ClipPostPatch, LaunchConnection, LaunchDataLayer, LaunchDraft, LaunchLibraryItem, LaunchRun, LaunchProvider, LaunchPlanRow } from "@/lib/launch/types";
 import type { DataLayer } from "./index";
+import type { Clip } from "@/lib/types";
+import { montageEpisodesLabel } from "@/lib/clips/montage";
 import { conflict, forbidden, invalid, isDataError, notFound } from "./errors";
 import { mediaUrl } from "./storage";
 
@@ -338,19 +340,24 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
     const search = filter.search?.trim().toLowerCase() || "";
     const out: ClipLibraryRow[] = [];
     for (const title of titles) {
+      // A 60-second ad (moment `montage`) is listed under every episode it draws on.
+      const onEpisode = (c: Clip) => (c.moment === "montage" ? (c.pieces ?? []).some(p => p.episode_id === filter.episode_id) : c.episode_id === filter.episode_id);
       const clips = (await base.listEpisodeClips(s, title.id))
         .filter(c => c.render_status === "rendered" && c.render_path && c.render_sha256 && c.status !== "dismissed")
-        .filter(c => !filter.episode_id || c.episode_id === filter.episode_id);
+        .filter(c => !filter.episode_id || onEpisode(c))
+        // A title's 60-second ads lead its rows, newest first; the clips keep their episode and rank order.
+        .sort((a, b) => Number(b.moment === "montage") - Number(a.moment === "montage") || (a.moment === "montage" && b.moment === "montage" ? b.created_at.localeCompare(a.created_at) : 0));
       if (!clips.length) continue;
       const episodes = withEpisodes ? await episodeNumbers(s, title.id) : new Map<string, string>();
       const name = title.name_en || title.name_zh;
       for (const clip of clips) {
         const saved = dataSource() === "fixture" ? store().sparks[clip.id] : undefined;
+        const montage = clip.moment === "montage" ? { episodes: montageEpisodesLabel(clip.pieces), pieces: clip.pieces?.length ?? 0 } : null;
         out.push({
           id: clip.id, external_id: clip.external_id, kind: "video", value: clip.id, creative_id: clip.id, clip_id: clip.id,
           producer_id: title.producer_id, producer_name: title.producer_name_en || title.producer_name_zh,
           title_id: title.id, title_name: name, episode_id: clip.episode_id ?? null,
-          episode_label: episodes.get(clip.episode_id) ?? null, label: clip.hook_en || clip.external_id,
+          episode_label: montage ? null : episodes.get(clip.episode_id) ?? null, label: clip.hook_en || clip.external_id, montage,
           duration_ms: clip.duration_ms ?? null, rendered_at: clip.created_at ?? null,
           file_path: clip.render_path!, sha256: clip.render_sha256!, text: clip.hook_en, headline: name,
           media_url: mediaUrl(clip.render_path), thumbnail_url: null,

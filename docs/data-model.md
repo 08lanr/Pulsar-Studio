@@ -1303,3 +1303,25 @@ poster lives in the public Storage bucket `public-posters` of Studio's own
 project (`<title_external_id>/<sha8>.jpg`), which the app creates on first use
 through the Storage API with the service role; no row records it (the sha is
 the file's name and the series' `poster_url` on crazydramas is the record).
+
+## 13. The 60-second ad (migration `0021_ad_montage.sql`, decision 2026-09-24 "The 60-second ad")
+
+```
+studio.job_kind  + 'build_montage'           -- one row per build of a title's 60-second ad; target_type 'title'; cost 0
+                                             -- (ffmpeg only); key build_montage:<title_id>:<pick key>:<time>; input = the pick
+studio.clips.moment  + 'montage'             -- a finished 60-second ad is a clips row, born rendered and 'shortlisted'
+studio.clips.pieces  jsonb                   -- [{role hook|scene|cliff, clip_id, clip_external_id, episode_id, episode_number,
+                                             --   start_ms, end_ms, frames}] in playing order; required on a montage row
+                                             --   (clips_montage_pieces), absent on every other clip
+```
+
+A montage row hangs on its hook's episode (`episode_id`, the hook's range as
+`start_ms` / `end_ms`) and ranks from 1001 up there, so it never shares a rank
+with the episode's own clips (unique episode × rank); being `shortlisted`, a
+re-run of the episode's clips never replaces it. Because it is a clips row, the
+Clips library, Launch, `promote.clip_posts` (which references `studio.clips`)
+and the zip download take it like any clip. The file is named by the pick
+(`<title_id>/montage/ad60-<pick key>-<job8>.mp4`), which is how a second press
+of the same pick finds the ad it made. Written by the build as the service
+role after the route's edit check; producers read it through `producer_select`
+(0010).

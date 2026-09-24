@@ -21,7 +21,8 @@ export type EpisodeClipsPayload = {
 export async function episodeClipsPayload(session: Session, titleId: string, episodeNumber: number): Promise<EpisodeClipsPayload> {
   const data = getData();
   const [clips, job] = await Promise.all([data.listEpisodeClips(session, titleId, episodeNumber), data.latestEpisodeJob(session, titleId, episodeNumber, "cut_clips")]);
-  const visible = clips.filter((c) => c.status !== "dismissed");
+  // A 60-second ad belongs to the title, not to the episode its hook hangs on: it is listed on its own.
+  const visible = clips.filter((c) => c.status !== "dismissed" && c.moment !== "montage");
   const { state, note } = clipRunState(visible, job);
   return {
     episode_number: episodeNumber,

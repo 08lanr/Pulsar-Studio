@@ -52,8 +52,10 @@ export type ClipLibraryRow = LaunchContent & {
   title_id: string;
   title_name: string;
   episode_id: string | null;
-  episode_label: string | null;
+  episode_label: string | null;       // the bare number; null on a 60-second ad (see `montage`)
   label: string;                      // hook_en, falling back to external_id
+  /** A 60-second ad (lib/clips/montage.ts): shown as "Ad · 60 s", its episodes in place of one. Null on a clip. */
+  montage?: { episodes: string; pieces: number } | null;
   duration_ms: number | null;
   rendered_at: string | null;
   media_url: string | null;

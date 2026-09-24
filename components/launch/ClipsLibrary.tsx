@@ -6,7 +6,8 @@
 
 import { Suspense } from "react";
 import ClipsTable from "@/components/launch/ClipsTable";
+import type { MontageStatus } from "@/lib/clips/montage-run";
 
-export default function ClipsLibrary({ titleId }: { titleId?: string }) {
-  return <Suspense fallback={null}><ClipsTable titleId={titleId} /></Suspense>;
+export default function ClipsLibrary({ titleId, montage }: { titleId?: string; montage?: { canBuild: boolean; initial: MontageStatus | null } }) {
+  return <Suspense fallback={null}><ClipsTable titleId={titleId} montage={montage} /></Suspense>;
 }

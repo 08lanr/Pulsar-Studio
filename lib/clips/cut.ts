@@ -70,14 +70,16 @@ export type Framing = { filter: string; /** Top pixel row of the letterboxed pic
  * itself filling the frame, its bottom on the 35% band so the platform UI
  * never covers it: the standard vertical treatment for landscape footage.
  */
-export function frameFilter(size: SourceSize | null): Framing {
+export function frameFilter(size: SourceSize | null, label = ""): Framing {
   const cover = `scale=${AD_WIDTH}:${AD_HEIGHT}:force_original_aspect_ratio=increase,crop=${AD_WIDTH}:${AD_HEIGHT}`;
   if (!size || size.width / size.height <= 0.75) return { filter: cover, pictureTop: null };
   const pictureHeight = Math.round((AD_WIDTH * size.height) / size.width / 2) * 2;
   const pictureTop = Math.max(0, Math.round(AD_HEIGHT * 0.65) - pictureHeight);
   // The blurred fill is built at a quarter of the size and scaled up: the same look, a fraction of the memory.
   const small = `scale=${AD_WIDTH / 4}:${AD_HEIGHT / 4}:force_original_aspect_ratio=increase,crop=${AD_WIDTH / 4}:${AD_HEIGHT / 4},boxblur=6:2,scale=${AD_WIDTH}:${AD_HEIGHT}`;
-  return { filter: `split=2[bg][fg];[bg]${small}[bgb];[fg]scale=${AD_WIDTH}:-2[fgs];[bgb][fgs]overlay=(W-w)/2:${pictureTop}`, pictureTop };
+  // `label` prefixes the inner pad names, so several framed inputs share one graph (the 60-second ad, lib/clips/montage-render.ts).
+  const l = (name: string) => `[${label}${name}]`;
+  return { filter: `split=2${l("bg")}${l("fg")};${l("bg")}${small}${l("bgb")};${l("fg")}scale=${AD_WIDTH}:-2${l("fgs")};${l("bgb")}${l("fgs")}overlay=(W-w)/2:${pictureTop}`, pictureTop };
 }
 
 export type CutInput = {

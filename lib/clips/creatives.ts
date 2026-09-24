@@ -35,11 +35,15 @@ export type CreativeDraft = Pick<
   "kind" | "status" | "hypothesis" | "source_episode_id" | "source_start_ms" | "source_end_ms" | "hook" | "caption" | "ad_description" | "render_path" | "render_sha256" | "duration_ms" | "width" | "height" | "render_settings"
 >;
 
-/** Every rendered clip, opening first, then by episode number and rank. */
+/**
+ * Every rendered clip, opening first, then by episode number and rank. A
+ * 60-second ad (moment `montage`) is left out: a round's creative carries one
+ * episode window, which a revision may re-cut, and a montage has several.
+ */
 export function pickClipsForRound(clips: Clip[], episodes: Pick<Episode, "id" | "number">[]): Clip[] {
   const number = new Map(episodes.map((e) => [e.id, e.number]));
   return clips
-    .filter((c) => c.render_status === "rendered" && c.render_path && c.render_sha256 && c.status !== "dismissed")
+    .filter((c) => c.render_status === "rendered" && c.render_path && c.render_sha256 && c.status !== "dismissed" && c.moment !== "montage")
     .sort((a, b) => Number(b.moment === "opening") - Number(a.moment === "opening") || (number.get(a.episode_id) ?? 0) - (number.get(b.episode_id) ?? 0) || a.rank - b.rank);
 }
 

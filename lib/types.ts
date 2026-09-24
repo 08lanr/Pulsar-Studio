@@ -83,9 +83,28 @@ export type VariantStatus = "candidate" | "dismissed";
 export type ClipStatus = "suggested" | "shortlisted" | "dismissed";
 /** How a clip's moment was chosen: from the script (find_clips) or from footage signals alone. */
 export type ClipSource = "script" | "footage";
-/** What the clip is for: the trailer-style opening of the drama, or a peak moment (decision 2026-09-14). */
-export type ClipMoment = "opening" | "peak";
+/**
+ * What the clip is for: the trailer-style opening of the drama, or a peak moment (decision 2026-09-14);
+ * `montage` is a 60-second ad joined from several of the title's clips (decision 2026-09-24,
+ * lib/clips/montage.ts): its `pieces` say which, the row's own range is its hook's.
+ */
+export type ClipMoment = "opening" | "peak" | "montage";
 export type ClipRenderStatus = "pending" | "rendered" | "failed";
+/** One piece of a 60-second ad, in the order it plays. */
+export type MontageRole = "hook" | "scene" | "cliff";
+export type MontagePiece = {
+  role: MontageRole;
+  /** The clip the piece was cut from (its window trimmed). */
+  clip_id: string | null;
+  clip_external_id: string | null;
+  episode_id: string;
+  episode_number: number;
+  /** Episode time of the piece's first frame and of its end; whole frames once the ad is rendered. */
+  start_ms: number;
+  end_ms: number;
+  /** Frames the piece holds in the finished file (set by the render). */
+  frames?: number;
+};
 
 // ---- Promote enums -----------------------------------------------------------
 
@@ -154,7 +173,10 @@ export type JobKind =
   // The series text of "Upload to crazydramas" (decision 2026-09-23 "Upload automation"; migration 0020): one row per
   // draft of a title's tagline, description and genres from its transcript, on ADS_TEXT_PROVIDER, keyed by title,
   // transcript hash and attempt ("Draft again" is a new attempt).
-  | "draft_series_text";
+  | "draft_series_text"
+  // The 60-second ad (decision 2026-09-24 "The 60-second ad"; migration 0021): one row per build of a title's
+  // montage, keyed by the pieces it joins; cost 0 (ffmpeg only, no model call).
+  | "build_montage";
 export type JobStatus = "queued" | "running" | "done" | "failed" | "cancelled";
 
 /** studio.film_assets.kind: the pipeline files that come with an imported film (migration 0015). */
@@ -1106,6 +1128,8 @@ export type Clip = {
   duration_ms: number | null;
   width: number | null;
   height: number | null;
+  /** A 60-second ad's pieces (moment `montage`, migration 0021); null / absent on every other clip. */
+  pieces?: MontagePiece[] | null;
   created_at: string;
 };
 /** @deprecated prose name; use Clip. */

@@ -159,7 +159,7 @@ export default function ContentPicker({ clipsBase, pagePostsUrl, producerId, lib
           const chosen = entries.length > 0 && entries.every(has);
           return <div className="content-pick-row" key={clip.id} data-clip-id={clip.id}>
             <span className="clips-poster">{clip.media_url ? <video src={clip.media_url} poster={clip.thumbnail_url ?? undefined} preload="metadata" playsInline muted /> : <span className="gt-muted">—</span>}</span>
-            <span className="content-pick-name"><strong>{clip.title_name}</strong><small>{clip.label ?? clip.value}</small></span>
+            <span className="content-pick-name"><strong>{clip.title_name}</strong><small>{clip.montage ? `${tt("montage.pill")} · ` : ""}{clip.label ?? clip.value}</small></span>
             {PLATFORMS.map((platform) => <span className="content-pick-state" key={platform}>
               <small>{platformWord(platform)}</small>{clipState(clip, platform)}
             </span>)}
