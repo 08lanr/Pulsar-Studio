@@ -249,12 +249,13 @@ test("the join pass: status first, two readers per join, words_fp through unchan
   assert.match(job?.idempotency_key ?? "", new RegExp(`^cv:${RUN_ID}:ep9:${JOIN.replace(/\./g, "\\.")}:0587555a867c:(picture|story):cv-2\\+api:claude-opus-5-5:[0-9a-f]{12}$`));
   assert.equal((job?.input as { reader_version?: string })?.reader_version, "cv-2+api:claude-opus-5-5", "cut_joins.py record keeps no version: the job row does");
 
-  // cut_pending.json still lists the join (status rewrites it only while one is pending); the next pass must not send it.
-  assert.equal(readJson(path.join(film, "ep9", "review", "cut_pending.json")).length, 1);
+  // Status writes cut_pending.json every time (drama-remix 2d89b86), empty once the join is recorded,
+  // so the pass that recorded it leaves no list behind and the next pass sends nothing.
+  assert.deepEqual(readJson(path.join(film, "ep9", "review", "cut_pending.json")), []);
   const fake2 = fakeLlm();
   const again = (await runJoinPass({ film, ep: "ep9", run_id: RUN_ID, work_dir: work, llm: fake2.llm, ffmpeg: copyFfmpeg })) as JoinPassResult;
   assert.equal(again.status_before?.code, 0);
-  assert.equal(again.status_before?.rewrote, false);
+  assert.equal(again.status_before?.rewrote, true);
   assert.equal(again.items, 0);
   assert.equal(fake2.calls.length, 0);
 });

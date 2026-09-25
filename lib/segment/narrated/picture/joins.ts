@@ -7,9 +7,9 @@
 //      when at most one line drifted in or out of its words window
 //      (cut_joins.py same_words), so nothing is paid for a join the pipeline
 //      already counts as judged. Status rewrites `review/cut_pending.json`
-//      only while a join is pending; the pass reads that file only when this
-//      status call rewrote it (a stale list from an earlier status is never
-//      sent).
+//      every time, empty when nothing is pending (drama-remix 2d89b86); the
+//      pass still reads that file only when this status call rewrote it, so
+//      a stale list from an earlier status is never sent.
 //   2. The items are the pending file's own ({key, ep, id, at_shipped,
 //      skipped_seconds, pieces, words, words_fp, sheet}); `words_fp` rides
 //      through the workflow's result unchanged, as the recorder demands.

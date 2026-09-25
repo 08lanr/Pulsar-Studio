@@ -8,9 +8,10 @@
 // and never the records.
 //
 // `status` is the pipeline's too: frame_claims.py status always rewrites
-// `review/frame_pending.json`; cut_joins.py status rewrites
-// `review/cut_pending.json` only while something is pending, so the join
-// pass reads the pending list only when status rewrote it (`rewrote`).
+// `review/frame_pending.json`, and cut_joins.py status always rewrites
+// `review/cut_pending.json` (empty when nothing is pending, since drama-remix
+// 2d89b86); the join pass still reads the pending list only when status
+// rewrote it (`rewrote`), so a stale list is never sent.
 //
 // Every script runs from the film root (the pipeline's paths are relative to
 // it) with the film's synced scripts, through lib/python.ts, under the same
@@ -165,7 +166,7 @@ export function frameClaimsStatus(opts: RecorderOptions & { ep: string }): Promi
   return status(opts, "frame_claims.py", "frame_pending.json", ["status", "--ep", opts.ep]);
 }
 
-/** `cut_joins.py status --ep <ep>`: exit 1 while a join is unjudged or lost; writes review/cut_pending.json only while one is unjudged. */
+/** `cut_joins.py status --ep <ep>`: exit 1 while a join is unjudged or lost; always rewrites review/cut_pending.json (empty when none is unjudged). */
 export function cutJoinsStatus(opts: RecorderOptions & { ep: string }): Promise<StatusOutcome> {
   return status(opts, "cut_joins.py", "cut_pending.json", ["status", "--ep", opts.ep]);
 }
