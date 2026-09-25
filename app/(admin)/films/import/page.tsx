@@ -1,5 +1,6 @@
 import ThisComputer from "@/components/admin/ThisComputer";
 import FilmImport from "@/components/producer/FilmImport";
+import FolderImport from "@/components/admin/FolderImport";
 import { adminLocale, staffSession } from "@/components/admin/server";
 import { getData } from "@/lib/data";
 import { dataSource } from "@/lib/data-source";
@@ -45,6 +46,8 @@ export default async function StaffFilmImportPage() {
         </div>
       </div>
       <ThisComputer canEdit={session.staffRole === "admin"} supabaseRef={supabaseRef()} />
+      {/* "Upload by folder" (2026-09-24): a folder of finished ep1..epN.mp4 on this computer, for a narrated remix or any film delivered outside the workspace. */}
+      <FolderImport canImport={session.staffRole === "admin"} producers={producers} />
       <FilmImport portal="admin" canImport={session.staffRole === "admin"} producers={producers} crazydramas={crazydramas} />
 
       {/* One place for one job (2026-09-24): the series live on crazydramas that match no title are rows of the CrazyDramas page now. */}

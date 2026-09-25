@@ -34,6 +34,8 @@ export default async function StaffCrazydramasHubPage() {
           <h1>{t(locale, "cdh.title")}</h1>
           <p className="page-sub">{t(locale, "cdh.sub")}</p>
         </div>
+        {/* A folder of finished episodes (a narrated remix delivered outside the workspace) comes in on Import films (2026-09-24). */}
+        {canAct && <a className="btn btn-outline btn-sm" href="/films/import#folder">{t(locale, "fo.link")}</a>}
       </div>
       <CrazydramasHub hub={hub} portal="admin" canAct={canAct} reason={canAct ? null : "notAdmin"} producers={producers} defaultProducerId={defaultProducerId} />
     </>

@@ -58,6 +58,8 @@ export const KNOWN_LIVE_SERIES: readonly { working: string; slug: string }[] = [
   { working: "Ever Since I Played That Game Paranormal", slug: "ever-since-i-played-that-game-paranormal" },
   { working: "she returned with her son", slug: "i-came-back-with-his-abandoned-son-to-ruin-his-wedding" },
   { working: "the cold ceo", slug: "hired-as-his-secretary-claimed-as-his-wife" },
+  // Love Between Lines ep1-31, put up through the CMS on 2026-09-24 (found 2026-09-24 after its folder import missed it).
+  { working: "Love between lines", slug: "who-are-you-when-the-game-ends-season-1" },
 ];
 
 /** crazydramas titleKey: case, spacing and punctuation ignored. */

@@ -5,10 +5,12 @@ import { formatCents, percent } from "@/components/admin/format";
 import { adminLocale, staffSession } from "@/components/admin/server";
 import { EpisodePill, episodeStatusKey } from "@/components/admin/StatusPill";
 import { chipReading, CrazydramasChip } from "@/components/producer/CrazydramasChip";
+import TitleDetails from "@/components/admin/TitleDetails";
 import TitleFlow from "@/components/TitleFlow";
 import { episodeClipsPayload } from "@/lib/clips/payload";
 import { loadCrazydramasStatus } from "@/lib/crazydramas";
 import { getData, isDataError } from "@/lib/data";
+import { mediaUrl } from "@/lib/data/storage";
 import { isVideoOnly, usesTranslationWorkflow } from "@/lib/data/views";
 import { t, type Locale } from "@/lib/i18n";
 import { loadTitleFlow } from "@/lib/titles/flow";
@@ -163,6 +165,15 @@ export default async function TitlePage({ params }: { params: { id: string } }) 
         </div>
 
         <TitleFlow locale={locale} steps={flow} />
+
+        {/* The name and the poster, changed in one place (decision 2026-09-24 "Rename a title, choose its poster"). */}
+        <TitleDetails
+          titleId={detail.title.id}
+          name={detail.title.name_en ?? detail.title.name_zh}
+          coverUrl={mediaUrl(detail.title.cover_path ?? null)}
+          slug={detail.title.crazydramas_slug ?? null}
+          canEdit={session.staffRole === "admin"}
+        />
 
         {simple ? (
           <div className="stat-grid">

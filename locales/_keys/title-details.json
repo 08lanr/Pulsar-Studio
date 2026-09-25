@@ -1,0 +1,78 @@
+{
+  "td.title": {
+    "zh": "名称与海报",
+    "en": "Name and poster"
+  },
+  "td.name": {
+    "zh": "剧集名称（英文）",
+    "en": "Title name"
+  },
+  "td.saveName": {
+    "zh": "保存名称",
+    "en": "Save name"
+  },
+  "td.saving": {
+    "zh": "正在保存…",
+    "en": "Saving…"
+  },
+  "td.poster": {
+    "zh": "海报",
+    "en": "Poster"
+  },
+  "td.noPoster": {
+    "zh": "还没有海报",
+    "en": "No poster yet"
+  },
+  "td.choosePoster": {
+    "zh": "选择海报…",
+    "en": "Choose poster…"
+  },
+  "td.address": {
+    "zh": "网址：crazydramas.com/watch/{slug}",
+    "en": "Web address: crazydramas.com/watch/{slug}"
+  },
+  "td.hint": {
+    "zh": "名称和海报会同步到 CrazyDramas 上的剧集。海报最好是 3:4 竖版图片（1200×1600）；其他比例会居中裁切。",
+    "en": "The name and poster also go to the series on CrazyDramas. A 3:4 portrait image (1200×1600) fits best; other shapes are centre-cropped."
+  },
+  "td.renamed": {
+    "zh": "已改名为「{name}」。",
+    "en": "Renamed to {name}."
+  },
+  "td.slugMoved": {
+    "zh": "网址已改为 crazydramas.com/watch/{slug}。",
+    "en": "The web address is now crazydramas.com/watch/{slug}."
+  },
+  "td.posterSaved": {
+    "zh": "海报已保存。",
+    "en": "Poster saved."
+  },
+  "td.cdUpdated": {
+    "zh": "CrazyDramas 上的剧集已更新。",
+    "en": "The series on CrazyDramas is updated."
+  },
+  "td.cdLaterName": {
+    "zh": "剧集还没上传到 CrazyDramas；上传时会使用这个名称。",
+    "en": "The series is not on CrazyDramas yet; it will be created with this name."
+  },
+  "td.cdLaterPoster": {
+    "zh": "剧集还没上传到 CrazyDramas；创建剧集时会使用这张海报。",
+    "en": "The series is not on CrazyDramas yet; it will be created with this poster."
+  },
+  "td.cdNotSent": {
+    "zh": "没有发送到 CrazyDramas：{detail}",
+    "en": "Not sent to CrazyDramas: {detail}"
+  },
+  "td.confirmLive": {
+    "zh": "同时更新 CrazyDramas",
+    "en": "Update CrazyDramas too"
+  },
+  "td.failed": {
+    "zh": "没有保存：{detail}",
+    "en": "Not saved: {detail}"
+  },
+  "td.adminOnly": {
+    "zh": "只有管理员可以修改名称和海报。",
+    "en": "Only an administrator can change the name and poster."
+  }
+}

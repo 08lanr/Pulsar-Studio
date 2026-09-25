@@ -68,6 +68,7 @@ import { checkCrazydramasTitle, loadCrazydramasStatus, resolveReadSlug } from ".
 import { shownPosterUrl } from "./pick";
 import { KNOWN_LIVE_SERIES, titleKey } from "./slug";
 import { slugLockReason } from "./slug-assign";
+import { findLengthTwin, lengthWords, type LengthTwin } from "./twin-lengths";
 import { PLATFORM } from "./types";
 
 // ---- constants ----------------------------------------------------------------------------------------------
@@ -442,7 +443,10 @@ export async function getPublishState(session: Session, titleId: string, opts: {
     const statusEp = status?.episodes.find((e) => e.n === n)?.live ?? null;
     const recordedSha = current.filter((r) => r.episode_number === n && (r.step === "verified" || r.step === "published")).sort((a, b) => b.created_at.localeCompare(a.created_at))[0]?.sha256 ?? null;
     const cdHasMedia = !!cd && (cd.status === "ready" || cd.status === "failed");
-    const replaceNeeded = !!ep?.video_sha256 && (recordedSha ? recordedSha !== ep.video_sha256 : cdHasMedia && !(row && isActiveStep(row.step) && row.sha256 === ep.video_sha256));
+    // With no upload of Studio's recorded (the CMS put the episode up), crazydramas' copy is the same file when the
+    // episode check reads it frame-exact: only a copy that differs needs replacing (2026-09-24, Love Between Lines ep1-31).
+    const sameFile = verdicts.get(n) === "same_length" || verdicts.get(n) === "identical";
+    const replaceNeeded = !!ep?.video_sha256 && (recordedSha ? recordedSha !== ep.video_sha256 : cdHasMedia && !sameFile && !(row && isActiveStep(row.step) && row.sha256 === ep.video_sha256));
     return {
       n,
       studio_frames: ep?.video_frames ?? null,
@@ -539,6 +543,38 @@ async function liveTwin(title: Title, name: string, slug: string): Promise<{ slu
   return null;
 }
 
+const links = (all: PlatformLink[], titleId: string) => (dramaId: string) => all.some((l) => l.cd_drama_id.toLowerCase() === dramaId.toLowerCase() && l.title_id !== titleId);
+
+/**
+ * Before Studio creates a series: are this title's episodes already live
+ * under another name (decision 2026-09-24 "Match live shows by episode
+ * lengths")? A match is refused, never created twice; while the title's slug
+ * may still change it is moved to the live series and the check links it, so
+ * the page reads that series at once. A catalog Studio cannot read refuses.
+ */
+async function refuseLengthTwin(title: Title, heldByOther: (dramaId: string) => boolean): Promise<void> {
+  let twin: LengthTwin | null;
+  try {
+    twin = await findLengthTwin(title.id, { skip: (d) => heldByOther(d.id) });
+  } catch {
+    throw new CdPublishError(503, "catalog_unreadable", "Studio could not read the crazydramas catalog to check this show is not already live; try again in a minute. Nothing was changed.");
+  }
+  if (!twin) return;
+  const sys = systemSession();
+  let linked = false;
+  if (!(await slugLockReason(title.id))) {
+    await getData().setTitleImport(sys, title.id, { crazydramas_slug: twin.slug });
+    await checkCrazydramasTitle(sys, title.id, { force: true }).catch((e) => console.warn(`[crazydramas] after linking ${twin!.slug} by lengths, the check failed: ${(e as Error).message}`));
+    linked = true;
+  }
+  throw new CdPublishError(
+    409,
+    "series_episodes_exist",
+    `This show is already on crazydramas as "${twin.title}" (crazydramas.com/watch/${twin.slug}): ${lengthWords(twin)}. ${linked ? "Studio linked this title to that series instead of creating a second one." : "Studio does not create a second series."} Nothing was created.`,
+    { existing: { slug: twin.slug, title: twin.title, managed_by: twin.managed_by }, matched: twin.matched, compared: twin.compared, linked },
+  );
+}
+
 export type SaveSeriesResult = { series: CdSeries; created: boolean; changed: string[] };
 
 /**
@@ -587,6 +623,7 @@ export async function saveSeries(session: Session, titleId: string, input: unkno
     if (twin) {
       throw new CdPublishError(409, "series_title_exists", `This show looks already live on crazydramas as "${twin.slug}"; Studio does not create a second series. Ask the operator. Nothing was sent.`, { existing: { slug: twin.slug, title: twin.title } });
     }
+    await refuseLengthTwin(title, links(await data.listPlatformLinks(sys, PLATFORM), titleId));
   }
 
   const posterChanged = body.poster_url !== undefined && body.poster_url !== null && body.poster_url !== (existing?.poster_url ?? null);
@@ -629,9 +666,22 @@ export async function saveSeries(session: Session, titleId: string, input: unkno
  * (viewers see the new poster at once; crazydramas' `update_live`).
  */
 export async function setSeriesPoster(session: Session, titleId: string, posterUrl: string, opts: { confirmLive?: boolean; client?: StudioClient } = {}): Promise<SaveSeriesResult> {
+  return setSeriesFields(session, titleId, { poster_url: posterUrl }, opts);
+}
+
+/**
+ * Change the title's own Studio series in place: its poster, its name, or
+ * both (the Title details card, decision 2026-09-24 "Rename a title, choose
+ * its poster"). The guards of setSeriesPoster; a series that is not a draft
+ * needs `confirmLive` (409 series_live_confirm, nothing sent).
+ */
+export async function setSeriesFields(session: Session, titleId: string, fields: { poster_url?: string; title?: string }, opts: { confirmLive?: boolean; client?: StudioClient } = {}): Promise<SaveSeriesResult> {
   const title = await requirePublisher(session, titleId);
-  const url = SeriesBodySchema.shape.poster_url.safeParse(posterUrl);
-  if (!url.success || !url.data) throw new CdPublishError(400, "bad_request", "The poster must be an https:// address.");
+  const url = fields.poster_url === undefined ? null : SeriesBodySchema.shape.poster_url.safeParse(fields.poster_url);
+  if (url && (!url.success || !url.data)) throw new CdPublishError(400, "bad_request", "The poster must be an https:// address.");
+  const name = fields.title === undefined ? null : SeriesBodySchema.shape.title.safeParse(fields.title);
+  if (name && !name.success) throw new CdPublishError(400, "bad_request", "The series name must be 1 to 200 characters.");
+  if (!url && !name) throw new CdPublishError(400, "bad_request", "Nothing to change.");
   requireWrites();
   const data = getData();
   const sys = systemSession();
@@ -641,13 +691,16 @@ export async function setSeriesPoster(session: Session, titleId: string, posterU
   const existing = answer.series;
   const live = existing.status !== "draft";
   if (live && opts.confirmLive !== true) {
-    throw new CdPublishError(409, "series_live_confirm", `The series is ${existing.status} on crazydramas: viewers see a new poster at once. Confirm to set it. Nothing was sent.`, { series_status: existing.status });
+    const what = url && name ? "a new name and poster" : url ? "a new poster" : "the new name";
+    throw new CdPublishError(409, "series_live_confirm", `The series is ${existing.status} on crazydramas: viewers see ${what} at once. Confirm to set it. Nothing was sent.`, { series_status: existing.status });
   }
-  if (url.data !== (existing.poster_url ?? null)) {
-    const check = await client.checkImage(url.data);
+  const posterUrl = url?.success ? url.data! : null;
+  if (posterUrl && posterUrl !== (existing.poster_url ?? null)) {
+    const check = await client.checkImage(posterUrl);
     if (!check.ok) throw new CdPublishError(400, "poster_unreachable", `The poster ${check.reason ?? "does not answer with an image"} Nothing was sent.`, { poster: { status: check.status, content_type: check.content_type } });
   }
-  const r = await client.putSeries(existing.slug, { poster_url: url.data, ...(live ? { update_live: true } : {}) }, { managed_by: "studio" });
+  const put = { ...(posterUrl ? { poster_url: posterUrl } : {}), ...(name?.success ? { title: name.data } : {}), ...(live ? { update_live: true } : {}) };
+  const r = await client.putSeries(existing.slug, put, { managed_by: "studio" });
   forgetSeriesRead();
   if (!r.ok) throw passThrough(r);
   await checkCrazydramasTitle(sys, titleId, { force: true }).catch((e) => console.warn(`[crazydramas] after the poster write, the check failed: ${(e as Error).message}`));

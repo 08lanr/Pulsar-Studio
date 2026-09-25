@@ -8,6 +8,68 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-09-24 · Match live shows by episode lengths
+
+Love Between Lines was imported by folder as "Love between lines". It was already live on crazydramas as "Who Are
+You When the Game Ends? Season 1" (ep1-31, made in the CMS), and Studio did not know. Studio recognised a live
+show only by its name, through the working-name table and the catalog's titles. So the upload page was one click
+from creating a second series of the same show and uploading all 54 episodes into it. Ruobin: "make sure this
+mistake doesn't exist".
+
+- **The check** (`lib/crazydramas/twin-lengths.ts`): it compares the title's first six episode lengths with the
+  first six of every series in the catalog. It is the same show when at least three lengths are within 1.5 s and
+  at least 80% of those compared match. Episodes under 30 s are not compared, because a few seconds matches
+  anything.
+- **At import:** when Studio picks a slug and no name matches, a length match takes that series' slug and links
+  the title to it (`assignCrazydramasSlug`).
+- **Before creating a series:** `saveSeries` refuses to create one when the lengths match a live series
+  (`series_episodes_exist`, nothing sent). While the title's slug may still change, the title is moved onto the
+  live series and linked.
+- **A hand audit the same day** compared every workspace film and the Desktop folder with all 10 live series.
+  Each film matched exactly one series, there were no duplicates, and Love Between Lines was the only one Studio
+  had missed. It is now linked and in the working-name table.
+- **Limit:** the public catalog lists published series only, so a draft made in the CMS is not seen.
+- **The "replace needed" label:** an episode Studio has no upload record for (the CMS put it up) now needs replacing
+  only when crazydramas' copy differs. The episode check reading it `same_length` or `identical` means it is the same
+  file. Love Between Lines ep1-31 had been flagged for no reason.
+
+## 2026-09-24 · Rename a title, choose its poster
+
+Ruobin, after importing Love Between Lines by folder: "i want to change the title now and i dont know how", and
+"pulsar studio should have an upload poster from folder option". Studio had no way to rename a title (`updateTitle`
+had no route), and the poster could be set only from the CrazyDramas page, where it went to the series and never
+back to the title.
+
+The staff title page now has a **Name and poster** card (`components/admin/TitleDetails.tsx`,
+`lib/titles/details.ts`, `PATCH`/`POST /api/admin/titles/[id]/details`, admin only):
+
+- **Rename:** changes `name_en`. The Chinese name changes too when it was the same text, because a folder import
+  names both after the folder. While the slug may still change (no series, no upload), it follows the new name,
+  or takes the next free slug after it. Once the series exists the slug stays, and the card says why. The title's
+  own Studio series is renamed through `setSeriesFields`, a PUT with `title`, which gained the name alongside the
+  poster.
+- **Choose poster…:** opens the device's file window. The image (JPG, PNG or WebP) becomes the title's cover in the
+  local tier, recorded as a film asset. When the series exists, it is normalised, hosted and set as the series'
+  poster. With no series yet, "Create series" starts from the cover.
+- **A live series:** changes only after "Update CrazyDramas too", because viewers see the change at once
+  (`update_live`). Until then Studio's side is saved. A refusal from crazydramas never undoes Studio's side.
+
+## 2026-09-24 · Upload by folder: a folder of finished episodes becomes a title
+
+Ruobin, on Love Between Lines (a narrated remix delivered to `Desktop\Dramas\Love between lines` as ep1.mp4 … ep54.mp4, built outside Studio, so no workspace manifest): "give the upload by folder option." Import films (staff, admin only) has an **Upload by folder** card; the CrazyDramas page links to it.
+
+- **What it reads.** A folder on this computer, by its full path. The episodes are its files named `ep<N>` / `episode <N>` / `<N>` (`.mp4`, `.mov`, `.m4v`, any case, leading zeros allowed); the numbers must run 1..N with no gap and no repeat, or the card says which and nothing is imported. `poster.jpg` / `cover.png` in the folder becomes the title's cover. Nothing else is read: no plan, no index, no transcript (a folder's captions are burned in).
+- **What it writes.** A title under `source_ref` `_folders/<folder name as a slug>` (a relative path no workspace project has; the same folder name for the same company updates the same title), and one video-only episode per file with the rows the upload needs: `video_path` in the local tier, `video_sha256`, `video_bytes`, `video_frames` and `duration_ms` from ffprobe on the tier file, `auto_cut` false. Each file is hashed where it lies and **copied** (never hardlinked) into the tier under its hash, only when the tier does not hold those bytes; the copy is hashed again before it is kept. A finished folder may live under OneDrive, which syncs, replaces or makes files online-only, and a link would follow that. A re-run of an unchanged folder copies nothing; a changed file is the only one copied again. The folder itself is never written.
+- **Who.** Admin staff only, the listing too: the path is a path on the server's own disk. Producer sessions are refused in `lib/film-import/folder.ts` as well as by the route.
+- **After it.** The crazydramas slug is picked as the workspace import picks one (`assignCrazydramasSlug`; no `cut/` folder, so no film-meta is written), then "Upload to CrazyDramas" takes the title unchanged. `lib/film-import/folder.ts`, `app/api/admin/films/folder/route.ts`, `components/admin/FolderImport.tsx`; tests `tests/folder-import.test.ts`.
+
+Choosing the folder: a **Choose folder…** button opens the Windows folder dialog on this computer and
+checks the chosen folder at once; pasting the address stays as the fallback. The browser's own
+folder picker cannot be used, because it never gives the page the folder's real path, and the import
+reads the files from disk. The server (which runs on this computer) opens the dialog through PowerShell
+(`lib/film-import/folder-picker.ts`, `POST /api/admin/films/folder/pick`, admin only). It starts in
+Desktop\Dramas and closes itself after 10 minutes. It works on Windows only; elsewhere it says to paste the path.
+
 ## 2026-09-24 · Two computers, one database: this computer's films folder, runs pinned to a computer, imported films in the cloud
 
 Ruobin's cofounder Andrew runs his own Studio (`npm run dev`, the live `.env.local` and `.tokens.json`) against the same Supabase project. Titles, launches, Monitor and stats were already shared; what was not is everything on a disk. Ruobin's answers: "connect a folder to Pulsar Studio" so Andrew can import and cut films himself, the pipeline is a repo (`08lanr/drama-remix`), and imported films go to Supabase (choice B), "only imported films".

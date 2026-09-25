@@ -16,6 +16,7 @@ import { crazydramasTransport } from "./pick";
 import { deriveSlug, isCdSlug, isSlugError, knownLiveSlug, pickSlug, SlugError, titleKey, type SlugPick, type SlugReader } from "./slug";
 import { crazydramasStudioMode, studioClient } from "./studio-client";
 import { checkCrazydramasTitle } from "./sweep";
+import { findLengthTwin } from "./twin-lengths";
 import { PLATFORM } from "./types";
 
 /**
@@ -99,6 +100,8 @@ export type AssignOptions = {
   folder?: string | null;
   /** Skip the check that refreshes the section's reading (the import runs its own at the end). */
   skipCheck?: boolean;
+  /** Look for the show by its episodes' lengths too (default on; lib/crazydramas/twin-lengths). */
+  byLength?: boolean;
 };
 
 /**
@@ -175,6 +178,18 @@ export async function assignCrazydramasSlug(session: Session, titleId: string, o
         if (twin) found = { outcome: "link", slug: twin.slug, series: { id: twin.id, title: twin.title, managed_by: twin.managed_by ?? null }, tried: [twin.slug] };
       } catch {
         // The catalog is a shortcut; the reads below decide whether crazydramas answers at all.
+      }
+    }
+    // 1b. The show is on the site under another name: its episodes' lengths match (decision 2026-09-24).
+    if (!found && opts.byLength !== false) {
+      try {
+        const twin = await findLengthTwin(titleId, { skip: (d) => heldByOther(d.id) || takenInStudio(d.slug) });
+        if (twin) {
+          console.log(`[crazydramas] ${title.external_id} matches ${twin.slug} by episode lengths (${twin.matched}/${twin.compared})`);
+          found = { outcome: "link", slug: twin.slug, series: { id: twin.id, title: twin.title, managed_by: twin.managed_by }, tried: [twin.slug] };
+        }
+      } catch {
+        // The catalog is read again by the reads below and by the check before a series is made.
       }
     }
     // 2. The display title as a slug (then the folder's name, when the title has nothing Latin in it).
