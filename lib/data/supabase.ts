@@ -69,6 +69,7 @@ import type { CatalogRow } from "@/lib/research/engine";
 import { examplesFromApprovedVersions } from "@/lib/translation-memory";
 import { isSystemSession } from "@/lib/auth";
 import { budgetCheck, overBudgetMessage } from "@/lib/angles";
+import { AD_FORMAT_MIGRATION_MESSAGE, adFormatColumnMissing, isAdFormat } from "@/lib/ad-formats";
 import { AD_TEXT_MAX, clipIdOf, creativesFromClips, NO_CLIPS_MESSAGE, pickClipsForRound } from "@/lib/clips/creatives";
 import { MONTAGE_RANK_BASE, montageClipProblem } from "@/lib/clips/montage";
 import { blockerMessage, isAssignedBusinessCenter, isReadyLaunchAccount, launchReadiness } from "@/lib/promote/launch-gate";
@@ -270,6 +271,17 @@ async function launchAccountOf(c: Db, producerId: string): Promise<CompanyAccoun
 async function launchBcOf(c: Db, producerId: string): Promise<CompanyAccount | null> {
   const rows = await many<CompanyAccount>(core(c).from("company_accounts").select("*").eq("producer_id", producerId).eq("provider", "tiktok").eq("kind", "business_center"));
   return rows.find((a) => isAssignedBusinessCenter(a)) ?? null;
+}
+
+async function oneClipWithAdFormat(q: PromiseLike<Result<Clip>>, id?: string): Promise<Clip> {
+  const { data, error } = await q;
+  if (error) {
+    // Before migration 0023 the column does not exist: say which migration to apply.
+    if (adFormatColumnMissing(error)) throw new DataError("conflict", AD_FORMAT_MIGRATION_MESSAGE);
+    throw mapError(error);
+  }
+  if (data === null || data === undefined) throw notFound("clip", id);
+  return data;
 }
 
 function requireSystemOrStaff(session: Session): void {
@@ -1316,6 +1328,7 @@ export const supabaseData: DataLayer = {
   },
 
   async addUploadedClip(session, episodeId, input) {
+    if (input.ad_format != null && !isAdFormat(input.ad_format)) throw invalid(`unknown ad type: ${String(input.ad_format)}`);
     const c = dbFor(session);
     const episode = await one<Episode>(core(c).from("episodes").select("*").eq("id", episodeId).maybeSingle(), "episode", episodeId);
     // Deliberately no timecode/video requirement: the uploaded file IS the ad,
@@ -1325,7 +1338,7 @@ export const supabaseData: DataLayer = {
     const taken = new Set(kept.map((k) => k.rank));
     let rank = 1;
     while (taken.has(rank)) rank++;
-    return one<Clip>(
+    return oneClipWithAdFormat(
       studio(c)
         .from("clips")
         .insert({
@@ -1353,10 +1366,21 @@ export const supabaseData: DataLayer = {
           duration_ms: input.duration_ms ?? null,
           width: input.width ?? null,
           height: input.height ?? null,
+          // Named only when a type was chosen, so an upload keeps working on a
+          // database where 0023 is not applied yet.
+          ...(input.ad_format ? { ad_format: input.ad_format } : {}),
         })
         .select("*")
-        .single(),
-      "clip"
+        .single()
+    );
+  },
+
+  async setClipAdFormat(session, titleId, clipId, adFormat) {
+    requireSystemOrStaff(session);
+    if (adFormat !== null && !isAdFormat(adFormat)) throw invalid(`unknown ad type: ${String(adFormat)}`);
+    return oneClipWithAdFormat(
+      studio(dbFor(session)).from("clips").update({ ad_format: adFormat }).eq("id", clipId).eq("title_id", titleId).select("*").maybeSingle(),
+      clipId
     );
   },
 

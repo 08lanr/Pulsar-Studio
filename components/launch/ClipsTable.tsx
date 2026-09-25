@@ -20,6 +20,7 @@ import { postOn, publishedOn, shortDate } from "@/components/launch/clip-state";
 import type { ClipLibraryRow, ClipPost, ClipPostPlatform } from "@/lib/launch/clip-posts";
 import type { MontageStatus } from "@/lib/clips/montage-run";
 import type { LaunchConnection, LaunchTitleOption, LaunchWorkspace } from "@/lib/launch/types";
+import { AD_FORMATS, isAdFormat, type AdFormat } from "@/lib/ad-formats";
 
 /** On one title's page: its 60-second ad panel (components/launch/AdMontage.tsx) above the table, which reloads when an ad lands. */
 type MontagePanel = { canBuild: boolean; initial: MontageStatus | null };
@@ -203,6 +204,20 @@ export default function ClipsTable({ staff = false, titleId, montage }: Props) {
     } catch (e) { setError(errorText(e)); }
     finally { setZipping(false); }
   }
+  // Ad types on clips (decision 2026-09-25): whoever may edit the title (the
+  // workspace's can_edit, the same rule as the format route) relabels a clip in
+  // place; the row takes the answer at once and the list is read again.
+  async function setFormat(row: ClipLibraryRow, value: string) {
+    const next: AdFormat | null = isAdFormat(value) ? value : null;
+    setBusy(`format:${row.id}`); setRowError((x) => ({ ...x, [row.id]: "" }));
+    try {
+      const { clip } = await call<{ clip: { ad_format?: AdFormat | null } }>(`/api/titles/${encodeURIComponent(row.title_id)}/clips/${encodeURIComponent(row.id)}/format`, "POST", { ad_format: next });
+      setRows((current) => current.map((r) => (r.id === row.id ? { ...r, ad_format: clip.ad_format ?? null } : r)));
+      void load();
+    } catch (e) { setRowError((x) => ({ ...x, [row.id]: errorText(e) })); }
+    finally { setBusy(""); }
+  }
+
   async function retry(row: ClipLibraryRow, post: ClipPost) {
     setBusy(post.id); setRowError((x) => ({ ...x, [row.id]: "" }));
     try { applyPost((await call<{ post: ClipPost }>(`${base}/posts/${encodeURIComponent(post.id)}/retry`, "POST")).post); }
@@ -321,7 +336,11 @@ export default function ClipsTable({ staff = false, titleId, montage }: Props) {
         {showProducer && <span>{row.producer_name}</span>}
         <span><strong>{row.title_name}</strong></span>
         <span>{row.montage ? row.montage.episodes : row.episode_label ?? "—"}</span>
-        <span className="clips-hook">{row.montage && <span className="pill pill-accent clips-montage-pill">{tt("montage.pill")}</span>}{row.uploaded && <span className="pill pill-accent clips-montage-pill">{tt("uc.pill")}</span>}{row.text?.trim() ? row.label : <span className="gt-muted" title={row.external_id}>{tt("clipsPosting.noHook")}</span>}</span>
+        <span className="clips-hook">{row.montage && <span className="pill pill-accent clips-montage-pill">{tt("montage.pill")}</span>}{row.uploaded && <span className="pill pill-accent clips-montage-pill">{tt("uc.pill")}</span>}{row.ad_format && <span className="pill pill-neutral clips-montage-pill" title={tt(`adFormat.${row.ad_format}.desc`)}>{tt(`adFormat.${row.ad_format}`)}</span>}{row.text?.trim() ? row.label : <span className="gt-muted" title={row.external_id}>{tt("clipsPosting.noHook")}</span>}
+          {canDownload && <select className="select clips-format-select" value={row.ad_format ?? ""} disabled={!!busy} aria-label={tt("adFormat.change")} title={tt("adFormat.change")} onChange={(e) => void setFormat(row, e.target.value)}>
+            <option value="">{tt("adFormat.none")}</option>
+            {AD_FORMATS.map((f) => <option key={f} value={f}>{tt(`adFormat.${f}`)}</option>)}
+          </select>}</span>
         <span className="gt-num">{duration(row.duration_ms)}</span>
         <span>{shortDate(row.rendered_at, locale)}</span>
         <span data-platform="facebook">{platformCell(row, "facebook")}</span>

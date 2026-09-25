@@ -64,6 +64,7 @@ import type {
   ClipMoment,
   ClipRenderStatus,
   ClipSource,
+  AdFormat,
   ClipStatus,
   Episode,
   MontagePiece,
@@ -473,6 +474,8 @@ export type UploadedClipInput = {
   duration_ms?: number | null;
   width?: number | null;
   height?: number | null;
+  /** The ad's type (lib/ad-formats.ts). Absent = not classified, and the column is then left out of the insert. */
+  ad_format?: AdFormat | null;
 };
 
 export type NewJob = {
@@ -880,6 +883,12 @@ export interface DataLayer {
   addMontageClip(session: Session, input: NewMontageClip): Promise<Clip>;
   /** File a partner-supplied finished ad under an episode as a launchable clip. Staff / system actor only. */
   addUploadedClip(session: Session, episodeId: string, input: UploadedClipInput): Promise<Clip>;
+  /**
+   * Staff / system actor only (the route checks the title edit first, as the
+   * upload does): label a clip of `titleId` with its ad type, or clear it with
+   * null. A clip of another title is not found.
+   */
+  setClipAdFormat(session: Session, titleId: string, clipId: string, adFormat: AdFormat | null): Promise<Clip>;
 
   // jobs and cost
   /** Idempotent: an existing 'done' row for the key is returned as is (callers check status). */

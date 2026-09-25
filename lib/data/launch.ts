@@ -372,7 +372,7 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
           id: clip.id, external_id: clip.external_id, kind: "video", value: clip.id, creative_id: clip.id, clip_id: clip.id,
           producer_id: title.producer_id, producer_name: title.producer_name_en || title.producer_name_zh,
           title_id: title.id, title_name: name, episode_id: clip.episode_id ?? null,
-          episode_label: montage || uploaded ? null : episodes.get(clip.episode_id) ?? null, label: clip.hook_en || clip.external_id, montage, uploaded,
+          episode_label: montage || uploaded ? null : episodes.get(clip.episode_id) ?? null, label: clip.hook_en || clip.external_id, montage, uploaded, ad_format: clip.ad_format ?? null,
           duration_ms: clip.duration_ms ?? null, rendered_at: clip.created_at ?? null,
           file_path: clip.render_path!, sha256: clip.render_sha256!, text: clip.hook_en, headline: name,
           media_url: mediaUrl(clip.render_path), thumbnail_url: null,

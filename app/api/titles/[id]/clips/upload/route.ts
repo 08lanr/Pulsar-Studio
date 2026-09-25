@@ -1,6 +1,9 @@
 // Upload a finished ad (decision 2026-09-24, moved to the title 2026-09-25).
 // The cutter needs an episode video and re-cuts a 20-30 s window; a partner
-// who already has a graded ad had no way in. Multipart { video, hook? }: the
+// who already has a graded ad had no way in. Multipart { video, hook?,
+// ad_format? } (ad_format: lib/ad-formats.ts, decision 2026-09-25; an unknown
+// value is a 400 before anything is stored, and absent means the column is
+// never named in the insert, so the route works before migration 0023): the
 // bytes are stored and hashed exactly as delivered, never re-encoded, and
 // filed under the title as a rendered, shortlisted clip the launch path can
 // use at once. The ad is content for a Meta launch, not a window of an
@@ -14,6 +17,7 @@
 import { createHash } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { apiError } from "@/lib/api-guard";
+import { AD_FORMATS, isAdFormat } from "@/lib/ad-formats";
 import { requireMember, systemSession } from "@/lib/auth";
 import { getData } from "@/lib/data";
 import { mediaUrl, uploadMedia, uploadedClipFilename } from "@/lib/data/storage";
@@ -42,6 +46,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const type = (video.type || "").toLowerCase();
     if (type && !type.startsWith("video/")) {
       return apiError("that file is not a video", undefined, 400);
+    }
+
+    // The ad's type is optional; a value that is not one of the four is refused
+    // before any byte is stored.
+    const rawFormat = form?.get("ad_format");
+    const format = typeof rawFormat === "string" ? rawFormat.trim() : "";
+    if (format && !isAdFormat(format)) {
+      return apiError(`unknown ad type "${format}" (expected one of ${AD_FORMATS.join(", ")})`, undefined, 400);
     }
 
     const data = getData();
@@ -96,6 +108,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       render_sha256,
       hook_en: hook || video.name.replace(/\.[^.]+$/, "").slice(0, HOOK_MAX),
       ...probed,
+      ...(format && isAdFormat(format) ? { ad_format: format } : {}),
     });
     return NextResponse.json({ clip, video_url: mediaUrl(stored) }, { status: 201 });
   });

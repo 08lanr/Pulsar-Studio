@@ -20,6 +20,7 @@ import { copyFileSync, existsSync, linkSync, mkdirSync, readFileSync, renameSync
 import path from "node:path";
 import { canReadTitle, isSystemSession, type Session } from "@/lib/auth";
 import { budgetCheck, overBudgetMessage } from "@/lib/angles";
+import { isAdFormat } from "@/lib/ad-formats";
 import { AD_TEXT_MAX, clipIdOf, creativesFromClips, NO_CLIPS_MESSAGE, pickClipsForRound } from "@/lib/clips/creatives";
 import { cutClip, withSourceFile } from "@/lib/clips/cut";
 import { MONTAGE_RANK_BASE, montageClipProblem } from "@/lib/clips/montage";
@@ -2394,6 +2395,7 @@ export const fixtureData: DataLayer = {
 
   async addUploadedClip(session, episodeId, input) {
     requireStaff(session);
+    if (input.ad_format != null && !isAdFormat(input.ad_format)) throw invalid(`unknown ad type: ${String(input.ad_format)}`);
     const { db } = store();
     const episode = findEpisodeById(db, episodeId);
     // No timecode/video requirement: the uploaded file IS the ad (migration
@@ -2434,10 +2436,20 @@ export const fixtureData: DataLayer = {
       duration_ms: input.duration_ms ?? null,
       width: input.width ?? null,
       height: input.height ?? null,
+      ad_format: input.ad_format ?? null,
       created_at: at,
     };
     db.clips.push(row);
     return clone(row);
+  },
+
+  async setClipAdFormat(session, titleId, clipId, adFormat) {
+    requireStaff(session);
+    if (adFormat !== null && !isAdFormat(adFormat)) throw invalid(`unknown ad type: ${String(adFormat)}`);
+    const clip = store().db.clips.find((c) => c.id === clipId && c.title_id === titleId);
+    if (!clip) throw notFound("clip", clipId); // another title's clip is not found, never forbidden
+    clip.ad_format = adFormat;
+    return clone(clip);
   },
 
   async setClipStatus(session, clipId, status) {

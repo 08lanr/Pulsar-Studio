@@ -1,6 +1,7 @@
 // Shared contract for organic clip posting on Meta (docs/meta-organic-plan.md).
 // Builders import from here; neither redefines these shapes.
 
+import type { AdFormat } from "@/lib/ad-formats";
 import type { LaunchContent } from "./types";
 
 export type ClipPostPlatform = "facebook" | "instagram";
@@ -60,6 +61,8 @@ export type ClipLibraryRow = LaunchContent & {
    *  episode because studio.clips.episode_id is NOT NULL, but it is not a window of
    *  that episode, so no episode is shown for it. */
   uploaded?: boolean;
+  /** What kind of ad it is (lib/ad-formats.ts); null = not classified. Shown as a pill beside the hook. */
+  ad_format?: AdFormat | null;
   duration_ms: number | null;
   rendered_at: string | null;
   media_url: string | null;

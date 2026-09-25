@@ -3,7 +3,9 @@
 // Upload finished ads (decision 2026-09-24, widened 2026-09-25). The cutter
 // re-cuts a 20-30 s window out of an episode video; an ad that is already
 // graded needs its own file used as delivered. Several at once, each with its
-// own ad text, because a round is a handful of creatives for one drama.
+// own ad text, because a round is a handful of creatives for one drama. Each
+// may also say what kind of ad it is (lib/ad-formats.ts, decision 2026-09-25);
+// "Not set" sends nothing.
 //
 // It sits in the Ads desk beside the 60-second ad, not on an episode: a clip
 // row needs an episode (studio.clips.episode_id is NOT NULL, and
@@ -15,6 +17,7 @@ import { useRef, useState } from "react";
 import { postForm, describeError, type ApiErrorBody } from "@/lib/api-client";
 import { useT } from "@/components/locale";
 import type { LaunchTitleOption } from "@/lib/launch/types";
+import { AD_FORMATS, isAdFormat, type AdFormat } from "@/lib/ad-formats";
 
 type Props = {
   titles: LaunchTitleOption[];
@@ -22,7 +25,7 @@ type Props = {
   titleId?: string;
   onUploaded: () => void;
 };
-type Row = { file: File; hook: string; state: "queued" | "sending" | "done" | "failed"; error?: string };
+type Row = { file: File; hook: string; format: AdFormat | ""; state: "queued" | "sending" | "done" | "failed"; error?: string };
 
 export default function UploadAds({ titles, titleId, onUploaded }: Props) {
   const { tt } = useT();
@@ -46,6 +49,7 @@ export default function UploadAds({ titles, titleId, onUploaded }: Props) {
         const form = new FormData();
         form.set("video", rows[i].file);
         if (rows[i].hook.trim()) form.set("hook", rows[i].hook.trim());
+        if (rows[i].format) form.set("ad_format", rows[i].format);
         // postForm resolves for ANY status — it throws only on a network
         // error — so the envelope is what says whether this was refused.
         const body = await postForm<{ clip?: unknown; error?: string }>(`/api/titles/${target}/clips/upload`, form);
@@ -82,7 +86,7 @@ export default function UploadAds({ titles, titleId, onUploaded }: Props) {
             accept="video/*"
             multiple
             disabled={busy}
-            onChange={(e) => setRows(Array.from(e.target.files ?? []).map((file) => ({ file, hook: "", state: "queued" as const })))}
+            onChange={(e) => setRows(Array.from(e.target.files ?? []).map((file) => ({ file, hook: "", format: "" as const, state: "queued" as const })))}
           />
         </label>
         {pending.length > 0 && (
@@ -107,6 +111,20 @@ export default function UploadAds({ titles, titleId, onUploaded }: Props) {
                 aria-label={tt("uc.hook")}
                 onChange={(e) => setRows((rs) => rs.map((x, j) => (j === i ? { ...x, hook: e.target.value } : x)))}
               />
+              <select
+                className="select"
+                value={r.format}
+                disabled={busy || r.state === "done"}
+                aria-label={tt("adFormat.label")}
+                title={r.format ? tt(`adFormat.${r.format}.desc`) : tt("adFormat.label")}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setRows((rs) => rs.map((x, j) => (j === i ? { ...x, format: isAdFormat(v) ? v : "" } : x)));
+                }}
+              >
+                <option value="">{tt("adFormat.none")}</option>
+                {AD_FORMATS.map((f) => <option key={f} value={f} title={tt(`adFormat.${f}.desc`)}>{tt(`adFormat.${f}`)}</option>)}
+              </select>
               <span className="upload-ads-state">{tt(`uc.state.${r.state}`)}</span>
               {r.error && <span className="err upload-ads-err">{r.error}</span>}
             </li>

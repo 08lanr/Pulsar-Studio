@@ -78,6 +78,7 @@ export default function EpisodeClips({ titleId, episodeNumber, initial, canEdit,
                   <span className="pill pill-neutral">{tt(`clips.moment.${c.moment}`)}</span>
                   {c.angle && <span className="pill pill-neutral">{tt(`angle.${c.angle}`)}</span>}
                   <span className="pill pill-neutral">{tt(`clips.source.${c.source}`)}</span>
+                  {c.ad_format && <span className="pill pill-neutral" title={tt(`adFormat.${c.ad_format}.desc`)}>{tt(`adFormat.${c.ad_format}`)}</span>}
                 </div>
                 {c.hook_en ? <blockquote lang="en"><span className="ep-clip-hooklabel">{tt("clips.hook")}</span> {c.hook_en}</blockquote> : <p className="ep-clip-nohook">{tt("clips.noHook")}</p>}
                 <p className="ep-clip-why"><span className="ep-clip-evidence">{tt("clips.evidence.inferred")}</span> <span lang={locale === "zh" ? "zh" : "en"}>{locale === "zh" ? c.why_zh : c.why_en}</span></p>

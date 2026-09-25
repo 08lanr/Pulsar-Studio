@@ -16,6 +16,9 @@
 
 import type { ResearchProfile } from "@/lib/research/types";
 import type { LaunchSettings } from "@/lib/tiktok/settings";
+import type { AdFormat } from "@/lib/ad-formats";
+
+export type { AdFormat } from "@/lib/ad-formats";
 
 export type Json =
   | string
@@ -1132,6 +1135,8 @@ export type Clip = {
   height: number | null;
   /** A 60-second ad's pieces (moment `montage`, migration 0021); null / absent on every other clip. */
   pieces?: MontagePiece[] | null;
+  /** What kind of ad this is (lib/ad-formats.ts, migration 0023); null / absent = not classified. */
+  ad_format?: AdFormat | null;
   created_at: string;
 };
 /** @deprecated prose name; use Clip. */

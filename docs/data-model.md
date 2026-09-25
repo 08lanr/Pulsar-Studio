@@ -1325,3 +1325,16 @@ and the zip download take it like any clip. The file is named by the pick
 of the same pick finds the ad it made. Written by the build as the service
 role after the route's edit check; producers read it through `producer_select`
 (0010).
+
+## 14. Ad types on clips (migration `0023_clip_ad_format.sql`, decision 2026-09-25 "Ad types on clips")
+
+```
+studio.clips.ad_format  text                 -- null (not classified) | hook_ad | narration_trailer | direct_cuts_trailer | clip
+                                             --   (clips_ad_format_check); the registry is lib/ad-formats.ts
+```
+
+A person's label on any clip, set at upload (multipart `ad_format`) or later
+through `POST /api/titles/[id]/clips/[clipId]/format`. Written as the service
+role after the route's edit check; producers read it through `producer_select`
+(0010). The upload insert names the column only when a type was chosen, so an
+upload still works on a database without 0023.
