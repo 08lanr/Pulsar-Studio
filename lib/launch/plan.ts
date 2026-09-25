@@ -205,6 +205,12 @@ export function metaDraftIssues(draft: LaunchDraft, connections: LaunchConnectio
   try { destination = new URL(draft.destination_url); } catch { destination = null; }
   if (!destination || !["https:", "http:"].includes(destination.protocol) || destination.username || destination.password)
     list.add("destinationUrl", "Enter a complete destination URL: an HTTP(S) address without credentials.");
+  // A crazydramas link built for the other platform carries that platform's
+  // contract: TikTok's macros are filled by TikTok alone, so on Meta they
+  // reach crazydramas as the literal text __CAMPAIGN_ID__ and are stored as a
+  // real (false) TikTok session. Refuse it before anything is created.
+  if (isCrazydramasAdUrl(draft.destination_url) && !isCrazydramasAdUrl(draft.destination_url, "meta"))
+    list.add("crossPlatformLink", "This is the TikTok link for that drama. Choose the drama again so the ad carries the Meta link.");
   if (count > 0) {
     const needed = draft.allocation === "shared" ? draft.content_per_campaign : count * draft.content_per_campaign;
     if (draft.content.length !== needed) list.add("contentCount", `Need exactly ${needed} content entries; ${draft.content.length} provided.`, { needed, provided: draft.content.length });
@@ -257,8 +263,17 @@ export function metaDraftIssues(draft: LaunchDraft, connections: LaunchConnectio
  * exactly one `campid` parameter.
  */
 export function trackingUrlForCampaign(destination: string, campid: string, target: { provider?: LaunchProvider; shape?: LaunchShape } = {}): string {
-  if (target.provider === "tiktok" && isCrazydramasAdUrl(destination)) {
+  if (target.provider === "tiktok" && isCrazydramasAdUrl(destination, "tiktok")) {
     return target.shape === "instant_page" ? `${destination}&campid=${encodeURIComponent(campid)}` : destination;
+  }
+  // Meta has no macro Studio can trust in a CTA link, so the campaign is named
+  // by Studio's own campid in the slot crazydramas reads (`campaign`). The
+  // platform already says `meta`; without this every Meta session would arrive
+  // with no campaign at all.
+  if (target.provider === "meta" && isCrazydramasAdUrl(destination, "meta")) {
+    const url = new URL(destination);
+    url.searchParams.set("campaign", campid);
+    return url.toString();
   }
   const url = new URL(destination);
   url.searchParams.set("campid", campid);

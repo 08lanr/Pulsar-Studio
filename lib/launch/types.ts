@@ -192,8 +192,15 @@ export type LaunchTitleOption = {
   state: string | null;
   /** Whether ads may send people to it today (the gate's reading): only these are offered per ad. */
   live?: boolean;
-  /** The link its ads would carry, when the slug can carry one. */
+  /** The link its TikTok ads would carry, when the slug can carry one. */
   ad_url: string | null;
+  /**
+   * The link per platform. The two differ by contract: TikTok's carries its
+   * own macros, Meta's carries source=meta and no macros (lib/tiktok/ad-url.ts).
+   * Sending one platform's link on the other writes a false or literal-macro
+   * row into crazydramas' attribution table, so the screen picks by provider.
+   */
+  ad_urls?: Partial<Record<LaunchProvider, string | null>>;
 };
 export type LaunchWorkspace = {
   connections: LaunchConnection[]; library: ClipLibraryRow[]; runs: LaunchRun[];

@@ -1,8 +1,10 @@
-// Upload a finished ad as a clip (decision 2026-09-24). The cutter needs an
-// episode video and re-cuts a 20-30 s window; a partner who already has a
-// graded ad had no way in. Multipart { video, hook? }: the bytes are stored
-// and hashed exactly as delivered, never re-encoded, and filed under the
-// episode as a rendered, shortlisted clip the launch path can use at once.
+// Upload a finished ad (decision 2026-09-24, moved to the title 2026-09-25).
+// The cutter needs an episode video and re-cuts a 20-30 s window; a partner
+// who already has a graded ad had no way in. Multipart { video, hook? }: the
+// bytes are stored and hashed exactly as delivered, never re-encoded, and
+// filed under the title as a rendered, shortlisted clip the launch path can
+// use at once. The ad is content for a Meta launch, not a window of an
+// episode, so the caller never names one.
 //
 // Authorization is the caller's (requireMember + assertTitleEditable, so a
 // viewer and a foreign title are refused before any byte is stored); the row
@@ -18,18 +20,16 @@ import { mediaUrl, uploadMedia, uploadedClipFilename } from "@/lib/data/storage"
 import { probeSourceSize, withSourceFile } from "@/lib/clips/cut";
 import { ffmpegAvailable } from "@/lib/promote/render";
 import { probeDurationMs } from "@/lib/clips/signals";
-import { episodeNumber, handle, isResponse } from "../../../../../_lib/handler";
+import { handle } from "../../../_lib/handler";
 
 /** Meta and TikTok both refuse a file this large; refuse it here rather than after the upload. */
 const MAX_BYTES = 500 * 1024 * 1024;
 const HOOK_MAX = 100;
 
-export async function POST(req: NextRequest, { params }: { params: { id: string; n: string } }) {
+export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   return handle(req, async () => {
     const g = await requireMember();
     if (g.response) return g.response;
-    const n = episodeNumber(params.n);
-    if (isResponse(n)) return n;
 
     const form = await req.formData().catch(() => null);
     const video = form?.get("video");
@@ -47,8 +47,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string;
     const data = getData();
     // Refuse a viewer and a foreign title BEFORE the bytes are stored, so a
     // refused upload never leaves an orphan file in the bucket.
-    await data.assertTitleEditable(g.session, params.id);
-    const wb = await data.getWorkbench(g.session, params.id, n);
+    await data.assertTitleEditable(g.session, params.id); // refuses a viewer and a foreign title
+    // A clip row needs an episode (studio.clips.episode_id is NOT NULL, and
+    // core.derive_title_id reads the title through it), but a finished ad is
+    // not a window of one. The server files it under the title's first
+    // episode so nobody has to choose a number that means nothing for an ad;
+    // no episode is shown for it anywhere it is listed.
+    const detail = await data.getTitle(g.session, params.id);
+    const first = [...detail.episodes].sort((a, b) => a.number - b.number)[0];
+    if (!first) return apiError("add an episode to this title before uploading an ad", undefined, 409);
 
     const raw = form?.get("hook");
     const hook = (typeof raw === "string" ? raw : "").replace(/\s+/g, " ").trim().slice(0, HOOK_MAX);
@@ -64,7 +71,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string;
     // re-upload of identical bytes idempotent instead of destructive.
     const stored = await uploadMedia(
       params.id,
-      wb.episode.id,
+      first.id,
       uploadedClipFilename(render_sha256, video.name),
       bytes,
       video.type || undefined
@@ -84,7 +91,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string;
       // A probe failure is never a reason to lose an uploaded ad.
     }
 
-    const clip = await data.addUploadedClip(systemSession(), wb.episode.id, {
+    const clip = await data.addUploadedClip(systemSession(), first.id, {
       render_path: stored,
       render_sha256,
       hook_en: hook || video.name.replace(/\.[^.]+$/, "").slice(0, HOOK_MAX),

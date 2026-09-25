@@ -23,7 +23,7 @@ import { systemSession, type Session } from "@/lib/auth";
 import { getData } from "@/lib/data";
 import { conflict, invalid, notFound } from "@/lib/data/errors";
 import { checkCrazydramasTitle, loadCrazydramasStatus, loadCrazydramasStatuses, PLATFORM, type CrazydramasStatus } from "@/lib/crazydramas";
-import { crazydramasAdUrl, crazydramasSlugProblem } from "@/lib/tiktok/ad-url";
+import { crazydramasAdUrl, crazydramasAdUrlFor, crazydramasSlugProblem } from "@/lib/tiktok/ad-url";
 import { accessTokenFor, tiktokTransport } from "@/lib/tiktok";
 import { findLinkedPost, linkedAccountHandle, linkedAccountMissing, linkedNeeds, listLinkedAccounts, pickLinkedAccount, type LinkedAccount } from "@/lib/tiktok/linked-account";
 import { tiktokPixelCode } from "@/lib/tiktok/pixel";
@@ -74,9 +74,11 @@ export async function launchTitleOptions(s: Session, producerId: string): Promis
   return titles.map((t) => {
     const status = statuses.get(t.id);
     const slug = status?.slug ?? t.crazydramas_slug ?? null;
+    const usable = crazydramasSlugProblem(slug) === null;
     return { id: t.id, name: t.name_en || t.name_zh, slug, state: status?.state ?? null,
       live: !!status && crazydramasLaunchable(status),
-      ad_url: crazydramasSlugProblem(slug) === null ? crazydramasAdUrl(slug!) : null };
+      ad_url: usable ? crazydramasAdUrl(slug!) : null,
+      ad_urls: { tiktok: usable ? crazydramasAdUrlFor(slug!, "tiktok") : null, meta: usable ? crazydramasAdUrlFor(slug!, "meta") : null } };
   }).sort((a, b) => a.name.localeCompare(b.name));
 }
 
