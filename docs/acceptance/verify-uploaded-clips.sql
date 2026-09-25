@@ -34,8 +34,18 @@ with checks(name, ok) as (
        and column_name in ('render_path','render_sha256','render_status','source'))
   -- The upload route writes through the service role on purpose; a producer
   -- must still only READ clips. If this goes false, 0020 granted too much.
+  -- Checked on the row-level policies, not the table grants: 0001 grants
+  -- insert/update/delete on every studio table to `authenticated` and lets
+  -- RLS decide (staff_all needs core.is_staff(); producer_select is SELECT
+  -- only), so has_table_privilege(..., 'INSERT') is true on a correct
+  -- database. With RLS on, no policy for `authenticated` may allow a write
+  -- without the staff test.
   union all select 'producers_still_cannot_write_clips',
-    has_table_privilege('authenticated','studio.clips','SELECT')
-    and not has_table_privilege('authenticated','studio.clips','INSERT,UPDATE,DELETE')
+    (select relrowsecurity from pg_class where oid = 'studio.clips'::regclass)
+    and not exists (select 1 from pg_policies
+       where schemaname = 'studio' and tablename = 'clips'
+         and 'authenticated' = any(roles)
+         and cmd in ('ALL', 'INSERT', 'UPDATE', 'DELETE')
+         and coalesce(qual, '') || coalesce(with_check, '') not like '%is_staff%')
 )
 select name, ok from checks order by ok, name;
