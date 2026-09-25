@@ -71,6 +71,8 @@ export default function Nav({ displayName, role }: NavProps) {
     { href: "/titles", label: tt("admin.nav.projects"), icon: <IconProjects /> },
     // One page for every film and title on crazydramas.com and its next step (2026-09-24).
     { href: "/crazydramas", label: tt("cdh.nav"), icon: <IconFilm /> },
+    // Viewing and money on crazydramas.com, real people only (2026-09-24).
+    { href: "/crazydramas/stats", label: tt("cds.nav"), icon: <IconFilm /> },
     { href: "/films/import", label: tt("fi.nav"), icon: <IconFilm /> },
     { href: "/films/runs", label: tt("seg.nav"), icon: <IconFilm /> },
     { href: "/producers", label: tt("admin.nav.producers"), icon: <IconProducers /> },
@@ -78,7 +80,7 @@ export default function Nav({ displayName, role }: NavProps) {
 
   // The header names the screen with the same word the rail uses; derived from
   // the path so no page threads a prop through. Deeper routes are matched first.
-  const title = pathname.startsWith("/crazydramas") ? tt("cdh.nav") : pathname.startsWith("/films/runs") ? tt("seg.nav") : pathname.startsWith("/films") ? tt("fi.nav") : pathname.startsWith("/clips") ? tt("lv2.clips.title") : pathname.startsWith("/meta") ? tt("lv2.meta.title") : pathname.startsWith("/promote/launches") ? tt("lv2.launch.title") : pathname.startsWith("/promote/monitor") ? tt("lv2.monitor.title") : pathname.startsWith("/tiktok")
+  const title = pathname.startsWith("/crazydramas/stats") ? tt("cds.nav") : pathname.startsWith("/crazydramas") ? tt("cdh.nav") : pathname.startsWith("/films/runs") ? tt("seg.nav") : pathname.startsWith("/films") ? tt("fi.nav") : pathname.startsWith("/clips") ? tt("lv2.clips.title") : pathname.startsWith("/meta") ? tt("lv2.meta.title") : pathname.startsWith("/promote/launches") ? tt("lv2.launch.title") : pathname.startsWith("/promote/monitor") ? tt("lv2.monitor.title") : pathname.startsWith("/tiktok")
     ? tt("admin.nav.connections")
     : pathname.startsWith("/promote")
     ? tt("lv2.legacyCampaigns")
@@ -94,6 +96,9 @@ export default function Nav({ displayName, role }: NavProps) {
             ? tt("admin.head.title")
             : tt("admin.nav.projects");
 
+  // A rail item lights up on its own pages: Legacy campaigns only on /promote itself, the CrazyDramas hub not on its stats pages.
+  const isActive = (href: string) => pathname.startsWith(href) && !(href === "/promote" && pathname !== "/promote") && !(href === "/crazydramas" && pathname.startsWith("/crazydramas/stats"));
+
   const initials = initialsOf(displayName);
   const navigation = (
     <>
@@ -106,8 +111,8 @@ export default function Nav({ displayName, role }: NavProps) {
       <nav aria-label={tt("admin.nav.menu")}>
         {items.map((item) => (
           <a key={item.href} href={item.href}
-            className={`side-link ${pathname.startsWith(item.href) && !(item.href === "/promote" && pathname !== "/promote") ? "active" : ""}`}
-            aria-current={pathname.startsWith(item.href) && !(item.href === "/promote" && pathname !== "/promote") ? "page" : undefined} onClick={close}>
+            className={`side-link ${isActive(item.href) ? "active" : ""}`}
+            aria-current={isActive(item.href) ? "page" : undefined} onClick={close}>
             {item.icon}{item.label}
           </a>
         ))}

@@ -8,6 +8,18 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-09-24 · CrazyDramas stats
+
+Ruobin, 2026-09-24: crazydramas' admin "Funnel by drama" was confusing ("I don't know what preview start, ep2 reach, etc. mean"), and he wants clean numbers per title (real people landing, how long they stay in episode 1, how many go on to episodes 2 and 3, why so many paywall hits), plus DAU / WAU. Staff only (everything is CrazyDramas now); built in Studio, the crazydramas dashboard stays as it is. In plain words:
+
+- **Where the numbers come from.** crazydramas computes them: `GET /api/studio/stats` (its `docs/STUDIO_API.md`, `apps/web/lib/stats.ts`), read-only, behind the Studio token Studio already holds. Counts only, never a person's id or user agent. Studio reads it through the Studio API transport (`lib/crazydramas/stats.ts`: the fake in fixture mode, the live site in Supabase mode or with `CRAZYDRAMAS_LIVE_READ=1`), parses it with a whitelist (`stats-types.ts`) and keeps it five minutes; the pages add up days with the pure functions in `stats-summary.ts`. No migration, no table: nothing is stored in Studio.
+- **Robots are left out.** On 2026-09-24 about 40% of the "landings" on crazydramas were not people: ad-network crawlers that render the whole episode pager at once, so every locked episode "shows" in the same second and each one logged a paywall view (that is why One Night showed 49 paywall views of 50 landings while 8 pressed play). crazydramas' three rules, in `lib/stats.ts`: a known crawler in the user agent; 4+ different locked episodes within 2 seconds; the last episode's unlock screen with nothing played. Every page says how many were left out.
+- **People are grouped by the day they first opened a series**, and each step counts what they did since, so every step is a share of "Opened" and the days of a period add up. Per day (DAU, WAU, MAU) people are never added across days; the week and the month are crazydramas' own distinct counts.
+- **Words.** Opened · Played ep 1 · Finished ep 1 · Watched ep 2 / ep 3 (at least a quarter: a swipe that flicks past does not count) · Reached paywall (split: after watching the episode before it, or swiped past / picked a locked one from the list) · Tapped Unlock · Paid · Revenue (live money only; All-Access renewals credited to the series that sold the subscription). Days are Pacific time. Test (archived) and `mock-*` series and test payments are left out.
+- **Screens.** `/crazydramas/stats` (rail: "CrazyDramas stats"): today / yesterday watchers, WAU, MAU, people watching each day, money, and one row per series. `/crazydramas/stats/<slug>`: the path from opening to paying, episode 1's curve (the share still watching every 15 s, the early drop, when half had left, the average watch time), every episode's audience with the paywall marked, and how people reached the paywall. Periods: Today · 7 days · 30 days · All.
+
+What it showed on its first read (Forced to Marry the Mafia Boss, 2026-09-24): 219 people opened it, 99 pressed play, 30% of those left in the first 15 seconds, 48 finished episode 1, 12 watched episode 2; 12 reached the paywall, 10 of them by swiping past the free episodes. One buyer's visit left no events at all on crazydramas (only the payment): a tracking gap on crazydramas' side, counted on the day they paid.
+
 ## 2026-09-24 · Match live shows by episode lengths
 
 Love Between Lines was imported by folder as "Love between lines". It was already live on crazydramas as "Who Are

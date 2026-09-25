@@ -56,6 +56,7 @@ import { z } from "zod";
 import type { PlatformDrama, PlatformEpisode, PlatformManagedBy } from "@/lib/types";
 import { CrazydramasApiError, type ChunkAnswer, type ChunkRange, type CrazydramasStudioTransport, type CrazydramasTransport, type ImageCheck, type StudioHttpAnswer } from "./transport";
 import { type CatalogEntry, isMockSlug, type SeriesRead } from "./types";
+import { fakeStatsReport } from "./fake-stats";
 
 /** (frames + MUX_FRAME_OFFSET) / fps to three decimals, the way Mux reports a length. */
 const muxLength = (frames: number, fps = 30, offset = 2) => Math.round(((frames + offset) / fps) * 1000) / 1000;
@@ -599,6 +600,8 @@ export class FakeCrazydramasTransport implements CrazydramasTransport, Crazydram
     if ((m = path.match(/^\/api\/studio\/uploads\/([^/]+)$/)) && method === "GET") return this.getUploadStatus(decodeURIComponent(m[1]));
     if ((m = path.match(/^\/api\/studio\/uploads\/([^/]+)\/sync$/)) && method === "POST") return this.syncUpload(decodeURIComponent(m[1]));
     if ((m = path.match(/^\/api\/studio\/uploads\/([^/]+)\/cancel$/)) && method === "POST") return this.cancelUpload(decodeURIComponent(m[1]));
+    // The stats report (2026-09-24): invented, deterministic numbers over the fake's own series.
+    if (path === "/api/studio/stats" && method === "GET") return { status: 200, body: fakeStatsReport(this.dramas, this.episodes) };
     return fail(404, "not_found", "No such route");
   }
 
