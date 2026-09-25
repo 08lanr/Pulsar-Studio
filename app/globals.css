@@ -991,6 +991,25 @@ video {
   color: var(--accent-text);
   font-weight: var(--w-strong);
 }
+/* The staff rail's groups (Films · CrazyDramas · Ads · Settings): a quiet
+   heading over each, the producer rail's label style (.producer-nav-label). */
+.side-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.side-group + .side-group {
+  margin-top: 14px;
+}
+.side-group-label {
+  display: block;
+  padding: 0 12px 4px;
+  font-size: 11px;
+  font-weight: var(--w-strong);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
 .side-link.active svg {
   opacity: 1;
 }

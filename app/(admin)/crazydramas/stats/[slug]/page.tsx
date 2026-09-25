@@ -2,27 +2,31 @@ import "@/app/crazydramas-stats.css";
 import { adminLocale, staffSession } from "@/components/admin/server";
 import { Definitions, RangeTabs, ReadFailure, ReadLine } from "@/components/admin/cd-stats/Bits";
 import { EpisodeChart, Ep1Chart } from "@/components/admin/cd-stats/Charts";
+import { AdTableView, DeviceTableView, SurveyView } from "@/components/admin/cd-stats/Tables";
 import { crazydramasPublicUrl } from "@/lib/crazydramas";
 import { readCrazydramasStats } from "@/lib/crazydramas/stats";
-import { ep1Curve, episodeBars, fmtClock, fmtShare, fmtUsdCents, parseStatsRange, rangeDays, seriesTotals, share } from "@/lib/crazydramas/stats-summary";
+import { adSpendsFromRuns, adTable, deviceTable, ep1Curve, episodeBars, fmtClock, fmtShare, fmtUsdCents, parseStatsRange, rangeDays, seriesTotals, share } from "@/lib/crazydramas/stats-summary";
+import { getData } from "@/lib/data";
 import { t } from "@/lib/i18n";
 
 // /crazydramas/stats/[slug] — one series on crazydramas.com, staff only
 // (decision 2026-09-24, "CrazyDramas stats"): the path from opening to
 // paying, how long people stay in episode 1, every episode's audience with
-// the paywall marked, and how people reached the paywall. Real people who
-// first opened the series in the period; robots left out.
+// the paywall marked, how people reached the paywall, what happened before
+// the video started (and on which phones), what the one-tap questions heard,
+// and which ads sent the viewers. Real people who first opened the series in
+// the period; robots and the team left out.
 
 export const dynamic = "force-dynamic";
 
 const n0 = (v: number) => v.toLocaleString("en-US");
 
 export default async function CrazydramasSeriesStatsPage({ params, searchParams }: { params: { slug: string }; searchParams: { range?: string; fresh?: string } }) {
-  await staffSession();
+  const session = await staffSession();
   const locale = adminLocale();
   const slug = decodeURIComponent(params.slug);
   const range = parseStatsRange(searchParams.range);
-  const read = await readCrazydramasStats({ fresh: searchParams.fresh === "1" });
+  const [read, runs] = await Promise.all([readCrazydramasStats({ fresh: searchParams.fresh === "1" }), getData().listLaunchRuns(session).catch(() => [])]);
   const base = `/crazydramas/stats/${encodeURIComponent(slug)}`;
   const hrefFor = (r: string) => `${base}?range=${r}`;
   const back = <a className="cds-back" href={`/crazydramas/stats?range=${range}`}>←&nbsp;{t(locale, "cds.back")}</a>;
@@ -108,11 +112,30 @@ export default async function CrazydramasSeriesStatsPage({ params, searchParams 
                   );
                 })}
               </ol>
-              {tot.finished_ep1 > 0 && (
-                <div className="cds-says">
-                  <p>{t(locale, "cds.path.ep2", { finished: n0(tot.finished_ep1), n: n0(w2), share: fmtShare(share(w2, tot.finished_ep1)) })}</p>
-                </div>
-              )}
+              <div className="cds-says">
+                {tot.finished_ep1 > 0 && <p>{t(locale, "cds.path.ep2", { finished: n0(tot.finished_ep1), n: n0(w2), share: fmtShare(share(w2, tot.finished_ep1)) })}</p>}
+                <p>{t(locale, "cds.path.returned", { n: n0(tot.returned), share: fmtShare(share(tot.returned, tot.opened)) })}</p>
+                {tot.errors > 0 && <p>{t(locale, "cds.path.errors", { n: n0(tot.errors) })}</p>}
+              </div>
+            </div>
+          </section>
+
+          <section className="rs-panel cds-section" aria-labelledby="cds-before-h">
+            <div className="rs-panel-head">
+              <div>
+                <h2 id="cds-before-h">{t(locale, "cds.before.title")}</h2>
+                <p>{t(locale, "cds.before.sub")}</p>
+              </div>
+            </div>
+            <div className="rs-panel-body">
+              <div className="cds-says cds-says-top">
+                <p>
+                  <strong>{t(locale, "cds.before.neverStarted", { n: n0(tot.never_started), share: fmtShare(share(tot.never_started, tot.opened)) })}</strong>
+                  {tot.left_waiting > 0 && <> {t(locale, "cds.before.waited", { n: n0(tot.left_waiting), avg: Math.round(tot.left_waiting_seconds / tot.left_waiting) })}</>}
+                </p>
+                {tot.no_events > 0 && <p>{t(locale, "cds.before.noEvents", { n: n0(tot.no_events), share: fmtShare(share(tot.no_events, tot.opened)) })}</p>}
+              </div>
+              <DeviceTableView rows={deviceTable(read.report, span, series.drama_id)} locale={locale} />
             </div>
           </section>
 
@@ -132,6 +155,7 @@ export default async function CrazydramasSeriesStatsPage({ params, searchParams 
                     {curve.gone_first_step !== null && <p>{t(locale, "cds.ep1.goneFirst", { share: fmtShare(curve.gone_first_step), s: curve.step_s })}</p>}
                     <p>{curve.half_gone_at !== null ? t(locale, "cds.ep1.halfAt", { at: fmtClock(curve.half_gone_at) }) : t(locale, "cds.ep1.halfStay")}</p>
                     {curve.avg_seconds !== null && <p>{len ? t(locale, "cds.ep1.avg", { avg: fmtClock(curve.avg_seconds), len }) : t(locale, "cds.ep1.avgNoLen", { avg: fmtClock(curve.avg_seconds) })}</p>}
+                    <p>{tot.ep1_sound_known > 0 ? t(locale, "cds.ep1.sound", { on: n0(tot.ep1_sound_on), known: n0(tot.ep1_sound_known), share: fmtShare(share(tot.ep1_sound_on, tot.ep1_sound_known)) }) : t(locale, "cds.ep1.soundUnknown")}</p>
                   </div>
                   <Ep1Chart curve={curve} locale={locale} />
                 </>
@@ -169,6 +193,35 @@ export default async function CrazydramasSeriesStatsPage({ params, searchParams 
                   <p>{t(locale, "cds.pay.after", { checkouts: n0(tot.checkouts), buyers: n0(tot.buyers), revenue: fmtUsdCents(tot.revenue_cents) })}</p>
                 </div>
               )}
+            </div>
+          </section>
+        </>
+      )}
+
+      {tot.opened > 0 && (
+        <>
+          <section className="rs-panel cds-section" aria-labelledby="cds-why-h">
+            <div className="rs-panel-head">
+              <div>
+                <h2 id="cds-why-h">{t(locale, "cds.survey.title")}</h2>
+                <p>{t(locale, "cds.survey.sub")}</p>
+              </div>
+            </div>
+            <div className="rs-panel-body cds-surveys">
+              <SurveyView kind="ep1_stop" shown={tot.survey_ep1_shown} answers={tot.survey_ep1} locale={locale} />
+              <SurveyView kind="paywall_close" shown={tot.survey_paywall_shown} answers={tot.survey_paywall} locale={locale} />
+            </div>
+          </section>
+
+          <section className="rs-panel cds-section" aria-labelledby="cds-src-h">
+            <div className="rs-panel-head">
+              <div>
+                <h2 id="cds-src-h">{t(locale, "cds.src.title")}</h2>
+                <p>{t(locale, "cds.src.sub")}</p>
+              </div>
+            </div>
+            <div className="rs-panel-body">
+              <AdTableView rows={adTable(read.report, adSpendsFromRuns(runs), series.drama_id)} locale={locale} caption={t(locale, "cds.src.title")} />
             </div>
           </section>
         </>

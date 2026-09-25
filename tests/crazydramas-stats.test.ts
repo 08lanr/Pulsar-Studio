@@ -11,8 +11,12 @@ import { afterEach, beforeEach, test } from "node:test";
 import { fakeCrazydramasTransport as fake } from "@/lib/crazydramas/fake";
 import { fakeStatsReport } from "@/lib/crazydramas/fake-stats";
 import { STATS_CACHE_MS, clearCdStatsCache, readCrazydramasStats } from "@/lib/crazydramas/stats";
-import { audience, ep1Curve, episodeBars, fmtClock, fmtShare, parseStatsRange, rangeDays, seriesTable, seriesTotals } from "@/lib/crazydramas/stats-summary";
-import type { CdStatsReport, CdStatsSeries } from "@/lib/crazydramas/stats-types";
+import { rm } from "node:fs/promises";
+import path from "node:path";
+import { adOutcomes, adSpendsFromRuns, adTable, audience, deviceTable, ep1Curve, episodeBars, fmtClock, fmtShare, parseStatsRange, rangeDays, seriesTable, seriesTotals } from "@/lib/crazydramas/stats-summary";
+import { normalizeTeamEmails, readTeamList, saveTeamList, TEAM_FILE } from "@/lib/crazydramas/stats-team";
+import { CdStatsReportSchema, type CdStatsReport } from "@/lib/crazydramas/stats-types";
+import type { LaunchRun } from "@/lib/launch/types";
 import type { CrazydramasStudioTransport } from "@/lib/crazydramas/transport";
 
 const ENV_KEYS = ["DATA_SOURCE", "CRAZYDRAMAS_LIVE_READ", "CRAZYDRAMAS_STUDIO_TOKEN"] as const;
@@ -121,15 +125,15 @@ test("the live read is refused without the token, before any request", async () 
 // ---- the sums -----------------------------------------------------------------------------------------------
 
 function report(): CdStatsReport {
-  const day = (d: string, watchers: number, extra: Partial<CdStatsReport["days"][number]> = {}) => ({
+  const day = (d: string, watchers: number, extra: Record<string, number> = {}) => ({
     day: d, visitors: watchers * 2, watchers, new_watchers: watchers, wau: 0, mau: 0, robots: 1, payments: 0, first_purchases: 0, renewals: 0, revenue_cents: 0, ...extra,
   });
-  const cohort = (d: string, opened: number, over: Partial<CdStatsSeries["cohorts"][number]> = {}) => ({
+  const cohort = (d: string, opened: number, over: Record<string, unknown> = {}) => ({
     day: d, opened, started_ep1: Math.round(opened / 2), finished_ep1: Math.round(opened / 4), ep1_seconds: opened * 30,
     ep1_reached: [Math.round(opened / 2), Math.round(opened / 3), Math.round(opened / 4)], episodes: [Math.round(opened / 2), 3, 1, 0, 0, 0],
     episodes_watched: [Math.round(opened / 3), 2, 1, 0, 0, 0], paywall: 2, paywall_watched: 1, paywall_skipped: 1, checkouts: 1, buyers: 1, revenue_cents: 199, robots: 3, ...over,
   });
-  return {
+  return CdStatsReportSchema.parse({
     version: 1, generated_at: "2026-09-24T20:00:00.000Z", timezone: "America/Los_Angeles", from: "2026-05-28", to: "2026-09-24", ep1_step_s: 15,
     robots: { people: 9, crawler_ua: 1, burst: 6, end_jump: 2 },
     days: [day("2026-09-20", 5), day("2026-09-23", 10, { wau: 14, mau: 20 }), day("2026-09-24", 20, { wau: 30, mau: 40, payments: 3, first_purchases: 2, renewals: 1, revenue_cents: 1097 })],
@@ -137,7 +141,19 @@ function report(): CdStatsReport {
       { drama_id: "a", slug: "alpha", title: "Alpha", status: "published", free_episodes: 3, episode_count: 6, ep1_duration_s: 40, cohorts: [cohort("2026-09-10", 40), cohort("2026-09-24", 100)] },
       { drama_id: "b", slug: "beta", title: "Beta", status: "published", free_episodes: 5, episode_count: 60, ep1_duration_s: null, cohorts: [] },
     ],
-  };
+    sources: [
+      src("2026-09-24", "a", "111", "tiktok_android", { opened: 60, started_ep1: 30, finished_ep1: 15, watched_ep2: 6, buyers: 1, revenue_cents: 99 }),
+      src("2026-09-24", "a", "111", "tiktok_iphone", { opened: 20, no_events: 12, started_ep1: 4, finished_ep1: 1 }),
+      src("2026-09-10", "a", "222", "tiktok_android", { opened: 40, started_ep1: 10, finished_ep1: 3, watched_ep2: 1 }),
+      src("2026-09-24", "a", null, "tiktok_android", { opened: 12, started_ep1: 5, finished_ep1: 2 }, true),
+      src("2026-09-24", "b", null, "iphone", { opened: 3, robots: 9 }),
+    ],
+  });
+}
+
+function src(d: string, drama: string, ad: string | null, device: string, counts: Record<string, number>, storedCopy = false) {
+  const zero = { opened: 0, no_events: 0, never_started: 0, started_ep1: 0, finished_ep1: 0, watched_ep2: 0, watched_ep3: 0, paywall: 0, checkouts: 0, buyers: 0, revenue_cents: 0, robots: 0 };
+  return { day: d, drama_id: drama, platform: ad || storedCopy ? "tiktok" : "organic", campaign: ad ? "c1" : null, ad, stored_copy: storedCopy, device, ...zero, ...counts };
 }
 
 test("a period ends today and never starts before the report", () => {
@@ -206,4 +222,122 @@ test("shares and clocks read plainly", () => {
   assert.equal(fmtShare(0.456), "46%");
   assert.equal(fmtClock(116.6), "1:57");
   assert.equal(fmtClock(5), "0:05");
+});
+
+// ---- the team, the ads, the phones ---------------------------------------------------------------------------
+
+test("an older report, without the newer fields, still reads (as zero / empty)", () => {
+  const old = JSON.parse(JSON.stringify(report()));
+  delete old.team;
+  delete old.sources;
+  for (const c of old.series[0].cohorts) for (const k of ["no_events", "never_started", "returned", "survey_ep1", "team"]) delete c[k];
+  const parsed = CdStatsReportSchema.parse(old);
+  assert.deepEqual(parsed.team, { people: 0, payments: 0, revenue_cents: 0 });
+  assert.deepEqual(parsed.sources, []);
+  assert.equal(parsed.series[0].cohorts[0].returned, 0);
+  assert.deepEqual(parsed.series[0].cohorts[0].survey_ep1, {});
+});
+
+test("the read sends the team's emails in the POST body, and keeps one read per team list", async () => {
+  const body = fakeStatsReport([{ id: "d1", slug: "one", title: "One", status: "published", free_episode_count: 5 }], []);
+  const seen: unknown[] = [];
+  const transport = {
+    ...stub(200, body),
+    async request(method: "GET" | "PUT" | "POST", p: string, b?: unknown) {
+      seen.push({ method, p, b });
+      return { status: 200, body: JSON.parse(JSON.stringify(body)) };
+    },
+  };
+  await readCrazydramasStats({ transport, teamEmails: ["b@x.com", "a@x.com"] });
+  await readCrazydramasStats({ transport, teamEmails: ["a@x.com", "b@x.com"] });
+  await readCrazydramasStats({ transport, teamEmails: ["a@x.com"] });
+  assert.deepEqual(seen[0], { method: "POST", p: "/api/studio/stats", b: { team_emails: ["a@x.com", "b@x.com"] } });
+  assert.equal(seen.length, 2, "the same list in another order is the same kept read; a new list reads again");
+});
+
+test("a crazydramas from before the team list (POST answers 405) is read with GET, nobody left out", async () => {
+  const body = fakeStatsReport([{ id: "d1", slug: "one", title: "One", status: "published", free_episode_count: 5 }], []);
+  const methods: string[] = [];
+  const transport = {
+    ...stub(200, body),
+    async request(method: "GET" | "PUT" | "POST") {
+      methods.push(method);
+      return method === "POST" ? { status: 405, body: null } : { status: 200, body: JSON.parse(JSON.stringify(body)) };
+    },
+  };
+  const read = await readCrazydramasStats({ transport, teamEmails: ["a@x.com"] });
+  assert.deepEqual(methods, ["POST", "GET"]);
+  assert.equal(read.ok, true);
+  if (read.ok) assert.deepEqual(read.team_emails, []);
+});
+
+test("the fake answers the POST and counts the team apart", async () => {
+  const read = await readCrazydramasStats({ teamEmails: ["a@x.com", "b@x.com"] });
+  assert.equal(read.ok, true);
+  if (read.ok) {
+    assert.equal(read.report.team.payments, 2);
+    assert.ok(read.report.sources.length > 0);
+  }
+});
+
+test("the team list: normalized, refused whole when an entry is not an email, saved and read back", async () => {
+  assert.deepEqual(normalizeTeamEmails([" B@X.com ", "a@x.com", "b@x.com", ""]), { ok: true, emails: ["a@x.com", "b@x.com"] });
+  assert.deepEqual(normalizeTeamEmails(["a@x.com", "not an email"]), { ok: false, bad: ["not an email"] });
+  const file = path.join(process.cwd(), ".uploads", TEAM_FILE);
+  try {
+    await rm(file, { force: true });
+    assert.deepEqual((await readTeamList()).emails, []);
+    await saveTeamList(["a@x.com", "b@x.com"], "Ruobin");
+    const back = await readTeamList();
+    assert.deepEqual(back.emails, ["a@x.com", "b@x.com"]);
+    assert.equal(back.updated_by, "Ruobin");
+  } finally {
+    await rm(file, { force: true });
+  }
+});
+
+test("every ad over its life, joined to Studio's launches: costs per person, finisher and episode 2 watcher", () => {
+  const runs = [
+    {
+      external_id: "lr_1",
+      draft: { name: "CrazyDramas · Sep 23" },
+      campaigns: [
+        {
+          name: "0924test01",
+          snapshot: {
+            ads: [
+              { id: "111", status: "ok", stats: { spend_cents: 800, impressions: 5000, clicks: 100, ctr: 0.02, cpc_cents: 8, conversions: 0 } },
+              { id: "222", status: "ok", stats: { spend_cents: 300, impressions: 2000, clicks: 50, ctr: 0.025, cpc_cents: 6, conversions: 0 } },
+              { id: "333", status: "ok", stats: { spend_cents: 120, impressions: 900, clicks: 9, ctr: 0.01, cpc_cents: 13, conversions: 0 } },
+            ],
+          },
+        },
+      ],
+    },
+  ] as unknown as LaunchRun[];
+  const spends = adSpendsFromRuns(runs);
+  assert.equal(spends.length, 3);
+  const rows = adTable(report(), spends);
+  assert.deepEqual(rows.map((r) => r.key), ["ad:111", "ad:222", "ad:333", "stored_copy", "no_ad"]);
+  const a = rows[0];
+  assert.equal(a.opened, 80, "both phones, every day");
+  assert.equal(a.finished_ep1, 16);
+  assert.equal(a.cost_per_person_cents, 10);
+  assert.equal(a.cost_per_finisher_cents, 50);
+  assert.equal(a.cost_per_ep2_cents, 133);
+  assert.equal(rows[2].opened, 0, "an ad that brought nobody still shows what it spent");
+  assert.equal(rows[2].cost_per_person_cents, null);
+  assert.equal(rows[3].spend, null);
+  assert.deepEqual(adTable(report(), spends, "b").map((r) => r.key), ["no_ad"], "one series");
+});
+
+test("the Monitor's line: each ad's people over its life, by TikTok's ad id", () => {
+  const o = adOutcomes(report());
+  assert.deepEqual(Object.keys(o).sort(), ["111", "222"]);
+  assert.deepEqual(o["111"], { opened: 80, started_ep1: 34, finished_ep1: 16, watched_ep2: 6, buyers: 1, revenue_cents: 99 });
+});
+
+test("the kinds of phone in a period, TikTok on Android first", () => {
+  const rows = deviceTable(report(), rangeDays(report(), "today"), "a");
+  assert.deepEqual(rows.map((r) => [r.device, r.opened, r.no_events]), [["tiktok_android", 72, 0], ["tiktok_iphone", 20, 12]]);
 });

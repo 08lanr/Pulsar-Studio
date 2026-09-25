@@ -58,26 +58,48 @@ export default function Nav({ displayName, role }: NavProps) {
     return () => desktop.removeEventListener("change", onResize);
   }, []);
 
-  // The staff rail reads the same words in the same order as the producer's
-  // (plan §5.3): Clips · Launch · Monitor · Connections · Legacy campaigns ·
-  // Titles · CrazyDramas · Import films · Segment a film · Producers. Connections is /tiktok, which carries a Meta section
-  // as well, so one entry covers both providers; /meta keeps working.
-  const items: NavItem[] = [
-    { href: "/clips", label: tt("lv2.clips.title"), icon: <IconSparkle /> },
-    { href: "/promote/launches", label: tt("lv2.launch.title"), icon: <IconSparkle /> },
-    { href: "/promote/monitor", label: tt("lv2.monitor.title"), icon: <IconSparkle /> },
-    { href: "/tiktok", label: tt("admin.nav.connections"), icon: <IconSparkle /> },
-    { href: "/promote", label: tt("lv2.legacyCampaigns"), icon: <IconSparkle /> },
-    { href: "/titles", label: tt("admin.nav.projects"), icon: <IconProjects /> },
-    // One page for every film and title on crazydramas.com and its next step (2026-09-24).
-    { href: "/crazydramas", label: tt("cdh.nav"), icon: <IconFilm /> },
-    // Viewing and money on crazydramas.com, real people only (2026-09-24).
-    { href: "/crazydramas/stats", label: tt("cds.nav"), icon: <IconFilm /> },
-    { href: "/films/import", label: tt("fi.nav"), icon: <IconFilm /> },
-    { href: "/films/runs", label: tt("seg.nav"), icon: <IconFilm /> },
-    { href: "/producers", label: tt("admin.nav.producers"), icon: <IconProducers /> },
+  // The staff rail keeps the producer's words for the same screens (plan §5.3), grouped:
+  // Films (Titles · Import films · Segment a film) · CrazyDramas (Series · Stats) ·
+  // Ads (Clips · Launch · Monitor · Legacy campaigns) · Settings (Connections · Producers).
+  // Connections is /tiktok, which carries a Meta section as well, so one entry covers
+  // both providers; /meta keeps working.
+  // Four groups with a heading each (Ruobin, 2026-09-24: "clean up the LHS UI, group them in larger
+  // buckets"): Films · CrazyDramas · Ads · Settings.
+  const groups: { key: string; items: NavItem[] }[] = [
+    {
+      key: "admin.nav.group.films",
+      items: [
+        { href: "/titles", label: tt("admin.nav.projects"), icon: <IconProjects /> },
+        { href: "/films/import", label: tt("fi.nav"), icon: <IconFilm /> },
+        { href: "/films/runs", label: tt("seg.nav"), icon: <IconFilm /> },
+      ],
+    },
+    {
+      key: "admin.nav.group.crazydramas",
+      items: [
+        // One page for every film and title on crazydramas.com and its next step (2026-09-24).
+        { href: "/crazydramas", label: tt("admin.nav.cdSeries"), icon: <IconFilm /> },
+        // Viewing and money on crazydramas.com, real people only (2026-09-24).
+        { href: "/crazydramas/stats", label: tt("admin.nav.cdStats"), icon: <IconFilm /> },
+      ],
+    },
+    {
+      key: "admin.nav.group.ads",
+      items: [
+        { href: "/clips", label: tt("lv2.clips.title"), icon: <IconSparkle /> },
+        { href: "/promote/launches", label: tt("lv2.launch.title"), icon: <IconSparkle /> },
+        { href: "/promote/monitor", label: tt("lv2.monitor.title"), icon: <IconSparkle /> },
+        { href: "/promote", label: tt("lv2.legacyCampaigns"), icon: <IconSparkle /> },
+      ],
+    },
+    {
+      key: "admin.nav.group.settings",
+      items: [
+        { href: "/tiktok", label: tt("admin.nav.connections"), icon: <IconSparkle /> },
+        { href: "/producers", label: tt("admin.nav.producers"), icon: <IconProducers /> },
+      ],
+    },
   ];
-
   // The header names the screen with the same word the rail uses; derived from
   // the path so no page threads a prop through. Deeper routes are matched first.
   const title = pathname.startsWith("/crazydramas/stats") ? tt("cds.nav") : pathname.startsWith("/crazydramas") ? tt("cdh.nav") : pathname.startsWith("/films/runs") ? tt("seg.nav") : pathname.startsWith("/films") ? tt("fi.nav") : pathname.startsWith("/clips") ? tt("lv2.clips.title") : pathname.startsWith("/meta") ? tt("lv2.meta.title") : pathname.startsWith("/promote/launches") ? tt("lv2.launch.title") : pathname.startsWith("/promote/monitor") ? tt("lv2.monitor.title") : pathname.startsWith("/tiktok")
@@ -109,12 +131,17 @@ export default function Nav({ displayName, role }: NavProps) {
         <IconPlus />{tt("admin.titles.new")}
       </a>
       <nav aria-label={tt("admin.nav.menu")}>
-        {items.map((item) => (
-          <a key={item.href} href={item.href}
-            className={`side-link ${isActive(item.href) ? "active" : ""}`}
-            aria-current={isActive(item.href) ? "page" : undefined} onClick={close}>
-            {item.icon}{item.label}
-          </a>
+        {groups.map((g) => (
+          <div key={g.key} className="side-group" role="group" aria-label={tt(g.key)}>
+            <span className="side-group-label" aria-hidden="true">{tt(g.key)}</span>
+            {g.items.map((item) => (
+              <a key={item.href} href={item.href}
+                className={`side-link ${isActive(item.href) ? "active" : ""}`}
+                aria-current={isActive(item.href) ? "page" : undefined} onClick={close}>
+                {item.icon}{item.label}
+              </a>
+            ))}
+          </div>
         ))}
       </nav>
       <div className="side-foot"><div className="ident">

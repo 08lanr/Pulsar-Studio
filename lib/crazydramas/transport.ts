@@ -210,13 +210,19 @@ async function get(path: string): Promise<{ status: number; body: unknown }> {
 
 /** `/api/studio/...` paths only; each segment already encoded by the caller (studio-client.ts). */
 const STUDIO_PATH = /^\/api\/studio\/[A-Za-z0-9/_.%-]+$/;
+/**
+ * POSTs that only read: the stats report takes the team's emails in its body
+ * (lib/crazydramas/stats.ts), so it is a POST, but it changes nothing on
+ * crazydramas and needs only the read gate, never CRAZYDRAMAS_LIVE_WRITES.
+ */
+const READ_ONLY_POSTS = new Set(["/api/studio/stats"]);
 
 /** Only this function sends the token. Every HTTP answer comes back as a value; no answer throws. */
 async function studioCall(method: "GET" | "PUT" | "POST", path: string, body?: unknown): Promise<StudioHttpAnswer> {
   serverOnly();
   if (underTest()) throw new CrazydramasApiError("Live Studio API calls are refused in tests; use the fake transport.");
   if (!STUDIO_PATH.test(path) || path.includes("..")) throw new CrazydramasApiError("Not a Studio API path.");
-  const refusal = method === "GET" ? studioReadRefusal() : studioWriteRefusal();
+  const refusal = method === "GET" || (method === "POST" && READ_ONLY_POSTS.has(path)) ? studioReadRefusal() : studioWriteRefusal();
   if (refusal) throw new CrazydramasApiError(refusal);
   const token = studioToken();
   if (!token) throw new CrazydramasApiError("CRAZYDRAMAS_STUDIO_TOKEN is not set.");

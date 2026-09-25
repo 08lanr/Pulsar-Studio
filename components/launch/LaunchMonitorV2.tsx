@@ -14,6 +14,7 @@ import {
   providerCampaignId, switchState, type AdPlatform, type MonitorState,
 } from "@/lib/launch/provider-errors";
 import type { DeliverySnapshot, LaunchCampaign, LaunchContent, LaunchControl, LaunchRun } from "@/lib/launch/types";
+import type { AdOutcome } from "@/lib/crazydramas/stats-summary";
 // app/monitor-round2.css is loaded by app/layout.tsx, immediately before polish.css.
 import "@/app/launch-monitor.css";
 
@@ -119,6 +120,26 @@ function pairAds(cards: { id: string }[], ads: AdStatus[]): AdStatus[] | null {
   return ads;
 }
 
+/**
+ * What the ad brought on crazydramas.com after the click (staff): real people (robots and the team left
+ * out), episode 1 started / finished, episode 2 watched, paid, and what one episode 1 finisher cost. The
+ * CrazyDramas stats page has the same numbers for every ad.
+ */
+function CdAdLine({ outcome, spendCents, tt }: { outcome: AdOutcome | null; spendCents: number | null; tt: (key: string, vars?: Record<string, string | number>) => string }) {
+  if (!outcome || outcome.opened === 0) return <p className="lm-ad-cd lm-ad-cd-none" data-testid="ad-cd">{tt("mcd.none")} <a href="/crazydramas/stats#ads">{tt("mcd.stats")}&nbsp;›</a></p>;
+  const perFinisher = spendCents != null && outcome.finished_ep1 > 0 ? money(Math.round(spendCents / outcome.finished_ep1)) : "—";
+  return <p className="lm-ad-cd" data-testid="ad-cd">
+    <span className="lm-ad-cd-label">{tt("mcd.label")}</span>
+    <span>{tt("mcd.people")} <b>{int(outcome.opened)}</b></span>
+    <span>{tt("mcd.started")} <b>{int(outcome.started_ep1)}</b></span>
+    <span>{tt("mcd.finished")} <b>{int(outcome.finished_ep1)}</b></span>
+    <span>{tt("mcd.ep2")} <b>{int(outcome.watched_ep2)}</b></span>
+    <span>{tt("mcd.paid")} <b>{int(outcome.buyers)}</b></span>
+    <span>{tt("mcd.perFinisher")} <b>{perFinisher}</b></span>
+    <a href="/crazydramas/stats#ads">{tt("mcd.stats")}&nbsp;›</a>
+  </p>;
+}
+
 /** One ad's own numbers in one line: what it cost and what it brought. */
 function AdNumbers({ totals, tt }: { totals: Totals; tt: (key: string, vars?: Record<string, string | number>) => string }) {
   const pct = totals.ctr === null ? "—" : `${(totals.ctr * 100).toFixed(2)}%`;
@@ -177,6 +198,22 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
   const [view, setView] = useState<"launches" | "titles">(initialView);
   const [renaming, setRenaming] = useState("");
   const [nameDraft, setNameDraft] = useState("");
+  // Staff: what each TikTok ad brought on crazydramas.com (people, episode 1, episode 2, paid), by ad id,
+  // from the CrazyDramas stats (2026-09-24). Loaded once, beside the launches; missing is simply not shown.
+  const [cdAds, setCdAds] = useState<Record<string, AdOutcome> | null>(null);
+  useEffect(() => {
+    if (!staff) return;
+    let stop = false;
+    void fetch("/api/admin/crazydramas/ad-outcomes", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { ok?: boolean; ads?: Record<string, AdOutcome> } | null) => {
+        if (!stop && j?.ok && j.ads) setCdAds(j.ads);
+      })
+      .catch(() => {});
+    return () => {
+      stop = true;
+    };
+  }, [staff]);
   const returnFocus = useRef<HTMLElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const cancelRename = useRef(false);
@@ -523,7 +560,9 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
                       {adTitle && <span className="lm-ad-title" data-testid="ad-title">{adTitle}</span>}
                       {numbers ? <AdNumbers totals={totalsOf(numbers)} tt={tt} /> : c.snapshot && run.draft.provider === "tiktok" && campaignId ? <span className="lm-ad-numbers-none">{tt(c.snapshot.ad_stats_error ? "mad.adStatsFailed" : "mad.adStatsNone")}</span> : null}
                       {ad && run.draft.provider === "tiktok" && <span className="lm-ad-id" title={tt("mad.adIdHint")}>{tt("mad.adId")} {ad.id}</span>}
-                    </div></div>;
+                    </div>
+                    {staff && cdAds && ad && run.draft.provider === "tiktok" && <CdAdLine outcome={cdAds[ad.id] ?? null} spendCents={numbers ? totalsOf(numbers).spend_cents : null} tt={tt} />}
+                    </div>;
                   })
                   : <p>{tt("mr2.noAds")}</p>}</div>
                 {/* Only when the sweep's ads cannot be lined up with the cards

@@ -2,15 +2,21 @@ import "@/app/crazydramas-stats.css";
 import { adminLocale, staffSession } from "@/components/admin/server";
 import { Definitions, RangeTabs, ReadFailure, ReadLine, Tile } from "@/components/admin/cd-stats/Bits";
 import { DailyChart } from "@/components/admin/cd-stats/Charts";
+import { AdTableView } from "@/components/admin/cd-stats/Tables";
+import TeamEditor from "@/components/admin/cd-stats/TeamEditor";
 import { readCrazydramasStats } from "@/lib/crazydramas/stats";
-import { audience, fmtShare, fmtUsdCents, parseStatsRange, rangeDays, seriesTable, share, type SeriesTotals } from "@/lib/crazydramas/stats-summary";
+import { readTeamList } from "@/lib/crazydramas/stats-team";
+import { adSpendsFromRuns, adTable, audience, fmtShare, fmtUsdCents, parseStatsRange, rangeDays, seriesTable, share, type SeriesTotals } from "@/lib/crazydramas/stats-summary";
+import { getData } from "@/lib/data";
 import { t } from "@/lib/i18n";
 
 // /crazydramas/stats — viewing and money on crazydramas.com, staff only
 // (decision 2026-09-24, "CrazyDramas stats"): the audience per day (DAU,
 // WAU, MAU), the money, and one row per series following the people who
-// first opened it in the period, in plain words. Real people only; the
-// numbers come from crazydramas' GET /api/studio/stats (lib/crazydramas/stats.ts).
+// first opened it in the period, in plain words; then every ad with what it
+// cost (Studio's launch records) and what it brought, and the team's own
+// accounts, which are left out. Real people only; the numbers come from
+// crazydramas' /api/studio/stats (lib/crazydramas/stats.ts).
 
 export const dynamic = "force-dynamic";
 
@@ -26,10 +32,14 @@ function Cell({ n, of }: { n: number; of: number }) {
 }
 
 export default async function CrazydramasStatsPage({ searchParams }: { searchParams: { range?: string; fresh?: string } }) {
-  await staffSession();
+  const session = await staffSession();
   const locale = adminLocale();
   const range = parseStatsRange(searchParams.range);
-  const read = await readCrazydramasStats({ fresh: searchParams.fresh === "1" });
+  const [read, team, runs] = await Promise.all([
+    readCrazydramasStats({ fresh: searchParams.fresh === "1" }),
+    readTeamList(),
+    getData().listLaunchRuns(session).catch(() => []),
+  ]);
   const hrefFor = (r: string) => `/crazydramas/stats?range=${r}`;
 
   const head = (
@@ -149,6 +159,31 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
           <p className="cds-foot">{t(locale, "cds.series.robots", { n: n0(robotVisits) })}</p>
         </div>
       </section>
+
+      <section className="rs-panel cds-section" aria-labelledby="cds-ads-h" id="ads">
+        <div className="rs-panel-head">
+          <div>
+            <h2 id="cds-ads-h">{t(locale, "cds.ads.title")}</h2>
+            <p>{t(locale, "cds.ads.sub")}</p>
+          </div>
+        </div>
+        <div className="rs-panel-body">
+          <AdTableView rows={adTable(report, adSpendsFromRuns(runs))} locale={locale} caption={t(locale, "cds.ads.title")} />
+          <p className="cds-foot">{t(locale, "cds.ads.foot")}</p>
+        </div>
+      </section>
+
+      <details className="rs-panel cds-section cds-team-panel" id="team">
+        <summary className="rs-panel-head">
+          <div>
+            <h2>{t(locale, "cds.team.title", { n: team.emails.length })}</h2>
+            <p>{t(locale, "cds.team.sub", { people: n0(report.team.people), payments: n0(report.team.payments), revenue: fmtUsdCents(report.team.revenue_cents) })}</p>
+          </div>
+        </summary>
+        <div className="rs-panel-body">
+          <TeamEditor emails={team.emails} canEdit={session.staffRole === "admin"} updatedAt={team.updated_at} updatedBy={team.updated_by} />
+        </div>
+      </details>
 
       <Definitions robots={report.robots.people} locale={locale} />
     </>

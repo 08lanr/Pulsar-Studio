@@ -58,6 +58,33 @@
 .cds-back { display: inline-block; font-size: 13px; color: var(--brand); text-decoration: none; margin-bottom: 8px; }
 .cds-back:hover { text-decoration: underline; }
 
+/* Where people came from: every ad, the best one marked in words, not only colour. */
+.cds-table th[scope="row"] { font-weight: var(--w-medium); }
+.cds-ads th strong { display: block; font-weight: var(--w-medium); color: var(--text); }
+.cds-table th .cds-sub { display: block; font-size: 11.5px; font-weight: var(--w-body); color: var(--text-faint); }
+.cds-table tr.cds-best th, .cds-table tr.cds-best td { background: var(--success-bg); }
+.cds-badge { display: inline-block; margin-top: 4px; padding: 1px 8px; border-radius: 999px; background: var(--success); color: var(--surface); font-size: 11px; font-weight: var(--w-strong); }
+.cds-says-top { margin: 0 0 12px; }
+
+/* The one-tap questions: the two side by side on a wide screen. */
+.cds-surveys { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px 28px; }
+.cds-survey h3 { margin: 0 0 2px; font-size: 14px; font-weight: var(--w-strong); }
+.cds-sub-line { margin: 0 0 10px; font-size: 12.5px; color: var(--text-muted); }
+.cds-answers li { grid-template-columns: minmax(140px, 190px) minmax(0, 1fr) 44px 48px; }
+
+/* The team's own accounts, folded under their own heading. */
+.cds-team-panel > summary { cursor: pointer; list-style: none; }
+.cds-team-panel > summary::-webkit-details-marker { display: none; }
+.cds-team-panel > summary h2::after { content: " ›"; color: var(--text-faint); }
+.cds-team-panel[open] > summary h2::after { content: " ⌄"; }
+.cds-team { display: grid; gap: 8px; max-width: 520px; }
+.cds-team-label { font-size: 12.5px; color: var(--text-muted); }
+.cds-team-input { font-family: var(--font-mono, ui-monospace, monospace); font-size: 13px; resize: vertical; }
+.cds-team-actions { display: flex; align-items: center; gap: 12px; }
+.cds-team-ok { font-size: 12.5px; color: var(--success); }
+.cds-team-error { font-size: 12.5px; color: var(--error); }
+.cds-team-list { margin: 0; padding-left: 18px; font-size: 13px; }
+
 @media (max-width: 640px) {
   .cds-path li { grid-template-columns: minmax(0, 1fr) 52px 48px; }
   .cds-path-track { grid-column: 1 / -1; order: 4; }

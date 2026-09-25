@@ -1,0 +1,8 @@
+{
+  "admin.nav.group.films": { "en": "Films", "zh": "影片" },
+  "admin.nav.group.crazydramas": { "en": "CrazyDramas", "zh": "CrazyDramas" },
+  "admin.nav.group.ads": { "en": "Ads", "zh": "广告" },
+  "admin.nav.group.settings": { "en": "Settings", "zh": "设置" },
+  "admin.nav.cdSeries": { "en": "Series", "zh": "剧集" },
+  "admin.nav.cdStats": { "en": "Stats", "zh": "数据" }
+}

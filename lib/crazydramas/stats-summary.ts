@@ -10,7 +10,8 @@
 //     series (a person is in one day's group per series), so the groups of a
 //     period add up, and every step is a share of the people who opened it.
 
-import type { CdStatsCohort, CdStatsDay, CdStatsReport, CdStatsSeries } from "./stats-types";
+import type { LaunchRun } from "@/lib/launch/types";
+import type { CdStatsCohort, CdStatsDay, CdStatsReport, CdStatsSeries, CdStatsSource } from "./stats-types";
 
 export const STATS_RANGES = ["today", "7d", "30d", "all"] as const;
 export type StatsRange = (typeof STATS_RANGES)[number];
@@ -92,10 +93,16 @@ export type SeriesTotals = {
   episode_count: number;
   ep1_duration_s: number | null;
   opened: number;
+  no_events: number;
+  never_started: number;
+  left_waiting: number;
+  left_waiting_seconds: number;
   started_ep1: number;
   finished_ep1: number;
   ep1_seconds: number;
   ep1_reached: number[];
+  ep1_sound_known: number;
+  ep1_sound_on: number;
   episodes: number[];
   episodes_watched: number[];
   paywall: number;
@@ -104,7 +111,14 @@ export type SeriesTotals = {
   checkouts: number;
   buyers: number;
   revenue_cents: number;
+  returned: number;
+  errors: number;
+  survey_ep1_shown: number;
+  survey_ep1: Record<string, number>;
+  survey_paywall_shown: number;
+  survey_paywall: Record<string, number>;
   robots: number;
+  team: number;
 };
 
 function addInto(into: number[], add: number[]): void {
@@ -120,10 +134,16 @@ export function seriesTotals(series: CdStatsSeries, r: { from: string; to: strin
     episode_count: series.episode_count,
     ep1_duration_s: series.ep1_duration_s,
     opened: 0,
+    no_events: 0,
+    never_started: 0,
+    left_waiting: 0,
+    left_waiting_seconds: 0,
     started_ep1: 0,
     finished_ep1: 0,
     ep1_seconds: 0,
     ep1_reached: [],
+    ep1_sound_known: 0,
+    ep1_sound_on: 0,
     episodes: [],
     episodes_watched: [],
     paywall: 0,
@@ -132,27 +152,47 @@ export function seriesTotals(series: CdStatsSeries, r: { from: string; to: strin
     checkouts: 0,
     buyers: 0,
     revenue_cents: 0,
+    returned: 0,
+    errors: 0,
+    survey_ep1_shown: 0,
+    survey_ep1: {},
+    survey_paywall_shown: 0,
+    survey_paywall: {},
     robots: 0,
+    team: 0,
   };
-  const scalar: (keyof CdStatsCohort & keyof SeriesTotals)[] = [
+  const scalar = [
     "opened",
+    "no_events",
+    "never_started",
+    "left_waiting",
+    "left_waiting_seconds",
     "started_ep1",
     "finished_ep1",
     "ep1_seconds",
+    "ep1_sound_known",
+    "ep1_sound_on",
     "paywall",
     "paywall_watched",
     "paywall_skipped",
     "checkouts",
     "buyers",
     "revenue_cents",
+    "returned",
+    "errors",
+    "survey_ep1_shown",
+    "survey_paywall_shown",
     "robots",
-  ];
+    "team",
+  ] as const satisfies readonly (keyof CdStatsCohort & keyof SeriesTotals)[];
   for (const c of series.cohorts) {
     if (!inRange(c.day, r)) continue;
-    for (const k of scalar) (t[k] as number) += c[k] as number;
+    for (const k of scalar) t[k] += c[k];
     addInto(t.ep1_reached, c.ep1_reached);
     addInto(t.episodes, c.episodes);
     addInto(t.episodes_watched, c.episodes_watched);
+    for (const [a, n] of Object.entries(c.survey_ep1)) t.survey_ep1[a] = (t.survey_ep1[a] ?? 0) + n;
+    for (const [a, n] of Object.entries(c.survey_paywall)) t.survey_paywall[a] = (t.survey_paywall[a] ?? 0) + n;
   }
   return t;
 }
@@ -244,3 +284,154 @@ export function episodeBars(t: SeriesTotals): { bars: EpisodeBar[]; hidden_after
   const total = Math.max(t.episode_count, t.episodes.length);
   return { bars, hidden_after: shown < total ? shown : null };
 }
+
+// ---- where people came from: ads, and kinds of browser -------------------------------------------------------
+
+/** One TikTok ad's own numbers from Studio's launch records (TikTok's lifetime totals for the ad). */
+export type AdSpend = {
+  ad_id: string;
+  spend_cents: number | null;
+  impressions: number | null;
+  clicks: number | null;
+  campaign_name: string;
+  launch_name: string;
+  run_id: string;
+};
+
+/** Every ad of every launch with its TikTok numbers (the launch records' latest sweep); an ad in two runs keeps the first seen. */
+export function adSpendsFromRuns(runs: LaunchRun[]): AdSpend[] {
+  const out = new Map<string, AdSpend>();
+  for (const run of runs) {
+    for (const c of run.campaigns ?? []) {
+      for (const ad of c.snapshot?.ads ?? []) {
+        if (!ad.id || out.has(ad.id)) continue;
+        out.set(ad.id, {
+          ad_id: ad.id,
+          spend_cents: ad.stats?.spend_cents ?? null,
+          impressions: ad.stats?.impressions ?? null,
+          clicks: ad.stats?.clicks ?? null,
+          campaign_name: c.name,
+          launch_name: run.draft?.name ?? run.external_id,
+          run_id: run.external_id,
+        });
+      }
+    }
+  }
+  return [...out.values()];
+}
+
+type PathCounts = Pick<
+  CdStatsSource,
+  "opened" | "no_events" | "never_started" | "started_ep1" | "finished_ep1" | "watched_ep2" | "watched_ep3" | "paywall" | "checkouts" | "buyers" | "revenue_cents" | "robots"
+>;
+const PATH_KEYS = ["opened", "no_events", "never_started", "started_ep1", "finished_ep1", "watched_ep2", "watched_ep3", "paywall", "checkouts", "buyers", "revenue_cents", "robots"] as const;
+const emptyPath = (): PathCounts => ({ opened: 0, no_events: 0, never_started: 0, started_ep1: 0, finished_ep1: 0, watched_ep2: 0, watched_ep3: 0, paywall: 0, checkouts: 0, buyers: 0, revenue_cents: 0, robots: 0 });
+function addPath(into: PathCounts, row: PathCounts) {
+  for (const k of PATH_KEYS) into[k] += row[k];
+}
+
+export type AdRow = PathCounts & {
+  key: string;
+  /** An ad with its id; TikTok's stored copy of the page (ids lost); or no ad at all (organic, direct). */
+  kind: "ad" | "stored_copy" | "no_ad";
+  platform: string;
+  campaign: string | null;
+  ad: string | null;
+  /** Studio's launch record for the ad, when Studio launched it. */
+  spend: AdSpend | null;
+  /** Spend ÷ people: each only when both are known and there is at least one person. */
+  cost_per_person_cents: number | null;
+  cost_per_finisher_cents: number | null;
+  cost_per_ep2_cents: number | null;
+};
+
+const per = (cents: number | null | undefined, n: number) => (cents != null && n > 0 ? Math.round(cents / n) : null);
+
+/**
+ * The people every ad brought, over each ad's whole life (spend is TikTok's total for the ad, so the
+ * people are too), joined to Studio's launch records by TikTok's ad id; then TikTok's stored copy and
+ * "no ad" as rows of their own. One series, or all. Ads with spend first, most spent first.
+ */
+export function adTable(report: Pick<CdStatsReport, "sources">, spends: AdSpend[], dramaId?: string): AdRow[] {
+  const bySpend = new Map(spends.map((s) => [s.ad_id, s]));
+  const rows = new Map<string, AdRow>();
+  for (const src of report.sources) {
+    if (dramaId && src.drama_id !== dramaId) continue;
+    const kind: AdRow["kind"] = src.stored_copy ? "stored_copy" : src.ad ? "ad" : "no_ad";
+    const key = kind === "ad" ? `ad:${src.ad}` : kind;
+    let row = rows.get(key);
+    if (!row) {
+      row = {
+        key,
+        kind,
+        platform: src.platform,
+        campaign: src.campaign,
+        ad: src.ad,
+        spend: kind === "ad" && src.ad ? (bySpend.get(src.ad) ?? null) : null,
+        cost_per_person_cents: null,
+        cost_per_finisher_cents: null,
+        cost_per_ep2_cents: null,
+        ...emptyPath(),
+      };
+      rows.set(key, row);
+    }
+    addPath(row, src);
+  }
+  // An ad Studio launched that brought nobody yet is still a row: its spend bought nothing.
+  if (!dramaId) {
+    for (const s of spends) {
+      if ((s.spend_cents ?? 0) <= 0 || rows.has(`ad:${s.ad_id}`)) continue;
+      rows.set(`ad:${s.ad_id}`, { key: `ad:${s.ad_id}`, kind: "ad", platform: "tiktok", campaign: null, ad: s.ad_id, spend: s, cost_per_person_cents: null, cost_per_finisher_cents: null, cost_per_ep2_cents: null, ...emptyPath() });
+    }
+  }
+  const order = { ad: 0, stored_copy: 1, no_ad: 2 } as const;
+  return [...rows.values()]
+    .filter((r) => r.opened > 0 || (r.spend?.spend_cents ?? 0) > 0)
+    .map((r) => ({ ...r, cost_per_person_cents: per(r.spend?.spend_cents, r.opened), cost_per_finisher_cents: per(r.spend?.spend_cents, r.finished_ep1), cost_per_ep2_cents: per(r.spend?.spend_cents, r.watched_ep2) }))
+    .sort((a, b) => order[a.kind] - order[b.kind] || (b.spend?.spend_cents ?? -1) - (a.spend?.spend_cents ?? -1) || b.opened - a.opened);
+}
+
+/** What each ad brought on CrazyDramas over its life, by TikTok's ad id (the Monitor's line under each ad). */
+export type AdOutcome = Pick<PathCounts, "opened" | "started_ep1" | "finished_ep1" | "watched_ep2" | "buyers" | "revenue_cents">;
+export function adOutcomes(report: Pick<CdStatsReport, "sources">): Record<string, AdOutcome> {
+  const out: Record<string, AdOutcome> = {};
+  for (const src of report.sources) {
+    if (!src.ad || src.stored_copy) continue;
+    const o = (out[src.ad] ??= { opened: 0, started_ep1: 0, finished_ep1: 0, watched_ep2: 0, buyers: 0, revenue_cents: 0 });
+    o.opened += src.opened;
+    o.started_ep1 += src.started_ep1;
+    o.finished_ep1 += src.finished_ep1;
+    o.watched_ep2 += src.watched_ep2;
+    o.buyers += src.buyers;
+    o.revenue_cents += src.revenue_cents;
+  }
+  return out;
+}
+
+export const DEVICE_ORDER = ["tiktok_android", "tiktok_iphone", "android", "iphone", "desktop", "other", "unknown"] as const;
+export type DeviceRow = PathCounts & { device: string };
+
+/** A period's people by kind of browser (TikTok on Android, on iPhone, …), one series or all. */
+export function deviceTable(report: Pick<CdStatsReport, "sources">, r: { from: string; to: string }, dramaId?: string): DeviceRow[] {
+  const rows = new Map<string, DeviceRow>();
+  for (const src of report.sources) {
+    if ((dramaId && src.drama_id !== dramaId) || !inRange(src.day, r)) continue;
+    let row = rows.get(src.device);
+    if (!row) {
+      row = { device: src.device, ...emptyPath() };
+      rows.set(src.device, row);
+    }
+    addPath(row, src);
+  }
+  const rank = (d: string) => {
+    const i = (DEVICE_ORDER as readonly string[]).indexOf(d);
+    return i < 0 ? DEVICE_ORDER.length : i;
+  };
+  return [...rows.values()].filter((d) => d.opened > 0).sort((a, b) => rank(a.device) - rank(b.device));
+}
+
+/** The one-tap questions' answers in the order the player shows them (crazydramas components/player/StopSurvey.tsx). */
+export const SURVEY_ANSWERS = {
+  ep1_stop: ["not_for_me", "too_slow", "av_problem", "browsing"],
+  paywall_close: ["price", "more_free", "payment_trust", "browsing"],
+} as const;

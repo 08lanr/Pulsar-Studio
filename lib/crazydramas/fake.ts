@@ -601,7 +601,10 @@ export class FakeCrazydramasTransport implements CrazydramasTransport, Crazydram
     if ((m = path.match(/^\/api\/studio\/uploads\/([^/]+)\/sync$/)) && method === "POST") return this.syncUpload(decodeURIComponent(m[1]));
     if ((m = path.match(/^\/api\/studio\/uploads\/([^/]+)\/cancel$/)) && method === "POST") return this.cancelUpload(decodeURIComponent(m[1]));
     // The stats report (2026-09-24): invented, deterministic numbers over the fake's own series.
-    if (path === "/api/studio/stats" && method === "GET") return { status: 200, body: fakeStatsReport(this.dramas, this.episodes) };
+    if (path === "/api/studio/stats" && (method === "GET" || method === "POST")) {
+      const team = (raw as { team_emails?: unknown }).team_emails;
+      return { status: 200, body: fakeStatsReport(this.dramas, this.episodes, new Date(), Array.isArray(team) ? team.length : 0) };
+    }
     return fail(404, "not_found", "No such route");
   }
 

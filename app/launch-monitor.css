@@ -138,6 +138,13 @@ button.lm-state-toggle { cursor:pointer; }
 .lm-ad-numbers { display:flex; flex-wrap:wrap; gap:2px 10px; font-variant-numeric:tabular-nums; }
 .lm-ad-numbers b { color:var(--text); font-weight:600; }
 .lm-ad-numbers-none, .lm-ad-id { color:var(--text-faint); }
+/* Staff: what the ad brought on crazydramas.com after the click (CrazyDramas stats, 2026-09-24). */
+.lm-ad-cd { display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 10px; margin:4px 0 0; font-size:12.5px; color:var(--text-muted); font-variant-numeric:tabular-nums; }
+.lm-ad-cd b { color:var(--text); font-weight:600; }
+.lm-ad-cd-label { font-weight:600; color:var(--accent-text); }
+.lm-ad-cd a { color:var(--brand); text-decoration:none; }
+.lm-ad-cd a:hover { text-decoration:underline; }
+.lm-ad-cd-none { color:var(--text-faint); }
 /* One title's results page: the Monitor's own summary strips and tables. */
 .tr .lm-summary, .tr .lm-web-summary { margin:0 0 12px; }
 .tr-second { margin:0 0 16px; }
