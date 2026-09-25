@@ -5030,5 +5030,7 @@
   "cdp.step.sound_off": "sound off",
   "cdp.step.restart": "the player restarted it",
   "cdp.step.error": "the video failed",
-  "cdp.step.end": "finished"
+  "cdp.step.end": "finished",
+  "cdx.about": "About {what}",
+  "cdx.leftOutName": "what is left out"
 }

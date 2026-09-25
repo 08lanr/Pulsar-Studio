@@ -4,6 +4,7 @@ import { RangeTabs, ReadFailure } from "@/components/admin/cd-stats/Bits";
 import CampaignTable from "@/components/admin/cd-stats/CampaignTable";
 import { CompareTable, FunnelChart, type CompareRow } from "@/components/admin/cd-stats/Dash";
 import FilterBar, { type FilterOptions } from "@/components/admin/cd-stats/FilterBar";
+import Info from "@/components/admin/cd-stats/Info";
 import { KpiCard, TrendChart } from "@/components/admin/cd-stats/Overview";
 import { HeadlineNumbers, PlaybackSection } from "@/components/admin/cd-stats/Sections";
 import { SurveyView } from "@/components/admin/cd-stats/Tables";
@@ -227,8 +228,9 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
           </section>
         </div>
         <div className="cdx-foot">
-          <span title={t(locale, "cdx.leftOutInfo")}>
-            {t(locale, "cdx.leftOut", { robots: n0(out.robots), unseen: n0(out.unseen), browsed: n0(out.browsed) })} <span className="cdx-i" aria-hidden>ⓘ</span>
+          <span>
+            {t(locale, "cdx.leftOut", { robots: n0(out.robots), unseen: n0(out.unseen), browsed: n0(out.browsed) })}{" "}
+            <Info text={t(locale, "cdx.leftOutInfo")} label={t(locale, "cdx.about", { what: t(locale, "cdx.leftOutName") })} />
           </span>
           <details className="cdx-team">
             <summary>{t(locale, "cdx.team", { n: team.emails.length })}</summary>

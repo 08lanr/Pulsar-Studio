@@ -74,5 +74,7 @@
   "cdp.step.sound_off": {"en": "sound off", "zh": "关闭声音"},
   "cdp.step.restart": {"en": "the player restarted it", "zh": "播放器重新播放"},
   "cdp.step.error": {"en": "the video failed", "zh": "视频播放失败"},
-  "cdp.step.end": {"en": "finished", "zh": "播放完毕"}
+  "cdp.step.end": {"en": "finished", "zh": "播放完毕"},
+  "cdx.about": {"en": "About {what}", "zh": "关于{what}"},
+  "cdx.leftOutName": {"en": "what is left out", "zh": "未计入的访问"}
 }

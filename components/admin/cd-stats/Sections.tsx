@@ -1,5 +1,6 @@
 import { HistView, type CompareRow } from "@/components/admin/cd-stats/Dash";
 import { KpiCard, TrendChart } from "@/components/admin/cd-stats/Overview";
+import Info from "@/components/admin/cd-stats/Info";
 import { DropsList, EndsCard, StartSplit } from "@/components/admin/cd-stats/Playback";
 import { change, earlyExits, fmtShare, fmtUsdCents, histSummary, KPI_METRICS, kpiValue, PLAY_EPS, playOf, share, topKey, type DashTotals, type KpiMetric, type PlayEps } from "@/lib/crazydramas/stats-summary";
 import type { CdStatsDrop, CdStatsPlayback } from "@/lib/crazydramas/stats-types";
@@ -109,8 +110,9 @@ export function PlaybackSection({
       </nav>
       <section className="rs-panel cdx-card">
         <div className="cdx-card-head">
-          <h2 title={t(locale, "cdp.ends.info")}>
-            {t(locale, eps === "1" ? "cdp.ends.title1" : "cdp.ends.titleLater")} <span className="cdx-i" aria-hidden>ⓘ</span>
+          <h2>
+            {t(locale, eps === "1" ? "cdp.ends.title1" : "cdp.ends.titleLater")}{" "}
+            <Info text={t(locale, "cdp.ends.info")} label={t(locale, "cdx.about", { what: t(locale, eps === "1" ? "cdp.ends.title1" : "cdp.ends.titleLater") })} />
           </h2>
           {exits.total > 0 && <span className="cdx-muted">{t(locale, "cdp.ends.of", { n: n0(exits.total), views: n0(p.views) })}</span>}
         </div>
@@ -158,8 +160,8 @@ export function PlaybackSection({
       {eps === "1" && (
         <section className="rs-panel cdx-card">
           <div className="cdx-card-head">
-            <h2 title={t(locale, "cdp.split.info")}>
-              {t(locale, "cdp.split.title")} <span className="cdx-i" aria-hidden>ⓘ</span>
+            <h2>
+              {t(locale, "cdp.split.title")} <Info text={t(locale, "cdp.split.info")} label={t(locale, "cdx.about", { what: t(locale, "cdp.split.title") })} />
             </h2>
           </div>
           <StartSplit rows={[{ key: "all", name: t(locale, "cdp.split.all"), play: p }, ...phones.map((g) => ({ key: g.key, name: g.name, play: g.totals.play_ep1 }))]} locale={locale} />
@@ -185,7 +187,9 @@ export function PlaybackSection({
               <tr>
                 <th scope="col" />
                 <th scope="col" className="gt-num">{t(locale, "cdp.kpi.views")}</th>
-                <th scope="col" className="gt-num" title={t(locale, "cdp.ends.info")}>{t(locale, "cdp.col.wrong")}</th>
+                <th scope="col" className="gt-num">
+                  {t(locale, "cdp.col.wrong")} <Info text={t(locale, "cdp.ends.info")} label={t(locale, "cdx.about", { what: t(locale, "cdp.col.wrong") })} />
+                </th>
                 <th scope="col" className="gt-num">{t(locale, "cdx.col.frame")}</th>
                 <th scope="col" className="gt-num">{t(locale, "cdp.col.freezes")}</th>
                 <th scope="col" className="gt-num">{t(locale, "cdp.col.phonePaused")}</th>
@@ -218,8 +222,8 @@ export function PlaybackSection({
       </section>
       <section className="rs-panel cdx-card" id="drops">
         <div className="cdx-card-head">
-          <h2 title={t(locale, "cdp.drops.info")}>
-            {t(locale, "cdp.drops.title")} <span className="cdx-i" aria-hidden>ⓘ</span>
+          <h2>
+            {t(locale, "cdp.drops.title")} <Info text={t(locale, "cdp.drops.info")} label={t(locale, "cdx.about", { what: t(locale, "cdp.drops.title") })} />
           </h2>
           {drops.length > 0 && <span className="cdx-muted">{t(locale, "cdp.drops.latest", { n: n0(Math.min(drops.length, DROPS_SHOWN)) })}</span>}
         </div>

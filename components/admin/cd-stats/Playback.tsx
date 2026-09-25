@@ -1,3 +1,4 @@
+import Info from "@/components/admin/cd-stats/Info";
 import { earlyExits, endLabel, fmtShare, landingSplit, share, type EarlyExits } from "@/lib/crazydramas/stats-summary";
 import type { CdStatsDrop, CdStatsPlayback } from "@/lib/crazydramas/stats-types";
 import { t, type Locale } from "@/lib/i18n";
@@ -56,9 +57,9 @@ export function StartSplit({ rows, locale }: { rows: { key: string; name: string
     <>
       <ul className="cdp-legend">
         {(["page", "player", "video"] as const).map((k) => (
-          <li key={k} title={t(locale, `cdp.split.${k}Info`)}>
+          <li key={k}>
             <span className={`cdp-dot cdp-part-${k}`} aria-hidden />
-            {t(locale, `cdp.split.${k}`)} <span className="cdx-i" aria-hidden>ⓘ</span>
+            {t(locale, `cdp.split.${k}`)} <Info text={t(locale, `cdp.split.${k}Info`)} label={t(locale, "cdx.about", { what: t(locale, `cdp.split.${k}`) })} />
           </li>
         ))}
       </ul>

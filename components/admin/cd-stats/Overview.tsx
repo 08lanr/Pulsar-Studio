@@ -1,3 +1,4 @@
+import Info from "@/components/admin/cd-stats/Info";
 import { fmtShare, fmtUsdCents } from "@/lib/crazydramas/stats-summary";
 
 // The dashboard's headline pieces (2026-09-25, second cut): a number card with its change against the period
@@ -33,14 +34,16 @@ export type KpiCardProps = {
   spark?: number[];
   href?: string;
   on?: boolean;
+  /** The ⓘ button's name for screen readers ("About Visitors"); the label itself when absent. */
+  infoLabel?: string;
 };
 
-export function KpiCard({ label, info, value, sub, change, vs, upIsGood = true, spark, href, on }: KpiCardProps) {
+export function KpiCard({ label, info, value, sub, change, vs, upIsGood = true, spark, href, on, infoLabel }: KpiCardProps) {
   const body = (
     <>
-      <span className="cdx-kpi-label" title={info}>
-        {label} <span className="cdx-i" aria-hidden>ⓘ</span>
-        <span className="sr-only">{info}</span>
+      <span className="cdx-kpi-label">
+        <span className="cdx-kpi-name">{label}</span>
+        <Info text={info} label={infoLabel ?? label} />
       </span>
       <strong className="cdx-kpi-value">{value}</strong>
       <span className="cdx-kpi-foot">
@@ -54,12 +57,16 @@ export function KpiCard({ label, info, value, sub, change, vs, upIsGood = true, 
       {spark && <Sparkline values={spark} />}
     </>
   );
-  return href ? (
-    <a className={`cdx-kpi${on ? " on" : ""}`} href={href} aria-current={on ? "true" : undefined}>
+  // A clickable card is a link stretched under the card (the ⓘ sits above it, a button of its own).
+  return (
+    <div className={`cdx-kpi${href ? " cdx-kpi-click" : ""}${on ? " on" : ""}`}>
+      {href && (
+        <a className="cdx-kpi-link" href={href} aria-current={on ? "true" : undefined}>
+          <span className="sr-only">{label}</span>
+        </a>
+      )}
       {body}
-    </a>
-  ) : (
-    <div className="cdx-kpi">{body}</div>
+    </div>
   );
 }
 

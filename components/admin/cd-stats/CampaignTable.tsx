@@ -2,6 +2,7 @@
 
 import { Fragment, useMemo, useState } from "react";
 import { useT } from "@/components/locale";
+import Info from "@/components/admin/cd-stats/Info";
 import { CAMPAIGN_SORTS, fmtShare, fmtUsdCents, share, sortCampaigns, type AdRow, type AdTitle, type CampaignRow, type CampaignSort } from "@/lib/crazydramas/stats-summary";
 
 // "By ad", grouped by campaign (Ruobin, 2026-09-24: "add the title it was
@@ -108,8 +109,8 @@ export default function CampaignTable({ rows, showTitle = true, caption }: { row
               {showTitle && <th scope="col">{tt("cds.ads.col.title")}</th>}
               <th scope="col" className="gt-num">{tt("cds.ads.col.spend")}</th>
               <th scope="col" className="gt-num">{tt("cds.ads.col.clicks")}</th>
-              <th scope="col" className="gt-num cds-hint" title={tt("cds.ads.col.peopleHint")}>
-                {tt("cds.ads.col.people")} <span aria-hidden="true">ⓘ</span>
+              <th scope="col" className="gt-num">
+                {tt("cds.ads.col.people")} <Info text={tt("cds.ads.col.peopleHint")} label={tt("cdx.about", { what: tt("cds.ads.col.people") })} />
               </th>
               <th scope="col" className="gt-num">{tt("cds.col.playedEp1")}</th>
               <th scope="col" className="gt-num">{tt("cds.col.finishedEp1")}</th>
