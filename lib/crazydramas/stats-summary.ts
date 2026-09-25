@@ -222,12 +222,6 @@ export function seriesTotals(series: CdStatsSeries, r: { from: string; to: strin
   return t;
 }
 
-/** Every series' totals for the range, most opened first (then by title); series nobody opened come last. */
-export function seriesTable(report: CdStatsReport, range: StatsRange): SeriesTotals[] {
-  const r = rangeDays(report, range);
-  return report.series.map((s) => seriesTotals(s, r)).sort((a, b) => b.opened - a.opened || b.revenue_cents - a.revenue_cents || a.title.localeCompare(b.title));
-}
-
 /** A share, 0..1, or null when there is nobody to share out. */
 export function share(part: number, whole: number): number | null {
   return whole > 0 ? part / whole : null;
@@ -837,3 +831,93 @@ export function notCounted(report: CdStatsReport, r: { from: string; to: string 
   return { unseen, robots, browsed };
 }
 
+
+// ---- the dashboard, second cut (2026-09-25): tabs, headline numbers against the period before -------------------
+//
+// Ruobin, 2026-09-25: "this is just completely information overload ... no tabs no nothing ... 50% less text".
+// Built on the common shape of analytics dashboards (Plausible: a row of numbers with their change, one chart,
+// tabbed panels; YouTube Studio: tabs by question): six headline numbers compared with the period before, one
+// chart per day of the picked number, and a tab per question.
+
+export const DASH_TABS = ["overview", "funnel", "playback", "series", "ads", "audience"] as const;
+export type DashTab = (typeof DASH_TABS)[number];
+export function parseDashTab(raw: unknown): DashTab {
+  const v = Array.isArray(raw) ? raw[0] : raw;
+  return (DASH_TABS as readonly string[]).includes(v as string) ? (v as DashTab) : "overview";
+}
+
+export const KPI_METRICS = ["visitors", "started", "finished", "ep2", "buyers", "revenue"] as const;
+export type KpiMetric = (typeof KPI_METRICS)[number];
+export function parseKpiMetric(raw: unknown): KpiMetric {
+  const v = Array.isArray(raw) ? raw[0] : raw;
+  return (KPI_METRICS as readonly string[]).includes(v as string) ? (v as KpiMetric) : "visitors";
+}
+
+/** A headline number of some people: visitors (saw the page), started / finished episode 1, episode 2, buyers, revenue (cents). */
+export function kpiValue(t: DashTotals, m: KpiMetric): number {
+  switch (m) {
+    case "visitors":
+      return t.opened;
+    case "started":
+      return t.started_ep1;
+    case "finished":
+      return t.finished_ep1;
+    case "ep2":
+      return t.watched_ep2;
+    case "buyers":
+      return t.buyers;
+    case "revenue":
+      return t.revenue_cents;
+  }
+}
+
+/** The period just before a range, of the same length (yesterday for today); none for "all". */
+export function prevSpan(report: Pick<CdStatsReport, "from" | "to"> & Partial<Pick<CdStatsReport, "days" | "series">>, range: StatsRange): { from: string; to: string } | null {
+  if (range === "all") return null;
+  const r = rangeDays(report, range);
+  const len = Math.round((Date.parse(`${r.to}T12:00:00Z`) - Date.parse(`${r.from}T12:00:00Z`)) / 86_400_000) + 1;
+  const to = addDays(r.from, -1);
+  const from = addDays(r.from, -len);
+  return to < report.from ? null : { from: from < report.from ? report.from : from, to };
+}
+
+/** Below this many, the period before is too small to compare with (3 people to 300 is not "up 9,900%"). */
+export const MIN_COMPARE = 10;
+
+/** The change from before to now, as a share of before (0.12 = up 12%); null when before is missing or under MIN_COMPARE. */
+export function change(now: number, before: number | null): number | null {
+  return before === null || before < MIN_COMPARE ? null : (now - before) / before;
+}
+
+/** The days a per-day chart shows: the range, or the last 14 days when the range is one day. */
+export function chartSpan(report: Pick<CdStatsReport, "from" | "to"> & Partial<Pick<CdStatsReport, "days" | "series">>, range: StatsRange): { from: string; to: string } {
+  const r = rangeDays(report, range);
+  if (range !== "today") return r;
+  const from = addDays(r.to, -13);
+  return { from: from < report.from ? report.from : from, to: r.to };
+}
+
+/** Every day of a span (oldest first) with its filtered people added up; days nobody came are zero. */
+export function dailyTotals(report: Pick<CdStatsReport, "sources">, r: { from: string; to: string }, f: DashFilter): { day: string; totals: DashTotals }[] {
+  const byDay = new Map<string, CdStatsSource[]>();
+  for (const x of dashRows(report, r, f)) byDay.set(x.day, [...(byDay.get(x.day) ?? []), x]);
+  const out: { day: string; totals: DashTotals }[] = [];
+  for (let day = r.from; day <= r.to; day = addDays(day, 1)) out.push({ day, totals: sumRows(byDay.get(day) ?? []) });
+  return out;
+}
+
+/**
+ * The step of a path (the whole one, or a shorter list of its steps) that lost the most people: absolutely, the
+ * step before minus this one (a big step losing 30% outweighs a small one losing 50%). Leaving "landed" and the
+ * unlock screen never count (a page never on screen, and swipes, are other stories).
+ */
+export function biggestDrop(steps: PathStep[]): { from: PathStep; to: PathStep; lost: number } | null {
+  let best: { from: PathStep; to: PathStep; lost: number } | null = null;
+  for (let i = 1; i < steps.length; i++) {
+    const to = steps[i];
+    if (steps[i - 1].key === "landed" || to.key === "paywall" || steps[i - 1].key === "paywall") continue;
+    const lost = steps[i - 1].people - to.people;
+    if (lost > 0 && (!best || lost > best.lost)) best = { from: steps[i - 1], to, lost };
+  }
+  return best;
+}

@@ -8,6 +8,16 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-09-25 · CrazyDramas stats: the dashboard, second cut
+
+Ruobin, 2026-09-25, on the first cut: "completely information overload ... no tabs no nothing ... 50% less text, and words that make more sense or organization ... search up dashboard basics". What analytics dashboards share (Plausible: "six numbers, one chart, and four panels", with depth in tabbed panels; YouTube Studio: a tab per question; the common rules: 4-6 headline numbers with their change against the period before, the most important top left, general to specific, definitions in hover text, a funnel's biggest drop judged in people lost, not percent) became the layout:
+
+- **One filter row** (period, series, phone, source, country) over **tabs**: Overview · Funnel · Playback · Series · Ads · Audience, kept in the address bar (`?tab=`, `?metric=`, `?by=`).
+- **Overview**: six headline numbers (visitors, started / finished episode 1, episode 2, buyers, revenue), each with its change against the period before (not shown when that period had under 10: 3 to 300 is not "up 9,900%") and a line of its days; a click on one charts it per day (a one-day range charts two weeks); where people drop (the biggest drop marked); Top, a panel with Series / Phones / Sources / Countries tabs whose rows narrow the page; what is left out in one line.
+- **Funnel**: every step with its biggest drop; the groups compared (by phone, source, series or country) as shares of their visitors; why they stop. **Playback**: pages never on screen, no video, waits, first frame, the player's restarts, errors (up is red there), the three timings, by phone. **Series**: one row per series. **Ads**: spend, visitors, cost per visitor and per finisher, then the campaigns. **Audience**: watchers per day, the money, where they're from.
+- **The series page** has the same layout: Overview · Episode 1 · Episodes · Playback · Ads.
+- Every explanation is an ⓘ tooltip; section subtitles, the definitions panel and the "says" paragraphs are gone. The main page went from 1,989 words (6,219 px tall) to 380 on Overview (1,239 px); the series page from 1,046 to 286. Pieces: `Overview.tsx` (`KpiCard`, `TrendChart`, drawn wide and narrow so a phone's text stays readable), `TopPanel.tsx`, `Sections.tsx` (`HeadlineNumbers`, `PlaybackSection`), `Dash.tsx` (`FunnelChart`, `CompareTable`, `HistView`); sums in `stats-summary.ts` (`prevSpan`, `change`, `MIN_COMPARE`, `chartSpan`, `dailyTotals`, `kpiValue`, `biggestDrop`). The old tiles, path view, "before the video starts" list, breakdown table, daily chart, read line and definitions, and their labels, are gone.
+
 ## 2026-09-25 · CrazyDramas stats: where people were
 
 Ruobin, worried that no payments had come through, asked whether there were location stats; there were

@@ -1,8 +1,7 @@
-import type { CdStatsDay } from "@/lib/crazydramas/stats-types";
 import { fmtClock, fmtShare, fmtUsdCents, type Ep1Curve, type EpisodeBar } from "@/lib/crazydramas/stats-summary";
 import { t, type Locale } from "@/lib/i18n";
 
-// The three CrazyDramas stats charts, inline SVG with no library and no
+// The series page's two charts, inline SVG with no library and no
 // animation, in the house chart look (app/analytics.css ticks and grid,
 // app/crazydramas-stats.css marks): one colour (--data-1), thin marks with 4px
 // rounded ends on a single baseline, a hairline grid, labels on the one or two
@@ -29,89 +28,6 @@ function column(x: number, w: number, yTop: number, yBase: number): string {
 
 const n0 = (v: number) => v.toLocaleString("en-US");
 const shortDay = (day: string) => new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
-
-// ---- people watching each day ----------------------------------------------------------------------------------
-
-export function DailyChart({ days, locale }: { days: CdStatsDay[]; locale: Locale }) {
-  const H = 220;
-  const PAD = { l: 44, r: 12, t: 22, b: 30 };
-  const max = niceMax(Math.max(1, ...days.map((d) => d.watchers)));
-  const band = (W - PAD.l - PAD.r) / Math.max(1, days.length);
-  const bw = Math.max(2, Math.min(24, band - 2));
-  const y = (v: number) => PAD.t + (H - PAD.t - PAD.b) * (1 - v / max);
-  const base = y(0);
-  const labelEvery = Math.max(1, Math.ceil(days.length / 8));
-  // Label the busiest day and today, nothing else.
-  let peak = 0;
-  days.forEach((d, i) => {
-    if (d.watchers > days[peak].watchers) peak = i;
-  });
-  const last = days.length - 1;
-  // Two value labels closer than ~44px would overlap: keep today's alone then.
-  const labelled = new Set((last - peak) * band < 44 ? [last] : [peak, last]);
-  // Every nth date, and today's; a stride date too close to today's is dropped.
-  const dateShown = (i: number) => i === last || (i % labelEvery === 0 && last - i >= Math.ceil(labelEvery / 2));
-  const cap = t(locale, "cds.aud.chart");
-  return (
-    <figure className="an-chart cds-chart">
-      <figcaption id="cds-daily-cap">{cap}</figcaption>
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-labelledby="cds-daily-cap" aria-describedby="cds-daily-desc" className="an-chart-svg">
-        <desc id="cds-daily-desc">{t(locale, "cds.aud.chartDesc", { from: days[0]?.day ?? "", to: days[days.length - 1]?.day ?? "" })}</desc>
-        {[0, 0.25, 0.5, 0.75, 1].map((k) => (
-          <g key={k}>
-            <line x1={PAD.l} x2={W - PAD.r} y1={y(k * max)} y2={y(k * max)} className="an-gridline cds-grid" />
-            <text x={PAD.l - 6} y={y(k * max) + 4} textAnchor="end" className="an-tick">{n0(Math.round(k * max))}</text>
-          </g>
-        ))}
-        {days.map((d, i) => {
-          const x = PAD.l + i * band + (band - bw) / 2;
-          return (
-            <g key={d.day} className="cds-hit">
-              <title>{t(locale, "cds.aud.tip", { day: shortDay(d.day), watchers: n0(d.watchers), visitors: n0(d.visitors), fresh: n0(d.new_watchers) })}</title>
-              <rect x={PAD.l + i * band} y={PAD.t} width={band} height={base - PAD.t} className="cds-hit-area" />
-              <path d={column(x, bw, y(d.watchers), base)} className="cds-mark" />
-              {labelled.has(i) && d.watchers > 0 && <text x={x + bw / 2} y={y(d.watchers) - 6} textAnchor="middle" className="an-tick an-tick-strong">{n0(d.watchers)}</text>}
-              {dateShown(i) && <text x={x + bw / 2} y={H - PAD.b + 16} textAnchor="middle" className="an-tick">{shortDay(d.day)}</text>}
-            </g>
-          );
-        })}
-        <line x1={PAD.l} x2={W - PAD.r} y1={base} y2={base} className="cds-baseline" />
-      </svg>
-      <details className="an-table-alt">
-        <summary>{t(locale, "cds.aud.table")}</summary>
-        <div className="an-scroll">
-          <table className="an-table">
-            <caption className="sr-only">{cap}</caption>
-            <thead>
-              <tr>
-                <th scope="col">{t(locale, "cds.col.day")}</th>
-                <th scope="col" className="gt-num">{t(locale, "cds.col.visitors")}</th>
-                <th scope="col" className="gt-num">{t(locale, "cds.col.watchers")}</th>
-                <th scope="col" className="gt-num">{t(locale, "cds.col.new")}</th>
-                <th scope="col" className="gt-num">{t(locale, "cds.col.wau")}</th>
-                <th scope="col" className="gt-num">{t(locale, "cds.col.revenue")}</th>
-                <th scope="col" className="gt-num">{t(locale, "cds.col.robots")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[...days].reverse().map((d) => (
-                <tr key={d.day}>
-                  <th scope="row">{d.day}</th>
-                  <td className="gt-num">{n0(d.visitors)}</td>
-                  <td className="gt-num">{n0(d.watchers)}</td>
-                  <td className="gt-num">{n0(d.new_watchers)}</td>
-                  <td className="gt-num">{n0(d.wau)}</td>
-                  <td className="gt-num">{fmtUsdCents(d.revenue_cents)}</td>
-                  <td className="gt-num">{n0(d.robots)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </details>
-    </figure>
-  );
-}
 
 // ---- episode 1: the share still watching -----------------------------------------------------------------------
 

@@ -16,10 +16,13 @@ export type FilterOptions = {
 
 export default function FilterBar({
   range,
+  keep = {},
   value,
   options,
 }: {
   range: string;
+  /** Other address-bar values a filter change keeps (the open tab, the charted number). */
+  keep?: Record<string, string>;
   value: { series: string | null; device: string | null; source: string | null; country: string | null };
   options: FilterOptions;
 }) {
@@ -27,7 +30,7 @@ export default function FilterBar({
   const router = useRouter();
   const go = (patch: Partial<typeof value>) => {
     const next = { ...value, ...patch };
-    const q = new URLSearchParams({ range });
+    const q = new URLSearchParams({ range, ...keep });
     if (next.series) q.set("series", next.series);
     if (next.device) q.set("device", next.device);
     if (next.source) q.set("source", next.source);
@@ -36,10 +39,10 @@ export default function FilterBar({
   };
   const any = value.series || value.device || value.source || value.country;
   return (
-    <div className="cdd-filters" role="group" aria-label={tt("cdd.filter.label")}>
+    <div className="cdd-filters cdx-filters" role="group" aria-label={tt("cdd.filter.label")}>
       <label className="cdd-filter">
-        <span>{tt("cdd.filter.series")}</span>
-        <select value={value.series ?? ""} onChange={(e) => go({ series: e.target.value || null })}>
+        <span className="sr-only">{tt("cdd.filter.series")}</span>
+        <select className={value.series ? "on" : undefined} value={value.series ?? ""} onChange={(e) => go({ series: e.target.value || null })}>
           <option value="">{tt("cdd.filter.allSeries")}</option>
           {options.series.map((s) => (
             <option key={s.slug} value={s.slug}>
@@ -49,8 +52,8 @@ export default function FilterBar({
         </select>
       </label>
       <label className="cdd-filter">
-        <span>{tt("cdd.filter.device")}</span>
-        <select value={value.device ?? ""} onChange={(e) => go({ device: e.target.value || null })}>
+        <span className="sr-only">{tt("cdd.filter.device")}</span>
+        <select className={value.device ? "on" : undefined} value={value.device ?? ""} onChange={(e) => go({ device: e.target.value || null })}>
           <option value="">{tt("cdd.filter.allDevices")}</option>
           {options.devices.map((d) => (
             <option key={d} value={d}>
@@ -60,8 +63,8 @@ export default function FilterBar({
         </select>
       </label>
       <label className="cdd-filter">
-        <span>{tt("cdd.filter.source")}</span>
-        <select value={value.source ?? ""} onChange={(e) => go({ source: e.target.value || null })}>
+        <span className="sr-only">{tt("cdd.filter.source")}</span>
+        <select className={value.source ? "on" : undefined} value={value.source ?? ""} onChange={(e) => go({ source: e.target.value || null })}>
           <option value="">{tt("cdd.filter.allSources")}</option>
           {options.sources.map((s) => (
             <option key={s.key} value={s.key}>
@@ -71,8 +74,8 @@ export default function FilterBar({
         </select>
       </label>
       <label className="cdd-filter">
-        <span>{tt("cdd.filter.country")}</span>
-        <select value={value.country ?? ""} onChange={(e) => go({ country: e.target.value || null })}>
+        <span className="sr-only">{tt("cdd.filter.country")}</span>
+        <select className={value.country ? "on" : undefined} value={value.country ?? ""} onChange={(e) => go({ country: e.target.value || null })}>
           <option value="">{tt("cdd.filter.allCountries")}</option>
           {options.countries.map((c) => (
             <option key={c.key} value={c.key}>

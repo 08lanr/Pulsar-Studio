@@ -16,7 +16,8 @@ import path from "node:path";
 import {
   adOutcomes, adSpendsFromRuns, adTable, audience, binLabels, byDevice, byPlace, CAMPAIGN_SORTS, countryName, regionName, campaignTable, dashBy, dashPath, dashRows, dayIn, deliveryIn,
   sortCampaigns, ep1Curve, episodeBars, fmtClock, fmtShare, histSummary, NO_FILTER, notCounted, parseDashFilter, parseStatsRange, PATH_STEPS, rangeDays,
-  seriesTable, seriesTotals, sourceKey, sourceOptions, sumRows, type AdPeriod,
+  seriesTotals, sourceKey, sourceOptions, sumRows, type AdPeriod,
+  biggestDrop, change, chartSpan, dailyTotals, kpiValue, MIN_COMPARE, parseDashTab, parseKpiMetric, prevSpan,
 } from "@/lib/crazydramas/stats-summary";
 import { normalizeTeamEmails, readTeamList, saveTeamList, TEAM_FILE } from "@/lib/crazydramas/stats-team";
 import { CdStatsReportSchema, type CdStatsReport } from "@/lib/crazydramas/stats-types";
@@ -184,9 +185,8 @@ test("the audience never adds people across days: the week and month are crazydr
 });
 
 test("a series' groups add up within the period, and only within it", () => {
-  const rows = seriesTable(report(), "7d");
-  assert.deepEqual(rows.map((r) => r.slug), ["alpha", "beta"]);
-  const alpha = rows[0];
+  const alpha = seriesTotals(report().series[0], rangeDays(report(), "7d"));
+  assert.equal(seriesTotals(report().series[1], rangeDays(report(), "7d")).opened, 0);
   assert.equal(alpha.opened, 100);
   assert.equal(alpha.started_ep1, 50);
   assert.deepEqual(alpha.episodes_watched.slice(0, 3), [33, 2, 1]);
@@ -632,3 +632,46 @@ test("the fake report carries every newer number, so fixture mode shows the whol
   assert.ok(t.load_hist.reduce((a, b) => a + b, 0) > 0 && t.start_hist.length === 10);
   assert.ok(f.robots.link_check >= 0 && f.days.some((d) => d.unseen > 0));
 });
+
+// ---- the dashboard, second cut (2026-09-25): tabs, numbers against the period before -----------------------------
+
+test("the period before: the same length, yesterday for today, none for all or before the report", () => {
+  const r = dashReport();
+  assert.deepEqual(prevSpan(r, "today"), { from: "2026-09-23", to: "2026-09-23" });
+  assert.deepEqual(prevSpan(r, "7d"), { from: "2026-09-11", to: "2026-09-17" });
+  assert.equal(prevSpan(r, "all"), null);
+  assert.deepEqual(chartSpan(r, "today"), { from: "2026-09-11", to: "2026-09-24" }, "a one-day range charts two weeks");
+  assert.deepEqual(chartSpan(r, "7d"), rangeDays(r, "7d"));
+});
+
+test("a change is only shown against a period big enough to compare with", () => {
+  assert.equal(change(120, 100), 0.2);
+  assert.equal(change(50, 100), -0.5);
+  assert.equal(change(300, MIN_COMPARE - 1), null, "3 to 300 is not 'up 9,900%'");
+  assert.equal(change(5, null), null);
+});
+
+test("every day of a span, zero where nobody came, and the headline numbers of a day", () => {
+  const r = dashReport();
+  const days = dailyTotals(r, { from: "2026-09-22", to: "2026-09-24" }, NO_FILTER);
+  assert.deepEqual(days.map((d) => d.day), ["2026-09-22", "2026-09-23", "2026-09-24"]);
+  assert.deepEqual(days.map((d) => kpiValue(d.totals, "visitors")), [0, 0, 90]);
+  assert.equal(kpiValue(days[2].totals, "revenue"), 99);
+  assert.equal(parseKpiMetric("finished"), "finished");
+  assert.equal(parseKpiMetric("nope"), "visitors");
+  assert.equal(parseDashTab(["playback"]), "playback");
+  assert.equal(parseDashTab("x"), "overview");
+});
+
+test("the biggest drop is the step that lost the most people, never from landing or into the unlock screen", () => {
+  const r = dashReport();
+  const steps = dashPath(sumRows(dashRows(r, rangeDays(r, "today"), NO_FILTER)));
+  const drop = biggestDrop(steps)!;
+  // 65 started, 26 reached a quarter: the largest loss of the whole path.
+  assert.deepEqual([drop.from.key, drop.to.key, drop.lost], ["played", "ep1_25", 39]);
+  const short = steps.filter((x) => ["seen", "played", "finished", "ep2", "paid"].includes(x.key));
+  const d2 = biggestDrop(short)!;
+  assert.deepEqual([d2.from.key, d2.to.key], ["played", "finished"], "the short path: 65 started, 12 finished");
+  assert.equal(d2.lost, 53);
+});
+
