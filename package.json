@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev -p 3200",
     "dev:live": "node scripts/dev-live.mjs",
+    "ad:upload": "node --import tsx scripts/upload-ad.ts",
     "build": "next build",
     "start": "next start -p 3200",
     "typecheck": "tsc --noEmit",

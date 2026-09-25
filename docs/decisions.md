@@ -13,7 +13,7 @@ until those files are brought in line.
 Ruobin, 2026-09-25, on the finished ads he makes outside Studio and uploads through "Upload finished ads": "I would start to classify these ads as well, e.g. this is a hook ad".
 
 Every clip may now say what kind of ad it is, in `studio.clips.ad_format` (registry `lib/ad-formats.ts`, `isAdFormat` the one guard; zh and en labels under `adFormat.*`):
-- **Hook ad** (`hook_ad`): one whole scene of the film, played as it is (15-60 s), chosen so a stranger gets it with no backstory.
+- **Hook ad** (`hook_ad`): one whole scene of the film, played as it is (about a minute), chosen so a stranger gets it with no backstory.
 - **Narration trailer** (`narration_trailer`): the heroine narrates the plot in first person over the film, with one or two kept dialogue scenes.
 - **Direct-cuts trailer** (`direct_cuts_trailer`): the same story spine as the narration trailer, carried by the characters' own lines, no narrator.
 - **Clip** (`clip`): a window cut from one episode (what Studio's own cutter makes).
@@ -23,6 +23,7 @@ The field is optional everywhere: null means nobody has classified the clip, nev
 - **Upload**: each queued file in Upload finished ads has an "Ad type" select ("Not set" + the four); the route takes an optional multipart `ad_format`, refuses an unknown value with a 400 before any byte is stored, and names the column in the insert only when a type was chosen, so uploads keep working on a database without 0023.
 - **Relabel**: `POST /api/titles/[id]/clips/[clipId]/format` with `{ ad_format: <type> | null }` answers `{ clip }`. Authorization is the upload's: `requireMember` and `assertTitleEditable` (a viewer and a foreign title are refused; a clip of another title is not found), then `setClipAdFormat` as the system actor (studio.clips has no producer update policy), both backends alike.
 - **Shown**: the Clips table puts the type's pill beside the hook and gives whoever may edit the title (the workspace's `can_edit`) a small select under it; the episode's ad clips on Materials show the pill too.
+- **From the command line**: `npm run ad:upload -- --title <uuid|slug|name> --file ad.mp4 --hook "Ad text" --format hook_ad [--write]` (`scripts/upload-ad.ts`) files a finished ad made on this machine exactly as the card does (content-addressed file under the first episode, shortlisted, rendered), and `--clip <id> --format <type|none>` relabels one; `--list` prints the titles. Dry run by default; `--write` with `DATA_SOURCE=supabase` writes as the system actor (titles are read with the service role, since a script has no cookie).
 - **Migration** `0023_clip_ad_format.sql` (column plus the named check `clips_ad_format_check`, idempotent) must be applied on the live database once, pasted into the Supabase SQL editor. Until then a chosen type (at upload or through the relabel route) is refused with a 409 that names the migration; everything else works as before.
 
 Checks: `tests/ad-formats.test.ts` (the guard, the missing-column sentence, the fixture data layer, both routes through their real handlers).
