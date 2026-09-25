@@ -120,6 +120,14 @@ export type SeriesTotals = {
   survey_paywall: Record<string, number>;
   robots: number;
   team: number;
+  unseen: number;
+  browsed: number;
+  restarted: number;
+  restarted_muted: number;
+  blocked: number;
+  load_hist: number[];
+  start_hist: number[];
+  wait_hist: number[];
 };
 
 function addInto(into: number[], add: number[]): void {
@@ -161,6 +169,14 @@ export function seriesTotals(series: CdStatsSeries, r: { from: string; to: strin
     survey_paywall: {},
     robots: 0,
     team: 0,
+    unseen: 0,
+    browsed: 0,
+    restarted: 0,
+    restarted_muted: 0,
+    blocked: 0,
+    load_hist: [],
+    start_hist: [],
+    wait_hist: [],
   };
   const scalar = [
     "opened",
@@ -185,6 +201,11 @@ export function seriesTotals(series: CdStatsSeries, r: { from: string; to: strin
     "survey_paywall_shown",
     "robots",
     "team",
+    "unseen",
+    "browsed",
+    "restarted",
+    "restarted_muted",
+    "blocked",
   ] as const satisfies readonly (keyof CdStatsCohort & keyof SeriesTotals)[];
   for (const c of series.cohorts) {
     if (!inRange(c.day, r)) continue;
@@ -192,6 +213,9 @@ export function seriesTotals(series: CdStatsSeries, r: { from: string; to: strin
     addInto(t.ep1_reached, c.ep1_reached);
     addInto(t.episodes, c.episodes);
     addInto(t.episodes_watched, c.episodes_watched);
+    addInto(t.load_hist, c.load_hist);
+    addInto(t.start_hist, c.start_hist);
+    addInto(t.wait_hist, c.wait_hist);
     for (const [a, n] of Object.entries(c.survey_ep1)) t.survey_ep1[a] = (t.survey_ep1[a] ?? 0) + n;
     for (const [a, n] of Object.entries(c.survey_paywall)) t.survey_paywall[a] = (t.survey_paywall[a] ?? 0) + n;
   }
@@ -581,29 +605,193 @@ export function adOutcomes(report: Pick<CdStatsReport, "sources">): Record<strin
 }
 
 export const DEVICE_ORDER = ["tiktok_android", "tiktok_iphone", "android", "iphone", "desktop", "other", "unknown"] as const;
-export type DeviceRow = PathCounts & { device: string };
-
-/** A period's people by kind of browser (TikTok on Android, on iPhone, …), one series or all. */
-export function deviceTable(report: Pick<CdStatsReport, "sources">, r: { from: string; to: string }, dramaId?: string): DeviceRow[] {
-  const rows = new Map<string, DeviceRow>();
-  for (const src of report.sources) {
-    if ((dramaId && src.drama_id !== dramaId) || !inRange(src.day, r)) continue;
-    let row = rows.get(src.device);
-    if (!row) {
-      row = { device: src.device, ...emptyPath() };
-      rows.set(src.device, row);
-    }
-    addPath(row, src);
-  }
-  const rank = (d: string) => {
-    const i = (DEVICE_ORDER as readonly string[]).indexOf(d);
-    return i < 0 ? DEVICE_ORDER.length : i;
-  };
-  return [...rows.values()].filter((d) => d.opened > 0).sort((a, b) => rank(a.device) - rank(b.device));
-}
 
 /** The one-tap questions' answers in the order the player shows them (crazydramas components/player/StopSurvey.tsx). */
 export const SURVEY_ANSWERS = {
   ep1_stop: ["not_for_me", "too_slow", "av_problem", "browsing"],
   paywall_close: ["price", "more_free", "payment_trust", "browsing"],
 } as const;
+
+// ---- the dashboard: every number, narrowed by series, phone and source -----------------------------------------
+//
+// Ruobin, 2026-09-25: "i dont see these android / iphone stats, and all these advanced stats. i have to ask
+// you. so why dont u build me a comprehensive dashboard". crazydramas' source rows (a day x a series x an ad x
+// a kind of phone) carry every number of the path, so any filter is a sum of rows: the same people, never
+// counted twice (a person is in one row per series).
+
+/** What the dashboard is narrowed to: a series (drama id), a kind of phone, a source; null is everything. */
+export type DashFilter = { series: string | null; device: string | null; source: string | null };
+export const NO_FILTER: DashFilter = { series: null, device: null, source: null };
+
+const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? null;
+
+/** The filter from the address bar; anything malformed is "all". `series` is a slug there, a drama id here. */
+export function parseDashFilter(q: Record<string, string | string[] | undefined>, report?: Pick<CdStatsReport, "series">): DashFilter {
+  const slug = one(q.series);
+  const series = slug && report ? (report.series.find((x) => x.slug === slug)?.drama_id ?? null) : null;
+  const device = one(q.device);
+  const source = one(q.source);
+  return {
+    series,
+    device: device && (DEVICE_ORDER as readonly string[]).includes(device) ? device : null,
+    source: source && /^(ads|stored_copy|no_ad|campaign:[\w.-]{1,64})$/.test(source) ? source : null,
+  };
+}
+
+/** A row's source in the dashboard's words: an ad's campaign, TikTok's stored copy (which ad unknown), or no ad. */
+export function sourceKey(src: Pick<CdStatsSource, "stored_copy" | "ad" | "campaign">): string {
+  if (src.stored_copy) return "stored_copy";
+  return src.ad || src.campaign ? `campaign:${src.campaign ?? "unknown"}` : "no_ad";
+}
+
+function sourceMatches(src: CdStatsSource, source: string | null): boolean {
+  if (!source) return true;
+  const k = sourceKey(src);
+  return source === "ads" ? k.startsWith("campaign:") : k === source;
+}
+
+/** The range's source rows that pass the filter; `except` ignores one part of it (a breakdown by that part). */
+export function dashRows(report: Pick<CdStatsReport, "sources">, r: { from: string; to: string }, f: DashFilter, except?: keyof DashFilter): CdStatsSource[] {
+  return report.sources.filter(
+    (x) =>
+      inRange(x.day, r) &&
+      (except === "series" || !f.series || x.drama_id === f.series) &&
+      (except === "device" || !f.device || x.device === f.device) &&
+      (except === "source" || sourceMatches(x, f.source)),
+  );
+}
+
+const DASH_SCALARS = [
+  "opened", "unseen", "no_events", "never_started", "left_waiting", "left_waiting_seconds", "started_ep1", "ep1_25", "ep1_50", "ep1_75",
+  "finished_ep1", "watched_ep2", "watched_ep3", "ep1_sound_known", "ep1_sound_on", "paywall", "paywall_watched", "paywall_skipped",
+  "checkouts", "buyers", "revenue_cents", "returned", "errors", "restarted", "restarted_muted", "blocked", "survey_ep1_shown",
+  "survey_paywall_shown", "robots",
+] as const satisfies readonly (keyof CdStatsSource)[];
+
+/** Every number of some source rows, added up. */
+export type DashTotals = Record<(typeof DASH_SCALARS)[number], number> & {
+  survey_ep1: Record<string, number>;
+  survey_paywall: Record<string, number>;
+  load_hist: number[];
+  start_hist: number[];
+  wait_hist: number[];
+};
+
+export function sumRows(rows: readonly CdStatsSource[]): DashTotals {
+  const t = Object.fromEntries(DASH_SCALARS.map((k) => [k, 0])) as unknown as DashTotals;
+  t.survey_ep1 = {};
+  t.survey_paywall = {};
+  t.load_hist = [];
+  t.start_hist = [];
+  t.wait_hist = [];
+  for (const x of rows) {
+    for (const k of DASH_SCALARS) t[k] += x[k];
+    for (const [a, n] of Object.entries(x.survey_ep1)) t.survey_ep1[a] = (t.survey_ep1[a] ?? 0) + n;
+    for (const [a, n] of Object.entries(x.survey_paywall)) t.survey_paywall[a] = (t.survey_paywall[a] ?? 0) + n;
+    addInto(t.load_hist, x.load_hist);
+    addInto(t.start_hist, x.start_hist);
+    addInto(t.wait_hist, x.wait_hist);
+  }
+  return t;
+}
+
+export const PATH_STEPS = ["landed", "seen", "played", "ep1_25", "ep1_50", "ep1_75", "finished", "ep2", "ep3", "paywall", "checkout", "paid"] as const;
+export type PathStep = { key: (typeof PATH_STEPS)[number]; people: number; of_seen: number | null; of_prev: number | null };
+
+/**
+ * The path from the landing to paying: landed (the page loaded, on screen or not), the page seen, episode 1
+ * playing, a quarter / half / three quarters / all of it, episodes 2 and 3 (a quarter or more), the unlock
+ * screen, checkout, paid. Each step as a share of the people who saw the page and of the step before (not the
+ * unlock screen, which swipes reach without episode 3).
+ */
+export function dashPath(t: DashTotals): PathStep[] {
+  const people: Record<(typeof PATH_STEPS)[number], number> = {
+    landed: t.opened + t.unseen,
+    seen: t.opened,
+    played: t.started_ep1,
+    ep1_25: t.ep1_25,
+    ep1_50: t.ep1_50,
+    ep1_75: t.ep1_75,
+    finished: t.finished_ep1,
+    ep2: t.watched_ep2,
+    ep3: t.watched_ep3,
+    paywall: t.paywall,
+    checkout: t.checkouts,
+    paid: t.buyers,
+  };
+  // The unlock screen is reached by swiping past the free episodes as often as by watching them: no "went on" from episode 3.
+  return PATH_STEPS.map((key, i) => ({ key, people: people[key], of_seen: share(people[key], t.opened), of_prev: i === 0 || key === "paywall" ? null : share(people[key], people[PATH_STEPS[i - 1]]) }));
+}
+
+/** A timing histogram in words: its bins with labels, how many, and the bins the median and the slowest quarter fall in. */
+export type HistSummary = { n: number; bins: { label: string; people: number }[]; median: string | null; p75: string | null; over5: number | null };
+
+export function binLabels(edges: readonly number[]): string[] {
+  return [...edges.map((e, i) => (i === 0 ? `<${e}s` : `${edges[i - 1]}–${e}s`)), `${edges[edges.length - 1]}s+`];
+}
+
+export function histSummary(hist: readonly number[], edges: readonly number[]): HistSummary {
+  const labels = binLabels(edges);
+  const bins = labels.map((label, i) => ({ label, people: hist[i] ?? 0 }));
+  const n = bins.reduce((a, b) => a + b.people, 0);
+  const at = (q: number) => {
+    if (!n) return null;
+    let seen = 0;
+    for (const b of bins) {
+      seen += b.people;
+      if (seen >= q * n) return b.label;
+    }
+    return bins[bins.length - 1].label;
+  };
+  const five = edges.indexOf(5);
+  const over5 = n && five >= 0 ? bins.slice(five + 1).reduce((a, b) => a + b.people, 0) / n : null;
+  return { n, bins, median: at(0.5), p75: at(0.75), over5 };
+}
+
+/** Rows grouped by a key, each group added up, the most landed first. */
+export function dashBy(rows: readonly CdStatsSource[], keyOf: (x: CdStatsSource) => string): { key: string; totals: DashTotals }[] {
+  const groups = new Map<string, CdStatsSource[]>();
+  for (const x of rows) {
+    const k = keyOf(x);
+    groups.set(k, [...(groups.get(k) ?? []), x]);
+  }
+  return [...groups.entries()]
+    .map(([key, list]) => ({ key, totals: sumRows(list) }))
+    .filter((g) => g.totals.opened + g.totals.unseen + g.totals.robots > 0)
+    .sort((a, b) => b.totals.opened + b.totals.unseen - (a.totals.opened + a.totals.unseen) || a.key.localeCompare(b.key));
+}
+
+/** The phones in the house order (TikTok on Android first). */
+export function byDevice(rows: readonly CdStatsSource[]): { key: string; totals: DashTotals }[] {
+  const rank = (d: string) => {
+    const i = (DEVICE_ORDER as readonly string[]).indexOf(d);
+    return i < 0 ? DEVICE_ORDER.length : i;
+  };
+  return dashBy(rows, (x) => x.device).sort((a, b) => rank(a.key) - rank(b.key));
+}
+
+/** The source filter's choices: every ad campaign seen in the range (named from Studio's launches), then the rest. */
+export function sourceOptions(report: Pick<CdStatsReport, "sources">, r: { from: string; to: string }, spends: AdSpend[]): { key: string; name: string | null; launched_at: string | null }[] {
+  const names = new Map<string, { name: string; launched_at: string | null }>();
+  for (const sp of spends) if (sp.campaign_id && !names.has(sp.campaign_id)) names.set(sp.campaign_id, { name: `${sp.launch_name} · ${sp.campaign_name}`, launched_at: sp.launched_at });
+  const seen = new Set<string>();
+  for (const x of report.sources) if (inRange(x.day, r)) seen.add(sourceKey(x));
+  return [...seen]
+    .filter((k) => k.startsWith("campaign:"))
+    .map((k) => ({ key: k, name: names.get(k.slice(9))?.name ?? null, launched_at: names.get(k.slice(9))?.launched_at ?? null }))
+    .sort((a, b) => (b.launched_at ?? "").localeCompare(a.launched_at ?? "") || a.key.localeCompare(b.key));
+}
+
+/** The people who saw a page nobody saw, browsed only, and the robots, over a range (the day rows, and every series' cohorts). */
+export function notCounted(report: CdStatsReport, r: { from: string; to: string }): { unseen: number; robots: number; browsed: number } {
+  let unseen = 0;
+  let robots = 0;
+  let browsed = 0;
+  for (const d of report.days) if (inRange(d.day, r)) {
+    unseen += d.unseen;
+    robots += d.robots;
+  }
+  for (const x of report.series) for (const c of x.cohorts) if (inRange(c.day, r)) browsed += c.browsed;
+  return { unseen, robots, browsed };
+}
+

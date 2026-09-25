@@ -3,10 +3,11 @@ import { adminLocale, staffSession } from "@/components/admin/server";
 import { Definitions, RangeTabs, ReadFailure, ReadLine } from "@/components/admin/cd-stats/Bits";
 import { EpisodeChart, Ep1Chart } from "@/components/admin/cd-stats/Charts";
 import CampaignTable from "@/components/admin/cd-stats/CampaignTable";
-import { DeviceTableView, SurveyView } from "@/components/admin/cd-stats/Tables";
+import { BeforeStart, BreakdownTable, HistView } from "@/components/admin/cd-stats/Dash";
+import { SurveyView } from "@/components/admin/cd-stats/Tables";
 import { crazydramasPublicUrl } from "@/lib/crazydramas";
 import { readAdPeriod, readCrazydramasStats } from "@/lib/crazydramas/stats";
-import { adSpendsFromRuns, campaignTable, deviceTable, ep1Curve, episodeBars, fmtClock, fmtShare, fmtUsdCents, parseStatsRange, rangeDays, seriesTotals, share } from "@/lib/crazydramas/stats-summary";
+import { adSpendsFromRuns, byDevice, campaignTable, dashRows, ep1Curve, sumRows, episodeBars, fmtClock, fmtShare, fmtUsdCents, parseStatsRange, rangeDays, seriesTotals, share } from "@/lib/crazydramas/stats-summary";
 import { getData } from "@/lib/data";
 import { t } from "@/lib/i18n";
 
@@ -52,6 +53,15 @@ export default async function CrazydramasSeriesStatsPage({ params, searchParams 
 
   const span = rangeDays(read.report, range);
   const tot = seriesTotals(series, span);
+  // This series' people from its source rows: what happened before the video, and by phone.
+  const seriesFilter = { series: series.drama_id, device: null, source: null };
+  const seriesDash = sumRows(dashRows(read.report, span, seriesFilter));
+  const seriesPhones = byDevice(dashRows(read.report, span, seriesFilter)).map((g) => ({
+    key: g.key,
+    name: t(locale, `cds.dev.${g.key}`),
+    only: `/crazydramas/stats?range=${range}&series=${encodeURIComponent(series.slug)}&device=${g.key}`,
+    totals: g.totals,
+  }));
   const adPeriod = await readAdPeriod(read.report, range, runs, searchParams.fresh === "1");
   const curve = ep1Curve(tot, read.report.ep1_step_s);
   const { bars, hidden_after } = episodeBars(tot);
@@ -130,14 +140,14 @@ export default async function CrazydramasSeriesStatsPage({ params, searchParams 
               </div>
             </div>
             <div className="rs-panel-body">
-              <div className="cds-says cds-says-top">
-                <p>
-                  <strong>{t(locale, "cds.before.neverStarted", { n: n0(tot.never_started), share: fmtShare(share(tot.never_started, tot.opened)) })}</strong>
-                  {tot.left_waiting > 0 && <> {t(locale, "cds.before.waited", { n: n0(tot.left_waiting), avg: Math.round(tot.left_waiting_seconds / tot.left_waiting) })}</>}
-                </p>
-                {tot.no_events > 0 && <p>{t(locale, "cds.before.noEvents", { n: n0(tot.no_events), share: fmtShare(share(tot.no_events, tot.opened)) })}</p>}
+              {/* The same pieces as the dashboard, for this series (2026-09-25). */}
+              <BeforeStart totals={seriesDash} locale={locale} />
+              <div className="cdd-hists">
+                <HistView title={t(locale, "cdd.hist.load")} hist={seriesDash.load_hist} edges={read.report.timing_edges_s} locale={locale} />
+                <HistView title={t(locale, "cdd.hist.start")} hist={seriesDash.start_hist} edges={read.report.timing_edges_s} locale={locale} />
+                <HistView title={t(locale, "cdd.hist.wait")} hist={seriesDash.wait_hist} edges={read.report.timing_edges_s} locale={locale} />
               </div>
-              <DeviceTableView rows={deviceTable(read.report, span, series.drama_id)} locale={locale} />
+              <BreakdownTable rows={seriesPhones} caption={t(locale, "cds.dev.caption")} edges={read.report.timing_edges_s} locale={locale} />
             </div>
           </section>
 

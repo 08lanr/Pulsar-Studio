@@ -40,11 +40,14 @@ export function Definitions({ robots, locale }: { robots: number; locale: Locale
       <summary>{t(locale, "cds.defs.title")}</summary>
       <ul>
         <li>{t(locale, "cds.defs.person")}</li>
+        <li>{t(locale, "cdd.defs.opened")}</li>
+        <li>{t(locale, "cdd.defs.unseen")}</li>
         <li>{t(locale, "cds.defs.robots", { n: robots.toLocaleString("en-US") })}</li>
         <li>{t(locale, "cds.defs.team")}</li>
         <li>{t(locale, "cds.defs.played")}</li>
         <li>{t(locale, "cds.defs.watched")}</li>
         <li>{t(locale, "cds.defs.paywall")}</li>
+        <li>{t(locale, "cdd.defs.timing")}</li>
         <li>{t(locale, "cds.defs.test")}</li>
       </ul>
     </details>

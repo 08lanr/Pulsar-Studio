@@ -13,7 +13,11 @@ import { fakeStatsReport } from "@/lib/crazydramas/fake-stats";
 import { STATS_CACHE_MS, clearCdStatsCache, readCrazydramasStats } from "@/lib/crazydramas/stats";
 import { rm } from "node:fs/promises";
 import path from "node:path";
-import { adOutcomes, adSpendsFromRuns, adTable, audience, CAMPAIGN_SORTS, campaignTable, dayIn, deliveryIn, deviceTable, sortCampaigns, ep1Curve, episodeBars, fmtClock, fmtShare, parseStatsRange, rangeDays, seriesTable, seriesTotals, type AdPeriod } from "@/lib/crazydramas/stats-summary";
+import {
+  adOutcomes, adSpendsFromRuns, adTable, audience, binLabels, byDevice, CAMPAIGN_SORTS, campaignTable, dashBy, dashPath, dashRows, dayIn, deliveryIn,
+  sortCampaigns, ep1Curve, episodeBars, fmtClock, fmtShare, histSummary, NO_FILTER, notCounted, parseDashFilter, parseStatsRange, PATH_STEPS, rangeDays,
+  seriesTable, seriesTotals, sourceKey, sourceOptions, sumRows, type AdPeriod,
+} from "@/lib/crazydramas/stats-summary";
 import { normalizeTeamEmails, readTeamList, saveTeamList, TEAM_FILE } from "@/lib/crazydramas/stats-team";
 import { CdStatsReportSchema, type CdStatsReport } from "@/lib/crazydramas/stats-types";
 import type { LaunchRun } from "@/lib/launch/types";
@@ -496,6 +500,113 @@ test("the Monitor's line: each ad's people over its life, by TikTok's ad id", ()
 });
 
 test("the kinds of phone in a period, TikTok on Android first", () => {
-  const rows = deviceTable(report(), rangeDays(report(), "today"), "a");
-  assert.deepEqual(rows.map((r) => [r.device, r.opened, r.no_events]), [["tiktok_android", 72, 0], ["tiktok_iphone", 20, 12]]);
+  const r = report();
+  const rows = byDevice(dashRows(r, rangeDays(r, "today"), { series: "a", device: null, source: null }));
+  assert.deepEqual(rows.map((g) => [g.key, g.totals.opened, g.totals.no_events]), [["tiktok_android", 72, 0], ["tiktok_iphone", 20, 12]]);
+});
+
+// ---- the dashboard (2026-09-25) --------------------------------------------------------------------------------
+
+function dashReport(): CdStatsReport {
+  const row = (day: string, drama: string, ad: string | null, device: string, extra: Record<string, unknown>, stored = false) => ({
+    ...src(day, drama, ad, device, {}, stored),
+    ...extra,
+  });
+  return CdStatsReportSchema.parse({
+    ...JSON.parse(JSON.stringify(report())),
+    sources: [
+      row("2026-09-24", "a", "111", "tiktok_android", {
+        opened: 50, unseen: 5, never_started: 10, left_waiting: 6, left_waiting_seconds: 60, started_ep1: 38, ep1_25: 20, ep1_50: 14, ep1_75: 11,
+        finished_ep1: 9, watched_ep2: 4, watched_ep3: 2, paywall: 3, checkouts: 2, buyers: 1, revenue_cents: 99, restarted: 6, restarted_muted: 5,
+        ep1_sound_known: 30, ep1_sound_on: 24, load_hist: [0, 10, 20, 10, 5, 2, 1, 0, 0, 0], start_hist: [0, 2, 10, 15, 6, 3, 1, 0, 0, 0],
+        wait_hist: [1, 1, 0, 1, 1, 1, 1, 0, 0, 0], survey_ep1_shown: 4, survey_ep1: { too_slow: 2 },
+      }),
+      row("2026-09-24", "a", "111", "tiktok_iphone", { opened: 20, unseen: 40, never_started: 4, started_ep1: 16, ep1_25: 6, finished_ep1: 3, load_hist: [0, 4, 6, 4, 2, 0, 0, 0, 0, 0], survey_ep1: { too_slow: 1, not_for_me: 3 } }),
+      row("2026-09-24", "b", null, "iphone", { opened: 8, started_ep1: 2 }),
+      row("2026-09-24", "a", null, "tiktok_android", { opened: 12, started_ep1: 9 }, true),
+      row("2026-09-10", "a", "222", "tiktok_android", { opened: 40, started_ep1: 10 }),
+    ],
+  });
+}
+
+test("the dashboard's filter reads the address bar: a series by its slug, a known phone, a source; anything else is all", () => {
+  const r = dashReport();
+  assert.deepEqual(parseDashFilter({ series: "alpha", device: "tiktok_iphone", source: "campaign:c1" }, r), { series: "a", device: "tiktok_iphone", source: "campaign:c1" });
+  assert.deepEqual(parseDashFilter({ series: "nope", device: "fridge", source: "drop table" }, r), { series: null, device: null, source: null });
+  assert.deepEqual(parseDashFilter({ source: ["ads", "no_ad"] }, r).source, "ads");
+  assert.equal(sourceKey({ stored_copy: true, ad: null, campaign: null }), "stored_copy");
+  assert.equal(sourceKey({ stored_copy: false, ad: "111", campaign: "c1" }), "campaign:c1");
+  assert.equal(sourceKey({ stored_copy: false, ad: null, campaign: null }), "no_ad");
+});
+
+test("the dashboard sums the filtered rows, and a breakdown ignores its own filter", () => {
+  const r = dashReport();
+  const today = rangeDays(r, "today");
+  const all = sumRows(dashRows(r, today, NO_FILTER));
+  assert.equal(all.opened, 90, "everything today; the Sep 10 row is out of the period");
+  assert.equal(all.unseen, 45);
+  assert.deepEqual(all.survey_ep1, { too_slow: 3, not_for_me: 3 });
+  assert.deepEqual(all.load_hist, [0, 14, 26, 14, 7, 2, 1, 0, 0, 0]);
+  const iphone = { series: null, device: "tiktok_iphone", source: null };
+  assert.equal(sumRows(dashRows(r, today, iphone)).opened, 20);
+  assert.equal(sumRows(dashRows(r, today, { ...iphone, device: null, source: "ads" })).opened, 70, "the two ad rows");
+  assert.equal(sumRows(dashRows(r, today, { ...iphone, device: null, source: "stored_copy" })).opened, 12);
+  assert.equal(sumRows(dashRows(r, today, { ...iphone, device: null, source: "no_ad" })).opened, 8);
+  // The phone breakdown under a phone filter still lists every phone.
+  assert.deepEqual(byDevice(dashRows(r, today, iphone, "device")).map((g) => g.key), ["tiktok_android", "tiktok_iphone", "iphone"]);
+  assert.deepEqual(dashBy(dashRows(r, today, { series: "a", device: null, source: null }, "series"), (x) => x.drama_id).map((g) => g.key), ["a", "b"]);
+});
+
+test("the path: landed, seen, and each step as a share of seen and of the step before", () => {
+  const r = dashReport();
+  const t = sumRows(dashRows(r, rangeDays(r, "today"), { series: null, device: "tiktok_android", source: "ads" }));
+  const path = dashPath(t);
+  assert.deepEqual(path.map((p) => p.key), [...PATH_STEPS]);
+  const at = (k: string) => path.find((p) => p.key === k)!;
+  assert.equal(at("landed").people, 55);
+  assert.equal(at("seen").people, 50);
+  assert.equal(at("played").people, 38);
+  assert.equal(at("played").of_seen, 38 / 50);
+  assert.equal(at("ep1_25").of_prev, 20 / 38);
+  assert.equal(at("paid").people, 1);
+  assert.equal(at("landed").of_prev, null);
+  assert.equal(at("paywall").of_prev, null, "swipes reach it without episode 3");
+});
+
+test("a timing histogram in words: labels, median, the slowest quarter, over 5 s", () => {
+  const edges = [1, 2, 3, 5, 8, 13, 20, 30, 60];
+  assert.deepEqual(binLabels(edges), ["<1s", "1–2s", "2–3s", "3–5s", "5–8s", "8–13s", "13–20s", "20–30s", "30–60s", "60s+"]);
+  const h = histSummary([0, 10, 20, 10, 5, 2, 1, 0, 0, 0], edges);
+  assert.equal(h.n, 48);
+  assert.equal(h.median, "2–3s");
+  assert.equal(h.p75, "3–5s");
+  assert.equal(h.over5, 8 / 48);
+  assert.deepEqual(histSummary([], edges), { n: 0, bins: binLabels(edges).map((label) => ({ label, people: 0 })), median: null, p75: null, over5: null });
+});
+
+test("the source filter's campaigns carry Studio's launch names, newest launch first", () => {
+  const r = dashReport();
+  const opts = sourceOptions(r, rangeDays(r, "30d"), adSpendsFromRuns(launchRuns()));
+  assert.deepEqual(opts.map((o) => [o.key, o.name]), [["campaign:c1", "CrazyDramas · Sep 23 · 0924test01"]]);
+});
+
+test("pages nobody saw, robots and browsing over a period, and a report from before them reads as zero", () => {
+  const r = CdStatsReportSchema.parse({
+    ...JSON.parse(JSON.stringify(report())),
+    days: [{ day: "2026-09-24", visitors: 1, watchers: 1, new_watchers: 1, wau: 1, mau: 1, robots: 4, unseen: 7, payments: 0, first_purchases: 0, renewals: 0, revenue_cents: 0 }],
+  });
+  assert.deepEqual(notCounted(r, rangeDays(r, "today")), { unseen: 7, robots: 4, browsed: 0 });
+  const old = report();
+  assert.equal(old.robots.link_check, 0);
+  assert.deepEqual(old.timing_edges_s, [1, 2, 3, 5, 8, 13, 20, 30, 60]);
+  assert.deepEqual(old.sources[0].load_hist, []);
+  assert.equal(old.sources[0].unseen, 0);
+});
+
+test("the fake report carries every newer number, so fixture mode shows the whole dashboard", () => {
+  const f = fakeStatsReport([{ id: "d1", slug: "one", title: "One", status: "published", free_episode_count: 5 }], [], new Date("2026-09-25T20:00:00Z"));
+  const t = sumRows(dashRows(f, rangeDays(f, "today"), NO_FILTER));
+  assert.ok(t.unseen > 0 && t.ep1_25 > 0 && t.restarted > 0);
+  assert.ok(t.load_hist.reduce((a, b) => a + b, 0) > 0 && t.start_hist.length === 10);
+  assert.ok(f.robots.link_check >= 0 && f.days.some((d) => d.unseen > 0));
 });

@@ -40,7 +40,7 @@ export function fakeStatsReport(series: FakeSeriesIn[], episodes: FakeEpisodeIn[
   const live = series.filter((s) => s.status !== "archived" && !s.slug.startsWith("mock-"));
   const out: CdStatsSeries[] = [];
   const sources: CdStatsSource[] = [];
-  const perDay = new Map<string, { opened: number; watchers: number; first: number; renewals: number; cents: number; robots: number }>();
+  const perDay = new Map<string, { opened: number; watchers: number; first: number; renewals: number; cents: number; robots: number; unseen: number }>();
 
   for (const s of live) {
     const eps = episodes.filter((e) => e.drama_id === s.id).sort((a, b) => a.episode_number - b.episode_number);
@@ -80,9 +80,18 @@ export function fakeStatsReport(series: FakeSeriesIn[], episodes: FakeEpisodeIn[
       const noEvents = Math.round((opened - started) * 0.3);
       const neverStarted = opened - started - noEvents;
       const soundKnown = back <= 1 ? started : 0;
+      // Pages TikTok loaded out of sight, the player's restarts and the timing histograms (recorded since 2026-09-25: the last two days).
+      const unseen = Math.round(opened * (0.15 + 0.2 * r("u")));
+      const recent = back <= 1;
+      const spread = (n: number, shape: number[]) => shape.map((w) => Math.round(n * w));
+      const loadHist = recent ? spread(opened, [0.05, 0.3, 0.3, 0.2, 0.08, 0.04, 0.02, 0.01, 0, 0]) : [];
+      const startHist = recent ? spread(started, [0, 0.08, 0.25, 0.35, 0.18, 0.08, 0.04, 0.02, 0, 0]) : [];
+      const waitHist = recent ? spread(Math.round(neverStarted * 0.7), [0.3, 0.15, 0.1, 0.12, 0.1, 0.08, 0.06, 0.05, 0.03, 0.01]) : [];
       cohorts.push({
         day,
         opened,
+        unseen,
+        browsed: Math.round(opened * 0.05),
         no_events: noEvents,
         never_started: neverStarted,
         left_waiting: Math.round(neverStarted * 0.7),
@@ -103,6 +112,12 @@ export function fakeStatsReport(series: FakeSeriesIn[], episodes: FakeEpisodeIn[
         revenue_cents: cents,
         returned: Math.round(started * 0.12),
         errors: Math.round(opened * 0.01),
+        restarted: recent ? Math.round(started * 0.1) : 0,
+        restarted_muted: recent ? Math.round(started * 0.08) : 0,
+        blocked: recent ? Math.round(started * 0.05) : 0,
+        load_hist: loadHist,
+        start_hist: startHist,
+        wait_hist: waitHist,
         survey_ep1_shown: back <= 1 ? Math.round(started * 0.2) : 0,
         survey_ep1: back <= 1 ? { not_for_me: Math.round(started * 0.05), too_slow: Math.round(started * 0.03), av_problem: Math.round(started * 0.01), browsing: Math.round(started * 0.02) } : {},
         survey_paywall_shown: back <= 1 ? paywall : 0,
@@ -121,15 +136,33 @@ export function fakeStatsReport(series: FakeSeriesIn[], episodes: FakeEpisodeIn[
       ];
       for (const [platform, campaign, ad, stored, device, share] of shares) {
         const q = (v: number) => Math.round(v * share * (0.8 + 0.4 * r(`${ad}${device}`)));
+        const qs = (m: Record<string, number>) => Object.fromEntries(Object.entries(m).map(([k, v]) => [k, q(v)]));
+        // TikTok on iPhone: most of its pages are loaded out of sight; Android waits longer for a start.
+        const iphone = device === "tiktok_iphone";
+        const ep1 = (f: number) => q(Math.round(started * f));
         sources.push({
           day, drama_id: s.id, platform, campaign, ad, stored_copy: stored, device,
-          opened: q(opened), no_events: device === "tiktok_iphone" ? q(noEvents) * 2 : q(noEvents) / 2 | 0, never_started: q(neverStarted),
-          started_ep1: q(started), finished_ep1: q(finished), watched_ep2: q(epsWatched[1] ?? 0), watched_ep3: q(epsWatched[2] ?? 0),
-          paywall: q(paywall), checkouts: q(checkouts), buyers: q(buyers), revenue_cents: q(cents), robots: platform === "organic" ? q(robots) * 3 : q(robots) / 3 | 0,
+          opened: q(opened), unseen: iphone ? q(unseen) * 4 : q(unseen) / 2 | 0,
+          no_events: iphone ? q(noEvents) * 2 : q(noEvents) / 2 | 0, never_started: q(neverStarted),
+          left_waiting: q(Math.round(neverStarted * 0.7)), left_waiting_seconds: q(Math.round(neverStarted * 0.7 * (iphone ? 2 : 9))),
+          started_ep1: q(started), ep1_25: ep1(0.55), ep1_50: ep1(0.45), ep1_75: ep1(0.4), finished_ep1: q(finished),
+          watched_ep2: q(epsWatched[1] ?? 0), watched_ep3: q(epsWatched[2] ?? 0),
+          ep1_sound_known: q(soundKnown), ep1_sound_on: q(Math.round(soundKnown * 0.8)),
+          paywall: q(paywall), paywall_watched: q(watchedBefore), paywall_skipped: q(paywall - watchedBefore),
+          checkouts: q(checkouts), buyers: q(buyers), revenue_cents: q(cents),
+          returned: q(Math.round(started * 0.12)), errors: q(Math.round(opened * 0.01)),
+          restarted: recent ? ep1(0.1) : 0, restarted_muted: recent ? ep1(0.08) : 0, blocked: recent ? ep1(0.05) : 0,
+          survey_ep1_shown: recent ? ep1(0.2) : 0,
+          survey_ep1: recent ? qs({ not_for_me: started * 0.05, too_slow: started * 0.03, av_problem: started * 0.01, browsing: started * 0.02 }) : {},
+          survey_paywall_shown: recent ? q(paywall) : 0,
+          survey_paywall: recent ? qs({ price: paywall * 0.3, more_free: paywall * 0.2, payment_trust: paywall * 0.05, browsing: paywall * 0.1 }) : {},
+          load_hist: loadHist.map((v) => q(v)), start_hist: startHist.map((v) => q(v)), wait_hist: waitHist.map((v) => (iphone ? q(v) : q(v))),
+          robots: platform === "organic" ? q(robots) * 3 : q(robots) / 3 | 0,
         });
       }
-      const d = perDay.get(day) ?? { opened: 0, watchers: 0, first: 0, renewals: 0, cents: 0, robots: 0 };
+      const d = perDay.get(day) ?? { opened: 0, watchers: 0, first: 0, renewals: 0, cents: 0, robots: 0, unseen: 0 };
       d.opened += opened;
+      d.unseen += unseen;
       d.watchers += started;
       d.first += buyers;
       d.renewals += renewals;
@@ -158,6 +191,7 @@ export function fakeStatsReport(series: FakeSeriesIn[], episodes: FakeEpisodeIn[
       wau: span(7),
       mau: span(30),
       robots: d?.robots ?? 0,
+      unseen: d?.unseen ?? 0,
       payments: (d?.first ?? 0) + (d?.renewals ?? 0),
       first_purchases: d?.first ?? 0,
       renewals: d?.renewals ?? 0,
@@ -172,7 +206,8 @@ export function fakeStatsReport(series: FakeSeriesIn[], episodes: FakeEpisodeIn[
     from,
     to,
     ep1_step_s: STEP,
-    robots: { people: robots, crawler_ua: Math.round(robots * 0.06), burst: Math.round(robots * 0.82), end_jump: robots - Math.round(robots * 0.06) - Math.round(robots * 0.82) },
+    robots: { people: robots, crawler_ua: Math.round(robots * 0.06), burst: Math.round(robots * 0.72), end_jump: Math.round(robots * 0.1), link_check: robots - Math.round(robots * 0.06) - Math.round(robots * 0.72) - Math.round(robots * 0.1) },
+    timing_edges_s: [1, 2, 3, 5, 8, 13, 20, 30, 60],
     team: { people: teamEmails * 2, payments: teamEmails, revenue_cents: teamEmails * 99 },
     days,
     series: out,

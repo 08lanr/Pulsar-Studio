@@ -3,36 +3,53 @@ import { adminLocale, staffSession } from "@/components/admin/server";
 import { Definitions, RangeTabs, ReadFailure, ReadLine, Tile } from "@/components/admin/cd-stats/Bits";
 import { DailyChart } from "@/components/admin/cd-stats/Charts";
 import CampaignTable from "@/components/admin/cd-stats/CampaignTable";
+import { BeforeStart, BreakdownTable, HistView, PathView, type BreakdownRow } from "@/components/admin/cd-stats/Dash";
+import FilterBar, { type FilterOptions } from "@/components/admin/cd-stats/FilterBar";
 import { SurveyView } from "@/components/admin/cd-stats/Tables";
 import TeamEditor from "@/components/admin/cd-stats/TeamEditor";
 import { readAdPeriod, readCrazydramasStats } from "@/lib/crazydramas/stats";
 import { readTeamList } from "@/lib/crazydramas/stats-team";
-import { adSpendsFromRuns, audience, campaignTable, fmtShare, fmtUsdCents, parseStatsRange, rangeDays, seriesTable, share, type SeriesTotals } from "@/lib/crazydramas/stats-summary";
+import {
+  adSpendsFromRuns,
+  audience,
+  byDevice,
+  campaignTable,
+  dashBy,
+  dashRows,
+  DEVICE_ORDER,
+  fmtShare,
+  fmtUsdCents,
+  notCounted,
+  parseDashFilter,
+  parseStatsRange,
+  rangeDays,
+  share,
+  sourceOptions,
+  sumRows,
+  type DashFilter,
+} from "@/lib/crazydramas/stats-summary";
 import { getData } from "@/lib/data";
 import { t } from "@/lib/i18n";
 
 // /crazydramas/stats — viewing and money on crazydramas.com, staff only
-// (decision 2026-09-24, "CrazyDramas stats"): the audience per day (DAU,
-// WAU, MAU), the money, and one row per series following the people who
-// first opened it in the period, in plain words; then every ad with what it
-// cost (Studio's launch records, or TikTok's days for a period) and what it
-// brought, and the team's own accounts, which are left out. Real people only; the numbers come from
-// crazydramas' /api/studio/stats (lib/crazydramas/stats.ts).
+// (decisions 2026-09-24, "CrazyDramas stats"; 2026-09-25, "the stats
+// dashboard"). One page with every number, narrowed by period, series, kind
+// of phone and source: the headline, the path from landing to paying step by
+// step, what happened before the video started (pages never on screen, waits,
+// the player's restarts, sound, errors, and how long the page and the first
+// frame took), then the same people by phone, by series and by ad, why they
+// stopped, and, for the whole site, the audience, the money and what is not
+// counted. Real people only; the numbers come from crazydramas'
+// /api/studio/stats (lib/crazydramas/stats.ts), summed from its source rows
+// (lib/crazydramas/stats-summary.ts, "the dashboard").
 
 export const dynamic = "force-dynamic";
 
 const n0 = (v: number) => v.toLocaleString("en-US");
 
-function Cell({ n, of }: { n: number; of: number }) {
-  return (
-    <td className="gt-num">
-      {n0(n)}
-      {n > 0 && <span className="cds-sub">{fmtShare(share(n, of))}</span>}
-    </td>
-  );
-}
+type Search = { range?: string; fresh?: string; series?: string; device?: string; source?: string };
 
-export default async function CrazydramasStatsPage({ searchParams }: { searchParams: { range?: string; fresh?: string } }) {
+export default async function CrazydramasStatsPage({ searchParams }: { searchParams: Search }) {
   const session = await staffSession();
   const locale = adminLocale();
   const range = parseStatsRange(searchParams.range);
@@ -41,7 +58,14 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
     readTeamList(),
     getData().listLaunchRuns(session).catch(() => []),
   ]);
-  const hrefFor = (r: string) => `/crazydramas/stats?range=${r}`;
+  // Links keep the filters; `patch` changes some of them.
+  const hrefWith = (patch: Partial<Search>) => {
+    const q = new URLSearchParams();
+    const next = { range, series: searchParams.series, device: searchParams.device, source: searchParams.source, ...patch };
+    for (const [k, v] of Object.entries(next)) if (v) q.set(k, v);
+    return `/crazydramas/stats?${q.toString()}`;
+  };
+  const hrefFor = (r: string) => hrefWith({ range: r });
 
   const head = (
     <div className="page-head">
@@ -65,31 +89,180 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
 
   const report = read.report;
   const span = rangeDays(report, range);
-  const aud = audience(report, range);
-  const rows = seriesTable(report, range);
-  const seen = rows.filter((r) => r.opened > 0 || r.revenue_cents > 0);
+  const edges = report.timing_edges_s;
+  const filter: DashFilter = parseDashFilter(searchParams, report);
+  const spends = adSpendsFromRuns(runs);
+  const titleOf = new Map(report.series.map((s) => [s.drama_id, s]));
+
+  // Every number of the filtered people, and the breakdowns (each ignores its own filter).
+  const totals = sumRows(dashRows(report, span, filter));
+  const phones: BreakdownRow[] = byDevice(dashRows(report, span, filter, "device")).map((g) => ({
+    key: g.key,
+    name: t(locale, `cds.dev.${g.key}`),
+    only: filter.device === g.key ? null : hrefWith({ device: g.key }),
+    totals: g.totals,
+  }));
+  const seriesRows: BreakdownRow[] = dashBy(dashRows(report, span, filter, "series"), (x) => x.drama_id).map((g) => {
+    const s = titleOf.get(g.key);
+    return {
+      key: g.key,
+      name: s?.title ?? g.key,
+      href: s ? `/crazydramas/stats/${encodeURIComponent(s.slug)}?range=${range}` : null,
+      only: s && filter.series !== g.key ? hrefWith({ series: s.slug }) : null,
+      totals: g.totals,
+    };
+  });
+
+  // The filters' choices: series anybody opened in the period, phones seen, the period's ad campaigns.
+  const campaignLabel = (key: string, name: string | null) => name ?? t(locale, "cdd.filter.campaign", { id: key.slice(9) });
+  const sources = sourceOptions(report, span, spends);
+  const devicesSeen = new Set(dashRows(report, span, { series: null, device: null, source: null }).map((x) => x.device));
+  const options: FilterOptions = {
+    series: report.series.filter((s) => s.cohorts.some((c) => c.day >= span.from && c.day <= span.to && c.opened + c.unseen > 0) || s.drama_id === filter.series).map((s) => ({ slug: s.slug, title: s.title })),
+    devices: DEVICE_ORDER.filter((d) => devicesSeen.has(d) || d === filter.device),
+    sources: [
+      { key: "ads", label: t(locale, "cdd.filter.ads") },
+      ...sources.map((s) => ({ key: s.key, label: campaignLabel(s.key, s.name) })),
+      { key: "stored_copy", label: t(locale, "cds.ads.storedCopy") },
+      { key: "no_ad", label: t(locale, "cds.ads.noAd") },
+    ],
+  };
+  const seriesSlug = filter.series ? (titleOf.get(filter.series)?.slug ?? null) : null;
+  const showing = [
+    filter.series ? titleOf.get(filter.series)?.title : null,
+    filter.device ? t(locale, `cds.dev.${filter.device}`) : null,
+    filter.source ? (options.sources.find((s) => s.key === filter.source)?.label ?? filter.source) : null,
+  ].filter(Boolean);
+
+  // By ad follows the filters: its people are the filtered rows. Spend is per ad, not per phone, so with a
+  // phone picked the costs would divide one ad's whole spend by one phone's people: hidden then.
+  const adReport = { ...report, sources: dashRows(report, { from: report.from, to: report.to }, filter) };
   const adPeriod = await readAdPeriod(report, range, runs, searchParams.fresh === "1");
-  const unseen = rows.filter((r) => !(r.opened > 0 || r.revenue_cents > 0));
-  const robotVisits = rows.reduce((a, r) => a + r.robots, 0);
-  // The two one-tap questions, every series together (each series' page has its own).
-  const survey = { ep1Shown: 0, ep1: {} as Record<string, number>, paywallShown: 0, paywall: {} as Record<string, number> };
-  for (const r of rows) {
-    survey.ep1Shown += r.survey_ep1_shown;
-    survey.paywallShown += r.survey_paywall_shown;
-    for (const [k, n] of Object.entries(r.survey_ep1)) survey.ep1[k] = (survey.ep1[k] ?? 0) + n;
-    for (const [k, n] of Object.entries(r.survey_paywall)) survey.paywall[k] = (survey.paywall[k] ?? 0) + n;
-  }
+  // Only the picked source's ads carry spend (an ad that brought nobody still shows what it spent).
+  const adSpends = filter.device
+    ? []
+    : !filter.source || filter.source === "ads"
+      ? spends
+      : filter.source.startsWith("campaign:")
+        ? spends.filter((sp) => sp.campaign_id === filter.source!.slice(9))
+        : [];
+  const campaigns = campaignTable(adReport, adSpends, filter.series ?? undefined, adPeriod);
+
+  const aud = audience(report, range);
+  const out = notCounted(report, span);
   const today = aud.today;
 
   return (
     <>
       {head}
+      <FilterBar range={range} value={{ series: seriesSlug, device: filter.device, source: filter.source }} options={options} />
       <ReadLine read={read} span={span} refreshHref={`${hrefFor(range)}&fresh=1`} locale={locale} />
+      {showing.length > 0 && <p className="cdd-showing">{t(locale, "cdd.filter.showing", { what: showing.join(" · ") })}</p>}
+
+      <section className="rs-panel cds-section" aria-labelledby="cdd-glance-h">
+        <div className="rs-panel-head">
+          <div>
+            <h2 id="cdd-glance-h">{t(locale, "cdd.glance.title")}</h2>
+            <p>{t(locale, "cdd.glance.sub")}</p>
+          </div>
+        </div>
+        <div className="rs-panel-body">
+          <div className="cds-tiles">
+            <Tile label={t(locale, "cdd.glance.landed")} value={n0(totals.opened + totals.unseen)} note={t(locale, "cdd.glance.landedNote", { n: n0(totals.unseen) })} />
+            <Tile hero label={t(locale, "cdd.glance.seen")} value={n0(totals.opened)} />
+            <Tile label={t(locale, "cdd.glance.played")} value={n0(totals.started_ep1)} note={t(locale, "cdd.glance.of", { share: fmtShare(share(totals.started_ep1, totals.opened)) })} />
+            <Tile label={t(locale, "cdd.glance.finished")} value={n0(totals.finished_ep1)} note={t(locale, "cdd.glance.of", { share: fmtShare(share(totals.finished_ep1, totals.opened)) })} />
+            <Tile label={t(locale, "cdd.glance.ep2")} value={n0(totals.watched_ep2)} note={t(locale, "cdd.glance.of", { share: fmtShare(share(totals.watched_ep2, totals.opened)) })} />
+            <Tile label={t(locale, "cdd.glance.paid")} value={n0(totals.buyers)} note={t(locale, "cdd.glance.paidNote", { revenue: fmtUsdCents(totals.revenue_cents) })} />
+          </div>
+        </div>
+      </section>
+
+      <section className="rs-panel cds-section" aria-labelledby="cdd-path-h" id="path">
+        <div className="rs-panel-head">
+          <div>
+            <h2 id="cdd-path-h">{t(locale, "cdd.path.title")}</h2>
+            <p>{t(locale, "cdd.path.sub")}</p>
+          </div>
+        </div>
+        <div className="rs-panel-body">
+          <PathView totals={totals} locale={locale} />
+        </div>
+      </section>
+
+      <section className="rs-panel cds-section" aria-labelledby="cdd-before-h" id="before">
+        <div className="rs-panel-head">
+          <div>
+            <h2 id="cdd-before-h">{t(locale, "cdd.before.title")}</h2>
+            <p>{t(locale, "cdd.before.sub")}</p>
+          </div>
+        </div>
+        <div className="rs-panel-body">
+          <BeforeStart totals={totals} locale={locale} />
+          <div className="cdd-hists">
+            <HistView title={t(locale, "cdd.hist.load")} hist={totals.load_hist} edges={edges} locale={locale} />
+            <HistView title={t(locale, "cdd.hist.start")} hist={totals.start_hist} edges={edges} locale={locale} />
+            <HistView title={t(locale, "cdd.hist.wait")} hist={totals.wait_hist} edges={edges} locale={locale} />
+          </div>
+        </div>
+      </section>
+
+      <section className="rs-panel cds-section" aria-labelledby="cdd-phone-h" id="phones">
+        <div className="rs-panel-head">
+          <div>
+            <h2 id="cdd-phone-h">{t(locale, "cdd.phone.title")}</h2>
+            <p>{t(locale, "cdd.phone.sub")}</p>
+          </div>
+        </div>
+        <div className="rs-panel-body">
+          <BreakdownTable rows={phones} caption={t(locale, "cdd.phone.title")} edges={edges} locale={locale} />
+        </div>
+      </section>
+
+      <section className="rs-panel cds-section" aria-labelledby="cds-series-h" id="series">
+        <div className="rs-panel-head">
+          <div>
+            <h2 id="cds-series-h">{t(locale, "cdd.series.title")}</h2>
+            <p>{t(locale, "cdd.series.sub")}</p>
+          </div>
+        </div>
+        <div className="rs-panel-body">
+          <BreakdownTable rows={seriesRows} caption={t(locale, "cdd.series.title")} edges={edges} revenue locale={locale} />
+        </div>
+      </section>
+
+      <section className="rs-panel cds-section" aria-labelledby="cds-ads-h" id="ads">
+        <div className="rs-panel-head">
+          <div>
+            <h2 id="cds-ads-h">{t(locale, "cds.ads.title")}</h2>
+            <p>{t(locale, adPeriod ? "cds.ads.subPeriod" : "cds.ads.sub")}</p>
+          </div>
+        </div>
+        <div className="rs-panel-body">
+          {adPeriod?.days && !adPeriod.days.ok && <p className="note note-warn">{t(locale, "cds.ads.daysFailed", { error: adPeriod.days.error })}</p>}
+          {filter.device && <p className="note">{t(locale, "cdd.ads.byPhoneNote")}</p>}
+          <CampaignTable rows={campaigns} caption={t(locale, "cds.ads.title")} />
+          <p className="cds-foot">{t(locale, "cds.ads.foot")}</p>
+        </div>
+      </section>
+
+      <section className="rs-panel cds-section" aria-labelledby="cds-why-all-h" id="why">
+        <div className="rs-panel-head">
+          <div>
+            <h2 id="cds-why-all-h">{t(locale, "cdd.why.title")}</h2>
+            <p>{t(locale, "cdd.why.sub")}</p>
+          </div>
+        </div>
+        <div className="rs-panel-body cds-surveys">
+          <SurveyView kind="ep1_stop" shown={totals.survey_ep1_shown} answers={totals.survey_ep1} locale={locale} />
+          <SurveyView kind="paywall_close" shown={totals.survey_paywall_shown} answers={totals.survey_paywall} locale={locale} />
+        </div>
+      </section>
 
       <section className="rs-panel cds-section" aria-labelledby="cds-aud-h">
         <div className="rs-panel-head">
           <div>
-            <h2 id="cds-aud-h">{t(locale, "cds.aud.title")}</h2>
+            <h2 id="cds-aud-h">{t(locale, "cdd.site.audience")}</h2>
             <p>{t(locale, "cds.aud.sub")}</p>
           </div>
         </div>
@@ -107,7 +280,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
       <section className="rs-panel cds-section" aria-labelledby="cds-money-h">
         <div className="rs-panel-head">
           <div>
-            <h2 id="cds-money-h">{t(locale, "cds.money.title")}</h2>
+            <h2 id="cds-money-h">{t(locale, "cdd.site.money")}</h2>
             <p>{t(locale, "cds.money.sub")}</p>
           </div>
         </div>
@@ -121,79 +294,23 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
         </div>
       </section>
 
-      <section className="rs-panel cds-section" aria-labelledby="cds-series-h">
+      <section className="rs-panel cds-section" aria-labelledby="cdd-out-h" id="not-counted">
         <div className="rs-panel-head">
           <div>
-            <h2 id="cds-series-h">{t(locale, "cds.series.title")}</h2>
-            <p>{t(locale, "cds.series.sub")}</p>
+            <h2 id="cdd-out-h">{t(locale, "cdd.out.title")}</h2>
+            <p>{t(locale, "cdd.out.sub")}</p>
           </div>
         </div>
         <div className="rs-panel-body">
-          <div className="an-scroll" tabIndex={0} role="region" aria-labelledby="cds-series-h">
-            <table className="an-table cds-table">
-              <thead>
-                <tr>
-                  <th scope="col">{t(locale, "cds.col.series")}</th>
-                  <th scope="col" className="gt-num">{t(locale, "cds.col.opened")}</th>
-                  <th scope="col" className="gt-num">{t(locale, "cds.col.playedEp1")}</th>
-                  <th scope="col" className="gt-num">{t(locale, "cds.col.finishedEp1")}</th>
-                  <th scope="col" className="gt-num">{t(locale, "cds.col.watchedEp", { n: 2 })}</th>
-                  <th scope="col" className="gt-num">{t(locale, "cds.col.watchedEp", { n: 3 })}</th>
-                  <th scope="col" className="gt-num">{t(locale, "cds.col.paywall")}</th>
-                  <th scope="col" className="gt-num">{t(locale, "cds.col.checkouts")}</th>
-                  <th scope="col" className="gt-num">{t(locale, "cds.col.buyers")}</th>
-                  <th scope="col" className="gt-num">{t(locale, "cds.col.revenue")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {seen.map((r: SeriesTotals) => (
-                  <tr key={r.drama_id}>
-                    <th scope="row" className="cds-title">
-                      <a href={`/crazydramas/stats/${encodeURIComponent(r.slug)}?range=${range}`}>{r.title}</a>
-                    </th>
-                    <td className="gt-num">{n0(r.opened)}</td>
-                    <Cell n={r.started_ep1} of={r.opened} />
-                    <Cell n={r.finished_ep1} of={r.opened} />
-                    <Cell n={r.episodes_watched[1] ?? 0} of={r.opened} />
-                    <Cell n={r.episodes_watched[2] ?? 0} of={r.opened} />
-                    <Cell n={r.paywall} of={r.opened} />
-                    <Cell n={r.checkouts} of={r.opened} />
-                    <Cell n={r.buyers} of={r.opened} />
-                    <td className="gt-num">{fmtUsdCents(r.revenue_cents)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="cds-tiles">
+            <Tile
+              label={t(locale, "cdd.out.robots")}
+              value={n0(out.robots)}
+              note={t(locale, "cdd.out.robotsNote", { crawler: n0(report.robots.crawler_ua), burst: n0(report.robots.burst), end: n0(report.robots.end_jump), link: n0(report.robots.link_check) })}
+            />
+            <Tile label={t(locale, "cdd.out.unseen")} value={n0(out.unseen)} note={t(locale, "cdd.out.unseenNote")} />
+            <Tile label={t(locale, "cdd.out.browsed")} value={n0(out.browsed)} note={t(locale, "cdd.out.browsedNote")} />
           </div>
-          {unseen.length > 0 && <p className="cds-foot">{t(locale, "cds.series.none", { titles: unseen.map((r) => r.title).join(" · ") })}</p>}
-          <p className="cds-foot">{t(locale, "cds.series.robots", { n: n0(robotVisits) })}</p>
-        </div>
-      </section>
-
-      <section className="rs-panel cds-section" aria-labelledby="cds-why-all-h" id="why">
-        <div className="rs-panel-head">
-          <div>
-            <h2 id="cds-why-all-h">{t(locale, "cds.survey.allTitle")}</h2>
-            <p>{t(locale, "cds.survey.allSub")}</p>
-          </div>
-        </div>
-        <div className="rs-panel-body cds-surveys">
-          <SurveyView kind="ep1_stop" shown={survey.ep1Shown} answers={survey.ep1} locale={locale} />
-          <SurveyView kind="paywall_close" shown={survey.paywallShown} answers={survey.paywall} locale={locale} />
-        </div>
-      </section>
-
-      <section className="rs-panel cds-section" aria-labelledby="cds-ads-h" id="ads">
-        <div className="rs-panel-head">
-          <div>
-            <h2 id="cds-ads-h">{t(locale, "cds.ads.title")}</h2>
-            <p>{t(locale, adPeriod ? "cds.ads.subPeriod" : "cds.ads.sub")}</p>
-          </div>
-        </div>
-        <div className="rs-panel-body">
-          {adPeriod?.days && !adPeriod.days.ok && <p className="note note-warn">{t(locale, "cds.ads.daysFailed", { error: adPeriod.days.error })}</p>}
-          <CampaignTable rows={campaignTable(report, adSpendsFromRuns(runs), undefined, adPeriod)} caption={t(locale, "cds.ads.title")} />
-          <p className="cds-foot">{t(locale, "cds.ads.foot")}</p>
         </div>
       </section>
 

@@ -1,55 +1,11 @@
-import { fmtShare, share, SURVEY_ANSWERS, type DeviceRow } from "@/lib/crazydramas/stats-summary";
+import { fmtShare, share, SURVEY_ANSWERS } from "@/lib/crazydramas/stats-summary";
 import { t, type Locale } from "@/lib/i18n";
 
-// The CrazyDramas stats tables that say who the people were and why they
-// stopped: the kinds of phone and the one-tap answers (every ad, by campaign,
-// is CampaignTable.tsx). Server components; numbers right-aligned, a share
-// under a count only when there is a count.
+// The one-tap answers on the CrazyDramas stats pages (the kinds of phone are
+// Dash.tsx's BreakdownTable; every ad, by campaign, is CampaignTable.tsx).
+// Server components.
 
 const n0 = (v: number) => v.toLocaleString("en-US");
-
-function Cell({ n, of }: { n: number; of: number }) {
-  return (
-    <td className="gt-num">
-      {n0(n)}
-      {n > 0 && of > 0 && <span className="cds-sub">{fmtShare(share(n, of))}</span>}
-    </td>
-  );
-}
-
-export function DeviceTableView({ rows, locale }: { rows: DeviceRow[]; locale: Locale }) {
-  if (!rows.length) return null;
-  const caption = t(locale, "cds.dev.caption");
-  return (
-    <div className="an-scroll" tabIndex={0} role="region" aria-label={caption}>
-      <table className="an-table cds-table">
-        <caption className="sr-only">{caption}</caption>
-        <thead>
-          <tr>
-            <th scope="col">{t(locale, "cds.dev.col.kind")}</th>
-            <th scope="col" className="gt-num">{t(locale, "cds.col.opened")}</th>
-            <th scope="col" className="gt-num">{t(locale, "cds.dev.col.noEvents")}</th>
-            <th scope="col" className="gt-num">{t(locale, "cds.dev.col.neverStarted")}</th>
-            <th scope="col" className="gt-num">{t(locale, "cds.col.playedEp1")}</th>
-            <th scope="col" className="gt-num">{t(locale, "cds.col.finishedEp1")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((d) => (
-            <tr key={d.device}>
-              <th scope="row">{t(locale, `cds.dev.${d.device}`)}</th>
-              <td className="gt-num">{n0(d.opened)}</td>
-              <Cell n={d.no_events} of={d.opened} />
-              <Cell n={d.never_started} of={d.opened} />
-              <Cell n={d.started_ep1} of={d.opened} />
-              <Cell n={d.finished_ep1} of={d.opened} />
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
 
 /** One question's answers as bars, most-answered first, with how many saw it. */
 export function SurveyView({ kind, shown, answers, locale }: { kind: keyof typeof SURVEY_ANSWERS; shown: number; answers: Record<string, number>; locale: Locale }) {
