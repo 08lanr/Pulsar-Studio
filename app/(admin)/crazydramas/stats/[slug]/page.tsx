@@ -2,10 +2,11 @@ import "@/app/crazydramas-stats.css";
 import { adminLocale, staffSession } from "@/components/admin/server";
 import { Definitions, RangeTabs, ReadFailure, ReadLine } from "@/components/admin/cd-stats/Bits";
 import { EpisodeChart, Ep1Chart } from "@/components/admin/cd-stats/Charts";
-import { AdTableView, DeviceTableView, SurveyView } from "@/components/admin/cd-stats/Tables";
+import CampaignTable from "@/components/admin/cd-stats/CampaignTable";
+import { DeviceTableView, SurveyView } from "@/components/admin/cd-stats/Tables";
 import { crazydramasPublicUrl } from "@/lib/crazydramas";
 import { readCrazydramasStats } from "@/lib/crazydramas/stats";
-import { adSpendsFromRuns, adTable, deviceTable, ep1Curve, episodeBars, fmtClock, fmtShare, fmtUsdCents, parseStatsRange, rangeDays, seriesTotals, share } from "@/lib/crazydramas/stats-summary";
+import { adSpendsFromRuns, campaignTable, deviceTable, ep1Curve, episodeBars, fmtClock, fmtShare, fmtUsdCents, parseStatsRange, rangeDays, seriesTotals, share } from "@/lib/crazydramas/stats-summary";
 import { getData } from "@/lib/data";
 import { t } from "@/lib/i18n";
 
@@ -221,7 +222,7 @@ export default async function CrazydramasSeriesStatsPage({ params, searchParams 
               </div>
             </div>
             <div className="rs-panel-body">
-              <AdTableView rows={adTable(read.report, adSpendsFromRuns(runs), series.drama_id)} locale={locale} caption={t(locale, "cds.src.title")} />
+              <CampaignTable rows={campaignTable(read.report, adSpendsFromRuns(runs), series.drama_id)} showTitle={false} caption={t(locale, "cds.src.title")} />
             </div>
           </section>
         </>

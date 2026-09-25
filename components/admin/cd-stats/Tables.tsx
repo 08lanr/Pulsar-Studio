@@ -1,13 +1,12 @@
-import { fmtShare, fmtUsdCents, share, SURVEY_ANSWERS, type AdRow, type DeviceRow } from "@/lib/crazydramas/stats-summary";
+import { fmtShare, share, SURVEY_ANSWERS, type DeviceRow } from "@/lib/crazydramas/stats-summary";
 import { t, type Locale } from "@/lib/i18n";
 
-// The CrazyDramas stats tables that say where people came from and why they
-// stopped: every ad with what it cost and what it brought, the kinds of phone,
-// and the one-tap answers. Server components; numbers right-aligned, a share
+// The CrazyDramas stats tables that say who the people were and why they
+// stopped: the kinds of phone and the one-tap answers (every ad, by campaign,
+// is CampaignTable.tsx). Server components; numbers right-aligned, a share
 // under a count only when there is a count.
 
 const n0 = (v: number) => v.toLocaleString("en-US");
-const cents = (v: number | null) => (v == null ? "–" : v < 100 ? `${v}¢` : fmtUsdCents(v));
 
 function Cell({ n, of }: { n: number; of: number }) {
   return (
@@ -15,76 +14,6 @@ function Cell({ n, of }: { n: number; of: number }) {
       {n0(n)}
       {n > 0 && of > 0 && <span className="cds-sub">{fmtShare(share(n, of))}</span>}
     </td>
-  );
-}
-
-/** The ad whose episode 1 finishers cost least, among ads with at least 3 of them: the one to feed. */
-export function bestAdKey(rows: AdRow[]): string | null {
-  const ranked = rows.filter((r) => r.kind === "ad" && r.cost_per_finisher_cents != null && r.finished_ep1 >= 3).sort((a, b) => a.cost_per_finisher_cents! - b.cost_per_finisher_cents!);
-  return ranked.length > 1 ? ranked[0].key : null;
-}
-
-function AdName({ row, locale }: { row: AdRow; locale: Locale }) {
-  if (row.kind === "stored_copy") return <><strong>{t(locale, "cds.ads.storedCopy")}</strong><span className="cds-sub">{t(locale, "cds.ads.storedCopySub")}</span></>;
-  if (row.kind === "no_ad") return <><strong>{t(locale, "cds.ads.noAd")}</strong><span className="cds-sub">{t(locale, "cds.ads.noAdSub")}</span></>;
-  return (
-    <>
-      <strong>{row.spend ? row.spend.launch_name : t(locale, "cds.ads.notStudio")}</strong>
-      <span className="cds-sub">
-        {row.spend ? `${row.spend.campaign_name} · ` : ""}
-        {t(locale, "cds.ads.adId", { id: row.ad ?? "–" })}
-      </span>
-    </>
-  );
-}
-
-export function AdTableView({ rows, locale, caption }: { rows: AdRow[]; locale: Locale; caption: string }) {
-  if (!rows.length) return <p className="rs-empty">{t(locale, "cds.ads.none")}</p>;
-  const best = bestAdKey(rows);
-  return (
-    <div className="an-scroll" tabIndex={0} role="region" aria-label={caption}>
-      <table className="an-table cds-table cds-ads">
-        <caption className="sr-only">{caption}</caption>
-        <thead>
-          <tr>
-            <th scope="col">{t(locale, "cds.ads.col.ad")}</th>
-            <th scope="col" className="gt-num">{t(locale, "cds.ads.col.spend")}</th>
-            <th scope="col" className="gt-num">{t(locale, "cds.ads.col.clicks")}</th>
-            <th scope="col" className="gt-num">{t(locale, "cds.ads.col.people")}</th>
-            <th scope="col" className="gt-num">{t(locale, "cds.col.playedEp1")}</th>
-            <th scope="col" className="gt-num">{t(locale, "cds.col.finishedEp1")}</th>
-            <th scope="col" className="gt-num">{t(locale, "cds.col.watchedEp", { n: 2 })}</th>
-            <th scope="col" className="gt-num">{t(locale, "cds.col.buyers")}</th>
-            <th scope="col" className="gt-num">{t(locale, "cds.ads.col.perPerson")}</th>
-            <th scope="col" className="gt-num">{t(locale, "cds.ads.col.perFinisher")}</th>
-            <th scope="col" className="gt-num">{t(locale, "cds.ads.col.perEp2")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.key} className={r.key === best ? "cds-best" : undefined}>
-              <th scope="row" className="cds-title">
-                <AdName row={r} locale={locale} />
-                {r.key === best && <span className="cds-badge">{t(locale, "cds.ads.best")}</span>}
-              </th>
-              <td className="gt-num">{r.spend?.spend_cents != null ? fmtUsdCents(r.spend.spend_cents) : "–"}</td>
-              <td className="gt-num">{r.spend?.clicks != null ? n0(r.spend.clicks) : "–"}</td>
-              <td className="gt-num">
-                {n0(r.opened)}
-                {r.spend?.clicks ? <span className="cds-sub">{t(locale, "cds.ads.ofClicks", { share: fmtShare(share(r.opened, r.spend.clicks)) })}</span> : null}
-              </td>
-              <Cell n={r.started_ep1} of={r.opened} />
-              <Cell n={r.finished_ep1} of={r.opened} />
-              <Cell n={r.watched_ep2} of={r.opened} />
-              <Cell n={r.buyers} of={r.opened} />
-              <td className="gt-num">{cents(r.cost_per_person_cents)}</td>
-              <td className="gt-num"><strong>{cents(r.cost_per_finisher_cents)}</strong></td>
-              <td className="gt-num">{cents(r.cost_per_ep2_cents)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
   );
 }
 

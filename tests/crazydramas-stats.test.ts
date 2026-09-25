@@ -13,7 +13,7 @@ import { fakeStatsReport } from "@/lib/crazydramas/fake-stats";
 import { STATS_CACHE_MS, clearCdStatsCache, readCrazydramasStats } from "@/lib/crazydramas/stats";
 import { rm } from "node:fs/promises";
 import path from "node:path";
-import { adOutcomes, adSpendsFromRuns, adTable, audience, deviceTable, ep1Curve, episodeBars, fmtClock, fmtShare, parseStatsRange, rangeDays, seriesTable, seriesTotals } from "@/lib/crazydramas/stats-summary";
+import { adOutcomes, adSpendsFromRuns, adTable, audience, CAMPAIGN_SORTS, campaignTable, deviceTable, sortCampaigns, ep1Curve, episodeBars, fmtClock, fmtShare, parseStatsRange, rangeDays, seriesTable, seriesTotals } from "@/lib/crazydramas/stats-summary";
 import { normalizeTeamEmails, readTeamList, saveTeamList, TEAM_FILE } from "@/lib/crazydramas/stats-team";
 import { CdStatsReportSchema, type CdStatsReport } from "@/lib/crazydramas/stats-types";
 import type { LaunchRun } from "@/lib/launch/types";
@@ -294,6 +294,57 @@ test("the team list: normalized, refused whole when an entry is not an email, sa
   } finally {
     await rm(file, { force: true });
   }
+});
+
+function launchRuns(): LaunchRun[] {
+  return [
+    {
+      external_id: "lr_1",
+      created_at: "2026-09-24T06:38:00Z",
+      draft: { name: "CrazyDramas · Sep 23" },
+      campaigns: [
+        {
+          name: "0924test01",
+          state: { campaign_id: "c1" },
+          snapshot: {
+            ads: [
+              { id: "111", status: "ok", stats: { spend_cents: 800, impressions: 5000, clicks: 100, ctr: 0.02, cpc_cents: 8, conversions: 0 } },
+              { id: "222", status: "ok", stats: { spend_cents: 300, impressions: 2000, clicks: 50, ctr: 0.025, cpc_cents: 6, conversions: 0 } },
+              { id: "333", status: "ok", stats: { spend_cents: 120, impressions: 900, clicks: 9, ctr: 0.01, cpc_cents: 13, conversions: 0 } },
+            ],
+          },
+        },
+      ],
+    },
+  ] as unknown as LaunchRun[];
+}
+
+test("ads grouped by campaign: summed numbers, costs from the sums, the titles people opened", () => {
+  const groups = campaignTable(report(), adSpendsFromRuns(launchRuns()));
+  assert.deepEqual(groups.map((g) => g.key), ["campaign:c1", "stored_copy", "no_ad"]);
+  const c = groups[0];
+  assert.equal(c.launch_name, "CrazyDramas · Sep 23");
+  assert.equal(c.campaign_name, "0924test01");
+  assert.equal(c.launched_at, "2026-09-24T06:38:00Z");
+  assert.deepEqual(c.ads.map((a) => a.ad), ["111", "222", "333"], "most spent first");
+  assert.equal(c.spend_cents, 1220);
+  assert.equal(c.clicks, 159);
+  assert.equal(c.opened, 120);
+  assert.equal(c.finished_ep1, 19);
+  assert.equal(c.cost_per_finisher_cents, 64);
+  assert.deepEqual(c.titles, [{ drama_id: "a", title: "Alpha", people: 120 }]);
+  assert.deepEqual(c.ads[0].titles, [{ drama_id: "a", title: "Alpha", people: 80 }]);
+  assert.deepEqual(groups[2].titles, [{ drama_id: "b", title: "Beta", people: 3 }]);
+  assert.deepEqual(campaignTable(report(), adSpendsFromRuns(launchRuns()), "b").map((g) => g.key), ["no_ad"], "one series");
+});
+
+test("one sort for campaigns and their ads; no cost sorts last; the stored copy and no ad stay at the bottom", () => {
+  const groups = campaignTable(report(), adSpendsFromRuns(launchRuns()));
+  const ads = (by: Parameters<typeof sortCampaigns>[1]) => sortCampaigns(groups, by)[0].ads.map((a) => a.ad);
+  assert.deepEqual(ads("per_finisher"), ["111", "222", "333"], "50¢, 100¢, then the one with no finisher");
+  assert.deepEqual(ads("people"), ["111", "222", "333"]);
+  assert.deepEqual(ads("per_ep2"), ["111", "222", "333"]);
+  for (const by of CAMPAIGN_SORTS) assert.deepEqual(sortCampaigns(groups, by).slice(-2).map((g) => g.key), ["stored_copy", "no_ad"], by);
 });
 
 test("every ad over its life, joined to Studio's launches: costs per person, finisher and episode 2 watcher", () => {

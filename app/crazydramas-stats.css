@@ -65,6 +65,21 @@
 .cds-table tr.cds-best th, .cds-table tr.cds-best td { background: var(--success-bg); }
 .cds-badge { display: inline-block; margin-top: 4px; padding: 1px 8px; border-radius: 999px; background: var(--success); color: var(--surface); font-size: 11px; font-weight: var(--w-strong); }
 .cds-says-top { margin: 0 0 12px; }
+.cds-ads-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin: 0 0 10px; }
+.cds-sort { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); }
+.cds-sort select { width: auto; min-width: 250px; padding-top: 6px; padding-bottom: 6px; }
+.cds-toggle { display: flex; align-items: flex-start; gap: 8px; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.cds-toggle:hover strong { color: var(--brand); }
+.cds-toggle:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 4px; }
+.cds-caret { width: 12px; color: var(--text-faint); line-height: 1.4; }
+.cds-table tr.cds-camp > th, .cds-table tr.cds-camp > td { background: var(--surface-2); }
+.cds-table tr.cds-camp-other > th, .cds-table tr.cds-camp-other > td { background: transparent; }
+.cds-table tr.cds-ad-row > th.cds-ad-name { padding-left: 30px; }
+.cds-table tr.cds-ad-row > th.cds-ad-name strong { font-weight: var(--w-body); color: var(--text-muted); }
+.cds-table td.cds-title-cell { white-space: normal; min-width: 130px; max-width: 170px; }
+.cds-ads th.cds-title { min-width: 170px; max-width: 230px; }
+.cds-ads th, .cds-ads td { padding-left: 8px; padding-right: 8px; }
+.cds-best-hint { font-size: 12.5px; color: var(--success); background: var(--success-bg); }
 
 /* The one-tap questions: the two side by side on a wide screen. */
 .cds-surveys { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px 28px; }

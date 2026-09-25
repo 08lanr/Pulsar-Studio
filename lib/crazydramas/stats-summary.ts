@@ -293,9 +293,12 @@ export type AdSpend = {
   spend_cents: number | null;
   impressions: number | null;
   clicks: number | null;
+  /** TikTok's campaign id, from the launch record; the ad's campaign name and the launch it belongs to. */
+  campaign_id: string | null;
   campaign_name: string;
   launch_name: string;
   run_id: string;
+  launched_at: string | null;
 };
 
 /** Every ad of every launch with its TikTok numbers (the launch records' latest sweep); an ad in two runs keeps the first seen. */
@@ -303,6 +306,7 @@ export function adSpendsFromRuns(runs: LaunchRun[]): AdSpend[] {
   const out = new Map<string, AdSpend>();
   for (const run of runs) {
     for (const c of run.campaigns ?? []) {
+      const campaignId = typeof c.state?.campaign_id === "string" ? c.state.campaign_id : null;
       for (const ad of c.snapshot?.ads ?? []) {
         if (!ad.id || out.has(ad.id)) continue;
         out.set(ad.id, {
@@ -310,9 +314,11 @@ export function adSpendsFromRuns(runs: LaunchRun[]): AdSpend[] {
           spend_cents: ad.stats?.spend_cents ?? null,
           impressions: ad.stats?.impressions ?? null,
           clicks: ad.stats?.clicks ?? null,
+          campaign_id: campaignId,
           campaign_name: c.name,
           launch_name: run.draft?.name ?? run.external_id,
           run_id: run.external_id,
+          launched_at: run.created_at ?? null,
         });
       }
     }
@@ -330,65 +336,190 @@ function addPath(into: PathCounts, row: PathCounts) {
   for (const k of PATH_KEYS) into[k] += row[k];
 }
 
-export type AdRow = PathCounts & {
-  key: string;
-  /** An ad with its id; TikTok's stored copy of the page (ids lost); or no ad at all (organic, direct). */
-  kind: "ad" | "stored_copy" | "no_ad";
-  platform: string;
-  campaign: string | null;
-  ad: string | null;
-  /** Studio's launch record for the ad, when Studio launched it. */
-  spend: AdSpend | null;
-  /** Spend ÷ people: each only when both are known and there is at least one person. */
+/** A series the people of an ad (or a campaign) opened, most people first: the title the ad was connected to. */
+export type AdTitle = { drama_id: string; title: string; people: number };
+
+/** What a row cost, and what that bought: TikTok's numbers (summed) and the cost per step. */
+type Costed = {
+  spend_cents: number | null;
+  clicks: number | null;
+  impressions: number | null;
   cost_per_person_cents: number | null;
   cost_per_finisher_cents: number | null;
   cost_per_ep2_cents: number | null;
 };
 
+export type AdRow = PathCounts &
+  Costed & {
+    key: string;
+    /** An ad with its id; TikTok's stored copy of the page (ids lost); or no ad at all (organic, direct). */
+    kind: "ad" | "stored_copy" | "no_ad";
+    platform: string;
+    campaign: string | null;
+    ad: string | null;
+    /** Studio's launch record for the ad, when Studio launched it. */
+    spend: AdSpend | null;
+    titles: AdTitle[];
+  };
+
 const per = (cents: number | null | undefined, n: number) => (cents != null && n > 0 ? Math.round(cents / n) : null);
+const withCosts = <T extends PathCounts & { spend_cents: number | null }>(r: T): T & Costed =>
+  ({ ...r, cost_per_person_cents: per(r.spend_cents, r.opened), cost_per_finisher_cents: per(r.spend_cents, r.finished_ep1), cost_per_ep2_cents: per(r.spend_cents, r.watched_ep2) }) as T & Costed;
+
+function addTitle(titles: Map<string, AdTitle>, dramaId: string, title: string, people: number) {
+  const t = titles.get(dramaId);
+  if (t) t.people += people;
+  else titles.set(dramaId, { drama_id: dramaId, title, people });
+}
+const titleList = (m: Map<string, AdTitle>) => [...m.values()].filter((t) => t.people > 0).sort((a, b) => b.people - a.people || a.title.localeCompare(b.title));
 
 /**
  * The people every ad brought, over each ad's whole life (spend is TikTok's total for the ad, so the
- * people are too), joined to Studio's launch records by TikTok's ad id; then TikTok's stored copy and
- * "no ad" as rows of their own. One series, or all. Ads with spend first, most spent first.
+ * people are too), joined to Studio's launch records by TikTok's ad id, with the titles its people
+ * opened; then TikTok's stored copy and "no ad" as rows of their own. One series, or all. Ads with
+ * spend first, most spent first.
  */
-export function adTable(report: Pick<CdStatsReport, "sources">, spends: AdSpend[], dramaId?: string): AdRow[] {
+export function adTable(report: Pick<CdStatsReport, "sources" | "series">, spends: AdSpend[], dramaId?: string): AdRow[] {
   const bySpend = new Map(spends.map((s) => [s.ad_id, s]));
-  const rows = new Map<string, AdRow>();
+  const titleOf = new Map(report.series.map((s) => [s.drama_id, s.title]));
+  const rows = new Map<string, AdRow & { titleMap: Map<string, AdTitle> }>();
+  const blank = (key: string, kind: AdRow["kind"], platform: string, campaign: string | null, ad: string | null, spend: AdSpend | null) => ({
+    key,
+    kind,
+    platform,
+    campaign,
+    ad,
+    spend,
+    spend_cents: spend?.spend_cents ?? null,
+    clicks: spend?.clicks ?? null,
+    impressions: spend?.impressions ?? null,
+    cost_per_person_cents: null,
+    cost_per_finisher_cents: null,
+    cost_per_ep2_cents: null,
+    titles: [],
+    titleMap: new Map<string, AdTitle>(),
+    ...emptyPath(),
+  });
   for (const src of report.sources) {
     if (dramaId && src.drama_id !== dramaId) continue;
     const kind: AdRow["kind"] = src.stored_copy ? "stored_copy" : src.ad ? "ad" : "no_ad";
     const key = kind === "ad" ? `ad:${src.ad}` : kind;
     let row = rows.get(key);
     if (!row) {
-      row = {
-        key,
-        kind,
-        platform: src.platform,
-        campaign: src.campaign,
-        ad: src.ad,
-        spend: kind === "ad" && src.ad ? (bySpend.get(src.ad) ?? null) : null,
-        cost_per_person_cents: null,
-        cost_per_finisher_cents: null,
-        cost_per_ep2_cents: null,
-        ...emptyPath(),
-      };
+      const spend = kind === "ad" && src.ad ? (bySpend.get(src.ad) ?? null) : null;
+      row = blank(key, kind, src.platform, src.campaign ?? spend?.campaign_id ?? null, src.ad, spend);
       rows.set(key, row);
     }
     addPath(row, src);
+    addTitle(row.titleMap, src.drama_id, titleOf.get(src.drama_id) ?? src.drama_id, src.opened);
   }
   // An ad Studio launched that brought nobody yet is still a row: its spend bought nothing.
   if (!dramaId) {
     for (const s of spends) {
       if ((s.spend_cents ?? 0) <= 0 || rows.has(`ad:${s.ad_id}`)) continue;
-      rows.set(`ad:${s.ad_id}`, { key: `ad:${s.ad_id}`, kind: "ad", platform: "tiktok", campaign: null, ad: s.ad_id, spend: s, cost_per_person_cents: null, cost_per_finisher_cents: null, cost_per_ep2_cents: null, ...emptyPath() });
+      rows.set(`ad:${s.ad_id}`, blank(`ad:${s.ad_id}`, "ad", "tiktok", s.campaign_id, s.ad_id, s));
     }
   }
   const order = { ad: 0, stored_copy: 1, no_ad: 2 } as const;
   return [...rows.values()]
-    .filter((r) => r.opened > 0 || (r.spend?.spend_cents ?? 0) > 0)
-    .map((r) => ({ ...r, cost_per_person_cents: per(r.spend?.spend_cents, r.opened), cost_per_finisher_cents: per(r.spend?.spend_cents, r.finished_ep1), cost_per_ep2_cents: per(r.spend?.spend_cents, r.watched_ep2) }))
-    .sort((a, b) => order[a.kind] - order[b.kind] || (b.spend?.spend_cents ?? -1) - (a.spend?.spend_cents ?? -1) || b.opened - a.opened);
+    .filter((r) => r.opened > 0 || (r.spend_cents ?? 0) > 0)
+    .map(({ titleMap, ...r }) => withCosts({ ...r, titles: titleList(titleMap) }))
+    .sort((a, b) => order[a.kind] - order[b.kind] || (b.spend_cents ?? -1) - (a.spend_cents ?? -1) || b.opened - a.opened);
+}
+
+/** A campaign with its ads under it: the ads' numbers summed (spend only over ads TikTok reported), and the costs recomputed from the sums. */
+export type CampaignRow = PathCounts &
+  Costed & {
+    key: string;
+    /** A TikTok campaign; TikTok's stored copy (which ad unknown); or no ad at all. */
+    kind: "campaign" | "stored_copy" | "no_ad";
+    campaign_id: string | null;
+    /** Studio's names for it, when Studio launched it: the launch and its campaign. */
+    launch_name: string | null;
+    campaign_name: string | null;
+    launched_at: string | null;
+    titles: AdTitle[];
+    ads: AdRow[];
+  };
+
+/** The ads grouped by campaign (TikTok's campaign id), the stored copy and "no ad" as groups of their own. */
+export function campaignTable(report: Pick<CdStatsReport, "sources" | "series">, spends: AdSpend[], dramaId?: string): CampaignRow[] {
+  const groups = new Map<string, CampaignRow & { titleMap: Map<string, AdTitle> }>();
+  for (const ad of adTable(report, spends, dramaId)) {
+    const kind: CampaignRow["kind"] = ad.kind === "ad" ? "campaign" : ad.kind;
+    const key = kind === "campaign" ? `campaign:${ad.campaign ?? "unknown"}` : kind;
+    let g = groups.get(key);
+    if (!g) {
+      g = {
+        key,
+        kind,
+        campaign_id: kind === "campaign" ? ad.campaign : null,
+        launch_name: ad.spend?.launch_name ?? null,
+        campaign_name: ad.spend?.campaign_name ?? null,
+        launched_at: ad.spend?.launched_at ?? null,
+        spend_cents: null,
+        clicks: null,
+        impressions: null,
+        cost_per_person_cents: null,
+        cost_per_finisher_cents: null,
+        cost_per_ep2_cents: null,
+        titles: [],
+        titleMap: new Map(),
+        ads: [],
+        ...emptyPath(),
+      };
+      groups.set(key, g);
+    }
+    g.ads.push(ad);
+    addPath(g, ad);
+    for (const t of ad.titles) addTitle(g.titleMap, t.drama_id, t.title, t.people);
+    if (ad.spend_cents != null) g.spend_cents = (g.spend_cents ?? 0) + ad.spend_cents;
+    if (ad.clicks != null) g.clicks = (g.clicks ?? 0) + ad.clicks;
+    if (ad.impressions != null) g.impressions = (g.impressions ?? 0) + ad.impressions;
+    g.launch_name ??= ad.spend?.launch_name ?? null;
+    g.campaign_name ??= ad.spend?.campaign_name ?? null;
+    g.launched_at ??= ad.spend?.launched_at ?? null;
+  }
+  return sortCampaigns(
+    [...groups.values()].map(({ titleMap, ...g }) => withCosts({ ...g, titles: titleList(titleMap) })),
+    "spend",
+  );
+}
+
+export const CAMPAIGN_SORTS = ["spend", "people", "per_finisher", "per_ep2", "finished", "ep2", "newest"] as const;
+export type CampaignSort = (typeof CAMPAIGN_SORTS)[number];
+
+/**
+ * Campaigns, and the ads inside each, in the chosen order: most spent, most people, cheapest episode 1
+ * finisher or episode 2 watcher (rows with no cost last), most finishers or episode 2 watchers, newest
+ * launch. TikTok's stored copy and "no ad" always come last.
+ */
+export function sortCampaigns(rows: CampaignRow[], by: CampaignSort): CampaignRow[] {
+  const cheap = (v: number | null) => (v == null ? Number.POSITIVE_INFINITY : v);
+  const cmp = (a: AdRow | CampaignRow, b: AdRow | CampaignRow): number => {
+    switch (by) {
+      case "people":
+        return b.opened - a.opened;
+      case "per_finisher":
+        return cheap(a.cost_per_finisher_cents) - cheap(b.cost_per_finisher_cents) || b.finished_ep1 - a.finished_ep1;
+      case "per_ep2":
+        return cheap(a.cost_per_ep2_cents) - cheap(b.cost_per_ep2_cents) || b.watched_ep2 - a.watched_ep2;
+      case "finished":
+        return b.finished_ep1 - a.finished_ep1;
+      case "ep2":
+        return b.watched_ep2 - a.watched_ep2;
+      case "newest": {
+        const at = (r: AdRow | CampaignRow) => ("launched_at" in r ? r.launched_at : r.spend?.launched_at) ?? "";
+        return at(b).localeCompare(at(a));
+      }
+      default:
+        return (b.spend_cents ?? -1) - (a.spend_cents ?? -1);
+    }
+  };
+  const last = { campaign: 0, stored_copy: 1, no_ad: 2 } as const;
+  return rows
+    .map((r) => ({ ...r, ads: [...r.ads].sort((a, b) => cmp(a, b) || b.opened - a.opened) }))
+    .sort((a, b) => last[a.kind] - last[b.kind] || cmp(a, b) || b.opened - a.opened);
 }
 
 /** What each ad brought on CrazyDramas over its life, by TikTok's ad id (the Monitor's line under each ad). */
