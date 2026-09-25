@@ -147,12 +147,24 @@ test("staff posts a clip to Facebook from Clips and launches it by name", async 
   await expect(confirm).toBeHidden();
 });
 
-test("the staff rail reads Clips · Launch · Monitor · Connections, and Connections carries Meta", async ({ page }) => {
+test("the staff rail reads Films · CrazyDramas · Ads · Settings, and Connections carries Meta", async ({ page }) => {
   await signInAsStaff(page);
   await page.goto("/clips");
   const rail = page.locator("aside.sidebar nav");
-  await expect(rail.locator("a")).toHaveText(["Clips", "Launch", "Monitor", "Connections", "Earlier campaigns", "Titles", "CrazyDramas", "Import films", "Segment a film", "Producers"]);
-  await expect(rail.getByRole("link", { name: "Connections", exact: true })).toHaveAttribute("href", "/tiktok");
+  // Four groups, each with its quiet heading (components/Nav.tsx, decision 2026-09-24).
+  const groups = [
+    ["Films", ["Titles", "Import films", "Segment a film"]],
+    ["CrazyDramas", ["Series", "Stats"]],
+    ["Ads", ["Clips", "Launch", "Monitor", "Earlier campaigns"]],
+    ["Settings", ["Connections", "Producers"]],
+  ] as const;
+  await expect(rail.locator(".side-group-label")).toHaveText(groups.map(([label]) => label));
+  await expect(rail.locator("a")).toHaveText(groups.flatMap(([, links]) => links));
+  for (const [label, links] of groups) {
+    await expect(rail.getByRole("group", { name: label, exact: true }).locator("a")).toHaveText([...links]);
+  }
+  await expect(rail.getByRole("link", { name: "Clips", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(rail.getByRole("group", { name: "Settings", exact: true }).getByRole("link", { name: "Connections", exact: true })).toHaveAttribute("href", "/tiktok");
   await expect(page.locator(".apphead-title")).toHaveText("Clips");
 
   // One Connections entry covers both providers; /meta keeps working on its own.
