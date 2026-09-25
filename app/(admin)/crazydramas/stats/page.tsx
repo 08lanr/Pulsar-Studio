@@ -5,7 +5,7 @@ import { DailyChart } from "@/components/admin/cd-stats/Charts";
 import CampaignTable from "@/components/admin/cd-stats/CampaignTable";
 import { SurveyView } from "@/components/admin/cd-stats/Tables";
 import TeamEditor from "@/components/admin/cd-stats/TeamEditor";
-import { readCrazydramasStats } from "@/lib/crazydramas/stats";
+import { readAdPeriod, readCrazydramasStats } from "@/lib/crazydramas/stats";
 import { readTeamList } from "@/lib/crazydramas/stats-team";
 import { adSpendsFromRuns, audience, campaignTable, fmtShare, fmtUsdCents, parseStatsRange, rangeDays, seriesTable, share, type SeriesTotals } from "@/lib/crazydramas/stats-summary";
 import { getData } from "@/lib/data";
@@ -15,8 +15,8 @@ import { t } from "@/lib/i18n";
 // (decision 2026-09-24, "CrazyDramas stats"): the audience per day (DAU,
 // WAU, MAU), the money, and one row per series following the people who
 // first opened it in the period, in plain words; then every ad with what it
-// cost (Studio's launch records) and what it brought, and the team's own
-// accounts, which are left out. Real people only; the numbers come from
+// cost (Studio's launch records, or TikTok's days for a period) and what it
+// brought, and the team's own accounts, which are left out. Real people only; the numbers come from
 // crazydramas' /api/studio/stats (lib/crazydramas/stats.ts).
 
 export const dynamic = "force-dynamic";
@@ -68,6 +68,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
   const aud = audience(report, range);
   const rows = seriesTable(report, range);
   const seen = rows.filter((r) => r.opened > 0 || r.revenue_cents > 0);
+  const adPeriod = await readAdPeriod(report, range, runs, searchParams.fresh === "1");
   const unseen = rows.filter((r) => !(r.opened > 0 || r.revenue_cents > 0));
   const robotVisits = rows.reduce((a, r) => a + r.robots, 0);
   // The two one-tap questions, every series together (each series' page has its own).
@@ -186,11 +187,12 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
         <div className="rs-panel-head">
           <div>
             <h2 id="cds-ads-h">{t(locale, "cds.ads.title")}</h2>
-            <p>{t(locale, "cds.ads.sub")}</p>
+            <p>{t(locale, adPeriod ? "cds.ads.subPeriod" : "cds.ads.sub")}</p>
           </div>
         </div>
         <div className="rs-panel-body">
-          <CampaignTable rows={campaignTable(report, adSpendsFromRuns(runs))} caption={t(locale, "cds.ads.title")} />
+          {adPeriod?.days && !adPeriod.days.ok && <p className="note note-warn">{t(locale, "cds.ads.daysFailed", { error: adPeriod.days.error })}</p>}
+          <CampaignTable rows={campaignTable(report, adSpendsFromRuns(runs), undefined, adPeriod)} caption={t(locale, "cds.ads.title")} />
           <p className="cds-foot">{t(locale, "cds.ads.foot")}</p>
         </div>
       </section>

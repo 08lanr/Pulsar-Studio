@@ -8,8 +8,11 @@
 // once. Server-only; the sums the screens show are the pure functions in
 // ./stats-summary.ts.
 
+import type { LaunchRun } from "@/lib/launch/types";
+import { readTikTokAdDays } from "@/lib/tiktok/ad-days";
 import { crazydramasStudioMode, crazydramasStudioTransport } from "./studio-client";
 import { readTeamList } from "./stats-team";
+import { rangeDays, type AdPeriod, type StatsRange } from "./stats-summary";
 import { CdStatsReportSchema, type CdStatsReport } from "./stats-types";
 import { CrazydramasApiError, type CrazydramasStudioTransport } from "./transport";
 
@@ -67,4 +70,16 @@ export async function readCrazydramasStats(
   const read = { ok: true as const, report: parsed.data, read_at: new Date(now()).toISOString(), mode, team_emails: applied };
   cache.set(key, { at: now(), read });
   return read;
+}
+
+/**
+ * The period the "By ad" tables follow (Ruobin, 2026-09-25): none for "All" (each ad's whole life,
+ * from the launch records), otherwise the range's days with TikTok's own daily numbers for Studio's
+ * ads (lib/tiktok/ad-days.ts, kept five minutes; Refresh reads them again).
+ */
+export async function readAdPeriod(report: CdStatsReport, range: StatsRange, runs: LaunchRun[], fresh = false): Promise<AdPeriod | undefined> {
+  if (range === "all") return undefined;
+  const span = rangeDays(report, range);
+  const days = await readTikTokAdDays(runs, { to: report.to, fresh });
+  return { ...span, timezone: report.timezone, days };
 }

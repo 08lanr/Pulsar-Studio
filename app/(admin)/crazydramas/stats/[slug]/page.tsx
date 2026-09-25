@@ -5,7 +5,7 @@ import { EpisodeChart, Ep1Chart } from "@/components/admin/cd-stats/Charts";
 import CampaignTable from "@/components/admin/cd-stats/CampaignTable";
 import { DeviceTableView, SurveyView } from "@/components/admin/cd-stats/Tables";
 import { crazydramasPublicUrl } from "@/lib/crazydramas";
-import { readCrazydramasStats } from "@/lib/crazydramas/stats";
+import { readAdPeriod, readCrazydramasStats } from "@/lib/crazydramas/stats";
 import { adSpendsFromRuns, campaignTable, deviceTable, ep1Curve, episodeBars, fmtClock, fmtShare, fmtUsdCents, parseStatsRange, rangeDays, seriesTotals, share } from "@/lib/crazydramas/stats-summary";
 import { getData } from "@/lib/data";
 import { t } from "@/lib/i18n";
@@ -52,6 +52,7 @@ export default async function CrazydramasSeriesStatsPage({ params, searchParams 
 
   const span = rangeDays(read.report, range);
   const tot = seriesTotals(series, span);
+  const adPeriod = await readAdPeriod(read.report, range, runs, searchParams.fresh === "1");
   const curve = ep1Curve(tot, read.report.ep1_step_s);
   const { bars, hidden_after } = episodeBars(tot);
   const len = tot.ep1_duration_s ? fmtClock(tot.ep1_duration_s) : null;
@@ -218,11 +219,12 @@ export default async function CrazydramasSeriesStatsPage({ params, searchParams 
             <div className="rs-panel-head">
               <div>
                 <h2 id="cds-src-h">{t(locale, "cds.src.title")}</h2>
-                <p>{t(locale, "cds.src.sub")}</p>
+                <p>{t(locale, adPeriod ? "cds.src.subPeriod" : "cds.src.sub")}</p>
               </div>
             </div>
             <div className="rs-panel-body">
-              <CampaignTable rows={campaignTable(read.report, adSpendsFromRuns(runs), series.drama_id)} showTitle={false} caption={t(locale, "cds.src.title")} />
+              {adPeriod?.days && !adPeriod.days.ok && <p className="note note-warn">{t(locale, "cds.ads.daysFailed", { error: adPeriod.days.error })}</p>}
+              <CampaignTable rows={campaignTable(read.report, adSpendsFromRuns(runs), series.drama_id, adPeriod)} showTitle={false} caption={t(locale, "cds.src.title")} />
             </div>
           </section>
         </>

@@ -66,3 +66,25 @@ export function adStatsByAd(adIds: Iterable<string>, rows: readonly Row[], webRo
   }
   return out;
 }
+
+/** One ad's numbers on one of TikTok's days (the ad account's time zone). Unknown stays null. */
+export type AdDay = { day: string; spend_cents: number | null; impressions: number | null; clicks: number | null };
+
+/** Ad id → its days, oldest first, from a report broken down by `stat_time_day` ("2026-09-24 00:00:00"). */
+export function adDaysFromRows(rows: readonly Row[]): Record<string, AdDay[]> {
+  const out: Record<string, AdDay[]> = {};
+  for (const [id, adRows] of group(rows)) {
+    const byDay = new Map<string, Row[]>();
+    for (const row of adRows) {
+      const day = String((row.dimensions as Row | undefined)?.stat_time_day ?? "").slice(0, 10);
+      if (day) byDay.set(day, [...(byDay.get(day) ?? []), row]);
+    }
+    out[id] = [...byDay.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([day, dayRows]) => {
+        const s = adStatsFromRows(dayRows);
+        return { day, spend_cents: s.spend_cents, impressions: s.impressions, clicks: s.clicks };
+      });
+  }
+  return out;
+}

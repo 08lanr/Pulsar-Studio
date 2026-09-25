@@ -4888,5 +4888,8 @@
   "uc.pill": "上传成片",
   "uc.title": "剧集",
   "uc.chooseTitle": "选择剧集",
-  "lpx.metaLinkNote": "Meta 广告带的是这部剧的 Meta 链接（source=meta，并带上本次广告活动的 campid）。TikTok 的宏只有 TikTok 会替换，不能用在 Meta 上。"
+  "lpx.metaLinkNote": "Meta 广告带的是这部剧的 Meta 链接（source=meta，并带上本次广告活动的 campid）。TikTok 的宏只有 TikTok 会替换，不能用在 Meta 上。",
+  "cds.ads.subPeriod": "这段时间内通过每条广告首次打开剧集的真人，以及 TikTok 在同样几天的花费和点击（来自 TikTok 的每日报告，夏令时期间 TikTok 的一天从太平洋时间凌晨 1 点开始）。评判广告看“每位看完第 1 集的成本”，而不是每次点击的价格。",
+  "cds.ads.daysFailed": "无法读取 TikTok 的每日花费（{error}）。只有在这段时间内上线的广告显示花费，其他广告显示为短横线。",
+  "cds.src.subPeriod": "这段时间内把观众带到这部剧的广告，以及每条广告在这几天的花费（整条广告的花费，所有剧集合计）。"
 }

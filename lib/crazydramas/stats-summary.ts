@@ -11,6 +11,7 @@
 //     period add up, and every step is a share of the people who opened it.
 
 import type { LaunchProvider, LaunchRun } from "@/lib/launch/types";
+import type { AdDay } from "@/lib/tiktok/ad-stats";
 import type { CdStatsCohort, CdStatsDay, CdStatsReport, CdStatsSeries, CdStatsSource } from "./stats-types";
 
 export const STATS_RANGES = ["today", "7d", "30d", "all"] as const;
@@ -377,12 +378,48 @@ function addTitle(titles: Map<string, AdTitle>, dramaId: string, title: string, 
 const titleList = (m: Map<string, AdTitle>) => [...m.values()].filter((t) => t.people > 0).sort((a, b) => b.people - a.people || a.title.localeCompare(b.title));
 
 /**
- * The people every ad brought, over each ad's whole life (spend is TikTok's total for the ad, so the
- * people are too), joined to Studio's launch records by TikTok's ad id, with the titles its people
- * opened; then TikTok's stored copy and "no ad" as rows of their own. One series, or all. Ads with
+ * A period of the ad tables: its days (the report's, `rangeDays`), the report's time zone, and TikTok's
+ * own days for Studio's ads (lib/tiktok/ad-days.ts), or why they could not be read.
+ */
+export type AdPeriod = {
+  from: string;
+  to: string;
+  timezone: string;
+  days: { ok: true; from: string; campaigns: string[]; days: Record<string, AdDay[]> } | { ok: false; error: string } | null;
+};
+
+type Delivery = Pick<AdSpend, "spend_cents" | "clicks" | "impressions">;
+const UNKNOWN: Delivery = { spend_cents: null, clicks: null, impressions: null };
+
+/** The day an instant falls on in a time zone ("2026-09-24"). */
+export function dayIn(iso: string, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
+}
+
+/**
+ * What an ad cost in a period: the sum of TikTok's days in it (a covered campaign's ad with no day in it
+ * spent nothing); failing those, the launch records' lifetime numbers when the ad's whole life is in the
+ * period; otherwise unknown, never a guess.
+ */
+export function deliveryIn(s: AdSpend, period: AdPeriod): Delivery {
+  const read = period.days;
+  if (s.provider === "tiktok" && read?.ok && read.from <= period.from && s.campaign_id && read.campaigns.includes(s.campaign_id)) {
+    const days = (read.days[s.ad_id] ?? []).filter((d) => inRange(d.day, period));
+    const sum = (k: keyof Delivery) => (days.every((d) => d[k] !== null) ? days.reduce((n, d) => n + (d[k] as number), 0) : null);
+    return { spend_cents: sum("spend_cents"), clicks: sum("clicks"), impressions: sum("impressions") };
+  }
+  if (s.launched_at && dayIn(s.launched_at, period.timezone) >= period.from) return { spend_cents: s.spend_cents, clicks: s.clicks, impressions: s.impressions };
+  return UNKNOWN;
+}
+
+/**
+ * The people every ad brought, joined to Studio's launch records by TikTok's ad id, with the titles its
+ * people opened; then TikTok's stored copy and "no ad" as rows of their own. One series, or all. Over
+ * each ad's whole life (spend is TikTok's total for the ad, so the people are too), or, with a period,
+ * the people who first opened a series in it and what the ad cost on those days (`deliveryIn`). Ads with
  * spend first, most spent first.
  */
-export function adTable(report: Pick<CdStatsReport, "sources" | "series">, spends: AdSpend[], dramaId?: string): AdRow[] {
+export function adTable(report: Pick<CdStatsReport, "sources" | "series">, spends: AdSpend[], dramaId?: string, period?: AdPeriod): AdRow[] {
   const bySpend = new Map(spends.map((s) => [s.ad_id, s]));
   const titleOf = new Map(report.series.map((s) => [s.drama_id, s.title]));
   const rows = new Map<string, AdRow & { titleMap: Map<string, AdTitle> }>();
@@ -393,9 +430,7 @@ export function adTable(report: Pick<CdStatsReport, "sources" | "series">, spend
     campaign,
     ad,
     spend,
-    spend_cents: spend?.spend_cents ?? null,
-    clicks: spend?.clicks ?? null,
-    impressions: spend?.impressions ?? null,
+    ...(spend ? (period ? deliveryIn(spend, period) : { spend_cents: spend.spend_cents, clicks: spend.clicks, impressions: spend.impressions }) : UNKNOWN),
     cost_per_person_cents: null,
     cost_per_finisher_cents: null,
     cost_per_ep2_cents: null,
@@ -404,7 +439,7 @@ export function adTable(report: Pick<CdStatsReport, "sources" | "series">, spend
     ...emptyPath(),
   });
   for (const src of report.sources) {
-    if (dramaId && src.drama_id !== dramaId) continue;
+    if ((dramaId && src.drama_id !== dramaId) || (period && !inRange(src.day, period))) continue;
     const kind: AdRow["kind"] = src.stored_copy ? "stored_copy" : src.ad ? "ad" : "no_ad";
     const key = kind === "ad" ? `ad:${src.ad}` : kind;
     let row = rows.get(key);
@@ -416,13 +451,14 @@ export function adTable(report: Pick<CdStatsReport, "sources" | "series">, spend
     addPath(row, src);
     addTitle(row.titleMap, src.drama_id, titleOf.get(src.drama_id) ?? src.drama_id, src.opened);
   }
-  // An ad Studio launched that brought nobody yet is still a row: its spend bought nothing.
+  // An ad Studio launched that brought nobody (in the period) is still a row: its spend bought nothing.
   if (!dramaId) {
     for (const s of spends) {
-      if ((s.spend_cents ?? 0) <= 0 || rows.has(`ad:${s.ad_id}`)) continue;
+      if (rows.has(`ad:${s.ad_id}`)) continue;
       // The platform is the launch's own, never a guess: a Meta ad labelled
       // tiktok here is a number the founder would read as the wrong channel.
-      rows.set(`ad:${s.ad_id}`, blank(`ad:${s.ad_id}`, "ad", s.provider, s.campaign_id, s.ad_id, s));
+      const row = blank(`ad:${s.ad_id}`, "ad", s.provider, s.campaign_id, s.ad_id, s);
+      if ((row.spend_cents ?? 0) > 0) rows.set(`ad:${s.ad_id}`, row);
     }
   }
   const order = { ad: 0, stored_copy: 1, no_ad: 2 } as const;
@@ -447,10 +483,10 @@ export type CampaignRow = PathCounts &
     ads: AdRow[];
   };
 
-/** The ads grouped by campaign (TikTok's campaign id), the stored copy and "no ad" as groups of their own. */
-export function campaignTable(report: Pick<CdStatsReport, "sources" | "series">, spends: AdSpend[], dramaId?: string): CampaignRow[] {
+/** The ads grouped by campaign (TikTok's campaign id), the stored copy and "no ad" as groups of their own; a period as in `adTable`. */
+export function campaignTable(report: Pick<CdStatsReport, "sources" | "series">, spends: AdSpend[], dramaId?: string, period?: AdPeriod): CampaignRow[] {
   const groups = new Map<string, CampaignRow & { titleMap: Map<string, AdTitle> }>();
-  for (const ad of adTable(report, spends, dramaId)) {
+  for (const ad of adTable(report, spends, dramaId, period)) {
     const kind: CampaignRow["kind"] = ad.kind === "ad" ? "campaign" : ad.kind;
     const key = kind === "campaign" ? `campaign:${ad.campaign ?? "unknown"}` : kind;
     let g = groups.get(key);

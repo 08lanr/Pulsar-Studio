@@ -4888,5 +4888,8 @@
   "uc.pill": "Uploaded ad",
   "uc.title": "Drama",
   "uc.chooseTitle": "Choose a drama",
-  "lpx.metaLinkNote": "Meta ads carry this drama's Meta link (source=meta, with this campaign's campid). TikTok's macros are filled by TikTok alone and are never sent to Meta."
+  "lpx.metaLinkNote": "Meta ads carry this drama's Meta link (source=meta, with this campaign's campid). TikTok's macros are filled by TikTok alone and are never sent to Meta.",
+  "cds.ads.subPeriod": "The people each ad brought who first opened a series in this period, and what TikTok charged and counted on the same days (its daily report, where a day starts at 1 am Pacific in summer). Judge an ad by what it costs per episode 1 finisher, not per click.",
+  "cds.ads.daysFailed": "TikTok's daily spend could not be read ({error}). Spend shows only for ads launched inside this period; the others show a dash.",
+  "cds.src.subPeriod": "The ads that sent people to this series in this period, with what each ad cost on those days (its whole spend, every series together)."
 }

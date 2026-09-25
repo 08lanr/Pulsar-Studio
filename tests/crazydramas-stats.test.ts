@@ -13,10 +13,12 @@ import { fakeStatsReport } from "@/lib/crazydramas/fake-stats";
 import { STATS_CACHE_MS, clearCdStatsCache, readCrazydramasStats } from "@/lib/crazydramas/stats";
 import { rm } from "node:fs/promises";
 import path from "node:path";
-import { adOutcomes, adSpendsFromRuns, adTable, audience, CAMPAIGN_SORTS, campaignTable, deviceTable, sortCampaigns, ep1Curve, episodeBars, fmtClock, fmtShare, parseStatsRange, rangeDays, seriesTable, seriesTotals } from "@/lib/crazydramas/stats-summary";
+import { adOutcomes, adSpendsFromRuns, adTable, audience, CAMPAIGN_SORTS, campaignTable, dayIn, deliveryIn, deviceTable, sortCampaigns, ep1Curve, episodeBars, fmtClock, fmtShare, parseStatsRange, rangeDays, seriesTable, seriesTotals, type AdPeriod } from "@/lib/crazydramas/stats-summary";
 import { normalizeTeamEmails, readTeamList, saveTeamList, TEAM_FILE } from "@/lib/crazydramas/stats-team";
 import { CdStatsReportSchema, type CdStatsReport } from "@/lib/crazydramas/stats-types";
 import type { LaunchRun } from "@/lib/launch/types";
+import { AD_DAYS_CACHE_MS, clearAdDaysCache, readTikTokAdDays } from "@/lib/tiktok/ad-days";
+import { adDaysFromRows } from "@/lib/tiktok/ad-stats";
 import type { CrazydramasStudioTransport } from "@/lib/crazydramas/transport";
 
 const ENV_KEYS = ["DATA_SOURCE", "CRAZYDRAMAS_LIVE_READ", "CRAZYDRAMAS_STUDIO_TOKEN"] as const;
@@ -380,6 +382,111 @@ test("every ad over its life, joined to Studio's launches: costs per person, fin
   assert.equal(rows[2].cost_per_person_cents, null);
   assert.equal(rows[3].spend, null);
   assert.deepEqual(adTable(report(), spends, "b").map((r) => r.key), ["no_ad"], "one series");
+});
+
+const tiktokDays = (over: Partial<{ from: string; campaigns: string[] }> = {}) => ({
+  ok: true as const,
+  from: "2026-08-26",
+  campaigns: ["c1"],
+  days: {
+    "111": [{ day: "2026-09-23", spend_cents: 500, impressions: 3000, clicks: 60 }, { day: "2026-09-24", spend_cents: 300, impressions: 2000, clicks: 40 }],
+    "222": [{ day: "2026-09-10", spend_cents: 300, impressions: 2000, clicks: 50 }],
+  },
+  ...over,
+});
+
+test("a period: the people who first opened a series in it, and what TikTok charged on those days", () => {
+  const r = report();
+  const at = (range: "today" | "7d" | "30d", days: AdPeriod["days"] = tiktokDays()) =>
+    campaignTable(r, adSpendsFromRuns(launchRuns()), undefined, { ...rangeDays(r, range), timezone: r.timezone, days });
+  const today = at("today");
+  assert.deepEqual(today.map((g) => g.key), ["campaign:c1", "stored_copy", "no_ad"]);
+  assert.deepEqual(today[0].ads.map((a) => [a.ad, a.opened, a.spend_cents, a.clicks]), [["111", 80, 300, 40]], "an ad that neither spent nor brought anybody today is not a row");
+  assert.equal(today[0].cost_per_finisher_cents, 19, "300¢ over 16 finishers");
+  assert.equal(today[1].opened, 12);
+  const week = at("7d");
+  assert.deepEqual(week[0].ads.map((a) => [a.ad, a.opened, a.spend_cents]), [["111", 80, 800]]);
+  const month = at("30d");
+  assert.deepEqual(month[0].ads.map((a) => [a.ad, a.opened, a.spend_cents]), [["111", 80, 800], ["222", 40, 300]]);
+  assert.equal(month[0].spend_cents, 1100);
+  // With no period the table is each ad's whole life, as before.
+  assert.equal(campaignTable(r, adSpendsFromRuns(launchRuns()))[0].spend_cents, 1220);
+});
+
+test("a period without TikTok's days: the lifetime numbers only when the ad's whole life is in it, never a guess", () => {
+  const r = report();
+  const spends = adSpendsFromRuns(launchRuns());
+  const s111 = spends.find((s) => s.ad_id === "111")!;
+  const period = (range: "today" | "7d", days: AdPeriod["days"]) => ({ ...rangeDays(r, range), timezone: r.timezone, days });
+  assert.equal(dayIn(s111.launched_at!, r.timezone), "2026-09-23", "launched 11:38 pm Pacific");
+  const failed = { ok: false as const, error: "TikTok refused" };
+  assert.deepEqual(deliveryIn(s111, period("today", failed)), { spend_cents: null, clicks: null, impressions: null }, "launched before today: unknown");
+  assert.deepEqual(deliveryIn(s111, period("7d", failed)), { spend_cents: 800, clicks: 100, impressions: 5000 }, "its whole life is in the week");
+  assert.equal(deliveryIn(s111, period("today", null)).spend_cents, null, "not read at all");
+  assert.equal(deliveryIn(s111, period("today", tiktokDays({ campaigns: [] }))).spend_cents, null, "a campaign the read did not cover");
+  assert.equal(deliveryIn(s111, period("today", tiktokDays({ from: "2026-09-25" }))).spend_cents, null, "days that do not reach back to the period's start");
+  assert.equal(deliveryIn(s111, period("today", tiktokDays())).spend_cents, 300);
+  const rows = adTable(r, spends, undefined, period("today", failed));
+  const ad = rows.find((x) => x.ad === "111")!;
+  assert.equal(ad.spend_cents, null);
+  assert.equal(ad.cost_per_finisher_cents, null);
+  assert.equal(ad.opened, 80, "its people still count");
+});
+
+test("TikTok's day report: each ad's days, oldest first; a metric a row lacks is unknown", () => {
+  const row = (ad: string, day: string, metrics: Record<string, unknown>) => ({ dimensions: { ad_id: ad, stat_time_day: `${day} 00:00:00` }, metrics });
+  const days = adDaysFromRows([
+    row("1", "2026-09-25", { spend: "0.31", impressions: "19", clicks: "0" }),
+    row("1", "2026-09-24", { spend: "0.06", impressions: "27", clicks: "1" }),
+    row("2", "2026-09-24", { spend: "3.98", impressions: "1541" }),
+  ]);
+  assert.deepEqual(days["1"], [{ day: "2026-09-24", spend_cents: 6, impressions: 27, clicks: 1 }, { day: "2026-09-25", spend_cents: 31, impressions: 19, clicks: 0 }]);
+  assert.deepEqual(days["2"], [{ day: "2026-09-24", spend_cents: 398, impressions: 1541, clicks: null }]);
+});
+
+test("the daily read: Studio's TikTok campaigns, 30 days to the stats' last day, paged, kept five minutes, failing soft", async () => {
+  clearAdDaysCache();
+  const runs = [
+    { external_id: "lr_1", mode: "production", draft: { provider: "tiktok" }, campaigns: [{ advertiser_id: "adv1", state: { campaign_id: "c1" } }, { advertiser_id: "adv1", state: {} }] },
+    { external_id: "lr_2", mode: "fake", draft: { provider: "tiktok" }, campaigns: [{ advertiser_id: "adv1", state: { campaign_id: "c-fake" } }] },
+    { external_id: "lr_3", mode: "production", draft: { provider: "meta" }, campaigns: [{ advertiser_id: "act_1", state: { campaign_id: "m1" } }] },
+  ] as unknown as LaunchRun[];
+  const calls: Record<string, string | number>[] = [];
+  let answer = (page: number) => ({
+    code: 0,
+    message: "OK",
+    data: { list: [{ dimensions: { ad_id: `a${page}`, stat_time_day: "2026-09-24 00:00:00" }, metrics: { spend: "1.00", impressions: "10", clicks: "1" } }], page_info: { total_page: 2 } },
+  });
+  const tt = {
+    mode: "production" as const,
+    get: async (_path: string, _token: string, params: Record<string, string | number> = {}) => {
+      calls.push(params);
+      return answer(Number(params.page));
+    },
+    post: async () => ({ code: 0, message: "" }),
+    upload: async () => ({ code: 0, message: "" }),
+  };
+  let clock = 1_000_000;
+  const opts = { to: "2026-09-24", transport: tt, tokenFor: () => "token", now: () => clock };
+  const read = await readTikTokAdDays(runs, opts);
+  assert.ok(read.ok);
+  assert.deepEqual(read.campaigns, ["c1"], "production TikTok campaigns only");
+  assert.equal(read.from, "2026-08-26");
+  assert.deepEqual(Object.keys(read.days).sort(), ["a1", "a2"], "both pages");
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].advertiser_id, "adv1");
+  assert.equal(calls[0].start_date, "2026-08-26");
+  assert.equal(calls[0].end_date, "2026-09-24");
+  assert.match(String(calls[0].dimensions), /stat_time_day/);
+  assert.match(String(calls[0].filtering), /c1/);
+  clock += AD_DAYS_CACHE_MS - 1;
+  await readTikTokAdDays(runs, opts);
+  assert.equal(calls.length, 2, "kept");
+  answer = () => ({ code: 40100, message: "Too many requests", data: undefined as never });
+  const failed = await readTikTokAdDays(runs, { ...opts, fresh: true });
+  assert.deepEqual(failed, { ok: false, error: "Too many requests" });
+  assert.deepEqual(await readTikTokAdDays(runs, { ...opts, tokenFor: () => null, fresh: true }), { ok: false, error: "No TikTok connection covers ad account adv1." });
+  clearAdDaysCache();
 });
 
 test("the Monitor's line: each ad's people over its life, by TikTok's ad id", () => {
