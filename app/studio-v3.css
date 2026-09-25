@@ -1445,3 +1445,31 @@ button.metric-label { border:0; background:none; padding:0; font:inherit; color:
 .ep-upload-clip .input { min-height: 32px; font-size: 13px; }
 .ep-upload-clip .err { flex-basis: 100%; margin: 0; }
 @media (max-width: 760px) { .ep-upload-clip { padding-left: 16px; } }
+
+/* Several finished ads at once, each with its own ad text. */
+.ep-upload-clip-head { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; }
+.ep-upload-clip-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; }
+.ep-upload-row { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr) 92px; gap: 10px; align-items: center; }
+.ep-upload-name { min-width: 0; overflow-wrap: anywhere; font-size: 12px; }
+.ep-upload-state { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.ep-upload-row.is-done .ep-upload-state { color: var(--success); }
+.ep-upload-row.is-failed .ep-upload-state { color: var(--error); }
+.ep-upload-err { grid-column: 1 / -1; margin: 0; }
+.pd-upload-ads { margin-bottom: 18px; }
+@media (max-width: 760px) { .ep-upload-row { grid-template-columns: 1fr; } }
+
+/* Upload finished ads: sits in the Ads desk beside the 60-second ad. */
+.upload-ads-head { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; }
+.upload-ads-head label { display: grid; gap: 4px; min-width: 0; font-size: 12px; color: var(--text-muted); }
+.upload-ads-title { min-width: 200px; }
+.upload-ads-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; }
+.upload-ads-row { display: grid; grid-template-columns: minmax(0,1.1fr) minmax(0,1.4fr) 92px; gap: 10px; align-items: center; }
+.upload-ads-name { min-width: 0; overflow-wrap: anywhere; font-size: 12px; }
+.upload-ads-state { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.upload-ads-row.is-done .upload-ads-state { color: var(--success); }
+.upload-ads-row.is-failed .upload-ads-state { color: var(--error); }
+.upload-ads-err { grid-column: 1 / -1; margin: 0; }
+@media (max-width: 760px) { .upload-ads-row { grid-template-columns: 1fr; } }
+
+/* Which platform a panel is showing, beside its heading. */
+.launch-provider-tag { font-size: 12px; font-weight: 500; color: var(--brand); vertical-align: middle; }

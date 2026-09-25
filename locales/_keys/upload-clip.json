@@ -1,7 +1,7 @@
 {
   "uc.cta": {
     "zh": "上传成片广告",
-    "en": "Upload a finished ad"
+    "en": "Upload finished ads"
   },
   "uc.busy": {
     "zh": "正在上传…",
@@ -20,11 +20,47 @@
     "en": "The text shown with the ad"
   },
   "uc.hint": {
-    "zh": "已剪好的竖版广告直接上传，不会重新剪辑或转码。",
-    "en": "A finished vertical ad is used exactly as uploaded — never re-cut or re-encoded."
+    "zh": "已剪好的竖版广告直接上传，不会重新剪辑或转码。上传后在“投放”里选它作为广告内容。",
+    "en": "A finished vertical ad is used exactly as uploaded — never re-cut or re-encoded. Pick it as ad content in Launch."
   },
   "clips.source.upload": {
     "zh": "上传成片",
     "en": "Uploaded"
+  },
+  "uc.ctaN": {
+    "zh": "上传 {n} 条广告",
+    "en": "Upload {n} ad(s)"
+  },
+  "uc.state.queued": {
+    "zh": "待上传",
+    "en": "Ready"
+  },
+  "uc.state.sending": {
+    "zh": "上传中…",
+    "en": "Uploading…"
+  },
+  "uc.state.done": {
+    "zh": "已上传",
+    "en": "Uploaded"
+  },
+  "uc.state.failed": {
+    "zh": "失败",
+    "en": "Failed"
+  },
+  "uc.pill": {
+    "zh": "上传成片",
+    "en": "Uploaded ad"
+  },
+  "uc.title": {
+    "zh": "剧集",
+    "en": "Drama"
+  },
+  "uc.chooseTitle": {
+    "zh": "选择剧集",
+    "en": "Choose a drama"
+  },
+  "lpx.metaLinkNote": {
+    "zh": "Meta 广告带的是这部剧的 Meta 链接（source=meta，并带上本次广告活动的 campid）。TikTok 的宏只有 TikTok 会替换，不能用在 Meta 上。",
+    "en": "Meta ads carry this drama's Meta link (source=meta, with this campaign's campid). TikTok's macros are filled by TikTok alone and are never sent to Meta."
   }
 }

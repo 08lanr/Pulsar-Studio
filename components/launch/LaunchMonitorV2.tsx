@@ -13,7 +13,7 @@ import {
   adSetPlatforms, campaignPlatforms, explainProviderError, monitorState, needsFirstSweep,
   providerCampaignId, switchState, type AdPlatform, type MonitorState,
 } from "@/lib/launch/provider-errors";
-import type { DeliverySnapshot, LaunchCampaign, LaunchContent, LaunchControl, LaunchRun } from "@/lib/launch/types";
+import type { DeliverySnapshot, LaunchCampaign, LaunchContent, LaunchControl, LaunchProvider, LaunchRun } from "@/lib/launch/types";
 import type { AdOutcome } from "@/lib/crazydramas/stats-summary";
 // app/monitor-round2.css is loaded by app/layout.tsx, immediately before polish.css.
 import "@/app/launch-monitor.css";
@@ -104,8 +104,12 @@ const adStatusWord = (status: string) => status.replaceAll("_", " ").toLowerCase
  * The ad group is known only when the campaign has one; otherwise its macro
  * stays as TikTok received it.
  */
-function adLandingLink(template: string | null | undefined, ids: { campaign?: string | null; adgroup?: string | null; ad?: string | null }): string | null {
+function adLandingLink(template: string | null | undefined, ids: { campaign?: string | null; adgroup?: string | null; ad?: string | null; provider?: LaunchProvider }): string | null {
   if (!template || !/^https:\/\//i.test(template)) return null;
+  // The macros are TikTok's and TikTok fills them. Filling them ourselves on a
+  // Meta link would build a source=tiktok URL that never existed, and a click
+  // on it writes a false TikTok session into crazydramas.
+  if (ids.provider && ids.provider !== "tiktok") return template;
   let url = template;
   if (ids.campaign) url = url.split("__CAMPAIGN_ID__").join(ids.campaign);
   if (ids.adgroup) url = url.split("__AID__").join(ids.adgroup);
@@ -552,7 +556,7 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
                     // Its own numbers, summed over its copies; its own title and link.
                     const numbers = item ? contentNumbers(c, item, run.draft.provider === "meta" ? "meta" : "tiktok") : null;
                     const adTitle = item ? titleName(adTitleId(run, item)) : null;
-                    const link = adLandingLink(item ? adLandingUrl(item, run.draft.destination_url) : run.draft.destination_url, { campaign: campaignId, adgroup: groups.length === 1 ? groups[0].id : null, ad: ad?.id ?? null });
+                    const link = adLandingLink(item ? adLandingUrl(item, run.draft.destination_url) : run.draft.destination_url, { campaign: campaignId, adgroup: groups.length === 1 ? groups[0].id : null, ad: ad?.id ?? null, provider: run.draft.provider });
                     return <div className="lm-ad" key={key}><div className="lm-ad-row">
                       <AdCard {...card} line={!pictured} fallbackName={pictured ? undefined : tt("lr3.adNumber", { n: i + 1 })} />
                       {ad && <span className={`lm-ad-state lm-ad-state-${adStatusTone(ad.status)}`} title={`${ad.id}${ad.note ? ` · ${ad.note}` : ""}`}>{adStatusWord(ad.status)}</span>}
@@ -572,7 +576,7 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
                   : <p>{tt("mr2.noAds")}</p>}</div>
                 {/* Only when the sweep's ads cannot be lined up with the cards
                     does the old strip come back, so nothing goes unsaid. */}
-                {!adStatuses && c.snapshot?.ads && c.snapshot.ads.length > 0 && <div className="lm-ad-statuses">{c.snapshot.ads.map((ad, i) => { const link = adLandingLink(run.draft.destination_url, { campaign: campaignId, adgroup: groups.length === 1 ? groups[0].id : null, ad: ad.id }); return <span key={ad.id} title={`${ad.id}${ad.note ? ` · ${ad.note}` : ""}`}><strong>{tt("monitorV2.ad")} {i + 1}</strong><span>{adStatusWord(ad.status)}</span>{link && <a className="lm-ad-link" href={link} target="_blank" rel="noreferrer" title={`${tt("mr4.landingHint")}\n${link}`}>{tt("mr4.landing")}</a>}{run.draft.provider === "tiktok" && <a className="lm-ad-link" href={adPreviewHref(run.id, ad.id)} target="_blank" rel="noreferrer" title={tt("ltc.watchHint")}>{tt("ltc.watch")}</a>}</span>; })}</div>}
+                {!adStatuses && c.snapshot?.ads && c.snapshot.ads.length > 0 && <div className="lm-ad-statuses">{c.snapshot.ads.map((ad, i) => { const link = adLandingLink(run.draft.destination_url, { campaign: campaignId, adgroup: groups.length === 1 ? groups[0].id : null, ad: ad.id, provider: run.draft.provider }); return <span key={ad.id} title={`${ad.id}${ad.note ? ` · ${ad.note}` : ""}`}><strong>{tt("monitorV2.ad")} {i + 1}</strong><span>{adStatusWord(ad.status)}</span>{link && <a className="lm-ad-link" href={link} target="_blank" rel="noreferrer" title={`${tt("mr4.landingHint")}\n${link}`}>{tt("mr4.landing")}</a>}{run.draft.provider === "tiktok" && <a className="lm-ad-link" href={adPreviewHref(run.id, ad.id)} target="_blank" rel="noreferrer" title={tt("ltc.watchHint")}>{tt("ltc.watch")}</a>}</span>; })}</div>}
                 {/* The references a person only needs when they go looking. */}
                 <div className="mr2-detail-links">
                   {c.campid && <span>{tt("mr3.ref.campid")} <code>{c.campid}</code></span>}

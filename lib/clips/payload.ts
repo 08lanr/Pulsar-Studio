@@ -21,8 +21,10 @@ export type EpisodeClipsPayload = {
 export async function episodeClipsPayload(session: Session, titleId: string, episodeNumber: number): Promise<EpisodeClipsPayload> {
   const data = getData();
   const [clips, job] = await Promise.all([data.listEpisodeClips(session, titleId, episodeNumber), data.latestEpisodeJob(session, titleId, episodeNumber, "cut_clips")]);
-  // A 60-second ad belongs to the title, not to the episode its hook hangs on: it is listed on its own.
-  const visible = clips.filter((c) => c.status !== "dismissed" && c.moment !== "montage");
+  // A 60-second ad belongs to the title, not to the episode its hook hangs on: it is
+  // listed on its own. An uploaded finished ad belongs to the title too — it is filed
+  // under an episode only because studio.clips.episode_id is NOT NULL.
+  const visible = clips.filter((c) => c.status !== "dismissed" && c.moment !== "montage" && c.source !== "upload");
   const { state, note } = clipRunState(visible, job);
   return {
     episode_number: episodeNumber,

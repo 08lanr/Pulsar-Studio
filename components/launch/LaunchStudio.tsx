@@ -259,13 +259,16 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
       destination_url: provider === "meta" ? metaDestination(draft.destination_url) : "" };
     setDraft(workspace ? startingDraft(next, workspace) : next); setCodesRaw(""); setBusinessId(""); setPlan(null);
   };
+  const providerWord = draft.provider === "meta" ? "Meta" : "TikTok";
   const titles = useMemo(() => workspace?.titles ?? [], [workspace]);
   const chosenTitle = titles.find((t) => t.id === draft.title_id) ?? null;
   // The launch's title is every ad's default: ads that follow it move with it,
   // and an ad set to another title, or made from a clip, keeps its own.
   const chooseTitle = (id: string) => {
     const t = titles.find((x) => x.id === id);
-    setDraft((d) => ({ ...d, title_id: t?.id ?? null, destination_url: t?.ad_url ?? "",
+    // Per platform: TikTok's link carries its macros, Meta's carries
+    // source=meta. The wrong one writes a false row into crazydramas.
+    setDraft((d) => ({ ...d, title_id: t?.id ?? null, destination_url: (t?.ad_urls?.[d.provider] ?? (d.provider === "tiktok" ? t?.ad_url : null)) ?? "",
       content: d.provider !== "tiktok" ? d.content : d.content.map((x) => !titleOnRow(x) || x.clip_id || (x.title_id && x.title_id !== d.title_id) ? x : withTitle(x, t?.id)) }));
     setPlan(null);
   };
@@ -551,7 +554,7 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
   {(workspace as LaunchWorkspace & { account_warnings?: string[] } | null)?.account_warnings?.map((warning, i) => <p className="note note-warn" role="alert" key={i}>{warning}</p>)}
   {(!businessCenters.length || chosenBusinessId) && <LaunchAccountPicker key={`${draft.provider}:${producerId}:${chosenBusinessId}`} connections={connections.filter(c => inChosenBusiness(c.business_id))} selectedIds={draft.account_ids} onSelectionChange={ids => update("account_ids", ids)} provider={draft.provider} base={base} producerId={producerId} staff={staff} />}
 </section>
-      <section className="rs-panel"><h2>3. {tt("lv2.content")}</h2>
+      <section className="rs-panel"><h2>3. {tt("lv2.content")} <span className="launch-provider-tag">{providerWord}</span></h2>
         <div className="launch-quantity-grid"><label htmlFor="lv2-per-account">{tt("lv2.campaignsPerAccount")}<input id="lv2-per-account" className="input tk-num" type="number" min={1} value={draft.campaigns_per_account} onChange={(e) => update("campaigns_per_account", Math.max(1, Number(e.target.value) || 1))} /></label><label htmlFor="lv2-per-campaign">{draft.provider === "tiktok" ? tt("launchRedesign.sparksPerCampaign") : tt("lv2.contentPerCampaign")}<input id="lv2-per-campaign" className="input tk-num" type="number" min={1} value={draft.content_per_campaign} onChange={(e) => update("content_per_campaign", Math.max(1, Number(e.target.value) || 1))} /></label></div>
         <div className="seg"><button className={`seg-btn${draft.allocation === "unique" ? " on" : ""}`} onClick={() => update("allocation", "unique")}>{tt("lv2.unique")}</button><button className={`seg-btn${draft.allocation === "shared" ? " on" : ""}`} onClick={() => update("allocation", "shared")}>{tt("lv2.shared")}</button></div>
         <p className="hint">{draft.allocation === "unique" ? tt(draft.provider === "meta" ? "launchRedesign.metaUniqueExplainer" : "launchRedesign.uniqueExplainer") : tt(draft.provider === "meta" ? "launchRedesign.metaSharedExplainer" : "launchRedesign.sharedExplainer")}</p>
@@ -642,9 +645,13 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
           ? tt("lr2.runsOn", { platforms: campaignAdSets.map((set) => PLATFORM_WORD[set.platform]).join(" · ") })
           : tt("lr2.runsOnNone")}</p>
       </>}</section>
-      <section className="rs-panel"><h2>4. {tt("lv2.delivery")}</h2><div className="tk-field tk-row"><label htmlFor="lv2-name">{tt("lv2.name")}</label><input id="lv2-name" className="input" value={draft.name} onFocus={() => { namedOnce.current = true; }} onChange={(e) => { namedOnce.current = true; update("name", e.target.value); }} />{draft.provider === "tiktok"
+      <section className="rs-panel"><h2>4. {tt("lv2.delivery")} <span className="launch-provider-tag">{providerWord}</span></h2><div className="tk-field tk-row"><label htmlFor="lv2-name">{tt("lv2.name")}</label><input id="lv2-name" className="input" value={draft.name} onFocus={() => { namedOnce.current = true; }} onChange={(e) => { namedOnce.current = true; update("name", e.target.value); }} />{draft.provider === "tiktok"
         ? <><label htmlFor="lv2-title">{tt("lpx.title")}</label><select id="lv2-title" className="select" value={draft.title_id ?? ""} onChange={(e) => chooseTitle(e.target.value)}><option value="">{tt("lpx.noDefaultTitle")}</option>{titles.map((t) => <option key={t.id} value={t.id} disabled={!t.ad_url}>{t.name}</option>)}</select></>
-        : <><label htmlFor="lv2-dest">{tt("lv2.destination")}</label><input id="lv2-dest" className="input" type="url" value={draft.destination_url} onChange={(e) => update("destination_url", e.target.value)} placeholder="https://" /></>}</div>
+        : <>{/* Meta keeps one link per campaign (lib/meta/driver.ts builds the CTA
+               from tracking_url ?? destination_url), so the drama is chosen once
+               here and fills the Meta link rather than being typed per ad. */}
+          <label htmlFor="lv2-meta-title">{tt("lpx.title")}</label><select id="lv2-meta-title" className="select" value={draft.title_id ?? ""} onChange={(e) => chooseTitle(e.target.value)}><option value="">{tt("lpx.noDefaultTitle")}</option>{titles.map((t) => <option key={t.id} value={t.id} disabled={!t.ad_urls?.meta}>{t.name}</option>)}</select>
+          <label htmlFor="lv2-dest">{tt("lv2.destination")}</label><input id="lv2-dest" className="input" type="url" value={draft.destination_url} onChange={(e) => update("destination_url", e.target.value)} placeholder="https://" /></>}</div>
       {/* Every TikTok ad carries the title's crazydramas link with TikTok's own
           macros (lib/tiktok/ad-url.ts); the screen prints the exact string. */}
       {draft.provider === "tiktok" && <div className="launch-ad-link">
@@ -683,6 +690,6 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
       connections={connections} accountIds={draft.account_ids} placements={draft.meta_settings.placements}
       content={draft.content} canPost={canLaunch}
       onChange={pickContent} onClose={() => setPickerOpen(false)} onPostMeta={mergePostMeta} onTikTokPosts={mergeTikTokPosts} />}
-    {confirmOpen && plan && <LaunchConfirmDialog adLine={draft.provider === "tiktok" ? adLine : undefined} name={draft.name} plan={plan} destination={draft.destination_url} startPaused={draft.start_paused} provider={draft.provider} mode={run?.mode ?? "fake"} accountNames={Object.fromEntries(connections.map(c => [c.id, c.name]))} cards={cards} pageDesign={draft.provider === "tiktok" && shape === "instant_page" ? draft.tiktok_settings.instant_page_template : undefined} destinationNote={draft.provider === "tiktok" ? tt("lpx.macroNote") : undefined} optimizes={draft.provider === "tiktok" && plan.tiktok_pixel ? tt("lpx.optimizes", { event: plan.tiktok_pixel.event, code: plan.tiktok_pixel.code, attribution: plan.tiktok_pixel.attribution }) : undefined} pixelNote={draft.provider === "tiktok" ? planPixelNote(tt, plan.tiktok_pixel) : undefined} runsAs={draft.provider === "tiktok" ? planIdentityLine(tt, plan.tiktok_identity) : undefined} staff={staff} note={note} onNoteChange={value => { setNote(value); setConfirmError(""); }} error={confirmError} onClose={closeConfirm} onConfirm={() => void launch()} />}
+    {confirmOpen && plan && <LaunchConfirmDialog adLine={draft.provider === "tiktok" ? adLine : undefined} name={draft.name} plan={plan} destination={draft.destination_url} startPaused={draft.start_paused} provider={draft.provider} mode={run?.mode ?? "fake"} accountNames={Object.fromEntries(connections.map(c => [c.id, c.name]))} cards={cards} pageDesign={draft.provider === "tiktok" && shape === "instant_page" ? draft.tiktok_settings.instant_page_template : undefined} destinationNote={tt(draft.provider === "tiktok" ? "lpx.macroNote" : "lpx.metaLinkNote")} optimizes={draft.provider === "tiktok" && plan.tiktok_pixel ? tt("lpx.optimizes", { event: plan.tiktok_pixel.event, code: plan.tiktok_pixel.code, attribution: plan.tiktok_pixel.attribution }) : undefined} pixelNote={draft.provider === "tiktok" ? planPixelNote(tt, plan.tiktok_pixel) : undefined} runsAs={draft.provider === "tiktok" ? planIdentityLine(tt, plan.tiktok_identity) : undefined} staff={staff} note={note} onNoteChange={value => { setNote(value); setConfirmError(""); }} error={confirmError} onClose={closeConfirm} onConfirm={() => void launch()} />}
   </div>;
 }

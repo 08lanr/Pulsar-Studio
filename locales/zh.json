@@ -4486,7 +4486,7 @@
   "uc.file": "广告视频文件",
   "uc.hook": "广告文案（选填）",
   "uc.hookHint": "投放时显示的文字",
-  "uc.hint": "已剪好的竖版广告直接上传，不会重新剪辑或转码。",
+  "uc.hint": "已剪好的竖版广告直接上传，不会重新剪辑或转码。上传后在“投放”里选它作为广告内容。",
   "clips.source.upload": "上传成片",
   "lpx.pixelHandSet": "手动设置 · 像素 ID {id}",
   "lpx.pixelUnverified": "像素 ID {id} 是手动设置的；像素权限还在等 TikTok 审核，所以 TikTok 暂时无法确认它。投放照常使用这个 ID，第一次暂停状态的投放就是检验。",
@@ -4879,5 +4879,14 @@
   "ltc.runsAsAdsOnly": "以 {handle} 的身份投放 · 只作为广告，不在主页上",
   "ltc.ownerPost": "对应的帖子（仅账号本人可见）",
   "ltc.ownerPostHint": "TikTok 为这条广告生成的帖子。只有登录后的账号本人能打开，其他人看不到。",
-  "ltc.sparkUnknown": "TikTok 无法识别这个授权码：{reason}"
+  "ltc.sparkUnknown": "TikTok 无法识别这个授权码：{reason}",
+  "uc.ctaN": "上传 {n} 条广告",
+  "uc.state.queued": "待上传",
+  "uc.state.sending": "上传中…",
+  "uc.state.done": "已上传",
+  "uc.state.failed": "失败",
+  "uc.pill": "上传成片",
+  "uc.title": "剧集",
+  "uc.chooseTitle": "选择剧集",
+  "lpx.metaLinkNote": "Meta 广告带的是这部剧的 Meta 链接（source=meta，并带上本次广告活动的 campid）。TikTok 的宏只有 TikTok 会替换，不能用在 Meta 上。"
 }

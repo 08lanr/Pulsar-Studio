@@ -10,7 +10,7 @@
 //     series (a person is in one day's group per series), so the groups of a
 //     period add up, and every step is a share of the people who opened it.
 
-import type { LaunchRun } from "@/lib/launch/types";
+import type { LaunchProvider, LaunchRun } from "@/lib/launch/types";
 import type { CdStatsCohort, CdStatsDay, CdStatsReport, CdStatsSeries, CdStatsSource } from "./stats-types";
 
 export const STATS_RANGES = ["today", "7d", "30d", "all"] as const;
@@ -287,9 +287,11 @@ export function episodeBars(t: SeriesTotals): { bars: EpisodeBar[]; hidden_after
 
 // ---- where people came from: ads, and kinds of browser -------------------------------------------------------
 
-/** One TikTok ad's own numbers from Studio's launch records (TikTok's lifetime totals for the ad). */
+/** One ad's own numbers from Studio's launch records (the provider's lifetime totals for the ad). */
 export type AdSpend = {
   ad_id: string;
+  /** The platform that ran it. Never assume TikTok: Meta launches land here too. */
+  provider: LaunchProvider;
   spend_cents: number | null;
   impressions: number | null;
   clicks: number | null;
@@ -301,7 +303,7 @@ export type AdSpend = {
   launched_at: string | null;
 };
 
-/** Every ad of every launch with its TikTok numbers (the launch records' latest sweep); an ad in two runs keeps the first seen. */
+/** Every ad of every launch with its provider's numbers (the launch records' latest sweep); an ad in two runs keeps the first seen. */
 export function adSpendsFromRuns(runs: LaunchRun[]): AdSpend[] {
   const out = new Map<string, AdSpend>();
   for (const run of runs) {
@@ -311,6 +313,7 @@ export function adSpendsFromRuns(runs: LaunchRun[]): AdSpend[] {
         if (!ad.id || out.has(ad.id)) continue;
         out.set(ad.id, {
           ad_id: ad.id,
+          provider: run.draft?.provider ?? "tiktok",
           spend_cents: ad.stats?.spend_cents ?? null,
           impressions: ad.stats?.impressions ?? null,
           clicks: ad.stats?.clicks ?? null,
@@ -417,7 +420,9 @@ export function adTable(report: Pick<CdStatsReport, "sources" | "series">, spend
   if (!dramaId) {
     for (const s of spends) {
       if ((s.spend_cents ?? 0) <= 0 || rows.has(`ad:${s.ad_id}`)) continue;
-      rows.set(`ad:${s.ad_id}`, blank(`ad:${s.ad_id}`, "ad", "tiktok", s.campaign_id, s.ad_id, s));
+      // The platform is the launch's own, never a guess: a Meta ad labelled
+      // tiktok here is a number the founder would read as the wrong channel.
+      rows.set(`ad:${s.ad_id}`, blank(`ad:${s.ad_id}`, "ad", s.provider, s.campaign_id, s.ad_id, s));
     }
   }
   const order = { ad: 0, stored_copy: 1, no_ad: 2 } as const;

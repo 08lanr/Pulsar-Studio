@@ -15,10 +15,11 @@ import { useT } from "@/components/locale";
 import { call } from "@/components/tiktok/api";
 import PostClipDialog from "@/components/launch/PostClipDialog";
 import AdMontage from "@/components/launch/AdMontage";
+import UploadAds from "@/components/launch/UploadAds";
 import { postOn, publishedOn, shortDate } from "@/components/launch/clip-state";
 import type { ClipLibraryRow, ClipPost, ClipPostPlatform } from "@/lib/launch/clip-posts";
 import type { MontageStatus } from "@/lib/clips/montage-run";
-import type { LaunchConnection, LaunchWorkspace } from "@/lib/launch/types";
+import type { LaunchConnection, LaunchTitleOption, LaunchWorkspace } from "@/lib/launch/types";
 
 /** On one title's page: its 60-second ad panel (components/launch/AdMontage.tsx) above the table, which reloads when an ad lands. */
 type MontagePanel = { canBuild: boolean; initial: MontageStatus | null };
@@ -60,6 +61,7 @@ export default function ClipsTable({ staff = false, titleId, montage }: Props) {
   const [search, setSearch] = useState(querySearch);
   const [opening, setOpening] = useState<Opening | null>(null);
   const [canPost, setCanPost] = useState(false);
+  const [titles, setTitles] = useState<LaunchTitleOption[]>([]);
   const [canDownload, setCanDownload] = useState(false);
   const [chosen, setChosen] = useState<Record<string, boolean>>({});
   const [zipping, setZipping] = useState(false);
@@ -114,17 +116,18 @@ export default function ClipsTable({ staff = false, titleId, montage }: Props) {
   // already answers "may this person launch" — the same rule as posting.
   useEffect(() => {
     let active = true;
-    void call<{ workspace: LaunchWorkspace }>(`${workspaceBase}/workspace`)
+    void call<{ workspace: LaunchWorkspace }>(`${workspaceBase}/workspace${staff && producer ? `?producer_id=${encodeURIComponent(producer)}` : ""}`)
       .then(({ workspace }) => {
         if (!active) return;
         setCanPost(workspace.can_launch);
         setCanDownload(workspace.can_edit);
         if (workspace.producers?.length) setProducers(workspace.producers);
+        setTitles(workspace.titles ?? []);
         if (!staff && workspace.producer_id) setAccounts((current) => ({ ...current, [workspace.producer_id]: workspace.connections.filter((c) => c.provider === "meta" && c.enabled) }));
       })
       .catch((e) => { if (active) setError(errorText(e)); });
     return () => { active = false; };
-  }, [workspaceBase, staff]);
+  }, [workspaceBase, staff, producer]);
 
   // A staff desk shows several producers at once, so the Meta accounts behind
   // the two post buttons are read once per producer that has a row here.
@@ -163,8 +166,9 @@ export default function ClipsTable({ staff = false, titleId, montage }: Props) {
   if (options.current.producer !== producer) options.current = { producer, titles: new Map(), episodes: new Map() };
   for (const row of rows) {
     if (row.title_id) options.current.titles.set(row.title_id, row.title_name);
-    // A 60-second ad names several episodes, so it adds none to the Episode filter.
-    if (row.episode_id && !row.montage) options.current.episodes.set(row.episode_id, { titleId: row.title_id, title: row.title_name, number: row.episode_label ?? row.episode_id });
+    // A 60-second ad names several episodes and an uploaded ad names none, so
+    // neither adds an option to the Episode filter.
+    if (row.episode_id && !row.montage && !row.uploaded && row.episode_label) options.current.episodes.set(row.episode_id, { titleId: row.title_id, title: row.title_name, number: row.episode_label });
   }
   const titleOptions = [...options.current.titles.entries()];
   // `episode_label` is the bare number, so across several titles the list would
@@ -252,6 +256,10 @@ export default function ClipsTable({ staff = false, titleId, montage }: Props) {
     </div>
     <div className="note"><p>{tt("lv2.clips.steps")}</p></div>
     {titleId && montage && <div className="card pd-panel ad-montage-card"><AdMontage titleId={titleId} initial={montage.initial} canBuild={montage.canBuild} staff={staff} onBuilt={() => void load()} /></div>}
+    {canPost && (titleId || titles.length > 0) && <div className="card pd-panel upload-ads-card">
+      <h2 className="section-title">{tt("uc.cta")}</h2>
+      <UploadAds titles={titles} titleId={titleId} onUploaded={() => void load()} />
+    </div>}
 
     <div className="clips-filters" role="group" aria-label={tt("clipsPosting.filters")}>
       {staff && <label><span>{tt("clipsPosting.filter.producer")}</span>
@@ -313,7 +321,7 @@ export default function ClipsTable({ staff = false, titleId, montage }: Props) {
         {showProducer && <span>{row.producer_name}</span>}
         <span><strong>{row.title_name}</strong></span>
         <span>{row.montage ? row.montage.episodes : row.episode_label ?? "—"}</span>
-        <span className="clips-hook">{row.montage && <span className="pill pill-accent clips-montage-pill">{tt("montage.pill")}</span>}{row.text?.trim() ? row.label : <span className="gt-muted" title={row.external_id}>{tt("clipsPosting.noHook")}</span>}</span>
+        <span className="clips-hook">{row.montage && <span className="pill pill-accent clips-montage-pill">{tt("montage.pill")}</span>}{row.uploaded && <span className="pill pill-accent clips-montage-pill">{tt("uc.pill")}</span>}{row.text?.trim() ? row.label : <span className="gt-muted" title={row.external_id}>{tt("clipsPosting.noHook")}</span>}</span>
         <span className="gt-num">{duration(row.duration_ms)}</span>
         <span>{shortDate(row.rendered_at, locale)}</span>
         <span data-platform="facebook">{platformCell(row, "facebook")}</span>
