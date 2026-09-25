@@ -13,6 +13,15 @@
 //
 // Nothing in here shows a raw id first: every entry carries `label`
 // (title · hook) with the id beneath it in small text.
+//
+// A TikTok launch (decision 2026-09-25) has two tabs instead:
+//
+//   Studio clips      each clip is one ad: Studio uploads it and runs it as the
+//                     TikTok account Business Center links to the ad account,
+//                     shown only as an ad (never on the profile). No posting.
+//   From @account     that account's own posts, run as ads with no Spark code.
+//
+// Spark codes stay a box on the Launch page itself.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
@@ -20,19 +29,26 @@ import { useT } from "@/components/locale";
 import { call } from "@/components/tiktok/api";
 import PostClipDialog from "@/components/launch/PostClipDialog";
 import { postOn, publishedOn, shortDate } from "@/components/launch/clip-state";
-import type { ClipLibraryRow, ClipPost, ClipPostPlatform, MetaPagePost, MetaPagePostList } from "@/lib/launch/clip-posts";
-import type { LaunchConnection, LaunchContent, LaunchLibraryItem } from "@/lib/launch/types";
+import { tiktokAdText } from "@/lib/launch/plan";
+import type { ClipLibraryRow, ClipPost, ClipPostPlatform, MetaPagePost, MetaPagePostList, TikTokAccountPostList } from "@/lib/launch/clip-posts";
+import type { LaunchConnection, LaunchContent, LaunchLibraryItem, LaunchProvider } from "@/lib/launch/types";
 
 /** A workspace library item, with the clip-post fields once they are there. */
 export type PickerClip = LaunchLibraryItem & Partial<Omit<ClipLibraryRow, keyof LaunchLibraryItem>>;
-type Tab = "clips" | "page" | "paste";
+type Tab = "clips" | "page" | "paste" | "account";
 type Props = {
   clipsBase: string; pagePostsUrl: string; producerId?: string;
+  /** Meta (the default) or TikTok, whose picker offers Studio clips and the linked account's posts. */
+  provider?: LaunchProvider;
+  /** TikTok: the linked account's posts for one ad account (lib/launch/tiktok-posts.ts). */
+  tiktokPostsUrl?: string;
   library: PickerClip[]; connections: LaunchConnection[]; accountIds: string[];
   placements: ("facebook" | "instagram")[]; content: LaunchContent[]; canPost: boolean;
   onChange: (content: LaunchContent[]) => void; onClose: () => void;
   /** What this dialog read from the Page, so the launch screen can preview the posts it holds. */
   onPostMeta?: (posts: Record<string, MetaPagePost>) => void;
+  /** TikTok: the linked account's posts this dialog read, so the launch screen can show the ones it holds. */
+  onTikTokPosts?: (posts: TikTokAccountPostList["posts"]) => void;
 };
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -41,9 +57,29 @@ const platformWord = (platform: ClipPostPlatform) => (platform === "facebook" ? 
 const same = (a: LaunchContent, b: LaunchContent) => a.kind === b.kind && a.value === b.value;
 export const contentLabel = (item: LaunchContent) => item.label ?? item.value;
 
-export default function ContentPicker({ clipsBase, pagePostsUrl, producerId, library, connections, accountIds, placements, content, canPost, onChange, onClose, onPostMeta }: Props) {
+export default function ContentPicker({ clipsBase, pagePostsUrl, producerId, provider = "meta", tiktokPostsUrl, library, connections, accountIds, placements, content, canPost, onChange, onClose, onPostMeta, onTikTokPosts }: Props) {
   const { tt, locale } = useT();
+  const tiktok = provider === "tiktok";
   const [tab, setTab] = useState<Tab>("clips");
+  // TikTok: the account the chosen ad account runs clips and posts as, and its posts.
+  const tiktokConnections = useMemo(() => connections.filter((c) => c.provider === "tiktok" && c.enabled), [connections]);
+  const [ttAccount, setTtAccount] = useState(accountIds.find((id) => tiktokConnections.some((c) => c.id === id)) ?? tiktokConnections[0]?.id ?? "");
+  const [ttPosts, setTtPosts] = useState<TikTokAccountPostList | null>(null);
+  const [ttBusy, setTtBusy] = useState(false);
+  const [ttError, setTtError] = useState("");
+  const loadTikTokPosts = useCallback(async (connectionId: string) => {
+    if (!connectionId || !tiktokPostsUrl) return;
+    setTtBusy(true); setTtError(""); setTtPosts(null);
+    const query = new URLSearchParams({ connection_id: connectionId, ...(producerId ? { producer_id: producerId } : {}) });
+    try {
+      const listed = await call<TikTokAccountPostList>(`${tiktokPostsUrl}?${query}`);
+      setTtPosts(listed);
+      onTikTokPosts?.(listed.posts);
+    }
+    catch (e) { setTtError(errorText(e)); }
+    finally { setTtBusy(false); }
+  }, [tiktokPostsUrl, producerId, onTikTokPosts]);
+  useEffect(() => { if (tiktok && ttAccount && !ttPosts && !ttBusy && !ttError) void loadTikTokPosts(ttAccount); }, [tiktok, ttAccount, ttPosts, ttBusy, ttError, loadTikTokPosts]);
   const [clips, setClips] = useState<PickerClip[]>(library);
   const [pageAccount, setPageAccount] = useState(accountIds[0] ?? connections[0]?.id ?? "");
   const [pagePosts, setPagePosts] = useState<MetaPagePostList | null>(null);
@@ -140,6 +176,13 @@ export default function ContentPicker({ clipsBase, pagePostsUrl, producerId, lib
     return <span className="clips-state clips-state-good">{tt("clipsPosting.state.posted", { date: shortDate(post.published_at ?? post.updated_at, locale) })}</span>;
   }
 
+  /** TikTok: a clip is one ad, carrying its hook as the line TikTok shows under it (editable on the Launch page). */
+  const tiktokClipEntry = (clip: PickerClip): LaunchContent => ({
+    kind: "video", value: clip.value, label: `${clip.title_name} · ${clip.label ?? clip.value}`,
+    creative_id: clip.creative_id, title_id: clip.title_id, text: tiktokAdText({ text: clip.text, headline: clip.headline }), headline: clip.headline,
+  });
+  // Spark codes live in the Launch page's own box; this dialog lists what it added.
+  const chosenHere = tiktok ? content.filter((item) => item.kind !== "spark") : content;
   const metaConnections = connections.filter((c) => c.provider === "meta" && c.enabled);
   const postable = (clip: PickerClip, platform: ClipPostPlatform) =>
     metaConnections.filter((c) => c.page_id && (platform === "facebook" || c.instagram_id));
@@ -148,11 +191,57 @@ export default function ContentPicker({ clipsBase, pagePostsUrl, producerId, lib
     <div className="launch-dialog launch-confirm-dialog content-picker" style={{ width: "min(980px, 100%)", maxWidth: 980 }} role="dialog" aria-modal="true" aria-labelledby="content-picker-title">
       <h2 id="content-picker-title">{tt("contentPicker.title")}</h2>
       <div className="seg content-picker-tabs" role="tablist">
-        {(["clips", "page", "paste"] as Tab[]).map((value) => <button type="button" role="tab" aria-selected={tab === value} key={value}
-          className={`seg-btn${tab === value ? " on" : ""}`} onClick={() => setTab(value)}>{tt(`contentPicker.tab.${value}`)}</button>)}
+        {((tiktok ? ["clips", "account"] : ["clips", "page", "paste"]) as Tab[]).map((value) => <button type="button" role="tab" aria-selected={tab === value} key={value}
+          className={`seg-btn${tab === value ? " on" : ""}`} onClick={() => setTab(value)}>{value === "account"
+            ? (ttPosts?.account ? tt("ltc.tabAccount", { handle: ttPosts.account.handle }) : tt("ltc.tabAccountUnknown"))
+            : tt(`contentPicker.tab.${value}`)}</button>)}
       </div>
 
-      {tab === "clips" && <div className="content-picker-body">
+      {tiktok && tab === "clips" && <div className="content-picker-body">
+        {/* What happens to a clip, before anyone adds one: it is uploaded and
+            run as the linked account, shown only as an ad. */}
+        <p className="hint" data-testid="tiktok-clips-hint">{ttPosts?.account
+          ? tt(ttPosts.account.can_push ? "ltc.clipsRunAs" : "ltc.clipsCannotPush", { handle: ttPosts.account.handle })
+          : tt("ltc.clipsRunAsLinked")}</p>
+        {ttPosts && !ttPosts.account && ttPosts.notes.length > 0 && <p className="note note-warn" role="alert">{ttPosts.notes.join(" · ")}</p>}
+        {!clips.length && <p className="hint">{tt("contentPicker.clipsEmpty")}</p>}
+        {clips.map((clip) => {
+          const entry = tiktokClipEntry(clip);
+          const chosen = has(entry);
+          return <div className="content-pick-row" key={clip.id} data-clip-id={clip.id}>
+            <span className="clips-poster">{clip.media_url ? <video src={clip.media_url} poster={clip.thumbnail_url ?? undefined} preload="metadata" playsInline muted /> : <span className="gt-muted">—</span>}</span>
+            <span className="content-pick-name"><strong>{clip.title_name}</strong><small>{clip.montage ? `${tt("montage.pill")} · ` : clip.episode_label ? `${tt("lpt.episode", { n: clip.episode_label })} · ` : ""}{clip.label ?? clip.value}</small></span>
+            <span className="content-pick-actions">
+              <button type="button" className={`btn btn-sm ${chosen ? "btn-primary" : "btn-outline"}`} onClick={() => (chosen ? remove(entry) : add([entry]))}>{chosen ? `✓ ${tt("contentPicker.added")}` : tt("ltc.useClip")}</button>
+            </span>
+          </div>;
+        })}
+      </div>}
+
+      {tiktok && tab === "account" && <div className="content-picker-body">
+        {tiktokConnections.length > 1 && <label className="tk-field clips-post-field">{tt("ltc.postsFrom")}
+          <select className="select" value={ttAccount} onChange={(event) => { setTtAccount(event.target.value); setTtPosts(null); setTtError(""); }}>
+            {tiktokConnections.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </label>}
+        {!ttAccount && <p className="hint">{tt("contentPicker.chooseAccount")}</p>}
+        {ttBusy && <p role="status">{tt("common.loading")}</p>}
+        {ttError && <p className="note note-warn" role="alert">{ttError}</p>}
+        {ttPosts?.notes?.length ? <p className="note note-warn">{ttPosts.notes.join(" · ")}</p> : null}
+        {ttPosts?.account && <p className="hint">{tt("ltc.postsHint", { handle: ttPosts.account.handle })}</p>}
+        {ttPosts?.account && !ttPosts.posts.length && !ttPosts.notes.length && <p className="hint">{tt("ltc.postsEmpty", { handle: ttPosts.account.handle })}</p>}
+        {ttPosts?.posts.map((post) => {
+          const item: LaunchContent = { kind: "tiktok_post", value: post.item_id, label: post.text.split("\n")[0].slice(0, 60).trim() || tt("lr2.kind.tiktok_post") };
+          return <div className="content-pick-row" key={post.item_id} data-post-id={post.item_id}>
+            <span className="clips-poster">{post.cover_url ? <span className="clips-thumb" role="presentation" style={{ backgroundImage: `url(${JSON.stringify(post.cover_url)})` }} /> : <span className="gt-muted">—</span>}</span>
+            <span className="content-pick-name"><strong>{item.label}</strong><small>{post.duration_s ? `${Math.round(post.duration_s)} s` : ""}</small></span>
+            <span className="content-pick-actions"><button type="button" className={`btn btn-sm ${has(item) ? "btn-primary" : "btn-outline"}`} onClick={() => (has(item) ? remove(item) : add([item]))}>{has(item) ? `✓ ${tt("contentPicker.added")}` : tt("contentPicker.add")}</button></span>
+          </div>;
+        })}
+        {ttPosts?.more && <p className="hint">{tt("ltc.postsMore", { n: ttPosts.posts.length })}</p>}
+      </div>}
+
+      {!tiktok && tab === "clips" && <div className="content-picker-body">
         {!clips.length && <p className="hint">{tt("contentPicker.clipsEmpty")}</p>}
         {clips.map((clip) => {
           const entries = entriesFor(clip);
@@ -177,7 +266,7 @@ export default function ContentPicker({ clipsBase, pagePostsUrl, producerId, lib
         })}
       </div>}
 
-      {tab === "page" && <div className="content-picker-body">
+      {!tiktok && tab === "page" && <div className="content-picker-body">
         <label className="tk-field clips-post-field">{tt("contentPicker.pageAccount")}
           <select className="select" value={pageAccount} onChange={(event) => { setPageAccount(event.target.value); setPagePosts(null); setPageError(""); }}>
             <option value="">{tt("lv2.choose")}</option>
@@ -207,7 +296,7 @@ export default function ContentPicker({ clipsBase, pagePostsUrl, producerId, lib
         })}
       </div>}
 
-      {tab === "paste" && <div className="content-picker-body">
+      {!tiktok && tab === "paste" && <div className="content-picker-body">
         <p className="hint">{tt("contentPicker.pasteHint")}</p>
         <div className="tk-field tk-row">
           <select className="select" value={pasteKind} onChange={(event) => setPasteKind(event.target.value as ClipPostPlatform)} aria-label={tt("lv2.postType")}>
@@ -229,9 +318,9 @@ export default function ContentPicker({ clipsBase, pagePostsUrl, producerId, lib
       </div>}
 
       <section className="content-picker-chosen">
-        <h3>{tt("contentPicker.selected")} <span className="pd-count">{content.length}</span></h3>
-        {!content.length && <p className="hint">{tt("contentPicker.chosen", { n: 0 })}</p>}
-        {content.map((item) => <div className="content-chosen-row" key={`${item.kind}:${item.value}`} data-content-id={item.value}>
+        <h3>{tt("contentPicker.selected")} <span className="pd-count">{chosenHere.length}</span></h3>
+        {!chosenHere.length && <p className="hint">{tt("contentPicker.chosen", { n: 0 })}</p>}
+        {chosenHere.map((item) => <div className="content-chosen-row" key={`${item.kind}:${item.value}`} data-content-id={item.value}>
           <span className="content-pick-name"><strong>{contentLabel(item)}</strong><small>{item.value}</small></span>
           <button type="button" className="btn btn-outline btn-sm" onClick={() => remove(item)}>{tt("contentPicker.remove")}</button>
         </div>)}

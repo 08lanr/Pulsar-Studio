@@ -5,7 +5,7 @@ import type { LaunchAdSetPlan, LaunchConnection, LaunchContent, LaunchDraft, Lau
 
 const cents = z.number().int().min(1).max(100_000_000);
 export const contentSchema = z.object({
-  kind: z.enum(["spark", "facebook_post", "instagram_post", "video"]),
+  kind: z.enum(["spark", "tiktok_post", "facebook_post", "instagram_post", "video"]),
   value: z.string().trim().min(1).max(2000), label: z.string().max(200).optional(),
   text: z.string().max(2200).optional(), headline: z.string().max(200).optional(),
   // Provenance for the preview, the confirm dialog and the monitor: which Studio
@@ -58,6 +58,23 @@ export function splitBudget(total: number, count: number): number[] {
   const base = Math.floor(total / count), remainder = total % count;
   return Array.from({ length: count }, (_, i) => base + (i < remainder ? 1 : 0));
 }
+
+/** TikTok's limit on an ad's text, the words under an uploaded video. */
+export const TIKTOK_AD_TEXT_MAX = 100;
+/**
+ * The text a TikTok ad made from a Studio clip carries: its own text (the
+ * clip's hook unless edited), else the title's name, on one line and cut to
+ * TikTok's 100 characters. A Spark code or a post carries the post's own
+ * caption and sends none. One rule for the screen, the preview and the driver.
+ */
+export function tiktokAdText(item: Pick<LaunchContent, "text" | "headline">): string {
+  const line = (value: string | undefined) => (value ?? "").replace(/\s+/g, " ").trim();
+  return (line(item.text) || line(item.headline)).slice(0, TIKTOK_AD_TEXT_MAX).trim();
+}
+/** What a TikTok launch may carry: Spark codes, the linked account's posts and Studio clips. */
+export const TIKTOK_CONTENT_KINDS: readonly LaunchContent["kind"][] = ["spark", "tiktok_post", "video"];
+/** A TikTok post id: TikTok's numeric item id. */
+export const TIKTOK_ITEM_ID = /^\d{10,25}$/;
 
 export function parseContentList(raw: string): string[] {
   return [...new Set(raw.split(/[\s,]+/).map(s => s.trim()).filter(Boolean))];
@@ -197,6 +214,7 @@ export function metaDraftIssues(draft: LaunchDraft, connections: LaunchConnectio
     list.add("duplicateContent", "Remove duplicate content entries. Use shared allocation to reuse content.");
   for (const item of draft.content) {
     if (item.kind === "spark") list.add("contentSpark", "Meta takes existing posts or finished clips, not Spark codes.");
+    if (item.kind === "tiktok_post") list.add("contentTikTokPost", "Meta takes Facebook or Instagram posts or finished clips, not TikTok posts.");
     if (item.kind === "facebook_post" && !/^\d+_\d+$/.test(item.value)) list.add("contentFacebookRef", "A Facebook post reference must be pageID_postID.");
     if (item.kind === "instagram_post" && !/^\d+$/.test(item.value)) list.add("contentInstagramRef", "An Instagram post reference must be a media ID.");
   }
@@ -295,7 +313,11 @@ export function buildLaunchPlan(input: LaunchDraft, connections: LaunchConnectio
     const needed = d.allocation === "shared" ? d.content_per_campaign : count * d.content_per_campaign;
     if (d.content.length !== needed) throw new Error(`Need exactly ${needed} content entries; ${d.content.length} provided.`);
     if (new Set(d.content.map(c => `${c.kind}:${c.value}`)).size !== d.content.length) throw new Error("Remove duplicate content entries. Use shared allocation to reuse content.");
-    if (d.content.some(c => c.kind !== "spark")) throw new Error("TikTok takes Spark codes; Meta takes posts or finished clips.");
+    if (d.content.some(c => !TIKTOK_CONTENT_KINDS.includes(c.kind))) throw new Error("TikTok takes Studio clips, the linked TikTok account's posts and Spark codes; Facebook and Instagram posts go to Meta.");
+    d.content.forEach((c, i) => {
+      if (c.kind === "tiktok_post" && !TIKTOK_ITEM_ID.test(c.value)) throw new Error(`Ad ${i + 1} is not a TikTok post of the linked account. Choose it again from the list.`);
+      if (c.kind === "video" && !tiktokAdText(c)) throw new Error(`Ad ${i + 1} has no text. Write the line TikTok shows under the clip.`);
+    });
   } else {
     // One collected list, so the screen prints every reason at once instead of
     // making the producer discover them one refused preview at a time.

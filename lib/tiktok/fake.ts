@@ -8,9 +8,19 @@
 //
 // What it models, and no more:
 //   /advertiser/info/          a READY account with a balance
-//   /identity/get/             one linked handle per account
+//   /identity/get/             one linked TikTok account per ad account
+//                              (BC_AUTH_TT, @pulsar.dramas, ads-only mode);
+//                              TIKTOK_FAKE_IDENTITY=none links none, =pull_only
+//                              one that ads may not upload videos to
+//   /identity/video/get/ /identity/video/info/   that account's three posts
 //   /file/video/ad/upload/     video id per upload
-//   /file/video/suggestcover/  one cover url; /file/image/ad/upload/ an image id
+//   /file/video/suggestcover/  one cover url (TIKTOK_FAKE_COVER=pending: none
+//                              yet, as while TikTok processes a video);
+//                              /file/image/ad/upload/ an image id
+//   /creative/ads_preview/create/  a preview link for an ad it holds
+//   /tt_video/info/            the post behind a Spark code, without authorizing
+//                              it (a code starting invalid/expired/private is
+//                              refused in TikTok's words)
 //   /campaign|adgroup|ad/create/  ids, recorded in memory with what was sent
 //   /ad/get/ + /ad/review_info/   review: the first poll is in review, the
 //                              second delivers (TIKTOK_FAKE_REVIEW=reject
@@ -35,7 +45,11 @@
 // billing event the goal forces; click and view attribution windows together
 // and from the WEB_CONVERSIONS + WEBSITE + CONVERT sets (docs?id=1777694366654465);
 // a pixel the account can use. /ad/create/ wants page_id in an Instant Page
-// group and landing_page_url in any other.
+// group and landing_page_url in any other; a BC_AUTH_TT ad names the linked
+// account and its Business Center, and carries either one of the account's
+// posts (no video, cover or text) or an uploaded video with its cover and a
+// 1–100 character text (dark_post_status ON or OFF; ON is recorded as a post
+// only the account's owner sees, which /ad/get/ names).
 //
 // TIKTOK_FAKE_PIXEL=missing lists no pixel, =unbound lists it UNBOUND and
 // =unreadable refuses the listing with TikTok's 40001, in the live words (a
@@ -106,6 +120,28 @@ function seedDemoObjects(s: FakeState): void {
 }
 
 const DEMO_CAMPAIGN_IDS = ["1700000000000000001", "1700000000000000004"];
+
+/** The TikTok account the fake links to an ad account, by the ad account's id. */
+export const fakeLinkedIdentityId = (advertiserId: string) => `${advertiserId.slice(0, -3)}101`;
+/** The linked account's posts, newest first; the same three on every fake ad account. */
+export const FAKE_ACCOUNT_POSTS = [
+  { item_id: "1730000000000000103", text: "She signed the divorce papers. He had no idea who she really was.", duration: 28.4 },
+  { item_id: "1730000000000000102", text: "The night bus leaves at 11 sharp. Nobody gets off.", duration: 29.6 },
+  { item_id: "1730000000000000101", text: "My cold boss doesn't know he is my son's father.", duration: 24.1 },
+] as const;
+function fakeIdentityRows(advertiserId: string): Record<string, unknown>[] {
+  const mode = process.env.TIKTOK_FAKE_IDENTITY;
+  if (mode === "none") return [];
+  return [{ identity_id: fakeLinkedIdentityId(advertiserId), identity_type: "BC_AUTH_TT", display_name: "Pulsar Dramas", username: "pulsar.dramas",
+    identity_authorized_bc_id: FAKE_BC_ID, available_status: "AVAILABLE", can_pull_video: true, can_push_video: mode !== "pull_only", ads_only_mode: true }];
+}
+function fakePostRow(post: (typeof FAKE_ACCOUNT_POSTS)[number]): Record<string, unknown> {
+  return { item_id: post.item_id, item_type: "VIDEO", status: "ITEM_STATUS_HESITATE_RECOMMEND", text: post.text,
+    video_info: { duration: post.duration, format: "mp4", width: 720, height: 1280, poster_url: `https://fake.tiktok.invalid/poster/${post.item_id}.jpg` } };
+}
+/** Whether a request names the fake's linked account of that ad account. */
+const linkedIdentity = (params: Record<string, unknown>) =>
+  fakeIdentityRows(String(params.advertiser_id ?? "")).some((row) => row.identity_id === String(params.identity_id ?? "") && row.identity_authorized_bc_id === String(params.identity_authorized_bc_id ?? ""));
 
 /** The fake's pixel: one id for the configured code, shared with every ad account. */
 export const FAKE_PIXEL_ID = "1790000000000000001";
@@ -395,16 +431,32 @@ export const fakeTransport: TikTokTransport = {
           user_info: { identity_id: p.identityId },
         })), page_info: { total_page: Math.max(1, Math.ceil(posts.length / size)) } });
       }
+      case "/tt_video/info/": {
+        // The post behind a code, read without authorizing it; a bad code in TikTok's own words.
+        const code = String(params.auth_code ?? "").trim();
+        if (!code || /^(invalid|expired|private)/i.test(code)) return { code: 40002, message: "Post code is incorrect. Contact the creator to verify the code, or to create a new one." };
+        return ok({ item_info: { auth_code: code, item_type: "VIDEO", text: `Fake post for code ${code.slice(-6)}` }, user_info: { tiktok_name: "pulsar.dramas", identity_type: "AUTH_CODE" },
+          video_info: { duration: 28, poster_url: `https://fake.tiktok.invalid/poster/spark-${encodeURIComponent(code.slice(-12))}.jpg` } });
+      }
       case "/advertiser/info/": {
         const ids = JSON.parse(String(params.advertiser_ids ?? "[]")) as string[];
         return ok({ list: ids.map((id) => ({ advertiser_id: id, name: `Fake ad account ${id.slice(-4)}`, status: suspended() ? "STATUS_DISABLE" : "STATUS_ENABLE", currency: "USD", balance: 500, owner_bc_id: FAKE_BC_ID })) });
       }
       case "/identity/get/": {
         if (params.identity_type !== "BC_AUTH_TT") return ok({ identity_list: [] });
-        const adv = String(params.advertiser_id ?? "");
-        return ok({ identity_list: [{ identity_id: `${adv.slice(0, -3)}101`, identity_type: "BC_AUTH_TT", display_name: "@pulsar.dramas" }] });
+        return ok({ identity_list: fakeIdentityRows(String(params.advertiser_id ?? "")) });
+      }
+      case "/identity/video/get/": {
+        if (!linkedIdentity(params)) return { code: 40000, message: "Unable to fetch a valid identity. Please check the 'identity_id' you inputted." };
+        return ok({ video_list: FAKE_ACCOUNT_POSTS.map(fakePostRow), cursor: "0", has_more: false });
+      }
+      case "/identity/video/info/": {
+        const post = FAKE_ACCOUNT_POSTS.find((p) => p.item_id === String(params.item_id ?? ""));
+        if (!linkedIdentity(params) || !post) return { code: 40000, message: "Unable to fetch a valid item. Please check the 'identity_id' you inputted or the 'identity_id' under your ad, and try again." };
+        return ok({ video_detail: fakePostRow(post) });
       }
       case "/file/video/suggestcover/":
+        if (process.env.TIKTOK_FAKE_COVER === "pending") return ok({ list: [] });
         return ok({ list: [{ cover_url: `https://fake.tiktok.invalid/cover/${params.video_id}.jpg` }] });
       case "/ad/get/": {
         const ids = filterIds(params.filtering, "ad_ids");
@@ -414,7 +466,7 @@ export const fakeTransport: TikTokTransport = {
         const list = ads.map((a) => {
           const r = reviewFor(a);
           a.polls += 1;
-          return { ad_id: a.adId, adgroup_id: a.adgroupId, campaign_id: a.campaignId, ad_name: a.adName, secondary_status: r.secondary, operation_status: "ENABLE", ad_text: a.body.ad_text, video_id: a.body.video_id, tiktok_item_id: a.body.tiktok_item_id, image_ids: a.body.image_ids, identity_id: a.body.identity_id, identity_type: a.body.identity_type, call_to_action: a.body.call_to_action, landing_page_url: a.body.landing_page_url };
+          return { ad_id: a.adId, adgroup_id: a.adgroupId, campaign_id: a.campaignId, ad_name: a.adName, secondary_status: r.secondary, operation_status: "ENABLE", ad_text: a.body.ad_text, video_id: a.body.video_id, tiktok_item_id: a.body.tiktok_item_id, image_ids: a.body.image_ids, identity_id: a.body.identity_id, identity_type: a.body.identity_type, identity_authorized_bc_id: a.body.identity_authorized_bc_id, dark_post_status: a.body.dark_post_status, call_to_action: a.body.call_to_action, landing_page_url: a.body.landing_page_url };
         });
         return ok({ list, page_info: { total_page: 1 } });
       }
@@ -495,6 +547,11 @@ export const fakeTransport: TikTokTransport = {
       }
       case "/file/image/ad/upload/":
         return ok({ image_id: nextId("c17") });
+      case "/creative/ads_preview/create/": {
+        const ad = s.ads.get(String(body.ad_id ?? ""));
+        if (body.preview_type !== "AD" || !ad || ad.advertiserId !== String(body.advertiser_id)) return refuse("ad_id is not an ad of this advertiser");
+        return ok({ preview_link: `https://fake.tiktok.invalid/ad_preview_tool?ad_preview_id=${ad.adId}`, iframe: "", tips: [] });
+      }
       case "/campaign/create/": {
         const name = String(body.campaign_name ?? "");
         if ([...s.campaigns.values()].some((c) => c.advertiserId === String(body.advertiser_id) && c.name === name)) return refuse("Campaign name already exists");
@@ -538,13 +595,34 @@ export const fakeTransport: TikTokTransport = {
             const instantPage = adgroup.body.promotion_website_type === "TIKTOK_NATIVE_PAGE";
             if (instantPage ? !c.page_id || c.landing_page_url : !c.landing_page_url || c.page_id) return refuse(instantPage ? "An Instant Page ad group's ads need page_id and no landing_page_url" : "A website ad group's ads need landing_page_url and no page_id");
             if (/^reject-ad/i.test(post.code)) return refuse("Spark creative not valid");
+          } else if (c.identity_type === "BC_AUTH_TT") {
+            const adv = String(body.advertiser_id);
+            if (String(c.identity_id ?? "") !== fakeLinkedIdentityId(adv) || !fakeIdentityRows(adv).length) return refuse("identity_id is not a TikTok account linked to this advertiser");
+            // Studio's new ads always name the Business Center; the retired engine (lib/tiktok/launch.ts) never did.
+            if (c.identity_authorized_bc_id !== undefined && String(c.identity_authorized_bc_id) !== FAKE_BC_ID) return refuse("identity_authorized_bc_id has not authorized this identity");
+            const instantPage = adgroup.body.promotion_website_type === "TIKTOK_NATIVE_PAGE";
+            if (instantPage ? !c.page_id || c.landing_page_url : !c.landing_page_url || c.page_id) return refuse(instantPage ? "An Instant Page ad group's ads need page_id and no landing_page_url" : "A website ad group's ads need landing_page_url and no page_id");
+            if (c.tiktok_item_id !== undefined) {
+              if (c.identity_authorized_bc_id === undefined) return refuse("identity_authorized_bc_id is required when identity_type is BC_AUTH_TT");
+              if (!FAKE_ACCOUNT_POSTS.some((p) => p.item_id === String(c.tiktok_item_id))) return refuse("Unable to fetch a valid item. Please check the 'identity_id' you inputted or the 'identity_id' under your ad, and try again.");
+              if (c.video_id || c.image_ids || c.ad_text || c.dark_post_status) return refuse("An ad from an existing post takes the post only: no video_id, image_ids, ad_text or dark_post_status");
+            } else {
+              if (!c.video_id || !Array.isArray(c.image_ids) || !c.image_ids.length) return refuse("video_id and image_ids are required for an uploaded video");
+              const text = String(c.ad_text ?? "");
+              if (!text.trim() || text.length > 100) return refuse("ad_text must be 1-100 characters");
+              if (c.dark_post_status !== undefined && c.dark_post_status !== "ON" && c.dark_post_status !== "OFF") return refuse("dark_post_status must be ON or OFF");
+              if (fakeIdentityRows(adv)[0]?.can_push_video === false) return refuse("This TikTok account does not allow videos to be pushed to it");
+            }
           } else if (!c.identity_id || !c.video_id || !Array.isArray(c.image_ids) || !c.landing_page_url) {
             throw new Error("fake TikTok: incomplete ad payload");
           }
         }
         const adIds = creatives.map((c) => {
           const adId = nextId("172");
-          s.ads.set(adId, { adId, adgroupId: adgroup.adgroupId, campaignId: adgroup.campaignId, advertiserId: String(body.advertiser_id), polls: 0, adName: String(c.ad_name ?? ""), body: { ...c } });
+          // An uploaded video under a linked account becomes a post of that
+          // account; ads-only (dark post ON), only its owner sees it.
+          const pushed = c.identity_type === "BC_AUTH_TT" && c.video_id && c.dark_post_status ? { tiktok_item_id: nextId("173") } : {};
+          s.ads.set(adId, { adId, adgroupId: adgroup.adgroupId, campaignId: adgroup.campaignId, advertiserId: String(body.advertiser_id), polls: 0, adName: String(c.ad_name ?? ""), body: { ...c, ...pushed } });
           return adId;
         });
         return ok({ ad_ids: adIds });

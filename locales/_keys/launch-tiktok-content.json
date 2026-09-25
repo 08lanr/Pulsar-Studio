@@ -1,0 +1,138 @@
+{
+  "lr2.kind.tiktok_post": {
+    "en": "TikTok post",
+    "zh": "TikTok 帖子"
+  },
+  "lr2.issue.contentTikTokPost": {
+    "en": "Meta takes Facebook or Instagram posts or finished clips, not TikTok posts.",
+    "zh": "Meta 使用 Facebook 或 Instagram 帖子或成片切片，不使用 TikTok 帖子。"
+  },
+  "ltc.choose": {
+    "en": "Choose Studio clips or TikTok posts",
+    "zh": "选择 Studio 切片或 TikTok 帖子"
+  },
+  "ltc.chooseHint": {
+    "en": "Each Studio clip becomes an ad by itself: Studio uploads it and runs it as your TikTok account. Nothing to post in the app, no codes to copy.",
+    "zh": "每个 Studio 切片直接成为一条广告：Studio 会上传它，并以你的 TikTok 账号投放。无需在 App 里发布，也无需复制授权码。"
+  },
+  "ltc.tabAccount": {
+    "en": "From {handle}",
+    "zh": "来自 {handle}"
+  },
+  "ltc.tabAccountUnknown": {
+    "en": "From the TikTok account",
+    "zh": "来自 TikTok 账号"
+  },
+  "ltc.useClip": {
+    "en": "Use this clip",
+    "zh": "使用这个切片"
+  },
+  "ltc.clipsRunAs": {
+    "en": "Studio uploads each clip you pick and runs it as {handle}, shown only as an ad: it plays in the For You feed under {handle}'s name and picture, and never appears on the profile. The Monitor links to each ad on TikTok once it exists.",
+    "zh": "你选的每个切片都会由 Studio 上传，并以 {handle} 的身份投放，只作为广告展示：它会以 {handle} 的名称和头像出现在“推荐”信息流中，不会出现在主页上。广告创建后，监控页会给出每条广告在 TikTok 上的链接。"
+  },
+  "ltc.clipsCannotPush": {
+    "en": "{handle} is linked to this ad account, but Business Center does not let ads upload videos to it. Its posts can still run; to use Studio clips, give the ad account permission to run ads with new videos on {handle} in Business Center.",
+    "zh": "{handle} 已关联到这个广告账户，但商务中心不允许广告向它上传视频。它的帖子仍可投放；如需使用 Studio 切片，请在商务中心为这个广告账户开通用新视频以 {handle} 投放广告的权限。"
+  },
+  "ltc.clipsRunAsLinked": {
+    "en": "Studio uploads each clip you pick and runs it as the TikTok account Business Center links to the ad account, shown only as an ad (never on the profile).",
+    "zh": "你选的每个切片都会由 Studio 上传，并以商务中心关联到该广告账户的 TikTok 账号投放，只作为广告展示（不会出现在主页上）。"
+  },
+  "ltc.postsFrom": {
+    "en": "Posts of the account linked to",
+    "zh": "读取以下广告账户关联账号的帖子"
+  },
+  "ltc.postsHint": {
+    "en": "Posts {handle} has already made. Each one you add runs as an ad as it is, with no Spark code; it stays on the profile.",
+    "zh": "{handle} 已发布的帖子。你添加的每个帖子都会原样作为广告投放，无需 Spark 授权码；帖子仍保留在主页上。"
+  },
+  "ltc.postsEmpty": {
+    "en": "{handle} has no posts yet.",
+    "zh": "{handle} 还没有帖子。"
+  },
+  "ltc.postsMore": {
+    "en": "Showing the newest {n} posts.",
+    "zh": "显示最新的 {n} 个帖子。"
+  },
+  "ltc.rowsHint": {
+    "en": "Each row is one ad. A Studio clip promotes its own title and carries the line TikTok shows under it; a post or a Spark code starts on the launch's title (step 4) and can promote another. One launch can promote several titles.",
+    "zh": "每一行是一条广告。Studio 切片推广它自己的剧集，并带有 TikTok 显示在视频下方的文字；帖子或 Spark 授权码默认推广本次投放的剧集（第 4 步），也可以改为其他剧集。一次投放可以推广多部剧集。"
+  },
+  "ltc.colContent": {
+    "en": "Content",
+    "zh": "内容"
+  },
+  "ltc.clipTitle": {
+    "en": "The clip's title",
+    "zh": "切片所属剧集"
+  },
+  "ltc.adText": {
+    "en": "Text under the video",
+    "zh": "视频下方的文字"
+  },
+  "ltc.adTextFor": {
+    "en": "Text under the video of ad {n}",
+    "zh": "第 {n} 条广告视频下方的文字"
+  },
+  "ltc.adTextCount": {
+    "en": "{n} / {max} characters",
+    "zh": "{n} / {max} 个字符"
+  },
+  "ltc.post": {
+    "en": "Post",
+    "zh": "帖子"
+  },
+  "ltc.removeAd": {
+    "en": "Remove ad {n}",
+    "zh": "移除第 {n} 条广告"
+  },
+  "ltc.factRunsAs": {
+    "en": "Runs as",
+    "zh": "投放身份"
+  },
+  "ltc.runsAsClips": {
+    "en": "{n} Studio clips run as {handle}, shown only as ads (not on the profile).",
+    "zh": "{n} 个 Studio 切片以 {handle} 的身份投放，只作为广告展示（不在主页上）。"
+  },
+  "ltc.runsAsClipsOne": {
+    "en": "1 Studio clip runs as {handle}, shown only as an ad (not on the profile).",
+    "zh": "1 个 Studio 切片以 {handle} 的身份投放，只作为广告展示（不在主页上）。"
+  },
+  "ltc.runsAsPosts": {
+    "en": "{n} posts of {handle} run as ads, with no Spark code.",
+    "zh": "{handle} 的 {n} 个帖子作为广告投放，无需 Spark 授权码。"
+  },
+  "ltc.runsAsPostsOne": {
+    "en": "1 post of {handle} runs as an ad, with no Spark code.",
+    "zh": "{handle} 的 1 个帖子作为广告投放，无需 Spark 授权码。"
+  },
+  "ltc.watch": {
+    "en": "Watch on TikTok",
+    "zh": "在 TikTok 上查看"
+  },
+  "ltc.watchHint": {
+    "en": "TikTok's own preview of this ad, exactly as it runs (opens in a new tab)",
+    "zh": "TikTok 对这条广告的官方预览，与实际投放完全一致（在新标签页打开）"
+  },
+  "ltc.runsAs": {
+    "en": "Runs as {handle}",
+    "zh": "以 {handle} 的身份投放"
+  },
+  "ltc.runsAsAdsOnly": {
+    "en": "Runs as {handle} · only as an ad, not on the profile",
+    "zh": "以 {handle} 的身份投放 · 只作为广告，不在主页上"
+  },
+  "ltc.ownerPost": {
+    "en": "Its post (only the account owner sees it)",
+    "zh": "对应的帖子（仅账号本人可见）"
+  },
+  "ltc.ownerPostHint": {
+    "en": "The post TikTok made for this ad. It opens for the account's owner, signed in, and for nobody else.",
+    "zh": "TikTok 为这条广告生成的帖子。只有登录后的账号本人能打开，其他人看不到。"
+  },
+  "ltc.sparkUnknown": {
+    "en": "TikTok does not recognise this code: {reason}",
+    "zh": "TikTok 无法识别这个授权码：{reason}"
+  }
+}

@@ -14,7 +14,7 @@ test("staff preview locks the selected company and draft until confirmation matc
   const chosenProducer = await producer.inputValue();
   await page.locator("details.launch-account-picker").getByRole("checkbox", { name: /Demo TikTok 1/ }).check();
   await page.getByLabel("Launch name").fill("Preview consistency check");
-  await page.getByLabel(/^(Items|Spark codes) per campaign$/).fill("1");
+  await page.getByLabel(/^(Items|Spark codes|Ads) per campaign$/).fill("1");
   await page.getByLabel("Paste all Spark codes, one per line").fill("PREVIEW-CONSISTENCY-SPARK");
   await chooseTikTokTitle(page);
 

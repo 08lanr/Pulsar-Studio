@@ -4,7 +4,13 @@ import type { LaunchSettings } from "@/lib/tiktok/settings";
 import type { WebConversions } from "@/lib/tiktok/web-metrics";
 
 export type LaunchProvider = "tiktok" | "meta";
-export type ContentKind = "spark" | "facebook_post" | "instagram_post" | "video";
+/**
+ * `spark` a TikTok Spark code; `tiktok_post` a post of the TikTok account
+ * Business Center links to the ad account (its item id, no code); `video` a
+ * Studio clip Studio uploads (Meta: to the ad account; TikTok: run as the
+ * linked account, shown only as an ad); `facebook_post` / `instagram_post`.
+ */
+export type ContentKind = "spark" | "tiktok_post" | "facebook_post" | "instagram_post" | "video";
 export type LaunchContent = {
   kind: ContentKind; value: string; label?: string; creative_id?: string;
   /**
@@ -90,6 +96,13 @@ export type LaunchPlan = {
    * when it was asked and answered (lib/tiktok/pixel.ts).
    */
   tiktok_pixel?: { code: string; event: string; attribution: string; accounts: { connection_id: string; pixel_id: string; unverified?: true; owner?: string | null }[] };
+  /**
+   * TikTok, when the ads include Studio clips or the linked account's posts:
+   * how many of each, and the account they run as on every chosen ad account
+   * (lib/tiktok/linked-account.ts), read at preview; the driver picks it again
+   * by the same rule before anything is written.
+   */
+  tiktok_identity?: { clips: number; posts: number; accounts: { connection_id: string; name: string; handle: string; ads_only: boolean }[] };
 };
 export type DeliveryState = "submitted" | "review" | "live" | "paused" | "ended" | "rejected" | "failed" | "suspended" | "unknown";
 export type DeliverySnapshot = {
@@ -97,7 +110,15 @@ export type DeliverySnapshot = {
   spend_cents: number | null; impressions: number | null; clicks: number | null;
   conversions: number | null; cpc_cents: number | null;
   configured_status?: string; effective_status?: string;
-  ads?: { id: string; status: string; note?: string; content_value?: string; stats?: AdStats }[];
+  ads?: {
+    id: string; status: string; note?: string; content_value?: string; stats?: AdStats;
+    /** TikTok: the linked account the ad runs as ("@crazydramaus"), when it runs as one (a Studio clip or one of its posts). */
+    runs_as?: string;
+    /** TikTok: the ad's video is shown only as an ad, never on the profile (dark_post_status ON). */
+    ads_only?: boolean;
+    /** TikTok: the post the ad plays, and its own page, when TikTok names one (an ads-only post opens there for the account's owner only). */
+    item_id?: string; post_url?: string;
+  }[];
   /** Why the per-ad numbers are missing when TikTok's ad report failed (fails soft: the campaign's numbers stand). */
   ad_stats_error?: string;
   /** Why the per-ad PURCHASES are missing when that second read failed; the ads keep their delivery numbers (ad_stats_error is the first read's). */

@@ -40,6 +40,22 @@ export function pixelHandSetNote(tt: Translate, pixelId: string, owners: readonl
   return named.length ? tt("lpx.pixelUnverifiedOwned", { id: pixelId, bc: named.join(" · ") }) : tt("lpx.pixelUnverified", { id: pixelId });
 }
 
+/**
+ * Who the TikTok ads run as when the launch carries Studio clips or the linked
+ * account's posts (decision 2026-09-25), in one line for the preview and the
+ * confirm dialog: the account's handle, and that clips stay off its profile.
+ * Undefined for a launch of Spark codes only.
+ */
+export function planIdentityLine(tt: Translate, identity?: { clips: number; posts: number; accounts: { handle: string; ads_only: boolean }[] }): string | undefined {
+  if (!identity?.accounts.length) return undefined;
+  const handle = [...new Set(identity.accounts.map((a) => a.handle))].join(" · ");
+  const parts = [
+    identity.clips ? tt(identity.clips === 1 ? "ltc.runsAsClipsOne" : "ltc.runsAsClips", { handle, n: identity.clips }) : null,
+    identity.posts ? tt(identity.posts === 1 ? "ltc.runsAsPostsOne" : "ltc.runsAsPosts", { handle, n: identity.posts }) : null,
+  ];
+  return parts.filter(Boolean).join(" ");
+}
+
 /** A plan's hand-set pixel note, or undefined when TikTok confirmed the pixel on every chosen account. */
 export function planPixelNote(tt: Translate, pixel?: { accounts: { pixel_id: string; unverified?: true; owner?: string | null }[] }): string | undefined {
   const handSet = pixel?.accounts.filter((a) => a.unverified) ?? [];

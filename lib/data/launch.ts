@@ -32,6 +32,18 @@ async function tiktokGate(s: Session, draft: LaunchDraft, producerId: string, ow
 }
 
 /**
+ * The TikTok account Studio clips and the account's own posts run as, on
+ * every chosen ad account (lib/launch/tiktok-gate.ts): read at preview and
+ * again at approval, refused in words when an account has none. A launch of
+ * Spark codes only needs none and reads nothing.
+ */
+async function tiktokIdentity(draft: LaunchDraft, rows: LaunchPlanRow[], own: LaunchConnection[]) {
+  if (draft.provider !== "tiktok" || !draft.content.some(c => c.kind === "video" || c.kind === "tiktok_post")) return undefined;
+  const { tiktokIdentityGate } = await import("@/lib/launch/tiktok-gate");
+  return tiktokIdentityGate(draft, rows, own);
+}
+
+/**
  * The campaign names already on the chosen Meta accounts, so a typed campid
  * that collides is a "Fix these first" line at preview rather than a failed
  * campaign after approval. Only a typed campid can collide (the derived id
@@ -404,8 +416,11 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
       };
       if (safe.title_id) safe.destination_url = (await landing(safe.title_id)) ?? safe.destination_url;
       for (const c of safe.content) {
-        const clipTitle = c.clip_id ? own.find(a => a.id === c.clip_id)?.title_id : undefined;
-        const titleId = c.title_id ?? clipTitle ?? safe.title_id ?? undefined;
+        // A Studio clip promotes its own title, whatever the row says; a Spark
+        // code or a post the title its row names, else the clip it was made
+        // from, else the launch's.
+        const clipTitle = own.find(a => a.id === (c.kind === "video" ? c.value : c.clip_id))?.title_id;
+        const titleId = c.kind === "video" ? clipTitle : c.title_id ?? clipTitle ?? safe.title_id ?? undefined;
         const link = titleId ? await landing(titleId) : null;
         ads.set(c, { title_id: titleId, landing_url: link ?? undefined });
       }
@@ -490,7 +505,8 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
       const r = await find(s, id); const own = await connections(s, r.producer_id, r.draft.provider);
       const pixel = await tiktokGate(s, r.draft, r.producer_id, own);
       const plan = buildLaunchPlan(r.draft, own, r.external_id, await takenCampaignNames(r.draft, own));
-      return pixel ? { ...plan, tiktok_pixel: pixel } : plan;
+      const identity = await tiktokIdentity(r.draft, plan.rows, own);
+      return { ...plan, ...(pixel ? { tiktok_pixel: pixel } : {}), ...(identity ? { tiktok_identity: identity } : {}) };
     },
     async submitLaunchRun(s, id, revision, note) {
       const r = await find(s, id); authorize(s, r.producer_id, "launch");
@@ -509,6 +525,7 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
       const plan = buildLaunchPlan(r.draft, own, r.external_id, await takenCampaignNames(r.draft, own));
       if (r.connections && connectionSignature(r.connections) !== connectionSignature(own.filter(a => r.draft.account_ids.includes(a.id)))) throw conflict("Account assignment changed. Save and preview the draft again.");
       r.connections = own.filter(a => r.draft.account_ids.includes(a.id));
+      await tiktokIdentity(r.draft, plan.rows, own);
       r.snapshot_hash = launchHash(r.draft, r.connections, plan.rows); r.approved_by = s.userId; r.approved_at = now(); r.approval_note = note?.trim() || null;
       r.campaigns = plan.rows.map(p => ({ ...p, id: randomUUID(), run_id: r.id, status: "pending", state: {}, error: null, snapshot: null }));
       r.status = "pending"; audit(r, s, "launch_approved", note, { total_budget_cents: plan.total_budget_cents, hash: r.snapshot_hash });

@@ -21,14 +21,14 @@ test("Launch keeps account, Spark, settings and validation decisions together", 
   await expect(picker).toContainText("2 selected");
 
   await page.getByLabel("Campaigns per account").fill("2");
-  await page.getByLabel("Spark codes per campaign").fill("2");
-  await expect(page.getByText(/4 unique codes per account; 8 total across 2 accounts/)).toBeVisible();
+  await page.getByLabel("Ads per campaign").fill("2");
+  await expect(page.getByText(/4 different ads per account; 8 total across 2 accounts/)).toBeVisible();
   const codes = Array.from({ length: 8 }, (_, i) => `REDESIGN-SPARK-${i + 1}`);
   await page.getByLabel("Paste all Spark codes, one per line").fill(codes.join("\n"));
   await expect(page.locator(".launch-spark-count")).toHaveClass(/ready/);
   await expect(page.locator(".launch-spark-count")).toContainText("8 / 8");
   await page.getByRole("button", { name: "Same content every campaign", exact: true }).click();
-  await expect(page.getByText(/2 codes reused in each of 4 campaigns/)).toBeVisible();
+  await expect(page.getByText(/2 ads reused in each of 4 campaigns/)).toBeVisible();
   await page.getByRole("button", { name: "Unique per campaign", exact: true }).click();
 
   await page.getByRole("button", { name: "Customize for this launch" }).click();

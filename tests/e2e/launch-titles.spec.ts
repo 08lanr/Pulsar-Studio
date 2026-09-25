@@ -32,7 +32,7 @@ test("one TikTok launch promotes two titles, each ad with its own title and link
   await signIn(page, "producer");
   expect((await page.request.post("/api/demo/reset", { data: { seed: "demo" } })).ok()).toBe(true);
   await page.goto("/producer/launch");
-  await page.getByLabel(/^(Items|Spark codes) per campaign$/).fill("2");
+  await page.getByLabel(/^(Items|Spark codes|Ads) per campaign$/).fill("2");
   await chooseAccount(page, /Demo TikTok 1/);
   await page.getByLabel("Paste all Spark codes, one per line").fill("TITLES-SPARK-ONE\nTITLES-SPARK-TWO");
   await chooseTikTokTitle(page);

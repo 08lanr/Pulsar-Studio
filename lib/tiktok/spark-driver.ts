@@ -1,7 +1,20 @@
-// Overlord's authorize -> authorized-post list -> AUTH_CODE ad flow.
-// No video bytes, uploads, covers or ad copy enter this driver. The approved
-// launch record supplies every account, code, destination and money ceiling.
-import type { AdStats, DeliverySnapshot, DriverContext, LaunchControl, LaunchDriver } from "@/lib/launch/types";
+// The TikTok launch driver. Three kinds of content become ads here:
+//   a Spark code   overlord's authorize -> authorized-post list -> AUTH_CODE ad
+//   a post of the linked account   its item id under the TikTok account
+//                  Business Center links to the ad account (BC_AUTH_TT), no code
+//   a Studio clip  the approved file, re-hashed, uploaded to the ad account,
+//                  TikTok's suggested cover, and an ad under the linked account
+//                  shown only as an ad (dark_post_status ON: never on the
+//                  profile), carrying the clip's text (decision 2026-09-25)
+// The approved launch record supplies every account, code, clip, destination
+// and money ceiling; the linked account is picked by the preview's rule and
+// recorded before the first write.
+import { createHash } from "node:crypto";
+import type { AdStats, DeliverySnapshot, DriverContext, LaunchContent, LaunchControl, LaunchDriver } from "@/lib/launch/types";
+import { TIKTOK_CONTENT_KINDS, tiktokAdText } from "@/lib/launch/plan";
+import { LaunchWaiting } from "@/lib/launch/waiting";
+import { readStoredBytes } from "@/lib/data/storage";
+import { findLinkedPost, linkedAccountHandle, linkedAccountMissing, linkedNeeds, listLinkedAccounts, pickLinkedAccount, tiktokPostUrl, type LinkedAccount } from "./linked-account";
 import { accessTokenFor, tiktokTransport, type TikTokResponse, type TikTokTransport } from "./index";
 import { normalizeReview } from "./review";
 import { accountHealth, accountStatusLabel } from "./account-health";
@@ -14,11 +27,27 @@ import { assertCampaignBudget } from "@/lib/launch/budget";
 import { createInstantPageDraft, InstantPageCreateNotSentError, InstantPageCreateRejectedError, loadSalesMasterSnapshot, publishInstantPage } from "./instant-page";
 import { SALES_MASTER_SHA256, SALES_MASTER_VERSION } from "./instant-page-master";
 
-export type SparkPost = { code: string; item_id: string; identity_id: string; item_type: string };
+/**
+ * One ad's content, resolved before any campaign exists. `code` is the
+ * content's value (a Spark code, a post id, a clip id) and keys the ad in
+ * every group. Without `kind` it is a redeemed Spark code (AUTH_CODE).
+ */
+export type SparkPost = {
+  code: string; item_id: string; identity_id: string; item_type: string;
+  kind?: "tiktok_post" | "video";
+  /** BC_AUTH_TT: the Business Center that links the account. */
+  bc_id?: string;
+  /** A Studio clip: its uploaded video, its cover, and the words under it. */
+  video_id?: string; image_id?: string; ad_text?: string;
+};
 type SkippedSpark = { code: string; reason: string };
 type SparkGroup = { id: string; key: string; ads: Record<string, string>; retired?: boolean; ready?: boolean };
 type SparkState = {
   campaign_id?: string; posts?: SparkPost[]; skipped?: SkippedSpark[]; groups?: SparkGroup[];
+  /** The linked TikTok account Studio clips and posts run as, picked once, before any write. */
+  identity?: LinkedAccount | null;
+  /** Each Studio clip's upload, by clip id, recorded as it lands so a resumed launch never uploads it twice. */
+  uploads?: Record<string, { video_id: string; image_id?: string }>;
   settings?: LaunchSettings; plan?: AdGroupPlan; budget_cents?: number; daily_budget_cents?: number | null;
   planned_budgets?: number[];
   instant_page?: { name: string; phase: "creating" | "created" | "published"; id?: string } | null;
@@ -39,7 +68,9 @@ const landingUrl = (ctx: DriverContext) => ctx.campaign.tracking_url ?? ctx.run.
  * else the campaign's on rows approved before per-ad titles.
  */
 const adLanding = (ctx: DriverContext, code: string) =>
-  ctx.campaign.content.find((item) => item.kind === "spark" && item.value.trim() === code)?.landing_url ?? landingUrl(ctx);
+  ctx.campaign.content.find((item) => item.value.trim() === code)?.landing_url ?? landingUrl(ctx);
+/** What names an ad and finds it again: the post it plays, or the uploaded video. */
+const adRef = (post: SparkPost) => post.item_id || `v${post.video_id ?? ""}`;
 const shapeOf = (s: SparkState) => (s.settings ? launchShape(s.settings) : "traffic");
 const str = (v: unknown) => v === undefined || v === null ? "" : String(v);
 const number = (v: unknown): number | null => v === undefined || v === null || v === "" || !Number.isFinite(Number(v)) ? null : Number(v);
@@ -146,6 +177,114 @@ export async function redeemSparkCodes(c: Client, codes: string[], beforeWrite: 
     posts: wanted.flatMap((code) => resolved.has(code) ? [resolved.get(code)!] : []),
     skipped: wanted.filter((code) => !resolved.has(code)).map((code) => ({ code, reason: errors.get(code) ?? "Redeemed but absent from this account's authorized post list" })),
   };
+}
+
+/**
+ * The linked account this campaign's clips and posts run as: picked by the
+ * preview's rule (lib/tiktok/linked-account.ts) and recorded before the first
+ * write, so a resumed launch never switches accounts halfway.
+ */
+async function ensureLinkedAccount(ctx: DriverContext, c: Client): Promise<LinkedAccount> {
+  const recorded = state(ctx).identity;
+  if (recorded) return recorded;
+  const needs = linkedNeeds(ctx.campaign.content);
+  const account = pickLinkedAccount(await listLinkedAccounts(c.tt, c.token, c.advertiser), needs);
+  if (!account) throw new Error(linkedAccountMissing(needs, ctx.connection?.name || c.advertiser));
+  await ctx.checkpoint({ identity: account });
+  return account;
+}
+
+/** TikTok answers an upload with a bare array in sandbox and an object in production; either carries the video id. */
+function uploadedVideoId(res: TikTokResponse): string {
+  const data = res.data as unknown;
+  const first = Array.isArray(data) ? (data[0] as Row | undefined) : undefined;
+  const object = (Array.isArray(data) ? undefined : data) as (Row & { list?: Row[] }) | undefined;
+  return str(first?.video_id ?? object?.video_id ?? object?.list?.[0]?.video_id);
+}
+
+/**
+ * One approved Studio clip in the ad account: the bytes read back and held
+ * against the approved SHA-256, uploaded once, then TikTok's suggested cover
+ * uploaded as the ad's image. Each id is recorded the moment it exists. A
+ * cover TikTok has not made yet (the video is still processing) is a wait,
+ * never a failure; any other refusal fails with TikTok's words.
+ */
+async function uploadClip(ctx: DriverContext, c: Client, item: LaunchContent): Promise<{ video_id: string; image_id: string }> {
+  const uploads = { ...(state(ctx).uploads ?? {}) };
+  let done = uploads[item.value];
+  if (!done?.video_id) {
+    if (!item.file_path || !item.sha256) throw new Error("A Studio clip in this launch has no approved file. Create a new round from the clip.");
+    const bytes = await readStoredBytes(item.file_path);
+    if (createHash("sha256").update(bytes).digest("hex") !== item.sha256) throw new Error("A Studio clip changed after this launch was approved; nothing was uploaded. Create a new round.");
+    await ctx.assertActive();
+    // A name of its own per attempt: an upload whose answer was lost is sent
+    // again under a new name (a spare copy in the ad account's library, which
+    // runs nothing), never refused as a clash.
+    const fileName = `studio-${ctx.run.external_id}-${ctx.campaign.index}-${item.value.slice(0, 8)}-${Date.now()}.mp4`;
+    const res = await c.tt.upload("/file/video/ad/upload/", c.token, {
+      advertiser_id: c.advertiser, upload_type: "UPLOAD_BY_FILE", video_signature: createHash("md5").update(bytes).digest("hex"),
+      file_name: fileName, video_file: { data: bytes, filename: fileName },
+    });
+    const videoId = uploadedVideoId(res);
+    if (res.code !== 0 || !videoId) throw new Error(`Upload a Studio clip to TikTok: ${res.message || "TikTok returned no video id"}`);
+    done = { video_id: videoId };
+    uploads[item.value] = done;
+    await ctx.checkpoint({ uploads });
+  }
+  if (!done.image_id) {
+    const suggest = await c.tt.get("/file/video/suggestcover/", c.token, { advertiser_id: c.advertiser, video_id: done.video_id });
+    if (suggest.code !== 0) throw new Error(`Read the cover TikTok made for a Studio clip: ${suggest.message || "TikTok did not answer"}`);
+    const coverUrl = str(((suggest.data?.list ?? []) as Row[])[0]?.cover_url);
+    if (!coverUrl) throw new LaunchWaiting("TikTok is still processing an uploaded Studio clip; its cover will be ready in a minute.", 30_000);
+    await ctx.assertActive();
+    const up = await c.tt.post("/file/image/ad/upload/", c.token, { advertiser_id: c.advertiser, upload_type: "UPLOAD_BY_URL", image_url: coverUrl, file_name: `studio-cover-${done.video_id}-${Date.now()}.jpg` });
+    const imageId = str((up.data as Row | undefined)?.image_id);
+    if (up.code !== 0 || !imageId) throw new Error(`Upload a Studio clip's cover to TikTok: ${up.message || "TikTok returned no image id"}`);
+    done = { ...done, image_id: imageId };
+    uploads[item.value] = done;
+    await ctx.checkpoint({ uploads });
+  }
+  return { video_id: done.video_id, image_id: done.image_id! };
+}
+
+/**
+ * Every ad's content, resolved before a campaign exists: Spark codes
+ * redeemed (the authorized-post list is truth), the linked account's posts
+ * read back as still its own, Studio clips uploaded. Kept in the draft's
+ * order; what cannot be used is skipped with the reason.
+ */
+async function resolveContent(ctx: DriverContext, c: Client): Promise<void> {
+  const content = ctx.campaign.content;
+  const found: SparkPost[] = [];
+  const skipped: SkippedSpark[] = [];
+  const codes = content.filter((item) => item.kind === "spark").map((item) => item.value);
+  if (codes.length) {
+    const redeemed = await redeemSparkCodes(c, codes, ctx.assertActive);
+    found.push(...redeemed.posts); skipped.push(...redeemed.skipped);
+  }
+  if (content.some((item) => item.kind === "video" || item.kind === "tiktok_post")) {
+    const account = await ensureLinkedAccount(ctx, c);
+    const linked = { identity_id: account.identity_id, bc_id: account.bc_id };
+    for (const item of content) {
+      const code = item.value.trim();
+      if (item.kind === "tiktok_post") {
+        const post = await findLinkedPost(c.tt, c.token, c.advertiser, account, code);
+        if (post) found.push({ code, kind: "tiktok_post", item_id: post.item_id, item_type: post.item_type, ...linked });
+        else skipped.push({ code, reason: `Post ${code} is no longer a post of ${linkedAccountHandle(account)} (deleted, made private or another account's)` });
+      } else if (item.kind === "video") {
+        const upload = await uploadClip(ctx, c, item);
+        found.push({ code, kind: "video", item_id: "", item_type: "VIDEO", ...linked, video_id: upload.video_id, image_id: upload.image_id, ad_text: tiktokAdText(item) });
+      }
+    }
+  }
+  const posts = content.flatMap((item) => found.filter((post) => post.code === item.value.trim()).slice(0, 1));
+  await ctx.checkpoint({ posts, skipped });
+  if (!posts.length) {
+    const reasons = skipped.map((s) => s.reason).join(" · ");
+    throw new Error(content.every((item) => item.kind === "spark")
+      ? `No Spark code resolved; no campaign or ad group was created. ${reasons}`
+      : `No ad could be prepared; no campaign or ad group was created. ${reasons}`);
+  }
 }
 
 function names(ctx: DriverContext) {
@@ -306,23 +445,33 @@ async function createAds(ctx: DriverContext, c: Client, group: SparkGroup): Prom
   for (const post of state(ctx).posts ?? []) {
     if (group.ads[post.code]) continue;
     if (skipped.some((item) => item.code === post.code && permanentAdRejection(item.reason))) continue;
-    const name = names(ctx).ad(group.key, post.item_id);
-    const adopted = known.find((a) => str(a.adgroup_id) === group.id && (str(a.ad_name) === name || str(a.tiktok_item_id) === post.item_id));
+    const name = names(ctx).ad(group.key, adRef(post));
+    const adopted = known.find((a) => str(a.adgroup_id) === group.id && (str(a.ad_name) === name
+      || (post.kind !== "video" && !!post.item_id && str(a.tiktok_item_id) === post.item_id && str(a.identity_id) === post.identity_id)
+      || (post.kind === "video" && !!post.video_id && str(a.video_id) === post.video_id)));
     let id = str(adopted?.ad_id);
     if (!id) {
       // One creative per request isolates invalid posts and avoids relying on
       // an undocumented ordering of returned ad ids. Persist each survivor.
-      const result = await write(ctx, c, "/ad/create/", { adgroup_id: group.id, creatives: [{
-        ad_name: name, identity_type: "AUTH_CODE", identity_id: post.identity_id,
-        tiktok_item_id: post.item_id, ad_format: post.item_type === "CAROUSEL" ? "CAROUSEL_ADS" : "SINGLE_VIDEO",
-        call_to_action: state(ctx).settings!.call_to_action,
+      const common = {
+        ad_name: name, call_to_action: state(ctx).settings!.call_to_action,
         // An Instant Page ad points at the page; every website ad (Traffic,
         // Website purchases) carries its own title's approved crazydramas
         // link verbatim.
         ...(shapeOf(state(ctx)) === "instant_page"
           ? { page_id: state(ctx).instant_page?.id }
           : { landing_page_url: adLanding(ctx, post.code) }),
-      }] });
+      };
+      const linked = { identity_type: "BC_AUTH_TT", identity_id: post.identity_id, identity_authorized_bc_id: post.bc_id };
+      const creative = post.kind === "video"
+        // A Studio clip under the linked account, shown only as an ad: in the
+        // For You feed with the account's name and picture, never on its
+        // profile, no organic views (TikTok's "Show through ads only").
+        ? { ...common, ...linked, ad_format: "SINGLE_VIDEO", video_id: post.video_id, image_ids: [post.image_id], ad_text: post.ad_text, dark_post_status: "ON" }
+        : post.kind === "tiktok_post"
+          ? { ...common, ...linked, tiktok_item_id: post.item_id, ad_format: post.item_type === "CAROUSEL" ? "CAROUSEL_ADS" : "SINGLE_VIDEO" }
+          : { ...common, identity_type: "AUTH_CODE", identity_id: post.identity_id, tiktok_item_id: post.item_id, ad_format: post.item_type === "CAROUSEL" ? "CAROUSEL_ADS" : "SINGLE_VIDEO" };
+      const result = await write(ctx, c, "/ad/create/", { adgroup_id: group.id, creatives: [creative] });
       if (result.code !== 0) {
         if (result.code > 0 && result.code !== 40100 && !/QPS limit|too many requests|rate limit/i.test(result.message || "") && permanentAdRejection(result.message || "")) skipped.push({ code: post.code, reason: result.message });
         else pending.push(`${post.code}: ${result.message || "TikTok did not confirm ad creation"}`);
@@ -338,8 +487,8 @@ async function createAds(ctx: DriverContext, c: Client, group: SparkGroup): Prom
     skipped = skipped.filter((s) => s.code !== post.code);
   }
   await ctx.checkpoint({ skipped: [...new Map(skipped.map((v) => [`${v.code}:${v.reason}`, v])).values()] });
-  if (pending.length || !groupComplete(state(ctx), group)) throw new Error(`Spark ads remain pending; retry the launch to add the missing ads. ${pending.join(" · ")}`);
-  if (!Object.keys(group.ads).length) throw new Error("TikTok accepted no Spark ads; the campaign remains paused.");
+  if (pending.length || !groupComplete(state(ctx), group)) throw new Error(`Some ads remain pending; retry the launch to add the missing ads. ${pending.join(" · ")}`);
+  if (!Object.keys(group.ads).length) throw new Error("TikTok accepted none of the ads; the campaign remains paused.");
   await saveGroup(ctx, { ...group, ready: true });
 }
 
@@ -420,7 +569,7 @@ async function launch(ctx: DriverContext): Promise<void> {
   assertBudgetState(ctx);
   const c = client(ctx);
   await verifyAccount(c);
-  if (ctx.campaign.content.some((item) => item.kind !== "spark")) throw new Error("TikTok launches accept Spark codes only.");
+  if (ctx.campaign.content.some((item) => !TIKTOK_CONTENT_KINDS.includes(item.kind))) throw new Error("TikTok launches take Studio clips, the linked account's posts and Spark codes only.");
   if (!state(ctx).settings) {
     const raw = launchSettingsSchema.parse(ctx.run.draft.tiktok_settings);
     const copies = raw.duplicate_copies + 1;
@@ -434,11 +583,7 @@ async function launch(ctx: DriverContext): Promise<void> {
       planned_budgets: split(daily ?? ctx.campaign.budget_cents, copies), tiktok_mode: c.tt.mode });
   }
   await ensurePixel(ctx, c);
-  if (!state(ctx).posts?.length) {
-    const resolved = await redeemSparkCodes(c, ctx.campaign.content.map((v) => v.value), ctx.assertActive);
-    await ctx.checkpoint(resolved);
-    if (!resolved.posts.length) throw new Error(`No Spark code resolved; no campaign or ad group was created. ${resolved.skipped.map((s) => s.reason).join(" · ")}`);
-  }
+  if (!state(ctx).posts?.length) await resolveContent(ctx, c);
   await ensureSalesPage(ctx);
   if (!state(ctx).campaign_id) {
     const name = names(ctx).campaign;
@@ -590,8 +735,23 @@ async function monitor(ctx: DriverContext): Promise<DeliverySnapshot> {
   out.configured_status = str(campaign?.operation_status) || undefined;
   out.effective_status = str(campaign?.secondary_status) || undefined;
   out.groups = groups.map((g) => ({ id: str(g.adgroup_id), status: str(g.operation_status), budget_cents: cents(g.budget) ?? undefined, bid_cents: cents(g.billing_event === "CPC" ? g.bid_price : g.conversion_bid_price), end_time: str(g.schedule_end_time) || undefined }));
-  out.ads = reviews.map((r) => ({ id: r.adId, status: r.state, note: r.reasons.join(" · ") || undefined, content_value: codeById.get(r.adId),
-    ...(adStats.has(r.adId) ? { stats: adStats.get(r.adId) } : {}) }));
+  // Which account an ad runs as and whether its video stays off the profile,
+  // as TikTok's own ad record says: a person can see that the ad exists and
+  // where (the Monitor's "Watch on TikTok" opens TikTok's preview of it).
+  const rowOf = new Map(ads.map((a) => [str(a.ad_id), a]));
+  const identity = state(ctx).identity;
+  out.ads = reviews.map((r) => {
+    const row = rowOf.get(r.adId);
+    const linked = !!identity && str(row?.identity_type) === "BC_AUTH_TT" && str(row?.identity_id) === identity.identity_id;
+    const item = str(row?.tiktok_item_id);
+    const postUrl = linked && item ? tiktokPostUrl(identity!.username, item) : null;
+    const dark = str(row?.dark_post_status);
+    return { id: r.adId, status: r.state, note: r.reasons.join(" · ") || undefined, content_value: codeById.get(r.adId),
+      ...(linked ? { runs_as: linkedAccountHandle(identity!) } : {}),
+      ...(dark === "ON" || dark === "OFF" ? { ads_only: dark === "ON" } : {}),
+      ...(item ? { item_id: item } : {}), ...(postUrl ? { post_url: postUrl } : {}),
+      ...(adStats.has(r.adId) ? { stats: adStats.get(r.adId) } : {}) };
+  });
   const activeIds = new Set(activeGroups(state(ctx)).flatMap((g) => Object.values(g.ads)));
   const currentReviews = reviews.filter((r) => activeIds.has(r.adId));
   const currentAds = ads.filter((a) => activeIds.has(str(a.ad_id)));
@@ -603,7 +763,8 @@ async function monitor(ctx: DriverContext): Promise<DeliverySnapshot> {
   else if (currentAds.some((a) => /DELIVERY_OK/.test(str(a.secondary_status)))) out.delivery = "live";
   else if (currentReviews.some((r) => r.state === "in_review" || r.state === "not_reviewed")) out.delivery = "review";
   else if (campaign) out.delivery = "submitted";
-  out.note = [...errors, ...reviews.flatMap((r) => r.reasons), ...(state(ctx).skipped ?? []).map((s) => `Skipped Spark: ${s.reason}`)].join(" · ") || null;
+  const skippedWord = (code: string) => ctx.campaign.content.find((item) => item.value.trim() === code)?.kind === "spark" ? "Skipped Spark" : "Skipped ad";
+  out.note = [...errors, ...reviews.flatMap((r) => r.reasons), ...(state(ctx).skipped ?? []).map((s) => `${skippedWord(s.code)}: ${s.reason}`)].join(" · ") || null;
   return out;
 }
 

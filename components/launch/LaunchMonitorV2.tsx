@@ -301,6 +301,8 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
   const titleOptions = useMemo(() => Object.entries(titles).filter(([id]) => runs.some((r) => runTitleIds(r).includes(id))).sort((a, b) => a[1].localeCompare(b[1])), [titles, runs]);
   const byTitle = useMemo(() => view === "titles" ? resultsByTitle(runs.filter((r) => provider === "all" || r.draft.provider === provider)) : [], [view, runs, provider]);
   const titleHref = (id: string) => `${staff ? "/promote/monitor/titles" : "/producer/monitor/titles"}/${id}`;
+  /** TikTok's own preview of one launched ad, through Studio (lib/launch/tiktok-posts.ts): the ad as TikTok shows it, whatever it was made from. */
+  const adPreviewHref = (runId: string, adId: string) => `${api}/${encodeURIComponent(runId)}/ads/${encodeURIComponent(adId)}/preview`;
 
   async function action(run: LaunchRun, suffix: "retry" | "round") {
     setBusy(`${run.id}:${suffix}`); setActionError((x) => ({ ...x, [run.id]: "" }));
@@ -555,11 +557,14 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
                       <AdCard {...card} line={!pictured} fallbackName={pictured ? undefined : tt("lr3.adNumber", { n: i + 1 })} />
                       {ad && <span className={`lm-ad-state lm-ad-state-${adStatusTone(ad.status)}`} title={`${ad.id}${ad.note ? ` · ${ad.note}` : ""}`}>{adStatusWord(ad.status)}</span>}
                       {link ? <a className="lm-row-button lm-ad-link" href={link} target="_blank" rel="noreferrer" title={`${tt("mr4.landingHint")}\n${link}`} data-testid="ad-landing-link">{tt("mr4.landing")}</a> : null}
+                      {ad && run.draft.provider === "tiktok" && <a className="lm-row-button lm-ad-link" href={adPreviewHref(run.id, ad.id)} target="_blank" rel="noreferrer" title={tt("ltc.watchHint")} data-testid="ad-watch">{tt("ltc.watch")}</a>}
                     </div>
                     <div className="lm-ad-facts">
                       {adTitle && <span className="lm-ad-title" data-testid="ad-title">{adTitle}</span>}
                       {numbers ? <AdNumbers totals={totalsOf(numbers)} tt={tt} /> : c.snapshot && run.draft.provider === "tiktok" && campaignId ? <span className="lm-ad-numbers-none">{tt(c.snapshot.ad_stats_error ? "mad.adStatsFailed" : "mad.adStatsNone")}</span> : null}
                       {ad && run.draft.provider === "tiktok" && <span className="lm-ad-id" title={tt("mad.adIdHint")}>{tt("mad.adId")} {ad.id}</span>}
+                      {/* Which account it runs as, and whether its video stays off the profile, as TikTok's own ad record says. */}
+                      {ad?.runs_as && <span className="lm-ad-runs-as" data-testid="ad-runs-as">{tt(ad.ads_only ? "ltc.runsAsAdsOnly" : "ltc.runsAs", { handle: ad.runs_as })}{ad.post_url ? <> · <a href={ad.post_url} target="_blank" rel="noreferrer" title={ad.ads_only ? tt("ltc.ownerPostHint") : undefined}>{tt(ad.ads_only ? "ltc.ownerPost" : "clipsPosting.openPost")}</a></> : null}</span>}
                     </div>
                     {staff && cdAds && ad && run.draft.provider === "tiktok" && <CdAdLine outcome={cdAds[ad.id] ?? null} spendCents={numbers ? totalsOf(numbers).spend_cents : null} tt={tt} />}
                     </div>;
@@ -567,7 +572,7 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
                   : <p>{tt("mr2.noAds")}</p>}</div>
                 {/* Only when the sweep's ads cannot be lined up with the cards
                     does the old strip come back, so nothing goes unsaid. */}
-                {!adStatuses && c.snapshot?.ads && c.snapshot.ads.length > 0 && <div className="lm-ad-statuses">{c.snapshot.ads.map((ad, i) => { const link = adLandingLink(run.draft.destination_url, { campaign: campaignId, adgroup: groups.length === 1 ? groups[0].id : null, ad: ad.id }); return <span key={ad.id} title={`${ad.id}${ad.note ? ` · ${ad.note}` : ""}`}><strong>{tt("monitorV2.ad")} {i + 1}</strong><span>{adStatusWord(ad.status)}</span>{link && <a className="lm-ad-link" href={link} target="_blank" rel="noreferrer" title={`${tt("mr4.landingHint")}\n${link}`}>{tt("mr4.landing")}</a>}</span>; })}</div>}
+                {!adStatuses && c.snapshot?.ads && c.snapshot.ads.length > 0 && <div className="lm-ad-statuses">{c.snapshot.ads.map((ad, i) => { const link = adLandingLink(run.draft.destination_url, { campaign: campaignId, adgroup: groups.length === 1 ? groups[0].id : null, ad: ad.id }); return <span key={ad.id} title={`${ad.id}${ad.note ? ` · ${ad.note}` : ""}`}><strong>{tt("monitorV2.ad")} {i + 1}</strong><span>{adStatusWord(ad.status)}</span>{link && <a className="lm-ad-link" href={link} target="_blank" rel="noreferrer" title={`${tt("mr4.landingHint")}\n${link}`}>{tt("mr4.landing")}</a>}{run.draft.provider === "tiktok" && <a className="lm-ad-link" href={adPreviewHref(run.id, ad.id)} target="_blank" rel="noreferrer" title={tt("ltc.watchHint")}>{tt("ltc.watch")}</a>}</span>; })}</div>}
                 {/* The references a person only needs when they go looking. */}
                 <div className="mr2-detail-links">
                   {c.campid && <span>{tt("mr3.ref.campid")} <code>{c.campid}</code></span>}

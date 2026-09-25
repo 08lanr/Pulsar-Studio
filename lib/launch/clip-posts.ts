@@ -91,6 +91,18 @@ export type MetaPagePost = {
   created_at: string;
 };
 
+/**
+ * TikTok's "From @account" tab: the account Business Center links to the ad
+ * account, and its newest posts (lib/launch/tiktok-posts.ts). `account` is
+ * null, with the reason in `notes`, when there is none or it cannot be read.
+ */
+export type TikTokAccountPostList = {
+  account: { name: string; handle: string; ads_only: boolean; can_push: boolean; can_pull: boolean } | null;
+  posts: { item_id: string; text: string; cover_url: string | null; duration_s: number | null; status: string }[];
+  more: boolean;
+  notes: string[];
+};
+
 /** The "From the Page" tab: what Meta returned, plus why a side is empty. */
 export type MetaPagePostList = {
   facebook: MetaPagePost[];

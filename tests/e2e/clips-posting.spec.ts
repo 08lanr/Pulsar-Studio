@@ -107,7 +107,7 @@ test("staff posts a clip to Facebook from Clips and launches it by name", async 
   const picker = page.locator("details.launch-account-picker");
   if (await picker.count() && await picker.getAttribute("open") === null) await picker.locator("summary").click();
   await page.getByRole("checkbox", { name: /Demo Meta 1/ }).check();
-  await page.getByLabel(/^(Items|Spark codes) per campaign$/).fill("1");
+  await page.getByLabel(/^(Items|Spark codes|Ads) per campaign$/).fill("1");
   await page.getByLabel("Destination URL").fill("https://example.com/watch");
 
   await page.getByRole("button", { name: "Choose content", exact: true }).click();

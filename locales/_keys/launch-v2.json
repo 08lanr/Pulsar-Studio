@@ -200,8 +200,8 @@
     "zh": "每行一个授权码"
   },
   "lv2.manualTikTok": {
-    "en": "Download clips, post them on TikTok, and get authorization codes from those posts. Codes are checked against each ad account during launch.",
-    "zh": "下载切片并发布到 TikTok，再从帖子取得授权码。投放时会按广告账户验证授权码。"
+    "en": "Only for a post you made yourself in the TikTok app, or on another account: paste its Spark code here. Codes are checked against each ad account during launch.",
+    "zh": "仅用于你在 TikTok App 里自己发布的帖子，或其他账号的帖子：把它的 Spark 授权码粘贴到这里。投放时会按广告账户验证授权码。"
   },
   "lv2.metaHint": {
     "en": "Choose finished files or existing Facebook and Instagram posts from your library.",

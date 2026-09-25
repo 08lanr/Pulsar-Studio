@@ -24,11 +24,13 @@ import { getData } from "@/lib/data";
 import { conflict, invalid, notFound } from "@/lib/data/errors";
 import { checkCrazydramasTitle, loadCrazydramasStatus, loadCrazydramasStatuses, PLATFORM, type CrazydramasStatus } from "@/lib/crazydramas";
 import { crazydramasAdUrl, crazydramasSlugProblem } from "@/lib/tiktok/ad-url";
+import { accessTokenFor, tiktokTransport } from "@/lib/tiktok";
+import { findLinkedPost, linkedAccountHandle, linkedAccountMissing, linkedNeeds, listLinkedAccounts, pickLinkedAccount, type LinkedAccount } from "@/lib/tiktok/linked-account";
 import { tiktokPixelCode } from "@/lib/tiktok/pixel";
 import { probePixel } from "@/lib/tiktok/preflight";
 import { attributionLabel, attributionOf, launchShape, webEventLabel } from "@/lib/tiktok/settings";
 import type { Title } from "@/lib/types";
-import type { LaunchConnection, LaunchDraft, LaunchPlan, LaunchTitleOption } from "./types";
+import type { LaunchConnection, LaunchDraft, LaunchPlan, LaunchPlanRow, LaunchTitleOption } from "./types";
 
 const LIVE_STATES = new Set(["live_complete", "live_partial", "live_differs", "live_unverified", "local_newer"]);
 
@@ -152,4 +154,45 @@ export async function tiktokLaunchGate(s: Session, draft: LaunchDraft, producerI
       : { connection_id: connection.id, pixel_id: pixel.pixel_id });
   }
   return { code, event: webEventLabel(settings.optimization_event), attribution: attributionLabel(attributionOf(settings)), accounts };
+}
+
+/**
+ * The account Studio clips and the linked account's posts run as (decision
+ * 2026-09-25): for every campaign that carries either, its ad account must
+ * have a TikTok account linked in Business Center that allows what the
+ * content needs (uploading clips, using its posts), picked by the rule the
+ * driver uses, and every post must still be that account's. Reads only.
+ * Returns what the preview and the confirm dialog say: the account's handle
+ * per ad account, and whether its videos stay off the profile.
+ */
+export async function tiktokIdentityGate(draft: Pick<LaunchDraft, "content">, rows: readonly LaunchPlanRow[], own: readonly LaunchConnection[]): Promise<NonNullable<LaunchPlan["tiktok_identity"]>> {
+  const tt = tiktokTransport();
+  const content = draft.content;
+  const accounts: NonNullable<LaunchPlan["tiktok_identity"]>["accounts"] = [];
+  const linkedOn = new Map<string, LinkedAccount[]>();
+  for (const row of rows) {
+    const needs = linkedNeeds(row.content);
+    if (!needs.length) continue;
+    const connection = own.find((c) => c.id === row.connection_id);
+    if (!connection) throw invalid("An account is unassigned, unavailable or belongs to a different platform.");
+    const token = accessTokenFor(connection.advertiser_id);
+    if (!token) throw invalid(`No TikTok connection covers ad account ${connection.name}. Reconnect TikTok on the TikTok page, then preview again.`);
+    if (!linkedOn.has(connection.id)) {
+      try { linkedOn.set(connection.id, await listLinkedAccounts(tt, token, connection.advertiser_id)); }
+      catch (e) { throw invalid(`${e instanceof Error ? e.message : "TikTok did not answer"}. Preview again in a moment.`); }
+    }
+    const account = pickLinkedAccount(linkedOn.get(connection.id)!, needs);
+    if (!account) throw invalid(linkedAccountMissing(needs, connection.name));
+    for (const item of row.content) {
+      if (item.kind !== "tiktok_post") continue;
+      const post = await findLinkedPost(tt, token, connection.advertiser_id, account, item.value).catch((e: unknown) => {
+        throw invalid(`${e instanceof Error ? e.message : "TikTok did not answer"}. Preview again in a moment.`);
+      });
+      const index = content.findIndex((c) => c.kind === item.kind && c.value === item.value) + 1;
+      if (!post) throw invalid(`Ad ${index} is no longer a post of ${linkedAccountHandle(account)}: it was deleted, made private, or belongs to another account. Remove it and choose again.`);
+    }
+    if (!accounts.some((a) => a.connection_id === connection.id))
+      accounts.push({ connection_id: connection.id, name: account.name, handle: linkedAccountHandle(account), ads_only: account.ads_only });
+  }
+  return { clips: content.filter((c) => c.kind === "video").length, posts: content.filter((c) => c.kind === "tiktok_post").length, accounts };
 }

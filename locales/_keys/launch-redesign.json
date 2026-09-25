@@ -2,16 +2,16 @@
   "launchRedesign.businessCenter": { "en": "Business Center", "zh": "商务中心" },
   "launchRedesign.chooseBusinessCenter": { "en": "Choose a Business Center", "zh": "选择商务中心" },
   "launchRedesign.selectBusinessFirst": { "en": "Choose the assigned Business Center to see its ad accounts.", "zh": "先选择已分配的商务中心，再查看其中的广告账户。" },
-  "launchRedesign.uniqueExplainer": { "en": "Unique: each campaign receives its own codes, handed out in pasted order.", "zh": "独立使用：每个广告活动按粘贴顺序分配不同的授权码。" },
-  "launchRedesign.sharedExplainer": { "en": "Shared: the same set of codes is reused by every campaign and account.", "zh": "共用：每个广告活动和账户重复使用同一组授权码。" },
-  "launchRedesign.sparkCount": { "en": "Spark codes supplied / needed", "zh": "Spark 授权码已提供／所需" },
+  "launchRedesign.uniqueExplainer": { "en": "Unique: each campaign gets its own ads, handed out in the order listed below.", "zh": "独立使用：按下方列表的顺序，给每个广告活动分配不同的广告。" },
+  "launchRedesign.sharedExplainer": { "en": "Shared: the same ads are reused by every campaign and account.", "zh": "共用：每个广告活动和账户重复使用同一组广告。" },
+  "launchRedesign.sparkCount": { "en": "Ads chosen / needed", "zh": "广告已选／所需" },
   "launchRedesign.creativeCount": { "en": "Creatives supplied / needed", "zh": "素材已提供／所需" },
   "launchRedesign.countFormula": { "en": "{perCampaign} per campaign · {campaigns} campaigns across {accounts} accounts · {mode}", "zh": "每个广告活动 {perCampaign} 个 · {accounts} 个账户共 {campaigns} 个广告活动 · {mode}" },
   "launchRedesign.manageTemplates": { "en": "Manage presets", "zh": "管理预设" }
   ,"launchRedesign.chooseAccounts": { "en": "Choose ad accounts · {selected} selected of {available}", "zh": "选择广告账户 · 已选 {selected}／{available} 个" }
-  ,"launchRedesign.sparksPerCampaign": { "en": "Spark codes per campaign", "zh": "每个广告活动的 Spark 授权码" }
-  ,"launchRedesign.uniqueMath": { "en": "{campaignsPerAccount} campaigns × {perCampaign} Sparks = {perAccount} unique codes per account; {total} total across {accounts} accounts.", "zh": "每个账户 {campaignsPerAccount} 个广告活动 × 每活动 {perCampaign} 个 Spark 授权码 = 每账户 {perAccount} 个独立授权码；{accounts} 个账户共需 {total} 个。" }
-  ,"launchRedesign.sharedMath": { "en": "{perCampaign} codes reused in each of {campaigns} campaigns across all accounts.", "zh": "{perCampaign} 个授权码在所有账户的 {campaigns} 个广告活动中重复使用。" }
+  ,"launchRedesign.sparksPerCampaign": { "en": "Ads per campaign", "zh": "每个广告活动的广告数" }
+  ,"launchRedesign.uniqueMath": { "en": "{campaignsPerAccount} campaigns × {perCampaign} ads = {perAccount} different ads per account; {total} total across {accounts} accounts.", "zh": "每个账户 {campaignsPerAccount} 个广告活动 × 每活动 {perCampaign} 条广告 = 每账户 {perAccount} 条不同的广告；{accounts} 个账户共需 {total} 条。" }
+  ,"launchRedesign.sharedMath": { "en": "{perCampaign} ads reused in each of {campaigns} campaigns across all accounts.", "zh": "{perCampaign} 条广告在所有账户的 {campaigns} 个广告活动中重复使用。" }
   ,"launchRedesign.closeSettings": { "en": "Done", "zh": "完成" }
   ,"launchRedesign.templatesTitle": { "en": "Launch presets", "zh": "投放预设" }
   ,"launchRedesign.templatesSub": { "en": "Reusable targeting and delivery settings for TikTok launches.", "zh": "为 TikTok 投放复用定向和投放设置。" }

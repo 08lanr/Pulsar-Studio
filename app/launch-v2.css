@@ -240,6 +240,17 @@
 .launch-ad-title-row { align-items:start; }
 .launch-ad-title-row > span:first-child { display:grid; gap:2px; }
 .launch-ad-code { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; }
+/* A Studio clip or a post is named by what it is, not by a code. */
+.launch-ad-title-row:not([data-kind="spark"]) .launch-ad-code { font-family:inherit; }
+.launch-ad-remove { justify-self:start; margin-top:2px; }
+/* One picture per ad in step 3, so each row can be matched to its title at a glance (2026-09-25). */
+.launch-ad-title-row > .launch-ad-head { display:grid; grid-template-columns:54px minmax(0,1fr); gap:10px; align-items:start; min-width:0; }
+.launch-ad-thumb { display:block; width:54px; aspect-ratio:9 / 16; overflow:hidden; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface-3); }
+.launch-ad-thumb :is(img, video) { display:block; width:100%; height:100%; object-fit:cover; }
+.launch-ad-thumb-empty { display:block; width:100%; height:100%; }
+.launch-ad-head-text { display:grid; gap:2px; min-width:0; }
+.launch-ad-words { color:var(--text-muted); font-size:var(--t-small); line-height:var(--lh-body); overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+.launch-tiktok-pick { margin:4px 0 12px; }
 .launch-ad-cell { display:grid; gap:4px; min-width:0; }
 .launch-ad-cell .select { width:100%; min-width:0; }
 .launch-ad-cell-label { display:none; font-size:var(--t-small); color:var(--text-muted); }

@@ -2,7 +2,7 @@
 // (docs/meta-organic-plan.md §4). House shape: same-origin guard -> role ->
 // zod -> data layer / publishing engine -> publicJson.
 //
-// Reading — `list`, `get`, `pagePosts` — is open to any signed-in member of the
+// Reading — `list`, `get`, `pagePosts`, `tiktokPosts`, `sparkPreviews` — is open to any signed-in member of the
 // company and to any staff member: a viewer sees the state of a post, which is
 // what the Clips page is for. Publishing — `post`, `retry` — needs the
 // company's approver or a staff administrator, the same rule as launching, and
@@ -17,7 +17,14 @@ import { invalid } from "@/lib/data/errors";
 import { handle } from "@/app/api/titles/_lib/handler";
 import type { ClipLibraryFilter } from "./clip-posts";
 
-export type ClipOperation = "list" | "post" | "get" | "retry" | "pagePosts";
+export type ClipOperation = "list" | "post" | "get" | "retry" | "pagePosts" | "tiktokPosts" | "sparkPreviews";
+
+// The codes travel in a body, not a URL, so they stay out of request logs.
+const sparkPreviewSchema = z.object({
+  connection_id: z.string().min(1).max(150),
+  producer_id: z.string().uuid().optional(),
+  codes: z.array(z.string().trim().min(1).max(2000)).min(1).max(50),
+}).strict();
 
 const postSchema = z.object({
   platform: z.enum(["facebook", "instagram"]),
@@ -92,6 +99,19 @@ export function clipRoute(req: NextRequest, staff: boolean, op: ClipOperation, i
       const connectionId = req.nextUrl.searchParams.get("connection_id") || "";
       if (!connectionId) throw invalid("Choose an advertising account.");
       return publicJson(await listMetaPagePosts(s, producerId, connectionId));
+    }
+    if (op === "tiktokPosts") {
+      const { listTikTokAccountPosts } = await import("./tiktok-posts");
+      const producerId = actingProducer(s, req.nextUrl.searchParams.get("producer_id"));
+      const connectionId = req.nextUrl.searchParams.get("connection_id") || "";
+      if (!connectionId) throw invalid("Choose an advertising account.");
+      return publicJson(await listTikTokAccountPosts(s, producerId, connectionId));
+    }
+    if (op === "sparkPreviews") {
+      const parsed = sparkPreviewSchema.safeParse(await req.json().catch(() => null));
+      if (!parsed.success) throw invalid(parsed.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; "));
+      const { sparkCodePreviews } = await import("./tiktok-posts");
+      return publicJson({ previews: await sparkCodePreviews(s, actingProducer(s, parsed.data.producer_id ?? null), parsed.data.connection_id, parsed.data.codes) });
     }
     const input = await body(req);
     const { publishClip } = await import("@/lib/meta/publish");

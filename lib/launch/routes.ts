@@ -34,6 +34,20 @@ async function parse<S extends z.ZodTypeAny>(req: NextRequest, schema: S): Promi
   if (!value.success) throw invalid(value.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; "));
   return value.data;
 }
+/**
+ * "Watch on TikTok": a redirect to TikTok's own preview of one ad of a launch
+ * the session may read (lib/launch/tiktok-posts.ts), so a person sees the ad
+ * that exists, whatever it was made from. A plain link, so it opens in a tab.
+ */
+export function adPreviewRoute(req: NextRequest, staff: boolean, id: string, adId: string) {
+  return handle(req, async () => {
+    const guard = staff ? await requireStaff() : await requireProducer();
+    if (guard.response) return guard.response;
+    const { tiktokAdPreviewLink } = await import("./tiktok-posts");
+    return NextResponse.redirect(await tiktokAdPreviewLink(guard.session, id, adId), { status: 302, headers: { "Cache-Control": "no-store" } });
+  });
+}
+
 export function launchRoute(req: NextRequest, staff: boolean, op: Operation, id = "") {
   return handle(req, async () => {
     const guard = staff ? await requireStaff() : await requireProducer();

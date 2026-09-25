@@ -48,7 +48,7 @@ test("built-in Sales preset and saved Instant Page design reach the launch previ
     expect((await refreshed).ok()).toBe(true);
     await expect(pageTemplate.locator("option").filter({ hasText: name })).toHaveCount(1);
     await pageTemplate.selectOption({ label: name });
-    await page.getByLabel(/^(Items|Spark codes) per campaign$/).fill("1");
+    await page.getByLabel(/^(Items|Spark codes|Ads) per campaign$/).fill("1");
     const accounts = page.locator("details.launch-account-picker");
     if (await accounts.getAttribute("open") === null) await accounts.locator("summary").click();
     await accounts.getByRole("checkbox", { name: /Demo TikTok 1/ }).check();

@@ -137,14 +137,19 @@ test("planner refuses unassigned, disabled, foreign-platform and non-USD account
   assert.throws(() => splitBudget(1.5, 1), /Invalid budget/);
 });
 
-test("Meta posts require assigned identities and TikTok refuses uploaded-video launch content", () => {
+test("Meta posts require assigned identities; TikTok takes a Studio clip with its text, never a Facebook or Instagram post", () => {
   const input = { ...defaultLaunchDraft("meta"), account_ids: ["meta-one"], destination_url: "https://crazydramas.com/watch", content: [{ kind: "facebook_post" as const, value: "111_333" }] };
   assert.equal(buildLaunchPlan(input, [connection("meta-one", "meta")]).campaign_count, 1);
   assert.throws(() => buildLaunchPlan(input, [{ ...connection("meta-one", "meta"), page_id: null }]), /Facebook Page/);
   assert.throws(() => buildLaunchPlan({ ...input, content: [{ kind: "instagram_post", value: "333" }] }, [{ ...connection("meta-one", "meta"), instagram_id: null }]), /Instagram identity/);
-  const spark = draft(["one"]);
-  spark.content[0] = { kind: "video", value: "clip-id" };
-  assert.throws(() => buildLaunchPlan(spark, [connection("one")]), /Spark codes/);
+  // Since 2026-09-25 a Studio clip is TikTok content too (run as the linked account), as long as it carries a line of text.
+  const tiktok = draft(["one"]);
+  tiktok.content[0] = { kind: "video", value: "clip-id" };
+  assert.throws(() => buildLaunchPlan(tiktok, [connection("one")]), /Ad 1 has no text/);
+  tiktok.content[0] = { kind: "video", value: "clip-id", text: "She signed the papers." };
+  assert.equal(buildLaunchPlan(tiktok, [connection("one")]).content_count, 4);
+  tiktok.content[0] = { kind: "facebook_post", value: "111_333" };
+  assert.throws(() => buildLaunchPlan(tiktok, [connection("one")]), /Facebook and Instagram posts go to Meta/);
 });
 
 test("an approved Meta run carries its derived ad sets and its typed campids onto the campaign rows", async () => {

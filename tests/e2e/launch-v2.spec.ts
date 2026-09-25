@@ -31,7 +31,7 @@ test("a preset created in a staff tab appears when returning to an open launch d
   await page.context().addCookies([{ name: "pulsar_studio_locale", value: "en", url: base }]);
   await page.goto("/producer/launch");
   await page.getByLabel("Launch name").fill("Keep this draft");
-  await page.getByLabel(/^(Items|Spark codes) per campaign$/).fill("3");
+  await page.getByLabel(/^(Items|Spark codes|Ads) per campaign$/).fill("3");
   const staffContext = await page.context().browser()!.newContext({ baseURL: base });
   try {
     expect((await staffContext.request.post("/api/auth/dev", { form: { kind: "staff" }, maxRedirects: 0 })).status()).toBe(303);
@@ -48,10 +48,10 @@ test("a preset created in a staff tab appears when returning to an open launch d
     expect((await refreshed).ok()).toBe(true);
     await expect(page.getByLabel("Preset").locator("option", { hasText: name })).toHaveCount(1);
     await expect(page.getByLabel("Launch name")).toHaveValue("Keep this draft");
-    await expect(page.getByLabel(/^(Items|Spark codes) per campaign$/)).toHaveValue("3");
+    await expect(page.getByLabel(/^(Items|Spark codes|Ads) per campaign$/)).toHaveValue("3");
     await page.getByLabel("Preset").selectOption({ label: name });
     await expect(page.getByLabel("Launch name")).toHaveValue("Keep this draft");
-    await expect(page.getByLabel(/^(Items|Spark codes) per campaign$/)).toHaveValue("3");
+    await expect(page.getByLabel(/^(Items|Spark codes|Ads) per campaign$/)).toHaveValue("3");
   } finally {
     await staffContext.close();
   }
@@ -69,7 +69,7 @@ test("staff authorization and confirmation keep a preview intact when launch fai
   await page.getByRole("combobox", { name: "Producer", exact: true }).selectOption({ index: 1 });
   await expect(businessCenter).toBeEnabled();
   await chooseAccount(page, /Demo TikTok 1/);
-  await page.getByLabel(/^(Items|Spark codes) per campaign$/).fill("1");
+  await page.getByLabel(/^(Items|Spark codes|Ads) per campaign$/).fill("1");
   await page.getByLabel("Paste all Spark codes, one per line").fill("STAFF-AUTH-SPARK");
   await chooseTikTokTitle(page);
   await page.getByRole("button", { name: "Preview campaigns" }).click();
@@ -117,8 +117,8 @@ test("Clips handoff, TikTok monitor, and Meta post plus finished-file paused lau
   const navigation = page.getByRole("navigation", { name: "Primary navigation" });
   await expect(navigation.getByRole("link", { name: "Launch", exact: true })).toHaveAttribute("href", "/producer/launch");
   await expect(navigation.getByRole("link", { name: "Monitor", exact: true })).toHaveAttribute("href", "/producer/monitor");
-  await expect(page.getByLabel(/^(Items|Spark codes) per campaign$/)).toHaveValue("5");
-  await page.getByLabel(/^(Items|Spark codes) per campaign$/).fill("1");
+  await expect(page.getByLabel(/^(Items|Spark codes|Ads) per campaign$/)).toHaveValue("5");
+  await page.getByLabel(/^(Items|Spark codes|Ads) per campaign$/).fill("1");
   await chooseAccount(page, /Demo TikTok 1/);
   await page.getByLabel("Paste all Spark codes, one per line").fill("TEST-LAUNCH-V2-SPARK");
   await chooseTikTokTitle(page);
@@ -199,9 +199,9 @@ test("Clips handoff, TikTok monitor, and Meta post plus finished-file paused lau
 
   await page.goto("/producer/launch");
   await page.getByRole("button", { name: /Meta · Facebook/ }).click();
-  await expect(page.getByLabel(/^(Items|Spark codes) per campaign$/)).toHaveValue("1");
+  await expect(page.getByLabel(/^(Items|Spark codes|Ads) per campaign$/)).toHaveValue("1");
   await chooseAccount(page, /Demo Meta 1/);
-  await page.getByLabel(/^(Items|Spark codes) per campaign$/).fill("2");
+  await page.getByLabel(/^(Items|Spark codes|Ads) per campaign$/).fill("2");
   await page.getByLabel("Destination URL").fill("https://example.com/watch");
   // Since plan §5.2 the bare id box is one tab of the Choose content popup.
   await page.getByRole("button", { name: "Choose content", exact: true }).click();
@@ -252,7 +252,7 @@ test("Meta posts carry their own platform: cards without copy boxes, no Placemen
   await page.getByRole("combobox", { name: "Producer", exact: true }).selectOption({ index: 1 });
   await page.getByRole("button", { name: /Meta · Facebook/ }).click();
   await chooseAccount(page, /Demo Meta 1/);
-  await page.getByLabel(/^(Items|Spark codes) per campaign$/).fill("2");
+  await page.getByLabel(/^(Items|Spark codes|Ads) per campaign$/).fill("2");
   await page.getByLabel("Destination URL").fill("https://example.com/watch");
 
   await page.getByRole("button", { name: "Choose content", exact: true }).click();
@@ -267,7 +267,7 @@ test("Meta posts carry their own platform: cards without copy boxes, no Placemen
   await picker.getByRole("button", { name: "Add post", exact: true }).click();
   await picker.getByRole("button", { name: "Done", exact: true }).click();
   await expect(picker).toBeHidden();
-  await page.getByLabel(/^(Items|Spark codes) per campaign$/).fill("3");
+  await page.getByLabel(/^(Items|Spark codes|Ads) per campaign$/).fill("3");
 
   const chosen = page.locator(".launch-content-item");
   await expect(chosen).toHaveCount(3);
@@ -314,7 +314,7 @@ test("Multi-account plan assigns distinct Spark posts to every campaign and moni
   await chooseAccount(page, /Demo TikTok 1/);
   await chooseAccount(page, /Demo TikTok 2/);
   await page.getByLabel("Campaigns per account").fill("2");
-  await page.getByLabel(/^(Items|Spark codes) per campaign$/).fill("2");
+  await page.getByLabel(/^(Items|Spark codes|Ads) per campaign$/).fill("2");
   const codes = Array.from({ length: 8 }, (_, i) => `TEST-MULTI-SPARK-${i + 1}`);
   await page.getByLabel("Paste all Spark codes, one per line").fill(codes.join("\n"));
   await chooseTikTokTitle(page);
@@ -417,7 +417,7 @@ test("Daily cost-cap launch, controls, staff monitor, and higher-budget round", 
   await chooseAccount(page, /Demo TikTok 1/);
   await chooseAccount(page, /Demo TikTok 2/);
   await page.getByLabel("Campaigns per account").fill("2");
-  await page.getByLabel(/^(Items|Spark codes) per campaign$/).fill("2");
+  await page.getByLabel(/^(Items|Spark codes|Ads) per campaign$/).fill("2");
   const codes = Array.from({ length: 8 }, (_, i) => `TEST-PACING-SPARK-${i + 1}`);
   await page.getByLabel("Paste all Spark codes, one per line").fill(codes.join("\n"));
   await chooseTikTokTitle(page);
