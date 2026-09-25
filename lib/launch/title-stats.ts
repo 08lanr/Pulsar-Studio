@@ -92,12 +92,14 @@ export function adTitleId(run: Pick<LaunchRun, "draft">, item: Pick<LaunchConten
 /** Every title a launch promotes, its own first. */
 export function runTitleIds(run: Pick<LaunchRun, "draft" | "campaigns">): string[] {
   const ids = new Set<string>();
-  if (run.draft.provider === "tiktok" && run.draft.title_id) ids.add(run.draft.title_id);
   for (const item of [...run.draft.content, ...run.campaigns.flatMap((c) => c.content)]) {
     const id = adTitleId(run, item);
     if (id) ids.add(id);
   }
-  return [...ids];
+  // The launch's own title counts only when an ad promotes it (or no ad is chosen yet).
+  const own = run.draft.provider === "tiktok" ? run.draft.title_id ?? null : null;
+  if (!own || (ids.size && !ids.has(own))) return [...ids];
+  return [own, ...[...ids].filter((id) => id !== own)];
 }
 
 /** The titles one campaign's ads promote. */

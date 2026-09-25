@@ -126,7 +126,7 @@ test("an edit made while the draft's first save is still on its way reaches the 
   await page.getByRole("checkbox", { name: /Demo TikTok 1/ }).check();
   await page.getByLabel(/^(Items|Spark codes|Ads) per campaign$/).fill("1");
   await page.getByLabel("Paste all Spark codes, one per line").fill("RACE-SPARK-ONE");
-  await page.getByLabel("Title on crazydramas").selectOption({ label: "The War God Returns" });
+  await page.getByLabel("Default title for new ads (optional)").selectOption({ label: "The War God Returns" });
   await page.getByRole("button", { name: "Preview campaigns" }).click();
   await expect(page.getByText(/1 campaign across 1 ad account/)).toBeVisible();
   expect(conflicts).toEqual([]);

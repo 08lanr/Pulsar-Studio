@@ -12,7 +12,7 @@ export const WAR_GOD_LINK = "https://crazydramas.com/watch/fixture-film-processi
  * Instant Page ad (which carries the page), the link its button opens: the same link plus the campaign's campid.
  */
 export async function chooseTikTokTitle(page: Page, title = WAR_GOD_TITLE, link = WAR_GOD_LINK) {
-  await page.getByLabel("Title on crazydramas").selectOption({ label: title });
+  await page.getByLabel("Default title for new ads (optional)").selectOption({ label: title });
   const adUrl = page.getByTestId("tiktok-ad-url");
   const buttonUrl = page.getByTestId("tiktok-button-url");
   await expect(adUrl.or(buttonUrl)).toBeVisible();

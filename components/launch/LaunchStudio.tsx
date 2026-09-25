@@ -643,7 +643,7 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
           : tt("lr2.runsOnNone")}</p>
       </>}</section>
       <section className="rs-panel"><h2>4. {tt("lv2.delivery")}</h2><div className="tk-field tk-row"><label htmlFor="lv2-name">{tt("lv2.name")}</label><input id="lv2-name" className="input" value={draft.name} onFocus={() => { namedOnce.current = true; }} onChange={(e) => { namedOnce.current = true; update("name", e.target.value); }} />{draft.provider === "tiktok"
-        ? <><label htmlFor="lv2-title">{tt("lpx.title")}</label><select id="lv2-title" className="select" value={draft.title_id ?? ""} onChange={(e) => chooseTitle(e.target.value)}><option value="">{tt("lpx.chooseTitle")}</option>{titles.map((t) => <option key={t.id} value={t.id} disabled={!t.ad_url}>{t.name}</option>)}</select></>
+        ? <><label htmlFor="lv2-title">{tt("lpx.title")}</label><select id="lv2-title" className="select" value={draft.title_id ?? ""} onChange={(e) => chooseTitle(e.target.value)}><option value="">{tt("lpx.noDefaultTitle")}</option>{titles.map((t) => <option key={t.id} value={t.id} disabled={!t.ad_url}>{t.name}</option>)}</select></>
         : <><label htmlFor="lv2-dest">{tt("lv2.destination")}</label><input id="lv2-dest" className="input" type="url" value={draft.destination_url} onChange={(e) => update("destination_url", e.target.value)} placeholder="https://" /></>}</div>
       {/* Every TikTok ad carries the title's crazydramas link with TikTok's own
           macros (lib/tiktok/ad-url.ts); the screen prints the exact string. */}
@@ -653,6 +653,7 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
         {shape === "instant_page"
           ? <><p className="hint">{tt("lpx.buttonLinkLabel")}</p>
             <code className="launch-ad-url" data-testid="tiktok-button-url">{buttonLink || "—"}</code></>
+          : !draft.title_id ? <p className="hint">{tt("lpx.perAdLinks")}</p>
           : <><p className="hint">{tt("lpx.linkLabel")}</p>
             <code className="launch-ad-url" data-testid="tiktok-ad-url">{draft.destination_url || "—"}</code></>}
         <p className="hint">{tt("lpx.macroNote")}</p>

@@ -333,7 +333,8 @@ async function findInstantPageByName(c: Client, name: string): Promise<{ id: str
 async function ensurePixel(ctx: DriverContext, c: Client): Promise<void> {
   const settings = state(ctx).settings;
   if (!settings || launchShape(settings) !== "website_purchases") return;
-  if (!isCrazydramasAdUrl(landingUrl(ctx)) || ctx.campaign.content.some((item) => item.landing_url !== undefined && !isCrazydramasAdUrl(item.landing_url)))
+  const links = ctx.campaign.content.map((item) => item.landing_url ?? landingUrl(ctx));
+  if (!links.length || links.some((link) => !isCrazydramasAdUrl(link)))
     throw new Error("This Website purchases launch has no crazydramas ad link; create a new round from the title.");
   const code = settings.pixel_code ?? tiktokPixelCode();
   const recorded = state(ctx).pixel;

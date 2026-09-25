@@ -557,10 +557,23 @@ test("save writes the title's ad link and the pixel code; preview resolves the p
   assert.ok(approved.campaigns.every((c) => c.tracking_url === LIVE_AD_URL));
 });
 
+test("the launch's title is optional: with none, each ad carries its own title's link and the launch has no link of its own", async () => {
+  const accounts = await tiktokAccounts(1);
+  const title = await launchTitle();
+  const draft = await websiteDraft(null, accounts);
+  const saved = await getData().saveLaunchDraft(producer(), { ...draft, content: [{ kind: "spark", value: "good-one", title_id: title.id }] });
+  assert.equal(saved.draft.destination_url, "", "no launch title, no launch link");
+  assert.equal(saved.draft.content[0].landing_url, LIVE_AD_URL);
+  const preview = await getData().previewLaunchRun(producer(), saved.id);
+  assert.ok(preview.rows.every((row) => row.tracking_url === undefined && row.content.every((c) => c.landing_url === LIVE_AD_URL)));
+  const approved = await getData().submitLaunchRun(producer(), saved.id, saved.revision);
+  assert.ok(approved.campaigns.every((c) => !c.tracking_url && c.content.every((item) => item.landing_url === LIVE_AD_URL)));
+});
+
 test("preview refuses a TikTok draft with no title, a title that is not live, and a pixel the account cannot use", async () => {
   const accounts = await tiktokAccounts(1);
   const none = await getData().saveLaunchDraft(producer(), await websiteDraft(null, accounts));
-  await assert.rejects(getData().previewLaunchRun(producer(), none.id), /Choose the title this launch promotes/);
+  await assert.rejects(getData().previewLaunchRun(producer(), none.id), /Ad 1 has no title\. Choose the title it promotes/);
   const draftTitle = await launchTitle(FAKE_SLUGS.draft);
   const notLive = await getData().saveLaunchDraft(producer(), await websiteDraft(draftTitle.id, accounts));
   await assert.rejects(getData().previewLaunchRun(producer(), notLive.id), /is not live on crazydramas\.com/);

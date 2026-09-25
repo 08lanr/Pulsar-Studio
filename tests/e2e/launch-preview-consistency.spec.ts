@@ -36,7 +36,7 @@ test("staff preview locks the selected company and draft until confirmation matc
     await reached;
     await expect(producer).toBeDisabled();
     await expect(page.getByLabel("Launch name")).toBeDisabled();
-    await expect(page.getByLabel("Title on crazydramas")).toBeDisabled();
+    await expect(page.getByLabel("Default title for new ads (optional)")).toBeDisabled();
     await expect(page.getByLabel("Paste all Spark codes, one per line")).toBeDisabled();
   } finally {
     releasePreview();

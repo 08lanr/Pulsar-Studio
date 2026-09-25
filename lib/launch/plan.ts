@@ -291,7 +291,10 @@ export function buildLaunchPlan(input: LaunchDraft, connections: LaunchConnectio
     // Every TikTok ad goes to the title's crazydramas page with the four
     // attribution parameters (lib/tiktok/ad-url.ts); the data layer checks the
     // title and that its series is live before it gets here.
-    if (!isCrazydramasAdUrl(d.destination_url)) throw new Error(TIKTOK_DESTINATION_REFUSAL);
+    // The launch's own link is needed only by an ad without its own link, and
+    // by an Instant Page's one button (the launch's title is optional).
+    const needsLaunchLink = !input.content.length || input.content.some(item => item.landing_url === undefined) || launchShape(d.tiktok_settings) === "instant_page";
+    if (needsLaunchLink && !isCrazydramasAdUrl(d.destination_url)) throw new Error(TIKTOK_DESTINATION_REFUSAL);
     // Each ad may promote its own title, so each carries its own link (the
     // server writes it on save; the gate checks it against the title).
     input.content.forEach((item, i) => {
@@ -347,7 +350,7 @@ export function buildLaunchPlan(input: LaunchDraft, connections: LaunchConnectio
     return {
       index: index + 1, connection_id: connection.id, advertiser_id: connection.advertiser_id,
       name: campid ?? `${d.name}-${index + 1}`,
-      ...(campid ? { campid, tracking_url: trackingUrlForCampaign(d.destination_url, campid, { provider: d.provider, shape: launchShape(d.tiktok_settings) }) } : {}),
+      ...(campid ? { campid, ...(d.destination_url ? { tracking_url: trackingUrlForCampaign(d.destination_url, campid, { provider: d.provider, shape: launchShape(d.tiktok_settings) }) } : {}) } : {}),
       content,
       budget_cents: shares[index], daily_budget_cents: d.daily_budget_cents,
       ...(d.provider === "meta" ? { ad_sets: deriveAdSets(content, d.meta_settings.placements, shares[index], d.daily_budget_cents) } : {}),

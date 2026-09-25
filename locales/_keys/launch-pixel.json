@@ -1,6 +1,8 @@
 {
-  "lpx.title": { "en": "Title on crazydramas", "zh": "crazydramas 上的剧集" },
+  "lpx.title": { "en": "Default title for new ads (optional)", "zh": "新广告的默认剧集（可选）" },
   "lpx.chooseTitle": { "en": "Choose the title these ads promote", "zh": "选择广告推广的剧集" },
+  "lpx.noDefaultTitle": { "en": "None: each ad picks its own title", "zh": "不设：每条广告各选剧集" },
+  "lpx.perAdLinks": { "en": "Each ad sends viewers to its own title's link, shown next to it in step 3.", "zh": "每条广告把观众带到自己剧集的链接，链接显示在第 3 步该广告旁边。" },
   "lpx.noTitles": { "en": "No title of this company is on CrazyDramas yet. Upload one from the CrazyDramas page; it then appears here.", "zh": "这家公司还没有剧集上传到 CrazyDramas。在 CrazyDramas 页面上传后，剧集会出现在这里。" },
   "lpx.titleState": { "en": "crazydramas.com/watch/{slug} · {state}", "zh": "crazydramas.com/watch/{slug} · {state}" },
   "lpx.state.live": { "en": "live", "zh": "已上线" },

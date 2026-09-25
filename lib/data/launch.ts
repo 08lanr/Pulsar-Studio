@@ -424,6 +424,8 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
         const link = titleId ? await landing(titleId) : null;
         ads.set(c, { title_id: titleId, landing_url: link ?? undefined });
       }
+      // No launch title, no launch link: every ad carries its own title's link.
+      if (!safe.title_id) safe.destination_url = "";
       const { pixel_code: _stale, ...settings } = safe.tiktok_settings;
       if (launchShape(settings) === "website_purchases") {
         const { tiktokPixelCode } = await import("@/lib/tiktok/pixel");

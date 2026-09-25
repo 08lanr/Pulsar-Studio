@@ -113,7 +113,11 @@ async function launchableTitle(s: Session, titleId: string, producerId: string):
  */
 export async function tiktokLaunchGate(s: Session, draft: LaunchDraft, producerId: string, own: readonly LaunchConnection[]): Promise<LaunchPlan["tiktok_pixel"] | undefined> {
   if (draft.provider !== "tiktok") return undefined;
-  if (!draft.title_id) throw invalid("TikTok ads link to the title's crazydramas page. Choose the title this launch promotes.");
+  // The launch's title is optional (decision 2026-09-25): it is only the
+  // default for new ads. Without one, every ad names its own title and link.
+  const untitled = draft.content.findIndex((c) => !c.title_id);
+  if (!draft.title_id && (!draft.content.length || untitled >= 0))
+    throw invalid(draft.content.length ? `Ad ${untitled + 1} has no title. Choose the title it promotes.` : "TikTok ads link to the title's crazydramas page. Choose the title this launch promotes.");
   // The launch's title (every ad's default, the campaign's link) and every
   // title an ad names, each checked once.
   const checked = new Map<string, { name: string; link: string }>();
@@ -121,15 +125,16 @@ export async function tiktokLaunchGate(s: Session, draft: LaunchDraft, producerI
     if (!checked.has(id)) checked.set(id, await launchableTitle(s, id, producerId));
     return checked.get(id)!;
   };
-  const launchTitleId: string = draft.title_id;
-  const launchTitle = await title(launchTitleId);
-  if (draft.destination_url !== launchTitle.link) throw conflict("The title's crazydramas link changed since this draft was saved. Save the draft and preview again.");
+  const instantPage = launchShape(draft.tiktok_settings) === "instant_page";
+  if (instantPage && !draft.title_id) throw invalid("A Sales Instant Page has one button link, so it needs the launch's title. Choose it in step 4, or use Website purchases or Traffic.");
+  const launchTitleId = draft.title_id ?? null;
+  const launchTitle = launchTitleId ? await title(launchTitleId) : null;
+  if (launchTitle && draft.destination_url !== launchTitle.link) throw conflict("The title's crazydramas link changed since this draft was saved. Save the draft and preview again.");
   const clipIds = draft.content.map((c) => c.clip_id).filter((id): id is string => !!id);
   const clips = clipIds.length ? await getData().listClipLibrary(s, { producer_id: producerId }) : [];
-  const instantPage = launchShape(draft.tiktok_settings) === "instant_page";
   for (const [index, item] of draft.content.entries()) {
     const ad = `Ad ${index + 1}`;
-    const titleId: string = item.title_id ?? launchTitleId;
+    const titleId: string = (item.title_id ?? launchTitleId)!;
     const adTitle = await title(titleId);
     // A picked clip names the title the Spark code was made from: an ad that
     // promotes another title would send its viewers to the wrong show.
@@ -138,7 +143,7 @@ export async function tiktokLaunchGate(s: Session, draft: LaunchDraft, producerI
     // Content saved before per-ad titles carries the campaign's link, the launch's title.
     const expected = item.landing_url === undefined && titleId === launchTitleId ? undefined : adTitle.link;
     if (item.landing_url !== expected) throw conflict(`${ad}'s crazydramas link changed since this draft was saved. Save the draft and preview again.`);
-    if (instantPage && titleId !== launchTitleId) throw invalid(`${ad} promotes ${adTitle.name}, but a Sales Instant Page has one button link, so every ad in this launch must promote ${launchTitle.name}. Set the ad to ${launchTitle.name}, or use Website purchases or Traffic to promote several titles in one launch.`);
+    if (instantPage && launchTitle && titleId !== launchTitleId) throw invalid(`${ad} promotes ${adTitle.name}, but a Sales Instant Page has one button link, so every ad in this launch must promote ${launchTitle.name}. Set the ad to ${launchTitle.name}, or use Website purchases or Traffic to promote several titles in one launch.`);
   }
   const settings = draft.tiktok_settings;
   if (launchShape(settings) !== "website_purchases") return undefined;
