@@ -3,6 +3,7 @@ import { adminLocale, staffSession } from "@/components/admin/server";
 import { Definitions, RangeTabs, ReadFailure, ReadLine, Tile } from "@/components/admin/cd-stats/Bits";
 import { DailyChart } from "@/components/admin/cd-stats/Charts";
 import CampaignTable from "@/components/admin/cd-stats/CampaignTable";
+import { SurveyView } from "@/components/admin/cd-stats/Tables";
 import TeamEditor from "@/components/admin/cd-stats/TeamEditor";
 import { readCrazydramasStats } from "@/lib/crazydramas/stats";
 import { readTeamList } from "@/lib/crazydramas/stats-team";
@@ -69,6 +70,14 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
   const seen = rows.filter((r) => r.opened > 0 || r.revenue_cents > 0);
   const unseen = rows.filter((r) => !(r.opened > 0 || r.revenue_cents > 0));
   const robotVisits = rows.reduce((a, r) => a + r.robots, 0);
+  // The two one-tap questions, every series together (each series' page has its own).
+  const survey = { ep1Shown: 0, ep1: {} as Record<string, number>, paywallShown: 0, paywall: {} as Record<string, number> };
+  for (const r of rows) {
+    survey.ep1Shown += r.survey_ep1_shown;
+    survey.paywallShown += r.survey_paywall_shown;
+    for (const [k, n] of Object.entries(r.survey_ep1)) survey.ep1[k] = (survey.ep1[k] ?? 0) + n;
+    for (const [k, n] of Object.entries(r.survey_paywall)) survey.paywall[k] = (survey.paywall[k] ?? 0) + n;
+  }
   const today = aud.today;
 
   return (
@@ -157,6 +166,19 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
           </div>
           {unseen.length > 0 && <p className="cds-foot">{t(locale, "cds.series.none", { titles: unseen.map((r) => r.title).join(" · ") })}</p>}
           <p className="cds-foot">{t(locale, "cds.series.robots", { n: n0(robotVisits) })}</p>
+        </div>
+      </section>
+
+      <section className="rs-panel cds-section" aria-labelledby="cds-why-all-h" id="why">
+        <div className="rs-panel-head">
+          <div>
+            <h2 id="cds-why-all-h">{t(locale, "cds.survey.allTitle")}</h2>
+            <p>{t(locale, "cds.survey.allSub")}</p>
+          </div>
+        </div>
+        <div className="rs-panel-body cds-surveys">
+          <SurveyView kind="ep1_stop" shown={survey.ep1Shown} answers={survey.ep1} locale={locale} />
+          <SurveyView kind="paywall_close" shown={survey.paywallShown} answers={survey.paywall} locale={locale} />
         </div>
       </section>
 

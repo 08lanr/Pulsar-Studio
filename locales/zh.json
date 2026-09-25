@@ -4751,7 +4751,7 @@
   "admin.nav.cdStats": "数据",
   "cds.defs.team": "团队自己的账号（“剔除的团队账号”里的邮箱）也会剔除，包括它们使用的手机和付款。",
   "mcd.label": "在 CrazyDramas 上",
-  "mcd.people": "人数",
+  "mcd.people": "访客",
   "mcd.started": "开始第 1 集",
   "mcd.finished": "看完第 1 集",
   "mcd.ep2": "观看第 2 集",
@@ -4761,12 +4761,12 @@
   "mcd.stats": "数据",
   "cds.ads.title": "按广告",
   "cds.ads.sub": "每条广告从上线至今：TikTok 的花费和点击（来自 Studio 的投放），以及它带到 CrazyDramas 的真人和他们的行为。评判广告看“每位看完第 1 集的成本”，而不是每次点击的价格。",
-  "cds.ads.foot": "人数不等于点击数：有些点击没有打开页面，而且 9 月 24 日下午 6 点之前 TikTok 的 iPhone 浏览器记录到的访问很少。“人数”下面的百分比以点击数为基数，其他列以人数为基数。",
+  "cds.ads.foot": "访客是通过广告打开这部剧的真人（每部手机或浏览器算一人，机器人和团队已剔除）；访客下面的百分比以广告点击数为基数，其他列以访客数为基数。访客少于点击：有些点击没有打开页面，同一个人可能点击两次，来自 TikTok 缓存副本的访客单独一行，而且 9 月 24 日下午 6 点之前 TikTok 的 iPhone 浏览器记录到的访问很少。",
   "cds.ads.none": "还没有广告带来访问。",
   "cds.ads.col.ad": "广告",
   "cds.ads.col.spend": "花费",
   "cds.ads.col.clicks": "点击",
-  "cds.ads.col.people": "人数",
+  "cds.ads.col.people": "访客",
   "cds.ads.col.perPerson": "每人成本",
   "cds.ads.col.perFinisher": "每位看完第 1 集",
   "cds.ads.col.perEp2": "每位观看第 2 集",
@@ -4840,5 +4840,8 @@
   "cds.ads.sort.per_ep2": "每位观看第 2 集成本最低",
   "cds.ads.sort.finished": "看完第 1 集人数最多",
   "cds.ads.sort.ep2": "观看第 2 集人数最多",
-  "cds.ads.sort.newest": "最新投放"
+  "cds.ads.sort.newest": "最新投放",
+  "cds.ads.col.peopleHint": "通过这条广告打开这部剧的真人：每部手机或浏览器算一人，机器人和团队已剔除。访客少于点击：有些点击没有打开页面，同一个人可能点击两次，来自 TikTok 页面缓存副本的访客在“TikTok 广告（具体哪条未知）”一行。",
+  "cds.survey.allTitle": "观众为什么停下（全部剧集）",
+  "cds.survey.allSub": "播放器里的两个一键问题（9 月 25 日起询问），这段时间内所有剧集合计。每部剧自己的页面也有它的回答。"
 }

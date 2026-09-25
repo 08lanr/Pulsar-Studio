@@ -108,7 +108,9 @@ export default function CampaignTable({ rows, showTitle = true, caption }: { row
               {showTitle && <th scope="col">{tt("cds.ads.col.title")}</th>}
               <th scope="col" className="gt-num">{tt("cds.ads.col.spend")}</th>
               <th scope="col" className="gt-num">{tt("cds.ads.col.clicks")}</th>
-              <th scope="col" className="gt-num">{tt("cds.ads.col.people")}</th>
+              <th scope="col" className="gt-num cds-hint" title={tt("cds.ads.col.peopleHint")}>
+                {tt("cds.ads.col.people")} <span aria-hidden="true">ⓘ</span>
+              </th>
               <th scope="col" className="gt-num">{tt("cds.col.playedEp1")}</th>
               <th scope="col" className="gt-num">{tt("cds.col.finishedEp1")}</th>
               <th scope="col" className="gt-num">{tt("cds.col.watchedEp", { n: 2 })}</th>

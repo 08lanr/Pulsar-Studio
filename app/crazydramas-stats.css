@@ -79,6 +79,8 @@
 .cds-table td.cds-title-cell { white-space: normal; min-width: 130px; max-width: 170px; }
 .cds-ads th.cds-title { min-width: 170px; max-width: 230px; }
 .cds-ads th, .cds-ads td { padding-left: 8px; padding-right: 8px; }
+.cds-hint { cursor: help; }
+.cds-hint span { color: var(--text-faint); font-size: 11px; }
 .cds-best-hint { font-size: 12.5px; color: var(--success); background: var(--success-bg); }
 
 /* The one-tap questions: the two side by side on a wide screen. */

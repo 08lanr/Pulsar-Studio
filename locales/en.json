@@ -4751,7 +4751,7 @@
   "admin.nav.cdStats": "Stats",
   "cds.defs.team": "The team's own accounts (the emails under “Team accounts left out”) are left out too, with the phones they use and the payments they made.",
   "mcd.label": "On CrazyDramas",
-  "mcd.people": "people",
+  "mcd.people": "visitors",
   "mcd.started": "started ep 1",
   "mcd.finished": "finished ep 1",
   "mcd.ep2": "watched ep 2",
@@ -4761,12 +4761,12 @@
   "mcd.stats": "Stats",
   "cds.ads.title": "By ad",
   "cds.ads.sub": "Each ad's whole life: what TikTok charged and counted (from Studio's launches), and the real people it brought to CrazyDramas and what they did. Judge an ad by what it costs per episode 1 finisher, not per click.",
-  "cds.ads.foot": "People is not the same as clicks: some clicks never load the page, and TikTok's iPhone browser recorded few visits until Sep 24, 6 pm. Percentages under People are of the ad's clicks; the others are of its people.",
+  "cds.ads.foot": "Visitors are real people who opened the series from the ad (one per phone or browser, robots and the team left out); the percentage under them is of the ad's clicks, the others are of its visitors. Visitors are fewer than clicks: some taps never load the page, one person can click twice, visitors from TikTok's stored copy are in their own row, and TikTok's iPhone browser recorded few visits until Sep 24, 6 pm.",
   "cds.ads.none": "No ad has sent anyone yet.",
   "cds.ads.col.ad": "Ad",
   "cds.ads.col.spend": "Spent",
   "cds.ads.col.clicks": "Clicks",
-  "cds.ads.col.people": "People",
+  "cds.ads.col.people": "Visitors",
   "cds.ads.col.perPerson": "Per person",
   "cds.ads.col.perFinisher": "Per ep 1 finisher",
   "cds.ads.col.perEp2": "Per ep 2 watcher",
@@ -4840,5 +4840,8 @@
   "cds.ads.sort.per_ep2": "Cheapest per episode 2 watcher",
   "cds.ads.sort.finished": "Most episode 1 finishers",
   "cds.ads.sort.ep2": "Most episode 2 watchers",
-  "cds.ads.sort.newest": "Newest launch"
+  "cds.ads.sort.newest": "Newest launch",
+  "cds.ads.col.peopleHint": "Real people who opened the series from this ad: one per phone or browser, robots and the team left out. Fewer than clicks: some taps never load the page, one person can click twice, and visitors from TikTok's stored copy of the page are in the “TikTok ad, which one unknown” row.",
+  "cds.survey.allTitle": "Why people stop, all series",
+  "cds.survey.allSub": "The player's two one-tap questions (asked since Sep 25), every series together in this period. Each series' own page has its answers too."
 }

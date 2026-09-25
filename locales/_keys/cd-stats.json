@@ -114,7 +114,7 @@
   "cds.d.robots": {"en": "{n} robot visits to this series left out.", "zh": "剔除了这部剧的 {n} 次机器人访问。"},
   "cds.defs.team": {"en": "The team's own accounts (the emails under “Team accounts left out”) are left out too, with the phones they use and the payments they made.", "zh": "团队自己的账号（“剔除的团队账号”里的邮箱）也会剔除，包括它们使用的手机和付款。"},
   "mcd.label": {"en": "On CrazyDramas", "zh": "在 CrazyDramas 上"},
-  "mcd.people": {"en": "people", "zh": "人数"},
+  "mcd.people": {"en": "visitors", "zh": "访客"},
   "mcd.started": {"en": "started ep 1", "zh": "开始第 1 集"},
   "mcd.finished": {"en": "finished ep 1", "zh": "看完第 1 集"},
   "mcd.ep2": {"en": "watched ep 2", "zh": "观看第 2 集"},
@@ -124,12 +124,12 @@
   "mcd.stats": {"en": "Stats", "zh": "数据"},
   "cds.ads.title": {"en": "By ad", "zh": "按广告"},
   "cds.ads.sub": {"en": "Each ad's whole life: what TikTok charged and counted (from Studio's launches), and the real people it brought to CrazyDramas and what they did. Judge an ad by what it costs per episode 1 finisher, not per click.", "zh": "每条广告从上线至今：TikTok 的花费和点击（来自 Studio 的投放），以及它带到 CrazyDramas 的真人和他们的行为。评判广告看“每位看完第 1 集的成本”，而不是每次点击的价格。"},
-  "cds.ads.foot": {"en": "People is not the same as clicks: some clicks never load the page, and TikTok's iPhone browser recorded few visits until Sep 24, 6 pm. Percentages under People are of the ad's clicks; the others are of its people.", "zh": "人数不等于点击数：有些点击没有打开页面，而且 9 月 24 日下午 6 点之前 TikTok 的 iPhone 浏览器记录到的访问很少。“人数”下面的百分比以点击数为基数，其他列以人数为基数。"},
+  "cds.ads.foot": {"en": "Visitors are real people who opened the series from the ad (one per phone or browser, robots and the team left out); the percentage under them is of the ad's clicks, the others are of its visitors. Visitors are fewer than clicks: some taps never load the page, one person can click twice, visitors from TikTok's stored copy are in their own row, and TikTok's iPhone browser recorded few visits until Sep 24, 6 pm.", "zh": "访客是通过广告打开这部剧的真人（每部手机或浏览器算一人，机器人和团队已剔除）；访客下面的百分比以广告点击数为基数，其他列以访客数为基数。访客少于点击：有些点击没有打开页面，同一个人可能点击两次，来自 TikTok 缓存副本的访客单独一行，而且 9 月 24 日下午 6 点之前 TikTok 的 iPhone 浏览器记录到的访问很少。"},
   "cds.ads.none": {"en": "No ad has sent anyone yet.", "zh": "还没有广告带来访问。"},
   "cds.ads.col.ad": {"en": "Ad", "zh": "广告"},
   "cds.ads.col.spend": {"en": "Spent", "zh": "花费"},
   "cds.ads.col.clicks": {"en": "Clicks", "zh": "点击"},
-  "cds.ads.col.people": {"en": "People", "zh": "人数"},
+  "cds.ads.col.people": {"en": "Visitors", "zh": "访客"},
   "cds.ads.col.perPerson": {"en": "Per person", "zh": "每人成本"},
   "cds.ads.col.perFinisher": {"en": "Per ep 1 finisher", "zh": "每位看完第 1 集"},
   "cds.ads.col.perEp2": {"en": "Per ep 2 watcher", "zh": "每位观看第 2 集"},
@@ -203,5 +203,8 @@
   "cds.ads.sort.per_ep2": {"en": "Cheapest per episode 2 watcher", "zh": "每位观看第 2 集成本最低"},
   "cds.ads.sort.finished": {"en": "Most episode 1 finishers", "zh": "看完第 1 集人数最多"},
   "cds.ads.sort.ep2": {"en": "Most episode 2 watchers", "zh": "观看第 2 集人数最多"},
-  "cds.ads.sort.newest": {"en": "Newest launch", "zh": "最新投放"}
+  "cds.ads.sort.newest": {"en": "Newest launch", "zh": "最新投放"},
+  "cds.ads.col.peopleHint": {"en": "Real people who opened the series from this ad: one per phone or browser, robots and the team left out. Fewer than clicks: some taps never load the page, one person can click twice, and visitors from TikTok's stored copy of the page are in the “TikTok ad, which one unknown” row.", "zh": "通过这条广告打开这部剧的真人：每部手机或浏览器算一人，机器人和团队已剔除。访客少于点击：有些点击没有打开页面，同一个人可能点击两次，来自 TikTok 页面缓存副本的访客在“TikTok 广告（具体哪条未知）”一行。"},
+  "cds.survey.allTitle": {"en": "Why people stop, all series", "zh": "观众为什么停下（全部剧集）"},
+  "cds.survey.allSub": {"en": "The player's two one-tap questions (asked since Sep 25), every series together in this period. Each series' own page has its answers too.", "zh": "播放器里的两个一键问题（9 月 25 日起询问），这段时间内所有剧集合计。每部剧自己的页面也有它的回答。"}
 }
