@@ -12,7 +12,7 @@
 
 import type { LaunchProvider, LaunchRun } from "@/lib/launch/types";
 import type { AdDay } from "@/lib/tiktok/ad-stats";
-import type { CdStatsCohort, CdStatsDay, CdStatsReport, CdStatsSeries, CdStatsSource } from "./stats-types";
+import { CdStatsPlaybackSchema, type CdStatsCohort, type CdStatsDay, type CdStatsDrop, type CdStatsPlayback, type CdStatsReport, type CdStatsSeries, type CdStatsSource } from "./stats-types";
 
 export const STATS_RANGES = ["today", "7d", "30d", "all"] as const;
 export type StatsRange = (typeof STATS_RANGES)[number];
@@ -672,6 +672,9 @@ export type DashTotals = Record<(typeof DASH_SCALARS)[number], number> & {
   load_hist: number[];
   start_hist: number[];
   wait_hist: number[];
+  /** The playback report of these people's episode views: episode 1, and every later one. */
+  play_ep1: CdStatsPlayback;
+  play_later: CdStatsPlayback;
 };
 
 export function sumRows(rows: readonly CdStatsSource[]): DashTotals {
@@ -681,7 +684,11 @@ export function sumRows(rows: readonly CdStatsSource[]): DashTotals {
   t.load_hist = [];
   t.start_hist = [];
   t.wait_hist = [];
+  t.play_ep1 = emptyPlayback();
+  t.play_later = emptyPlayback();
   for (const x of rows) {
+    addPlayback(t.play_ep1, x.play_ep1);
+    addPlayback(t.play_later, x.play_later);
     for (const k of DASH_SCALARS) t[k] += x[k];
     for (const [a, n] of Object.entries(x.survey_ep1)) t.survey_ep1[a] = (t.survey_ep1[a] ?? 0) + n;
     for (const [a, n] of Object.entries(x.survey_paywall)) t.survey_paywall[a] = (t.survey_paywall[a] ?? 0) + n;
@@ -921,3 +928,106 @@ export function biggestDrop(steps: PathStep[]): { from: PathStep; to: PathStep; 
   }
   return best;
 }
+
+// ---- the playback report (2026-09-25) -------------------------------------------------------------------------
+//
+// Ruobin, 2026-09-25: "why is the phone pausing the video 3 times. why does it take 2.8 seconds? ... I need to
+// know why users are dropping off, and what issues (e.g. loading) they face." crazydramas' player reports how
+// every episode view went; the Playback tab adds the reports up (by episode 1 or the later ones), sorts every
+// early ending into something that went wrong, a choice, or unknown, splits the landing's start into its three
+// parts, and lists the latest early endings one by one.
+
+export function emptyPlayback(): CdStatsPlayback {
+  return CdStatsPlaybackSchema.parse({});
+}
+
+const PLAYBACK_SCALARS = [
+  "views", "started", "landing_split", "landing_page_ms", "landing_player_ms", "landing_video_ms", "stall_views", "stalls", "stall_ms",
+  "watched_ms", "phone_pause_views", "phone_pauses", "phone_pauses_sound", "phone_pauses_early", "viewer_pause_views", "restart_views", "error_views",
+] as const satisfies readonly (keyof CdStatsPlayback)[];
+
+function mergeCounts(into: Record<string, number>, add: Record<string, number>) {
+  for (const [k, n] of Object.entries(add)) into[k] = (into[k] ?? 0) + n;
+}
+
+export function addPlayback(into: CdStatsPlayback, x: CdStatsPlayback): void {
+  for (const k of PLAYBACK_SCALARS) into[k] += x[k];
+  addInto(into.start_hist, x.start_hist);
+  mergeCounts(into.quality_ms, x.quality_ms);
+  mergeCounts(into.conn, x.conn);
+  mergeCounts(into.ends, x.ends);
+}
+
+export const PLAY_EPS = ["1", "later"] as const;
+export type PlayEps = (typeof PLAY_EPS)[number];
+export function parsePlayEps(raw: unknown): PlayEps {
+  const v = Array.isArray(raw) ? raw[0] : raw;
+  return v === "later" ? "later" : "1";
+}
+export const playOf = (t: DashTotals, eps: PlayEps): CdStatsPlayback => (eps === "1" ? t.play_ep1 : t.play_later);
+
+/** Where an ending belongs: something went wrong, the viewer chose to stop, not an early ending, or unknown. */
+export type EndFamily = "problem" | "choice" | "done" | "unknown";
+const PROBLEM_ENDS = new Set(["left_before_start", "left_frozen", "left_phone_paused", "error", "closed_not_started", "closed_loading", "closed_frozen", "closed_paused_by_phone", "closed_error"]);
+const CHOICE_ENDS = new Set(["left_playing", "left_paused", "closed_playing", "closed_paused_by_viewer"]);
+export function endFamily(end: string): EndFamily {
+  if (end === "finished" || end === "next") return "done";
+  if (PROBLEM_ENDS.has(end)) return "problem";
+  if (CHOICE_ENDS.has(end)) return "choice";
+  return "unknown";
+}
+/** The label key of an ending (the two ways of vanishing before a start read the same). */
+export const endLabel = (end: string) => (end === "closed_loading" ? "closed_not_started" : end === "closed_ended" || end === "closed_error" ? "closed_unknown" : end);
+
+export type EarlyExits = {
+  total: number;
+  families: Record<"problem" | "choice" | "unknown", number>;
+  reasons: { key: string; family: EndFamily; people: number }[];
+};
+/** The views that ended early (not finished, not moved on), by family and by reason, most first. */
+export function earlyExits(p: CdStatsPlayback): EarlyExits {
+  const families = { problem: 0, choice: 0, unknown: 0 };
+  const byLabel = new Map<string, { key: string; family: EndFamily; people: number }>();
+  for (const [end, n] of Object.entries(p.ends)) {
+    const family = endFamily(end);
+    if (family === "done" || n <= 0) continue;
+    families[family] += n;
+    const key = endLabel(end);
+    const r = byLabel.get(key) ?? { key, family, people: 0 };
+    r.people += n;
+    byLabel.set(key, r);
+  }
+  const reasons = [...byLabel.values()].sort((a, b) => b.people - a.people || a.key.localeCompare(b.key));
+  return { total: families.problem + families.choice + families.unknown, families, reasons };
+}
+
+/** The landing's start on average (ms): the page, the player, the video; null when no landing was split. */
+export function landingSplit(p: CdStatsPlayback): { page: number; player: number; video: number; n: number } | null {
+  if (!p.landing_split) return null;
+  const n = p.landing_split;
+  return { page: p.landing_page_ms / n, player: p.landing_player_ms / n, video: p.landing_video_ms / n, n };
+}
+
+/** The key with the most in a count (the usual picture rung, the usual connection); null for none. */
+export function topKey(counts: Record<string, number>): string | null {
+  let best: [string, number] | null = null;
+  for (const [k, n] of Object.entries(counts)) if (k !== "unknown" && (!best || n > best[1])) best = [k, n];
+  return best ? best[0] : null;
+}
+
+/** The drill-down's early endings in a period, narrowed by the filter (a campaign reads as "any ad": a drop keeps no campaign). */
+export function dropsFor(report: Pick<CdStatsReport, "drops" | "timezone">, r: { from: string; to: string }, f: DashFilter, eps: PlayEps): CdStatsDrop[] {
+  return report.drops.filter((d) => {
+    if (!inRange(dayIn(d.at, report.timezone), r)) return false;
+    if ((eps === "1") !== (d.episode === 1)) return false;
+    if (f.series && d.drama_id !== f.series) return false;
+    if (f.device && d.device !== f.device) return false;
+    if (f.country && (d.country ?? NO_PLACE) !== f.country) return false;
+    if (f.source) {
+      const want = f.source === "stored_copy" || f.source === "no_ad" ? f.source : "ad";
+      if (d.source !== want) return false;
+    }
+    return true;
+  });
+}
+

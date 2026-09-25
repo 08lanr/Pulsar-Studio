@@ -27,6 +27,7 @@ import {
   dashPath,
   dashRows,
   DEVICE_ORDER,
+  dropsFor,
   fmtShare,
   fmtUsdCents,
   histSummary,
@@ -38,6 +39,7 @@ import {
   parseDashFilter,
   parseDashTab,
   parseKpiMetric,
+  parsePlayEps,
   parseStatsRange,
   prevSpan,
   rangeDays,
@@ -66,7 +68,7 @@ export const dynamic = "force-dynamic";
 
 const n0 = (v: number) => v.toLocaleString("en-US");
 
-type Search = { range?: string; fresh?: string; series?: string; device?: string; source?: string; country?: string; tab?: string; metric?: string; by?: string };
+type Search = { range?: string; fresh?: string; series?: string; device?: string; source?: string; country?: string; tab?: string; metric?: string; by?: string; eps?: string };
 const COMPARE_BY = ["device", "source", "series", "country"] as const;
 
 export default async function CrazydramasStatsPage({ searchParams }: { searchParams: Search }) {
@@ -76,6 +78,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
   const tab = parseDashTab(searchParams.tab);
   const metric = parseKpiMetric(searchParams.metric);
   const by = (COMPARE_BY as readonly string[]).includes(searchParams.by ?? "") ? (searchParams.by as (typeof COMPARE_BY)[number]) : "device";
+  const eps = parsePlayEps(searchParams.eps);
   const [read, team, runs] = await Promise.all([
     readCrazydramasStats({ fresh: searchParams.fresh === "1" }),
     readTeamList(),
@@ -84,10 +87,10 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
   // Every link keeps the rest of the address; `patch` changes some of it.
   const hrefWith = (patch: Partial<Search>) => {
     const q = new URLSearchParams();
-    const next = { range, tab, metric, by, series: searchParams.series, device: searchParams.device, source: searchParams.source, country: searchParams.country, ...patch };
+    const next = { range, tab, metric, by, eps, series: searchParams.series, device: searchParams.device, source: searchParams.source, country: searchParams.country, ...patch };
     for (const [k, v] of Object.entries(next)) {
       // Defaults stay out of the address.
-      if (v && !(k === "tab" && v === "overview") && !(k === "metric" && v === "visitors") && !(k === "by" && v === "device")) q.set(k, v);
+      if (v && !(k === "tab" && v === "overview") && !(k === "metric" && v === "visitors") && !(k === "by" && v === "device") && !(k === "eps" && v === "1")) q.set(k, v);
     }
     return `/crazydramas/stats?${q.toString()}`;
   };
@@ -171,7 +174,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
       <div className="cdx-bar">
         <FilterBar
           range={range}
-          keep={Object.fromEntries(Object.entries({ tab: tab === "overview" ? "" : tab, metric: metric === "visitors" ? "" : metric, by: by === "device" ? "" : by }).filter(([, v]) => v))}
+          keep={Object.fromEntries(Object.entries({ tab: tab === "overview" ? "" : tab, metric: metric === "visitors" ? "" : metric, by: by === "device" ? "" : by, eps: eps === "1" ? "" : eps }).filter(([, v]) => v))}
           value={{ series: seriesSlug, device: filter.device, source: filter.source, country: filter.country ?? null }}
           options={options}
         />
@@ -274,7 +277,20 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
   }
 
   function PlaybackTab() {
-    return <PlaybackSection totals={totals} before={before} vs={prev ? t(locale, `cdx.vs.${range}`) : null} phones={groups.device} edges={edges} locale={locale} />;
+    return (
+      <PlaybackSection
+        totals={totals}
+        before={before}
+        vs={prev ? t(locale, `cdx.vs.${range}`) : null}
+        phones={groups.device}
+        edges={edges}
+        eps={eps}
+        epsHref={(e) => hrefWith({ eps: e })}
+        drops={dropsFor(report, span, filter, eps)}
+        titleOf={(id) => titleOf.get(id)?.title ?? id}
+        locale={locale}
+      />
+    );
   }
 
   function SeriesTab() {

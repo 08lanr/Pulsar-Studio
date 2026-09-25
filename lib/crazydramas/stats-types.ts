@@ -87,6 +87,63 @@ export const CdStatsSeriesSchema = z.object({
   cohorts: z.array(CdStatsCohortSchema),
 });
 
+/**
+ * Episode views added up from crazydramas' playback report (since 2026-09-25; docs/STUDIO_API.md "Playback"):
+ * views and first frames, the landing's start in three parts, freezes, the phone's pauses, restarts, errors,
+ * time watched per picture rung, connections, and how the views ended. An older report reads as empty.
+ */
+export const CdStatsPlaybackSchema = z.object({
+  views: later,
+  started: later,
+  start_hist: hist,
+  landing_split: later,
+  landing_page_ms: later,
+  landing_player_ms: later,
+  landing_video_ms: later,
+  stall_views: later,
+  stalls: later,
+  stall_ms: later,
+  watched_ms: later,
+  phone_pause_views: later,
+  phone_pauses: later,
+  phone_pauses_sound: later,
+  phone_pauses_early: later,
+  viewer_pause_views: later,
+  restart_views: later,
+  error_views: later,
+  quality_ms: answers,
+  conn: answers,
+  ends: answers,
+});
+const noPlayback = () => CdStatsPlaybackSchema.parse({});
+
+/** One episode view that ended early, for the drill-down (a 6-character code, never the viewer's id). */
+export const CdStatsDropSchema = z.object({
+  code: z.string().max(12),
+  at: z.string(),
+  drama_id: z.string(),
+  episode: count,
+  device: z.string(),
+  country: z.string().nullable().default(null),
+  source: z.enum(["ad", "stored_copy", "no_ad"]),
+  ended: z.string().max(40),
+  first_frame_ms: z.number().nonnegative().nullable(),
+  stalls: count,
+  stall_ms: count,
+  phone_pauses: count,
+  phone_pauses_sound: count,
+  viewer_pauses: count,
+  restarts: count,
+  watched_s: z.number().nonnegative(),
+  on_screen_s: z.number().nonnegative(),
+  position_s: z.number().nonnegative(),
+  duration_s: z.number().nonnegative().nullable(),
+  quality: z.string().nullable(),
+  conn: z.string().nullable(),
+  bw_kbps: z.number().nonnegative().nullable(),
+  timeline: z.array(z.tuple([z.number(), z.string().max(20), z.number()])).max(40).default([]),
+});
+
 /** The people of one source (platform × campaign × ad × kind of browser × place) who first opened a series on a day. */
 export const CdStatsSourceSchema = z.object({
   day,
@@ -134,6 +191,8 @@ export const CdStatsSourceSchema = z.object({
   load_hist: hist,
   start_hist: hist,
   wait_hist: hist,
+  play_ep1: CdStatsPlaybackSchema.default(noPlayback),
+  play_later: CdStatsPlaybackSchema.default(noPlayback),
   robots: count,
 });
 
@@ -152,6 +211,8 @@ export const CdStatsReportSchema = z.object({
   days: z.array(CdStatsDaySchema),
   series: z.array(CdStatsSeriesSchema),
   sources: z.array(CdStatsSourceSchema).default([]),
+  /** The latest episode views that ended early, newest first (the Playback tab's drill-down). */
+  drops: z.array(CdStatsDropSchema).default([]),
 });
 
 export type CdStatsDay = z.infer<typeof CdStatsDaySchema>;
@@ -159,3 +220,5 @@ export type CdStatsCohort = z.infer<typeof CdStatsCohortSchema>;
 export type CdStatsSeries = z.infer<typeof CdStatsSeriesSchema>;
 export type CdStatsSource = z.infer<typeof CdStatsSourceSchema>;
 export type CdStatsReport = z.infer<typeof CdStatsReportSchema>;
+export type CdStatsPlayback = z.infer<typeof CdStatsPlaybackSchema>;
+export type CdStatsDrop = z.infer<typeof CdStatsDropSchema>;

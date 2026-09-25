@@ -8,6 +8,21 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-09-25 · CrazyDramas stats: the playback report on the Playback tab
+
+Ruobin, 2026-09-25: "We're having a lot of drop off between saw the page / episode 1 playing --> finishing episode 1. This doesn't make sense to me, and I suspect it's because of a technical issue? Why is the phone pausing the video 3 times. Why does it take 2.8 seconds? Can we record these things or aggregate these stats? I need to know why users are dropping off, and what issues (e.g. loading) they face." His choices: every episode (not only episode 1), one build with the tabbed dashboard, and a per-viewer drill-down.
+
+crazydramas' player now reports how every episode view went (`playback_summary`, released as crazydramas 3854e94 and 5a18964): the first frame (the landing episode from the tap, in three parts: the page, the player, the video), freezes after the start, the pauses and who made them (the viewer, or the phone with the page on screen), restarts, seconds watched against seconds on screen, the picture rung, the connection, a timeline, and how the view ended. Its report adds them up per source row for episode 1 and the later episodes (`play_ep1`, `play_later`) and lists the latest 60 early endings (`drops`, a 6-character code per browser, never its id).
+
+The Playback tab reads them (`components/admin/cd-stats/Playback.tsx`, `PlaybackSection` in `Sections.tsx`; `earlyExits`, `endFamily`, `landingSplit`, `dropsFor`, `addPlayback` in `stats-summary.ts`), with an Episode 1 / Later episodes switch:
+- **Why episode 1 ended early**: one bar split into something went wrong (left before it started, while it was frozen, after the phone paused it, the video failed, or vanished in one of those states), they chose to stop (left while it played, paused and left), and unknown; then every reason with its count.
+- **Six numbers**: the first frame, how often it froze (and for how long), how often the phone paused it (and how often with sound on), pages never on screen, left waiting, errors (later episodes: views and hours watched instead of the two landing numbers).
+- **Where the start time goes**: page, player, video, on average, for all phones and each phone.
+- The first frame and the wait before leaving as histograms; the phones side by side (views, went wrong, first frame, froze, phone paused, sound on, picture, connection).
+- **Recent early endings**: the latest 20 under the filters, each opening its timeline in seconds ("1.3 s started · 2.9 s the phone paused it at 1.8 s · ...").
+
+An older report reads as empty; the fake report carries invented playback numbers and early endings. Checks: `tests/crazydramas-stats.test.ts` (the sums, the families, the split, the drill-down's filter, old and fake reports). Checked live (read-only, nothing sent): the watch page reports a 5 s checkpoint and a final "left while it played" with page 0.3 s, player 0.5 s, first frame 1.3 s, 720p on 4G.
+
 ## 2026-09-25 · CrazyDramas stats: the dashboard, second cut
 
 Ruobin, 2026-09-25, on the first cut: "completely information overload ... no tabs no nothing ... 50% less text, and words that make more sense or organization ... search up dashboard basics". What analytics dashboards share (Plausible: "six numbers, one chart, and four panels", with depth in tabbed panels; YouTube Studio: a tab per question; the common rules: 4-6 headline numbers with their change against the period before, the most important top left, general to specific, definitions in hover text, a funnel's biggest drop judged in people lost, not percent) became the layout:

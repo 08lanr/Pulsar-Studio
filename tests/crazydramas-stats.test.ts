@@ -18,6 +18,7 @@ import {
   sortCampaigns, ep1Curve, episodeBars, fmtClock, fmtShare, histSummary, NO_FILTER, notCounted, parseDashFilter, parseStatsRange, PATH_STEPS, rangeDays,
   seriesTotals, sourceKey, sourceOptions, sumRows, type AdPeriod,
   biggestDrop, change, chartSpan, dailyTotals, kpiValue, MIN_COMPARE, parseDashTab, parseKpiMetric, prevSpan,
+  dropsFor, earlyExits, endFamily, landingSplit, parsePlayEps, playOf, topKey,
 } from "@/lib/crazydramas/stats-summary";
 import { normalizeTeamEmails, readTeamList, saveTeamList, TEAM_FILE } from "@/lib/crazydramas/stats-team";
 import { CdStatsReportSchema, type CdStatsReport } from "@/lib/crazydramas/stats-types";
@@ -673,5 +674,100 @@ test("the biggest drop is the step that lost the most people, never from landing
   const d2 = biggestDrop(short)!;
   assert.deepEqual([d2.from.key, d2.to.key], ["played", "finished"], "the short path: 65 started, 12 finished");
   assert.equal(d2.lost, 53);
+});
+
+// ---- the playback report (2026-09-25) ------------------------------------------------------------------------
+
+function playReport(): CdStatsReport {
+  const play = (over: Record<string, unknown>) => ({
+    views: 10, started: 9, start_hist: [0, 2, 4, 2, 1, 0, 0, 0, 0, 0], landing_split: 4, landing_page_ms: 2800, landing_player_ms: 1600, landing_video_ms: 7200,
+    stall_views: 2, stalls: 3, stall_ms: 7200, watched_ms: 300000, phone_pause_views: 3, phone_pauses: 4, phone_pauses_sound: 3, phone_pauses_early: 2,
+    viewer_pause_views: 1, restart_views: 3, error_views: 1, quality_ms: { "480p": 200000, "720p": 100000 }, conn: { "4g": 8, "3g": 2 },
+    ends: { finished: 3, next: 1, left_playing: 2, left_frozen: 1, left_phone_paused: 1, closed_frozen: 1, closed_ended: 1 },
+    ...over,
+  });
+  const drop = (at: string, over: Record<string, unknown>) => ({
+    code: "abc123", at, drama_id: "a", episode: 1, device: "tiktok_android", country: "US", source: "ad", ended: "left_frozen", first_frame_ms: 1800, stalls: 1, stall_ms: 3000,
+    phone_pauses: 0, phone_pauses_sound: 0, viewer_pauses: 0, restarts: 0, watched_s: 9, on_screen_s: 14, position_s: 9, duration_s: 60, quality: "480p", conn: "4g", bw_kbps: 2100,
+    timeline: [[1800, "play", 0], [9000, "stall", 7.2], [12000, "hidden", 7.2]],
+    ...over,
+  });
+  return CdStatsReportSchema.parse({
+    ...JSON.parse(JSON.stringify(report())),
+    sources: [
+      { ...src("2026-09-24", "a", "111", "tiktok_android", { opened: 20, started_ep1: 12 }), play_ep1: play({}), play_later: play({ views: 4, started: 4, landing_split: 0, landing_page_ms: 0, landing_player_ms: 0, landing_video_ms: 0, ends: { finished: 2, left_playing: 2 } }) },
+      { ...src("2026-09-24", "a", "111", "tiktok_iphone", { opened: 8, started_ep1: 5 }), play_ep1: play({ views: 5, started: 5, phone_pause_views: 3, ends: { left_phone_paused: 2, closed_playing: 1, next: 2 }, conn: { unknown: 5 } }) },
+    ],
+    drops: [
+      drop("2026-09-24T20:00:00Z", {}),
+      drop("2026-09-24T19:00:00Z", { device: "tiktok_iphone", ended: "left_phone_paused", source: "stored_copy" }),
+      drop("2026-09-24T18:00:00Z", { episode: 2, ended: "left_playing" }),
+      drop("2026-09-10T18:00:00Z", {}),
+    ],
+  });
+}
+
+test("the playback report adds up: episode 1 and later apart, every count, hist and ending", () => {
+  const r = playReport();
+  const t = sumRows(dashRows(r, rangeDays(r, "today"), NO_FILTER));
+  assert.equal(t.play_ep1.views, 15);
+  assert.equal(t.play_ep1.phone_pause_views, 6);
+  assert.deepEqual(t.play_ep1.start_hist, [0, 4, 8, 4, 2, 0, 0, 0, 0, 0]);
+  assert.deepEqual(t.play_ep1.conn, { "4g": 8, "3g": 2, unknown: 5 });
+  assert.equal(t.play_ep1.ends.left_phone_paused, 3);
+  assert.equal(t.play_later.views, 4);
+  assert.equal(playOf(t, parsePlayEps("later")).views, 4);
+  assert.equal(parsePlayEps("nonsense"), "1");
+  assert.equal(topKey(t.play_ep1.conn), "4g", "unknown never tops the list");
+  assert.equal(topKey(t.play_ep1.quality_ms), "480p");
+});
+
+test("why views ended early: something went wrong, a choice, or unknown; finished and moved on are not early", () => {
+  assert.equal(endFamily("left_frozen"), "problem");
+  assert.equal(endFamily("closed_paused_by_phone"), "problem");
+  assert.equal(endFamily("left_playing"), "choice");
+  assert.equal(endFamily("closed_playing"), "choice");
+  assert.equal(endFamily("closed_ended"), "unknown");
+  assert.equal(endFamily("next"), "done");
+  const r = playReport();
+  const e = earlyExits(sumRows(dashRows(r, rangeDays(r, "today"), NO_FILTER)).play_ep1);
+  // left_playing 2 + closed_playing 1 = choice 3; left_frozen 1 + left_phone_paused 1+2 + closed_frozen 1 = problem 5; closed_ended 1 = unknown.
+  assert.deepEqual(e.families, { problem: 5, choice: 3, unknown: 1 });
+  assert.equal(e.total, 9);
+  assert.equal(e.reasons[0].key, "left_phone_paused");
+  assert.ok(e.reasons.some((x) => x.key === "closed_unknown"), "vanished after the end reads as plain vanished");
+});
+
+test("the landing's start in three parts, on average", () => {
+  const r = playReport();
+  const t = sumRows(dashRows(r, rangeDays(r, "today"), NO_FILTER));
+  const s = landingSplit(t.play_ep1)!;
+  assert.equal(s.n, 8);
+  assert.equal(s.page, 700);
+  assert.equal(s.player, 400);
+  assert.equal(s.video, 1800);
+  assert.equal(landingSplit(t.play_later), null);
+});
+
+test("the drill-down's early endings follow the period, the episode switch and the filter", () => {
+  const r = playReport();
+  const today = rangeDays(r, "today");
+  assert.deepEqual(dropsFor(r, today, NO_FILTER, "1").map((d) => d.ended), ["left_frozen", "left_phone_paused"], "episode 1, today only");
+  assert.deepEqual(dropsFor(r, today, NO_FILTER, "later").map((d) => d.ended), ["left_playing"]);
+  assert.equal(dropsFor(r, today, { ...NO_FILTER, device: "tiktok_iphone" }, "1").length, 1);
+  assert.equal(dropsFor(r, today, { ...NO_FILTER, source: "stored_copy" }, "1").length, 1);
+  assert.equal(dropsFor(r, today, { ...NO_FILTER, source: "campaign:c1" }, "1").length, 1, "a campaign reads as any ad");
+  assert.equal(dropsFor(r, rangeDays(r, "30d"), NO_FILTER, "1").length, 3);
+});
+
+test("a report from before the playback report reads as empty, and the fake carries it", () => {
+  const old = report();
+  assert.equal(old.sources[0].play_ep1.views, 0);
+  assert.deepEqual(old.sources[0].play_ep1.ends, {});
+  assert.deepEqual(old.drops, []);
+  const f = fakeStatsReport([{ id: "d1", slug: "one", title: "One", status: "published", free_episode_count: 5 }], [], new Date("2026-09-25T20:00:00Z"));
+  const t = sumRows(dashRows(f, rangeDays(f, "today"), NO_FILTER));
+  assert.ok(t.play_ep1.views > 0 && earlyExits(t.play_ep1).total > 0 && landingSplit(t.play_ep1));
+  assert.ok(f.drops.length > 0 && f.drops.every((d) => d.code.length === 6));
 });
 

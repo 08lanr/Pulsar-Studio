@@ -158,6 +158,41 @@ a.cdx-kpi:hover { border-color: var(--border-strong); }
 .cdx-team summary { cursor: pointer; color: var(--brand); }
 .cdx-team[open] { flex-basis: 100%; }
 .cdx-team[open] summary { margin-bottom: 8px; }
+/* The Playback tab (2026-09-25, the playback report): something went wrong in the error colour (it means bad),
+   a choice in the data colour, unknown in grey; the start's three parts as one hue light to dark; every bar
+   has its number and name in text beside it. */
+.cdx-muted { color: var(--text-muted); font-size: 12.5px; }
+.cdp-eps { margin: 0 0 14px; }
+.cdp-split { display: flex; gap: 2px; height: 16px; border-radius: 4px; overflow: hidden; margin: 2px 0 10px; }
+.cdp-seg { display: block; min-width: 3px; }
+.cdp-problem { background: var(--error); }
+.cdp-choice { background: var(--data-1); }
+.cdp-unknown { background: var(--border-strong); }
+.cdp-legend { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; }
+.cdp-legend li { display: inline-flex; align-items: center; gap: 6px; cursor: default; }
+.cdp-legend strong { font-weight: var(--w-strong); }
+.cdp-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.cdp-reasons li { grid-template-columns: minmax(200px, 280px) minmax(0, 1fr) 56px 52px; }
+.cdp-reasons .cds-path-label { display: inline-flex; align-items: center; gap: 8px; }
+.cds-path-fill.cdp-fill-problem { background: var(--error); }
+.cds-path-fill.cdp-fill-choice { background: var(--data-1); }
+.cds-path-fill.cdp-fill-unknown { background: var(--border-strong); }
+.cdp-part-page { background: var(--data-1); opacity: .35; }
+.cdp-part-player { background: var(--data-1); opacity: .65; }
+.cdp-part-video { background: var(--data-1); }
+.cdp-bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.cdp-bars li { display: grid; grid-template-columns: minmax(120px, 170px) minmax(0, 1fr) minmax(170px, auto); align-items: center; gap: 12px; font-size: 13px; }
+.cdp-bar { display: flex; gap: 2px; height: 14px; border-radius: 4px; overflow: hidden; min-width: 6px; }
+.cdp-bar > span { display: block; min-width: 2px; }
+.cdp-bar-total { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cdp-drops td { vertical-align: top; }
+.cdp-drops code { font-size: 12px; }
+.cdp-nowrap { white-space: nowrap; }
+.cdp-detail summary { cursor: pointer; color: var(--text); font-weight: var(--w-medium); }
+.cdp-detail[open] summary { margin-bottom: 6px; }
+.cdp-steps { list-style: none; margin: 0; padding-left: 0; display: grid; gap: 2px; font-size: 12.5px; }
+.cdp-step-t { font-variant-numeric: tabular-nums; color: var(--text-muted); display: inline-block; min-width: 44px; }
+.cdp-facts { margin: 6px 0 0; }
 @media (max-width: 1100px) {
   .cdx-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
@@ -165,6 +200,9 @@ a.cdx-kpi:hover { border-color: var(--border-strong); }
   .cdx-grid2, .cdx-grid3 { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 520px) {
+  .cdp-reasons li { grid-template-columns: minmax(0, 1fr) 44px 44px; }
+  .cdp-reasons li .cds-path-track { grid-column: 1 / -1; order: 4; }
+  .cdp-bars li { grid-template-columns: minmax(0, 1fr); gap: 4px; }
   .cdx-kpis, .cdx-kpis-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .cdx-kpi-value { font-size: 22px; }
   .cdx-funnel li { grid-template-columns: minmax(0, 1fr) 48px 40px; }

@@ -31,6 +31,8 @@ import {
   share,
   sumRows,
   type DashFilter,
+  dropsFor,
+  parsePlayEps,
 } from "@/lib/crazydramas/stats-summary";
 import { getData } from "@/lib/data";
 import { t } from "@/lib/i18n";
@@ -46,7 +48,7 @@ export const dynamic = "force-dynamic";
 const n0 = (v: number) => v.toLocaleString("en-US");
 const TABS = ["overview", "ep1", "episodes", "playback", "ads"] as const;
 type Tab = (typeof TABS)[number];
-type Search = { range?: string; fresh?: string; tab?: string; metric?: string };
+type Search = { range?: string; fresh?: string; tab?: string; metric?: string; eps?: string };
 
 export default async function CrazydramasSeriesStatsPage({ params, searchParams }: { params: { slug: string }; searchParams: Search }) {
   const session = await staffSession();
@@ -152,6 +154,10 @@ export default async function CrazydramasSeriesStatsPage({ params, searchParams 
           vs={vs}
           phones={byDevice(dashRows(report, span, filter)).map((g) => ({ key: g.key, name: t(locale, `cds.dev.${g.key}`), href: `/crazydramas/stats?range=${range}&series=${encodeURIComponent(slug)}&device=${g.key}`, totals: g.totals }))}
           edges={report.timing_edges_s}
+          eps={parsePlayEps(searchParams.eps)}
+          epsHref={(e) => hrefWith({ eps: e === "1" ? undefined : e })}
+          drops={dropsFor(report, span, filter, parsePlayEps(searchParams.eps))}
+          titleOf={() => series.title}
           locale={locale}
         />
       )}

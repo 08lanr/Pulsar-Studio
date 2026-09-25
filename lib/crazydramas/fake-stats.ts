@@ -4,7 +4,7 @@
 // small hash of the series' slug and the day, so a screen and a test see the
 // same figures. Invented numbers for a demo; nothing here is measured.
 
-import type { CdStatsCohort, CdStatsDay, CdStatsReport, CdStatsSeries, CdStatsSource } from "./stats-types";
+import { CdStatsPlaybackSchema, type CdStatsCohort, type CdStatsDay, type CdStatsDrop, type CdStatsPlayback, type CdStatsReport, type CdStatsSeries, type CdStatsSource } from "./stats-types";
 
 /** The fake's ads: TikTok-shaped ids, one campaign; the Monitor's fake launches carry other ids, so these read as ads Studio did not launch. */
 export const FAKE_STATS_ADS = ["1877000000000001", "1877000000000002", "1877000000000003"];
@@ -29,6 +29,99 @@ function addDays(day: string, n: number): string {
   const d = new Date(`${day}T12:00:00Z`);
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Invented playback reports (the last two days, as the real ones start 2026-09-25): TikTok on iPhone has the phone
+ * pausing it more, Android freezes more, and about half of episode 1's views end early.
+ */
+function fakePlayback(views: number, device: string, later: boolean): CdStatsPlayback {
+  const pb = CdStatsPlaybackSchema.parse({});
+  if (views <= 0) return pb;
+  const iphone = device === "tiktok_iphone";
+  const android = device.includes("android");
+  const n = (share: number) => Math.round(views * share);
+  pb.views = views;
+  pb.started = n(0.93);
+  pb.start_hist = [0, 0.1, 0.3, 0.3, 0.15, 0.08, 0.05, 0.02, 0, 0].map((w) => Math.round(pb.started * w));
+  if (!later) {
+    pb.landing_split = pb.started;
+    pb.landing_page_ms = pb.started * 700;
+    pb.landing_player_ms = pb.started * 400;
+    pb.landing_video_ms = pb.started * (android ? 1900 : 1300);
+  }
+  pb.stall_views = n(android ? 0.18 : 0.08);
+  pb.stalls = Math.round(pb.stall_views * 1.6);
+  pb.stall_ms = pb.stalls * 2400;
+  pb.watched_ms = views * (later ? 70000 : 38000);
+  pb.phone_pause_views = n(iphone ? 0.2 : 0.07);
+  pb.phone_pauses = Math.round(pb.phone_pause_views * 1.4);
+  pb.phone_pauses_sound = Math.round(pb.phone_pauses * 0.8);
+  pb.phone_pauses_early = Math.round(pb.phone_pauses * 0.6);
+  pb.viewer_pause_views = n(0.12);
+  pb.restart_views = pb.phone_pause_views;
+  pb.error_views = n(0.01);
+  pb.quality_ms = { "480p": Math.round(pb.watched_ms * 0.6), "720p": Math.round(pb.watched_ms * 0.35), "270p": Math.round(pb.watched_ms * 0.05) };
+  pb.conn = iphone ? { unknown: views } : { "4g": n(0.85), "3g": views - n(0.85) };
+  const early = later ? 0.35 : 0.55;
+  pb.ends = {
+    finished: n(later ? 0.4 : 0.3),
+    next: n(1 - early - (later ? 0.4 : 0.3)),
+    left_playing: n(early * 0.45),
+    left_paused: n(early * 0.1),
+    left_frozen: n(early * (android ? 0.12 : 0.05)),
+    left_phone_paused: n(early * (iphone ? 0.15 : 0.04)),
+    left_before_start: n(early * 0.06),
+    closed_playing: n(early * 0.12),
+    closed_frozen: n(early * 0.04),
+  };
+  return pb;
+}
+
+const ENDINGS = ["left_playing", "left_frozen", "left_phone_paused", "left_paused", "closed_playing", "left_before_start", "closed_frozen"] as const;
+
+/** Invented early endings for the drill-down, newest first. */
+function fakeDrops(dramas: string[], now: Date): CdStatsDrop[] {
+  const out: CdStatsDrop[] = [];
+  for (let i = 0; i < 30 && dramas.length; i++) {
+    const r = (k: string) => unit(`drop${i}${k}`);
+    const ended = ENDINGS[Math.floor(r("e") * ENDINGS.length)];
+    const device = ["tiktok_android", "tiktok_iphone", "iphone"][Math.floor(r("d") * 3)];
+    const frame = ended === "left_before_start" ? null : Math.round(900 + r("f") * 4000);
+    const stalls = ended.includes("frozen") ? 1 + Math.floor(r("s") * 3) : r("s") > 0.8 ? 1 : 0;
+    const phone = ended === "left_phone_paused" ? 1 + Math.floor(r("p") * 2) : 0;
+    const watched = frame === null ? 0 : Math.round(3 + r("w") * 40);
+    const timeline: [number, string, number][] = frame === null ? [] : [[frame, "play", 0]];
+    if (phone) timeline.push([frame! + 1800, "pause_phone", 1.8], [frame! + 1800, "restart", 1.8], [frame! + 1850, "resume", 1.9]);
+    if (stalls) timeline.push([frame! + 6000, "stall", 5], ...(ended.includes("frozen") ? [] : ([[frame! + 9000, "resume", 5]] as [number, string, number][])));
+    timeline.push([frame === null ? 4200 : frame + watched * 1000 + stalls * 2400, "hidden", watched]);
+    out.push({
+      code: Math.floor(r("c") * 2176782336).toString(36).padStart(6, "0").slice(-6),
+      at: new Date(now.getTime() - i * 47 * 60_000).toISOString(),
+      drama_id: dramas[Math.floor(r("m") * dramas.length)],
+      episode: r("n") > 0.75 ? 2 : 1,
+      device,
+      country: "US",
+      source: r("o") > 0.8 ? "no_ad" : "ad",
+      ended,
+      first_frame_ms: frame,
+      stalls,
+      stall_ms: stalls * 2400,
+      phone_pauses: phone,
+      phone_pauses_sound: phone,
+      viewer_pauses: ended === "left_paused" ? 1 : 0,
+      restarts: phone,
+      watched_s: watched,
+      on_screen_s: watched + (frame ?? 4200) / 1000 + stalls * 2.4,
+      position_s: watched,
+      duration_s: 115,
+      quality: device === "tiktok_iphone" ? "720p" : "480p",
+      conn: device === "tiktok_iphone" ? null : r("k") > 0.8 ? "3g" : "4g",
+      bw_kbps: device === "tiktok_iphone" ? null : Math.round(800 + r("b") * 4000),
+      timeline,
+    });
+  }
+  return out;
 }
 
 const pacificDay = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
@@ -160,6 +253,8 @@ export function fakeStatsReport(series: FakeSeriesIn[], episodes: FakeEpisodeIn[
           survey_paywall_shown: recent ? q(paywall) : 0,
           survey_paywall: recent ? qs({ price: paywall * 0.3, more_free: paywall * 0.2, payment_trust: paywall * 0.05, browsing: paywall * 0.1 }) : {},
           load_hist: loadHist.map((v) => q(v)), start_hist: startHist.map((v) => q(v)), wait_hist: waitHist.map((v) => (iphone ? q(v) : q(v))),
+          play_ep1: recent ? fakePlayback(q(started), device, false) : CdStatsPlaybackSchema.parse({}),
+          play_later: recent ? fakePlayback(q(epsStarted[1] ?? 0), device, true) : CdStatsPlaybackSchema.parse({}),
           robots: platform === "organic" ? q(robots) * 3 : q(robots) / 3 | 0,
         });
       }
@@ -215,5 +310,6 @@ export function fakeStatsReport(series: FakeSeriesIn[], episodes: FakeEpisodeIn[
     days,
     series: out,
     sources,
+    drops: fakeDrops(live.map((x) => x.id), now),
   };
 }
