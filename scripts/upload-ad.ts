@@ -90,7 +90,22 @@ async function main() {
   const session = systemSession();
   console.log(`data source: ${process.env.DATA_SOURCE ?? "fixture"}`);
 
-  const titles = await data.listTitles(session);
+  // data.listTitles reads through the caller's cookie client; a script has no
+  // cookie, so in supabase mode it reads core.titles with the service role.
+  type TitleRow = { id: string; name_en: string | null; name_zh: string | null; crazydramas_slug: string | null };
+  let titles: TitleRow[];
+  if (process.env.DATA_SOURCE === "supabase") {
+    const { createServiceSupabase } = await import("@/lib/supabase/server");
+    const { data: rows, error } = await createServiceSupabase()
+      .schema("core")
+      .from("titles")
+      .select("id,name_en,name_zh,crazydramas_slug")
+      .order("created_at");
+    if (error) throw new Error(`reading titles failed: ${error.message}`);
+    titles = (rows ?? []) as TitleRow[];
+  } else {
+    titles = (await data.listTitles(session)) as unknown as TitleRow[];
+  }
   if (args.list) {
     for (const t of titles) console.log(`${t.id}  ${t.crazydramas_slug ?? "-"}  ${t.name_en ?? t.name_zh ?? ""}`);
     return;
