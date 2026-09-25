@@ -4991,5 +4991,11 @@
   "cdd.defs.unseen": "Never on screen: the page loaded but nobody saw it: TikTok's app loads an ad's page out of sight, and on iPhones takes it out of sight within a second of the player appearing. These are left out of “Saw the page” and every step after it.",
   "cdd.defs.opened": "Saw the page: opened the series' watch page and saw it. Seeing a series only in the feed or on its series page is “only browsed”, not counted.",
   "cdd.defs.timing": "Timing counts from the tap on the ad (or link) that opened the page. Recorded since Sep 25, 2026.",
-  "cdd.hist.axis": "seconds"
+  "cdd.hist.axis": "seconds",
+  "cdd.filter.country": "Country",
+  "cdd.filter.allCountries": "All countries",
+  "cdd.place.title": "Where they're from",
+  "cdd.place.inTitle": "Where they're from in {country}",
+  "cdd.place.sub": "The same people by where their phone was when they watched: the country, then the state once you pick a country (the other filters apply). Recorded since Sep 25, 2026, from the phone's internet address; earlier visits show as Not recorded.",
+  "cdd.place.none": "Not recorded"
 }

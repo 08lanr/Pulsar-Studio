@@ -619,9 +619,9 @@ export const SURVEY_ANSWERS = {
 // a kind of phone) carry every number of the path, so any filter is a sum of rows: the same people, never
 // counted twice (a person is in one row per series).
 
-/** What the dashboard is narrowed to: a series (drama id), a kind of phone, a source; null is everything. */
-export type DashFilter = { series: string | null; device: string | null; source: string | null };
-export const NO_FILTER: DashFilter = { series: null, device: null, source: null };
+/** What the dashboard is narrowed to: a series (drama id), a kind of phone, a source, a country (ISO code, or NO_PLACE); null is everything. */
+export type DashFilter = { series: string | null; device: string | null; source: string | null; country?: string | null };
+export const NO_FILTER: DashFilter = { series: null, device: null, source: null, country: null };
 
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? null;
 
@@ -631,10 +631,12 @@ export function parseDashFilter(q: Record<string, string | string[] | undefined>
   const series = slug && report ? (report.series.find((x) => x.slug === slug)?.drama_id ?? null) : null;
   const device = one(q.device);
   const source = one(q.source);
+  const country = one(q.country);
   return {
     series,
     device: device && (DEVICE_ORDER as readonly string[]).includes(device) ? device : null,
     source: source && /^(ads|stored_copy|no_ad|campaign:[\w.-]{1,64})$/.test(source) ? source : null,
+    country: country && (country === NO_PLACE || /^[A-Z]{2}$/.test(country)) ? country : null,
   };
 }
 
@@ -657,7 +659,8 @@ export function dashRows(report: Pick<CdStatsReport, "sources">, r: { from: stri
       inRange(x.day, r) &&
       (except === "series" || !f.series || x.drama_id === f.series) &&
       (except === "device" || !f.device || x.device === f.device) &&
-      (except === "source" || sourceMatches(x, f.source)),
+      (except === "source" || sourceMatches(x, f.source)) &&
+      (except === "country" || !f.country || (x.country ?? NO_PLACE) === f.country),
   );
 }
 
@@ -768,6 +771,45 @@ export function byDevice(rows: readonly CdStatsSource[]): { key: string; totals:
     return i < 0 ? DEVICE_ORDER.length : i;
   };
   return dashBy(rows, (x) => x.device).sort((a, b) => rank(a.key) - rank(b.key));
+}
+
+// ---- where people were (crazydramas stamps each event with Vercel's country and region since 2026-09-25) ----------
+
+/** The key of "not recorded": landings before crazydramas recorded places, or an address Vercel could not place. */
+export const NO_PLACE = "none";
+
+/**
+ * The rows by country, or, with one country picked, by that country's regions (US states): each group added
+ * up, the most landed first, "not recorded" last.
+ */
+export function byPlace(rows: readonly CdStatsSource[], country?: string | null): { key: string; totals: DashTotals }[] {
+  const inside = !!country && country !== NO_PLACE;
+  const groups = dashBy(rows, (x) => (inside ? x.region : x.country) ?? NO_PLACE);
+  return [...groups.filter((g) => g.key !== NO_PLACE), ...groups.filter((g) => g.key === NO_PLACE)];
+}
+
+const US_STATES: Record<string, string> = {
+  AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California", CO: "Colorado", CT: "Connecticut", DE: "Delaware",
+  DC: "Washington, D.C.", FL: "Florida", GA: "Georgia", HI: "Hawaii", ID: "Idaho", IL: "Illinois", IN: "Indiana", IA: "Iowa", KS: "Kansas",
+  KY: "Kentucky", LA: "Louisiana", ME: "Maine", MD: "Maryland", MA: "Massachusetts", MI: "Michigan", MN: "Minnesota", MS: "Mississippi",
+  MO: "Missouri", MT: "Montana", NE: "Nebraska", NV: "Nevada", NH: "New Hampshire", NJ: "New Jersey", NM: "New Mexico", NY: "New York",
+  NC: "North Carolina", ND: "North Dakota", OH: "Ohio", OK: "Oklahoma", OR: "Oregon", PA: "Pennsylvania", RI: "Rhode Island",
+  SC: "South Carolina", SD: "South Dakota", TN: "Tennessee", TX: "Texas", UT: "Utah", VT: "Vermont", VA: "Virginia", WA: "Washington",
+  WV: "West Virginia", WI: "Wisconsin", WY: "Wyoming", PR: "Puerto Rico", GU: "Guam", VI: "U.S. Virgin Islands",
+};
+
+/** A country's name in the page's language ("US" → "United States"); the code itself when the runtime has no name. */
+export function countryName(code: string, locale: string): string {
+  try {
+    return new Intl.DisplayNames([locale === "zh" ? "zh-CN" : "en"], { type: "region" }).of(code) ?? code;
+  } catch {
+    return code;
+  }
+}
+
+/** A region's name: US states in words, other countries' region codes as they are ("ON", "NCR"). */
+export function regionName(country: string, region: string): string {
+  return country === "US" ? (US_STATES[region] ?? region) : region;
 }
 
 /** The source filter's choices: every ad campaign seen in the range (named from Studio's launches), then the rest. */

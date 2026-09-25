@@ -54,7 +54,7 @@ export default async function CrazydramasSeriesStatsPage({ params, searchParams 
   const span = rangeDays(read.report, range);
   const tot = seriesTotals(series, span);
   // This series' people from its source rows: what happened before the video, and by phone.
-  const seriesFilter = { series: series.drama_id, device: null, source: null };
+  const seriesFilter = { series: series.drama_id, device: null, source: null, country: null };
   const seriesDash = sumRows(dashRows(read.report, span, seriesFilter));
   const seriesPhones = byDevice(dashRows(read.report, span, seriesFilter)).map((g) => ({
     key: g.key,

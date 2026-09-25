@@ -87,7 +87,7 @@ export const CdStatsSeriesSchema = z.object({
   cohorts: z.array(CdStatsCohortSchema),
 });
 
-/** The people of one source (platform × campaign × ad × kind of browser) who first opened a series on a day. */
+/** The people of one source (platform × campaign × ad × kind of browser × place) who first opened a series on a day. */
 export const CdStatsSourceSchema = z.object({
   day,
   drama_id: z.string(),
@@ -98,6 +98,9 @@ export const CdStatsSourceSchema = z.object({
   /** TikTok showed its stored copy of the page and the campaign and ad were lost. */
   stored_copy: z.boolean(),
   device: z.string(),
+  /** Where the people were (ISO codes, "US" / "CA"); null before crazydramas recorded places (2026-09-25) or unplaced. */
+  country: z.string().regex(/^[A-Z]{2}$/).nullable().default(null),
+  region: z.string().regex(/^[A-Z0-9]{1,3}$/).nullable().default(null),
   opened: count,
   unseen: later,
   no_events: later,

@@ -8,6 +8,17 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-09-25 · CrazyDramas stats: where people were
+
+Ruobin, worried that no payments had come through, asked whether there were location stats; there were
+none. crazydramas now stamps every event its `/api/events` ingest takes with the viewer's country and
+region (Vercel's IP headers, crazydramas `lib/geo.ts`) and splits each source row by the person's first
+located place (`country`, `region`: ISO codes, null before 2026-09-25 or unplaced). Studio reads them
+(`stats-types.ts`, an older report reads as null), adds a Country filter (`?country=US`, or `none` for
+"Not recorded") and a "Where they're from" table on the dashboard: countries, or the picked country's
+states (`byPlace`, `countryName`, `regionName` in `stats-summary.ts`). There is no state filter. As with
+a phone, By ad hides spend under a country filter (spend is per ad, not per place). No city is recorded.
+
 ## 2026-09-25 · CrazyDramas stats: the dashboard
 
 Ruobin, 2026-09-25, after the "opened → played ep 1" drop had to be dug out of the raw events by hand: "i dont see these android / iphone stats, and all these advanced stats. i have to ask you. so why dont u build me a comprehensive dashboard that contains all these things? al these options?" `/crazydramas/stats` is now that dashboard: one page, narrowed by **period, series, kind of phone and source** (any ad, one campaign by Studio's launch name, TikTok's stored copy, no ad), kept in the address bar (`FilterBar.tsx`). Every section below follows the filters: at a glance (landed, saw the page, played / finished episode 1, episode 2, paid), **the path step by step** (landed, saw the page, episode 1 playing, a quarter / half / three quarters / all of it, episodes 2 and 3, the unlock screen, Unlock, paid; each as a share of those who saw the page and of the step before, except the unlock screen, which swipes reach without episode 3), **before the video starts** (pages never on screen, nothing recorded, no video ever played and how long those who left had waited, the player's restarts and how many went on muted, sound refused, errors, and three histograms: the tap to the player on screen, the tap to the first frame, the wait before leaving), **by phone** and **by series** (each ignores its own filter; "only this" narrows the page to a row), by ad (with a phone picked, costs are hidden: spend is per ad, not per phone), and why people stop. The audience, the money and what is not counted (robots by reason, pages never on screen, browsing) are the whole site. The series page's "before the video starts" uses the same pieces.

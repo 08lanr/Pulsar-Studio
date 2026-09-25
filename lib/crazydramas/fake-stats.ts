@@ -134,14 +134,17 @@ export function fakeStatsReport(series: FakeSeriesIn[], episodes: FakeEpisodeIn[
         ["tiktok", null, null, true, "tiktok_android", 0.15],
         ["organic", null, null, false, "iphone", 0.1],
       ];
-      for (const [platform, campaign, ad, stored, device, share] of shares) {
+      // Where each source's people were (the organic ones landed before places were recorded).
+      const places: [string | null, string | null][] = [["US", "CA"], ["US", "TX"], ["US", "NY"], ["PH", null], ["US", "FL"], [null, null]];
+      for (const [i, [platform, campaign, ad, stored, device, share]] of shares.entries()) {
+        const [country, region] = places[i];
         const q = (v: number) => Math.round(v * share * (0.8 + 0.4 * r(`${ad}${device}`)));
         const qs = (m: Record<string, number>) => Object.fromEntries(Object.entries(m).map(([k, v]) => [k, q(v)]));
         // TikTok on iPhone: most of its pages are loaded out of sight; Android waits longer for a start.
         const iphone = device === "tiktok_iphone";
         const ep1 = (f: number) => q(Math.round(started * f));
         sources.push({
-          day, drama_id: s.id, platform, campaign, ad, stored_copy: stored, device,
+          day, drama_id: s.id, platform, campaign, ad, stored_copy: stored, device, country, region,
           opened: q(opened), unseen: iphone ? q(unseen) * 4 : q(unseen) / 2 | 0,
           no_events: iphone ? q(noEvents) * 2 : q(noEvents) / 2 | 0, never_started: q(neverStarted),
           left_waiting: q(Math.round(neverStarted * 0.7)), left_waiting_seconds: q(Math.round(neverStarted * 0.7 * (iphone ? 2 : 9))),

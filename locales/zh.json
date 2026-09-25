@@ -4991,5 +4991,11 @@
   "cdd.defs.unseen": "从未显示：页面加载了但没人看到：TikTok 的应用会在后台加载广告页面，在 iPhone 上还会在播放器出现一秒内将页面隐藏。这些不计入“看到页面”及之后的每一步。",
   "cdd.defs.opened": "看到页面：打开并看到了剧集的播放页。只在推荐流或剧集页上看到剧集属于“只是浏览”，不计入。",
   "cdd.defs.timing": "时间从打开页面的广告（或链接）被点按时算起。自 2026 年 9 月 25 日起记录。",
-  "cdd.hist.axis": "秒"
+  "cdd.hist.axis": "秒",
+  "cdd.filter.country": "国家/地区",
+  "cdd.filter.allCountries": "全部国家/地区",
+  "cdd.place.title": "来自哪里",
+  "cdd.place.inTitle": "{country} 境内来自哪里",
+  "cdd.place.sub": "按观看时手机所在的位置区分：国家/地区，选择国家后按州（其他筛选仍然生效）。自 2026 年 9 月 25 日起根据手机的网络地址记录；更早的访问显示为“未记录”。",
+  "cdd.place.none": "未记录"
 }

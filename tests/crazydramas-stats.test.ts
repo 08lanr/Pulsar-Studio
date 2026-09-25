@@ -14,7 +14,7 @@ import { STATS_CACHE_MS, clearCdStatsCache, readCrazydramasStats } from "@/lib/c
 import { rm } from "node:fs/promises";
 import path from "node:path";
 import {
-  adOutcomes, adSpendsFromRuns, adTable, audience, binLabels, byDevice, CAMPAIGN_SORTS, campaignTable, dashBy, dashPath, dashRows, dayIn, deliveryIn,
+  adOutcomes, adSpendsFromRuns, adTable, audience, binLabels, byDevice, byPlace, CAMPAIGN_SORTS, countryName, regionName, campaignTable, dashBy, dashPath, dashRows, dayIn, deliveryIn,
   sortCampaigns, ep1Curve, episodeBars, fmtClock, fmtShare, histSummary, NO_FILTER, notCounted, parseDashFilter, parseStatsRange, PATH_STEPS, rangeDays,
   seriesTable, seriesTotals, sourceKey, sourceOptions, sumRows, type AdPeriod,
 } from "@/lib/crazydramas/stats-summary";
@@ -531,8 +531,9 @@ function dashReport(): CdStatsReport {
 
 test("the dashboard's filter reads the address bar: a series by its slug, a known phone, a source; anything else is all", () => {
   const r = dashReport();
-  assert.deepEqual(parseDashFilter({ series: "alpha", device: "tiktok_iphone", source: "campaign:c1" }, r), { series: "a", device: "tiktok_iphone", source: "campaign:c1" });
-  assert.deepEqual(parseDashFilter({ series: "nope", device: "fridge", source: "drop table" }, r), { series: null, device: null, source: null });
+  assert.deepEqual(parseDashFilter({ series: "alpha", device: "tiktok_iphone", source: "campaign:c1", country: "US" }, r), { series: "a", device: "tiktok_iphone", source: "campaign:c1", country: "US" });
+  assert.deepEqual(parseDashFilter({ series: "nope", device: "fridge", source: "drop table", country: "usa" }, r), { series: null, device: null, source: null, country: null });
+  assert.equal(parseDashFilter({ country: "none" }, r).country, "none");
   assert.deepEqual(parseDashFilter({ source: ["ads", "no_ad"] }, r).source, "ads");
   assert.equal(sourceKey({ stored_copy: true, ad: null, campaign: null }), "stored_copy");
   assert.equal(sourceKey({ stored_copy: false, ad: "111", campaign: "c1" }), "campaign:c1");
@@ -555,6 +556,27 @@ test("the dashboard sums the filtered rows, and a breakdown ignores its own filt
   // The phone breakdown under a phone filter still lists every phone.
   assert.deepEqual(byDevice(dashRows(r, today, iphone, "device")).map((g) => g.key), ["tiktok_android", "tiktok_iphone", "iphone"]);
   assert.deepEqual(dashBy(dashRows(r, today, { series: "a", device: null, source: null }, "series"), (x) => x.drama_id).map((g) => g.key), ["a", "b"]);
+});
+
+test("where they were: countries (not recorded last), a country's states, and the country filter", () => {
+  const r = dashReport();
+  const place = (i: number, country: string | null, region: string | null) => ({ ...r.sources[i], country, region });
+  const placed = { ...r, sources: [place(0, "US", "CA"), place(1, "US", "TX"), place(2, null, null), place(3, "PH", null), r.sources[4]] };
+  const today = rangeDays(placed, "today");
+  assert.deepEqual(byPlace(dashRows(placed, today, NO_FILTER, "country")).map((g) => [g.key, g.totals.opened]), [["US", 70], ["PH", 12], ["none", 8]]);
+  const us = { ...NO_FILTER, country: "US" };
+  assert.equal(sumRows(dashRows(placed, today, us)).opened, 70);
+  assert.deepEqual(byPlace(dashRows(placed, today, us), "US").map((g) => [g.key, g.totals.opened]), [["TX", 20], ["CA", 50]], "the most landed first (TX: 40 never on screen)");
+  assert.equal(sumRows(dashRows(placed, today, { ...NO_FILTER, country: "none" })).opened, 8);
+  assert.equal(countryName("US", "en"), "United States");
+  assert.equal(regionName("US", "CA"), "California");
+  assert.equal(regionName("CA", "ON"), "ON");
+});
+
+test("an older report without places reads as not recorded", () => {
+  const r = CdStatsReportSchema.parse(JSON.parse(JSON.stringify(dashReport(), (k, v) => (k === "country" || k === "region" ? undefined : v))));
+  assert.ok(r.sources.every((x) => x.country === null && x.region === null));
+  assert.deepEqual(byPlace(dashRows(r, rangeDays(r, "today"), NO_FILTER)).map((g) => g.key), ["none"]);
 });
 
 test("the path: landed, seen, and each step as a share of seen and of the step before", () => {

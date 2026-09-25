@@ -13,16 +13,21 @@ import {
   adSpendsFromRuns,
   audience,
   byDevice,
+  byPlace,
   campaignTable,
+  countryName,
   dashBy,
   dashRows,
   DEVICE_ORDER,
   fmtShare,
   fmtUsdCents,
+  NO_FILTER,
+  NO_PLACE,
   notCounted,
   parseDashFilter,
   parseStatsRange,
   rangeDays,
+  regionName,
   share,
   sourceOptions,
   sumRows,
@@ -47,7 +52,7 @@ export const dynamic = "force-dynamic";
 
 const n0 = (v: number) => v.toLocaleString("en-US");
 
-type Search = { range?: string; fresh?: string; series?: string; device?: string; source?: string };
+type Search = { range?: string; fresh?: string; series?: string; device?: string; source?: string; country?: string };
 
 export default async function CrazydramasStatsPage({ searchParams }: { searchParams: Search }) {
   const session = await staffSession();
@@ -61,7 +66,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
   // Links keep the filters; `patch` changes some of them.
   const hrefWith = (patch: Partial<Search>) => {
     const q = new URLSearchParams();
-    const next = { range, series: searchParams.series, device: searchParams.device, source: searchParams.source, ...patch };
+    const next = { range, series: searchParams.series, device: searchParams.device, source: searchParams.source, country: searchParams.country, ...patch };
     for (const [k, v] of Object.entries(next)) if (v) q.set(k, v);
     return `/crazydramas/stats?${q.toString()}`;
   };
@@ -102,6 +107,15 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
     only: filter.device === g.key ? null : hrefWith({ device: g.key }),
     totals: g.totals,
   }));
+  // Where they were: countries, or the picked country's states (there is no state filter, so a state row has no "only").
+  const inCountry = !!filter.country && filter.country !== NO_PLACE;
+  const placeName = (key: string) => (key === NO_PLACE ? t(locale, "cdd.place.none") : inCountry ? regionName(filter.country!, key) : countryName(key, locale));
+  const places: BreakdownRow[] = byPlace(dashRows(report, span, filter, inCountry ? undefined : "country"), filter.country).map((g) => ({
+    key: g.key,
+    name: placeName(g.key),
+    only: inCountry || filter.country === g.key ? null : hrefWith({ country: g.key }),
+    totals: g.totals,
+  }));
   const seriesRows: BreakdownRow[] = dashBy(dashRows(report, span, filter, "series"), (x) => x.drama_id).map((g) => {
     const s = titleOf.get(g.key);
     return {
@@ -116,10 +130,16 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
   // The filters' choices: series anybody opened in the period, phones seen, the period's ad campaigns.
   const campaignLabel = (key: string, name: string | null) => name ?? t(locale, "cdd.filter.campaign", { id: key.slice(9) });
   const sources = sourceOptions(report, span, spends);
-  const devicesSeen = new Set(dashRows(report, span, { series: null, device: null, source: null }).map((x) => x.device));
+  const allRows = dashRows(report, span, NO_FILTER);
+  const devicesSeen = new Set(allRows.map((x) => x.device));
+  const countriesSeen = new Set(allRows.map((x) => x.country ?? NO_PLACE));
+  if (filter.country) countriesSeen.add(filter.country);
   const options: FilterOptions = {
     series: report.series.filter((s) => s.cohorts.some((c) => c.day >= span.from && c.day <= span.to && c.opened + c.unseen > 0) || s.drama_id === filter.series).map((s) => ({ slug: s.slug, title: s.title })),
     devices: DEVICE_ORDER.filter((d) => devicesSeen.has(d) || d === filter.device),
+    countries: [...countriesSeen]
+      .map((c) => ({ key: c, label: c === NO_PLACE ? t(locale, "cdd.place.none") : countryName(c, locale) }))
+      .sort((a, b) => Number(a.key === NO_PLACE) - Number(b.key === NO_PLACE) || a.label.localeCompare(b.label)),
     sources: [
       { key: "ads", label: t(locale, "cdd.filter.ads") },
       ...sources.map((s) => ({ key: s.key, label: campaignLabel(s.key, s.name) })),
@@ -132,6 +152,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
     filter.series ? titleOf.get(filter.series)?.title : null,
     filter.device ? t(locale, `cds.dev.${filter.device}`) : null,
     filter.source ? (options.sources.find((s) => s.key === filter.source)?.label ?? filter.source) : null,
+    filter.country ? (options.countries.find((c) => c.key === filter.country)?.label ?? filter.country) : null,
   ].filter(Boolean);
 
   // By ad follows the filters: its people are the filtered rows. Spend is per ad, not per phone, so with a
@@ -139,7 +160,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
   const adReport = { ...report, sources: dashRows(report, { from: report.from, to: report.to }, filter) };
   const adPeriod = await readAdPeriod(report, range, runs, searchParams.fresh === "1");
   // Only the picked source's ads carry spend (an ad that brought nobody still shows what it spent).
-  const adSpends = filter.device
+  const adSpends = filter.device || filter.country
     ? []
     : !filter.source || filter.source === "ads"
       ? spends
@@ -155,7 +176,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
   return (
     <>
       {head}
-      <FilterBar range={range} value={{ series: seriesSlug, device: filter.device, source: filter.source }} options={options} />
+      <FilterBar range={range} value={{ series: seriesSlug, device: filter.device, source: filter.source, country: filter.country ?? null }} options={options} />
       <ReadLine read={read} span={span} refreshHref={`${hrefFor(range)}&fresh=1`} locale={locale} />
       {showing.length > 0 && <p className="cdd-showing">{t(locale, "cdd.filter.showing", { what: showing.join(" · ") })}</p>}
 
@@ -216,6 +237,18 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
         </div>
         <div className="rs-panel-body">
           <BreakdownTable rows={phones} caption={t(locale, "cdd.phone.title")} edges={edges} locale={locale} />
+        </div>
+      </section>
+
+      <section className="rs-panel cds-section" aria-labelledby="cdd-place-h" id="places">
+        <div className="rs-panel-head">
+          <div>
+            <h2 id="cdd-place-h">{inCountry ? t(locale, "cdd.place.inTitle", { country: countryName(filter.country!, locale) }) : t(locale, "cdd.place.title")}</h2>
+            <p>{t(locale, "cdd.place.sub")}</p>
+          </div>
+        </div>
+        <div className="rs-panel-body">
+          <BreakdownTable rows={places} caption={t(locale, "cdd.place.title")} edges={edges} revenue locale={locale} />
         </div>
       </section>
 
