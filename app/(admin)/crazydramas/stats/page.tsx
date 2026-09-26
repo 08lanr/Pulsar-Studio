@@ -11,6 +11,7 @@ import { SpendRevenueChart } from "@/components/admin/cd-stats/Money";
 import { KpiCard } from "@/components/admin/cd-stats/Overview";
 import { PlaybackSection } from "@/components/admin/cd-stats/Sections";
 import { EpisodeCurveChart, SeriesFunnelList } from "@/components/admin/cd-stats/SeriesCurve";
+import { SurveyView } from "@/components/admin/cd-stats/Tables";
 import TeamEditor from "@/components/admin/cd-stats/TeamEditor";
 import { fakeStatsLaunches, FAKE_STATS_CLIPS } from "@/lib/crazydramas/fake-stats";
 import { readCrazydramasStats, readLaunchClips } from "@/lib/crazydramas/stats";
@@ -302,6 +303,8 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
           </div>
           <FunnelChart steps={steps} drop={biggestDrop(steps)} locale={locale} />
         </section>
+        <WhyTheyStop totals={totals} />
+
         <div className="cdx-foot">
           <span>
             {tt("cdx.leftOut", { robots: n0(out.robots), unseen: n0(out.unseen), browsed: n0(out.browsed) })}{" "}
@@ -408,6 +411,24 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
     );
   }
 
+  // The player's two one-tap questions (pausing episode 1; closing the unlock screen), scoped like
+  // every other number by the filter row: the answer to "why did they leave" beside where they left.
+  function WhyTheyStop({ totals: x, title }: { totals: typeof totals; title?: string }) {
+    return (
+      <section className="rs-panel cdx-card">
+        <div className="cdx-card-head">
+          <h2>
+            {title ?? tt("cdx.why")} <Info text={tt("cds.survey.sub")} label={tt("cdx.about", { what: tt("cdx.why") })} />
+          </h2>
+        </div>
+        <div className="cds-surveys">
+          <SurveyView kind="ep1_stop" shown={x.survey_ep1_shown} answers={x.survey_ep1} locale={locale} />
+          <SurveyView kind="paywall_close" shown={x.survey_paywall_shown} answers={x.survey_paywall} locale={locale} />
+        </div>
+      </section>
+    );
+  }
+
   function SeriesTab() {
     const groups = dashBy(dashRows(report, span, filter, "series"), (x) => x.drama_id);
     const bySlug = (slug?: string) => (slug ? report.series.find((s) => s.slug === slug) : undefined);
@@ -435,6 +456,9 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
               <SeriesFunnelList steps={fun.steps} paywallToPaid={fun.paywall_to_paid} revenuePerBuyer={fun.revenue_per_buyer_cents} locale={locale} />
             </section>
           </div>
+        ) : null}
+        {shown && curve && fun ? (
+          <WhyTheyStop totals={sumRows(dashRows(report, span, { ...filter, series: shown.drama_id }))} title={`${tt("cdx.why")} · ${shown.title}`} />
         ) : (
           <p className="rs-empty">{tt("cdx.empty")}</p>
         )}
