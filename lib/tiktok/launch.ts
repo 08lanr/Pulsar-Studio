@@ -38,6 +38,7 @@ import { readStoredBytes } from "@/lib/data/storage";
 import type { PromoCreative, PromoLaunch } from "@/lib/types";
 import { accessTokenFor, launchMode, tiktokTransport, type TikTokTransport } from "./index";
 import { fetchIdentities } from "./preflight";
+import { suggestedCoverUrl } from "./spark-driver";
 import { adGroupBody, normalizeLaunchSettings, planAdGroup, scheduleDays, validateLaunchSettings, LaunchSettingsError, type LaunchSettings } from "./settings";
 
 /** TikTok rejects lifetime budgets below this (USD); the fake enforces it too. */
@@ -217,7 +218,7 @@ async function runLocked(launchId: string): Promise<LaunchOutcome> {
     const videoId = launch.uploaded_videos[creative.id];
     if (!videoId || launch.covers[videoId]) continue;
     const suggest = await tt.get("/file/video/suggestcover/", token, { advertiser_id: launch.advertiser_id, video_id: videoId });
-    const coverUrl = ((suggest.data?.list ?? []) as Array<{ cover_url?: string }>)[0]?.cover_url;
+    const coverUrl = suggestedCoverUrl(suggest);
     if (!coverUrl) {
       console.error(`[launch] no cover suggestion for ${videoId}: ${suggest.message}`);
       continue;

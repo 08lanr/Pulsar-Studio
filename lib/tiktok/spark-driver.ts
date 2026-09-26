@@ -47,7 +47,7 @@ type SparkState = {
   /** The linked TikTok account Studio clips and posts run as, picked once, before any write. */
   identity?: LinkedAccount | null;
   /** Each Studio clip's upload, by clip id, recorded as it lands so a resumed launch never uploads it twice. */
-  uploads?: Record<string, { video_id: string; image_id?: string }>;
+  uploads?: Record<string, { video_id: string; image_id?: string; cover_wait_since?: string }>;
   settings?: LaunchSettings; plan?: AdGroupPlan; budget_cents?: number; daily_budget_cents?: number | null;
   planned_budgets?: number[];
   instant_page?: { name: string; phase: "creating" | "created" | "published"; id?: string } | null;
@@ -202,6 +202,20 @@ function uploadedVideoId(res: TikTokResponse): string {
   return str(first?.video_id ?? object?.video_id ?? object?.list?.[0]?.video_id);
 }
 
+/** How long a freshly uploaded video may go without a suggested cover before the launch fails with words. */
+const COVER_WAIT_MAX_MS = 20 * 60_000;
+
+/**
+ * The first cover TikTok suggests for a video. Production answers each item as
+ * { id, url, width, height } (checked live 2026-09-26: reading only
+ * `cover_url` found nothing and a launch waited on a cover that already
+ * existed); `cover_url` is still read for older answers.
+ */
+export function suggestedCoverUrl(res: TikTokResponse): string {
+  const first = ((res.data?.list ?? []) as Row[])[0];
+  return str(first?.url ?? first?.cover_url);
+}
+
 /**
  * One approved Studio clip in the ad account: the bytes read back and held
  * against the approved SHA-256, uploaded once, then TikTok's suggested cover
@@ -234,8 +248,21 @@ async function uploadClip(ctx: DriverContext, c: Client, item: LaunchContent): P
   if (!done.image_id) {
     const suggest = await c.tt.get("/file/video/suggestcover/", c.token, { advertiser_id: c.advertiser, video_id: done.video_id });
     if (suggest.code !== 0) throw new Error(`Read the cover TikTok made for a Studio clip: ${suggest.message || "TikTok did not answer"}`);
-    const coverUrl = str(((suggest.data?.list ?? []) as Row[])[0]?.cover_url);
-    if (!coverUrl) throw new LaunchWaiting("TikTok is still processing an uploaded Studio clip; its cover will be ready in a minute.", 30_000);
+    const coverUrl = suggestedCoverUrl(suggest);
+    if (!coverUrl) {
+      // A wait, but a bounded one: the first empty answer is recorded, so a
+      // cover that never comes fails with words after COVER_WAIT_MAX_MS
+      // instead of leaving the run pending forever.
+      if (!done.cover_wait_since) {
+        done = { ...done, cover_wait_since: new Date().toISOString() };
+        uploads[item.value] = done;
+        await ctx.checkpoint({ uploads });
+      }
+      if (Date.now() - Date.parse(done.cover_wait_since!) > COVER_WAIT_MAX_MS) {
+        throw new Error(`TikTok made no cover for an uploaded Studio clip in ${COVER_WAIT_MAX_MS / 60_000} minutes (video ${done.video_id}). Check the video in the ad account's library, then retry.`);
+      }
+      throw new LaunchWaiting("TikTok is still processing an uploaded Studio clip; its cover will be ready in a minute.", 30_000);
+    }
     await ctx.assertActive();
     const up = await c.tt.post("/file/image/ad/upload/", c.token, { advertiser_id: c.advertiser, upload_type: "UPLOAD_BY_URL", image_url: coverUrl, file_name: `studio-cover-${done.video_id}-${Date.now()}.jpg` });
     const imageId = str((up.data as Row | undefined)?.image_id);

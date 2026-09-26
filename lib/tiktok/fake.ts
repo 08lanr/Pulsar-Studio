@@ -457,7 +457,8 @@ export const fakeTransport: TikTokTransport = {
       }
       case "/file/video/suggestcover/":
         if (process.env.TIKTOK_FAKE_COVER === "pending") return ok({ list: [] });
-        return ok({ list: [{ cover_url: `https://fake.tiktok.invalid/cover/${params.video_id}.jpg` }] });
+        // Production's shape (checked live 2026-09-26): { id, url, width, height } per suggestion, no cover_url.
+        return ok({ list: [{ id: `fake-cover-${params.video_id}`, url: `https://fake.tiktok.invalid/cover/${params.video_id}.jpg`, width: 1080, height: 1920 }] });
       case "/ad/get/": {
         const ids = filterIds(params.filtering, "ad_ids");
         const cids = filterIds(params.filtering, "campaign_ids");
