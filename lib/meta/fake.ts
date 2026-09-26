@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import { MetaApiError, type MetaFile, type MetaObject, type MetaTransport } from "./transport";
 import type { LaunchRun } from "@/lib/launch/types";
-import { CRAZYDRAMAS_META_PIXEL_ID, META_ACTION_TYPES, type MetaConversionEvent } from "./pixel";
+import { META_ACTION_TYPES, META_CONVERSION_EVENTS, type MetaConversionEvent } from "./events";
+import { metaPixelId } from "./pixel";
 
 type FakeRow = MetaObject & { id: string; edge: string; account_id: string };
 type Failure = { method: "GET" | "POST" | "UPLOAD"; path: string; after: boolean; ambiguous: boolean; code: number };
@@ -56,7 +57,7 @@ export class FakeMetaTransport implements MetaTransport {
   /** Instagram's rolling 24-hour publishing allowance, as the fake reports it. */
   publishingQuota = { used: 0, total: 50 };
   /** The pixels this fake ad account may use (`act_<id>/adspixels`). */
-  pixels: { id: string; name: string; is_unavailable?: boolean }[] = [{ id: CRAZYDRAMAS_META_PIXEL_ID, name: "CrazyDramas" }];
+  pixels: { id: string; name: string; is_unavailable?: boolean }[] = [{ id: metaPixelId(), name: "CrazyDramas" }];
   /** Meta refuses the pixel list for want of the permission, the way it does before App Review. */
   pixelReadRefused = false;
   /** What a conversions campaign's insights report. */
@@ -67,7 +68,7 @@ export class FakeMetaTransport implements MetaTransport {
     this.calls.length = 0; this.objects.clear(); this.sequence = 0; this.failures = []; this.sources.clear();
     this.blocked.clear(); this.containerPolls.clear(); this.throttledOnce = false;
     this.publishingQuota = { used: 0, total: 50 }; this.videoStatus = "ready";
-    this.pixels = [{ id: CRAZYDRAMAS_META_PIXEL_ID, name: "CrazyDramas" }]; this.pixelReadRefused = false;
+    this.pixels = [{ id: metaPixelId(), name: "CrazyDramas" }]; this.pixelReadRefused = false;
     this.conversions = 0; this.conversionValue = 0;
   }
   removeForRuns(runs: readonly LaunchRun[]) { removeRunObjects(this.objects, runs); }
@@ -200,6 +201,8 @@ export class FakeMetaTransport implements MetaTransport {
         throw new MetaApiError(`optimization_goal OFFSITE_CONVERSIONS is not supported by objective ${campaign.objective}`, 100);
       if (!promoted?.pixel_id) throw new MetaApiError("promoted_object with a pixel_id is required when optimization_goal is OFFSITE_CONVERSIONS", 100);
       if (!promoted.custom_event_type) throw new MetaApiError("promoted_object requires custom_event_type", 100);
+      if (!(META_CONVERSION_EVENTS as readonly string[]).includes(String(promoted.custom_event_type)))
+        throw new MetaApiError(`(#100) Invalid parameter: ${promoted.custom_event_type} is not a valid custom_event_type`, 100);
       const pixel = this.pixels.find(row => row.id === String(promoted.pixel_id));
       if (!pixel || pixel.is_unavailable) throw new MetaApiError(`Pixel ${promoted.pixel_id} is not available to this ad account`, 100);
     } else if (promoted) {

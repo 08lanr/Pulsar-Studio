@@ -2,7 +2,7 @@ import { z } from "zod";
 import { defaultLaunchSettings, defaultTikTokLaunchSettings, launchSettingsSchema, launchShape, validateLaunchSettings, type LaunchShape } from "@/lib/tiktok/settings";
 import { isCrazydramasAdUrl } from "@/lib/tiktok/ad-url";
 import type { LaunchAdSetPlan, LaunchConnection, LaunchContent, LaunchDraft, LaunchPlan, LaunchPlanIssue, LaunchProvider, MetaLaunchSettings, MetaPlatform } from "./types";
-import { DEFAULT_META_CONVERSION_EVENT, META_CONVERSION_EVENTS, META_PIXEL_ID_SHAPE } from "@/lib/meta/pixel";
+import { DEFAULT_META_CONVERSION_EVENT, META_CONVERSION_EVENTS, META_PIXEL_ID_SHAPE } from "@/lib/meta/events";
 
 const cents = z.number().int().min(1).max(100_000_000);
 export const contentSchema = z.object({
@@ -28,10 +28,13 @@ export const draftSchema = z.object({
   meta_settings: z.object({
     countries: z.array(z.string().regex(/^[A-Z]{2}$/)).min(1).max(50),
     placements: z.array(z.enum(["facebook", "instagram"])).min(1).max(2),
-    objective: z.enum(["OUTCOME_TRAFFIC", "OUTCOME_SALES"]),
+    // Defaulted, not required: a draft saved before Meta conversions landed
+    // carries none of these, and it must still save, preview and start a
+    // second round rather than failing validation.
+    objective: z.enum(["OUTCOME_TRAFFIC", "OUTCOME_SALES"]).default("OUTCOME_TRAFFIC"),
     optimization_goal: z.enum(["LINK_CLICKS", "LANDING_PAGE_VIEWS", "OFFSITE_CONVERSIONS"]),
-    conversion_event: z.enum(META_CONVERSION_EVENTS).nullable(),
-    pixel_id: z.string().regex(META_PIXEL_ID_SHAPE).nullable(),
+    conversion_event: z.enum(META_CONVERSION_EVENTS).nullable().default(null),
+    pixel_id: z.string().regex(META_PIXEL_ID_SHAPE).nullable().default(null),
     bid_strategy: z.enum(["LOWEST_COST_WITHOUT_CAP", "LOWEST_COST_WITH_BID_CAP"]),
     bid_cents: cents.nullable(), call_to_action: z.enum(["LEARN_MORE", "WATCH_MORE"]),
     start_time: z.string().datetime({ offset: true }), end_time: z.string().datetime({ offset: true }),
@@ -170,9 +173,14 @@ export const adSetSpendCents = (set: LaunchAdSetPlan) => set.daily_budget_cents 
  * writes it at save (lib/data/launch.ts), never the client.
  */
 export function metaObjectiveSettings(settings: MetaLaunchSettings, objective: MetaLaunchSettings["objective"]): MetaLaunchSettings {
+  if (objective === settings.objective) return settings;
+  // A bid cap is a price for the thing being bought, and the thing changes: a
+  // $0.40 cap meant per click becomes $0.40 per checkout, which buys nothing.
+  // Clearing it asks for the number again rather than spending on the old one.
+  const bid = { bid_strategy: "LOWEST_COST_WITHOUT_CAP" as const, bid_cents: null };
   if (objective === "OUTCOME_SALES")
-    return { ...settings, objective, optimization_goal: "OFFSITE_CONVERSIONS", conversion_event: settings.conversion_event ?? DEFAULT_META_CONVERSION_EVENT };
-  return { ...settings, objective, conversion_event: null, pixel_id: null,
+    return { ...settings, ...bid, objective, optimization_goal: "OFFSITE_CONVERSIONS", conversion_event: settings.conversion_event ?? DEFAULT_META_CONVERSION_EVENT };
+  return { ...settings, ...bid, objective, conversion_event: null, pixel_id: null,
     optimization_goal: settings.optimization_goal === "OFFSITE_CONVERSIONS" ? "LINK_CLICKS" : settings.optimization_goal };
 }
 
@@ -192,8 +200,11 @@ export function metaConversionIssues(settings: MetaLaunchSettings, destinationUr
     return issues;
   }
   if (!settings.conversion_event) issues.push({ code: "conversionEvent", message: "Choose the pixel event this campaign optimizes toward." });
-  if (!settings.pixel_id) issues.push({ code: "conversionPixel", message: "No pixel is resolved for this ad account. Share the crazydramas pixel with it in Business settings, then read the accounts again." });
-  else if (!META_PIXEL_ID_SHAPE.test(settings.pixel_id)) issues.push({ code: "conversionPixelShape", message: "The pixel id is not a Meta pixel id." });
+  // A missing pixel is NOT an issue here. The server writes it at save
+  // (lib/data/launch.ts) and the preview gate refuses an unresolvable one in a
+  // sentence, so complaining about it in the panel would show the person a
+  // blocker they cannot clear on a draft they have not saved yet.
+  if (settings.pixel_id && !META_PIXEL_ID_SHAPE.test(settings.pixel_id)) issues.push({ code: "conversionPixelShape", message: "The pixel id is not a Meta pixel id." });
   if (!isCrazydramasAdUrl(destinationUrl, "meta"))
     issues.push({ code: "conversionLink", message: "Conversions are counted by the crazydramas pixel, so the ad must point at a crazydramas series. Choose the drama again, or switch the campaign to Traffic." });
   return issues;

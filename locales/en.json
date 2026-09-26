@@ -5057,5 +5057,8 @@
   "lr2.issue.conversionPixelShape": "The pixel id is not a Meta pixel id.",
   "lr2.issue.conversionLink": "Conversions are counted by the crazydramas pixel, so the ad must point at a crazydramas series. Choose the drama again, or switch the campaign to Traffic.",
   "lmx.monitorLine": "{event} on pixel {pixel}, {attribution}",
-  "lmx.attribution": "7-day click, 1-day view"
+  "lmx.attribution": "7-day click, 1-day view",
+  "lmx.event.CONTENT_VIEW": "Content viewed",
+  "lmx.event.INITIATED_CHECKOUT": "Checkout started",
+  "lr2.issue.crossPlatformLink": "This is the TikTok link for that drama. Choose the drama again so the ad carries the Meta link."
 }

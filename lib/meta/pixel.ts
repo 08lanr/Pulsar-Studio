@@ -1,65 +1,29 @@
-// The Meta pixel a conversions launch optimizes toward. The shape follows
-// lib/tiktok/pixel.ts and the decision it records ("TikTok link, pixel and one
-// account", 2026-09-23): crazydramas.com fires the pixel itself, Studio sends
-// no events and holds no Conversions API token. What Studio needs is the
-// pixel's id and the proof that the ad account may optimize toward it.
+// The server half of the Meta pixel contract (decision 2026-09-25, "Meta
+// conversions"). The pure constants live in `./events` so the settings panel
+// can import them; this module reads the environment and talks to Meta, so it
+// must never be imported from a client component.
 //
-//   the id  2634408510362983, what crazydramas.com loads. Public by nature:
-//           every page view ships it. Server setting META_PIXEL_ID; blank
-//           means this default.
+// crazydramas.com fires the pixel itself and Studio sends no events and holds
+// no Conversions API token — the same split the TikTok pixel has. What Studio
+// needs is the pixel's id and the proof that the ad account may optimize
+// toward it.
 //
 // Meta answers `GET act_<id>/adspixels?fields=id,name,is_unavailable` with the
 // pixels the ad account may use. A pixel the account cannot see is not in the
 // list at all, and `is_unavailable` marks one the account has lost access to;
 // either way the person reads one plain sentence naming Business settings.
 //
-// While Meta refuses that read for want of the permission (codes 10, 200 and
-// 272 are the permission family), the configured id stands in, marked
-// UNVERIFIED and said so in plain words — the same fallback TikTok's 40001
-// path takes (decision 2026-09-24, "TikTok pixel ID set by hand"). When the
-// list answers, it wins: a configured id the list does not carry is refused
-// rather than sent, because a promoted_object Meta rejects fails the ad set
-// create after the campaign already exists.
-//
-// Every call goes through the transport lib/meta/index.ts picks: the fake in
-// fixture mode, Meta otherwise.
+// While Meta refuses that read for want of the permission, the configured id
+// stands in, marked UNVERIFIED and said so in plain words — the same fallback
+// TikTok's 40001 path takes (decision 2026-09-24). When the list answers, it
+// wins: a configured id the list does not carry is refused rather than sent,
+// because a promoted_object Meta rejects fails the ad set create after the
+// campaign already exists.
 
 import { MetaApiError, metaList, type MetaObject, type MetaTransport } from "./transport";
+import { META_PIXEL_ID_SHAPE, CRAZYDRAMAS_META_PIXEL_ID } from "./events";
 
-/** The pixel crazydramas.com loads. Public by nature: every page view ships it. */
-export const CRAZYDRAMAS_META_PIXEL_ID = "2634408510362983";
-
-/** Meta's pixel id shape: a numeric id, 10 to 20 digits. */
-export const META_PIXEL_ID_SHAPE = /^\d{10,20}$/;
-
-/**
- * The standard events crazydramas.com fires that an ad set may optimize
- * toward. `custom_event_type` on the ad set's promoted_object takes exactly
- * these strings.
- */
-export const META_CONVERSION_EVENTS = ["PURCHASE", "INITIATE_CHECKOUT", "ADD_TO_CART", "VIEW_CONTENT", "COMPLETE_REGISTRATION"] as const;
-export type MetaConversionEvent = (typeof META_CONVERSION_EVENTS)[number];
-
-/**
- * The event a new conversions draft starts on. NOT Purchase: crazydramas.com's
- * pixel fired 2 purchases in the 28 days to 2026-09-25, far under the ~50 a
- * week Meta's optimizer needs to leave the learning phase, so a Purchase ad set
- * would spend the budget without ever learning. InitiateCheckout is the
- * densest event on the way to a sale.
- */
-export const DEFAULT_META_CONVERSION_EVENT: MetaConversionEvent = "INITIATE_CHECKOUT";
-
-/**
- * What Meta's insights call an ad set's conversions of each event. The reading
- * side of the same contract: `actions[].action_type` carries these strings.
- */
-export const META_ACTION_TYPES: Record<MetaConversionEvent, string> = {
-  PURCHASE: "offsite_conversion.fb_pixel_purchase",
-  INITIATE_CHECKOUT: "offsite_conversion.fb_pixel_initiate_checkout",
-  ADD_TO_CART: "offsite_conversion.fb_pixel_add_to_cart",
-  VIEW_CONTENT: "offsite_conversion.fb_pixel_view_content",
-  COMPLETE_REGISTRATION: "offsite_conversion.fb_pixel_complete_registration",
-};
+export * from "./events";
 
 /**
  * META_PIXEL_ID, trimmed; blank means crazydramas.com's pixel. Server-only,
@@ -73,25 +37,26 @@ export function metaPixelId(): string {
   return configured;
 }
 
-/**
- * Meta's 7-day click / 1-day view attribution, sent explicitly on every
- * conversions ad set so a change to the account default never silently moves
- * what the Monitor is counting. The same window TikTok's launches send.
- */
-export const META_ATTRIBUTION_SPEC = [
-  { event_type: "CLICK_THROUGH", window_days: 7 },
-  { event_type: "VIEW_THROUGH", window_days: 1 },
-] as const;
-
-/** The same window in words, for the preview and the Monitor. One source, so the label can never disagree with the spec. */
-export const META_ATTRIBUTION_LABEL = `${META_ATTRIBUTION_SPEC[0].window_days}-day click, ${META_ATTRIBUTION_SPEC[1].window_days}-day view`;
-
 export type MetaPixelResolution =
   | { ok: true; pixel_id: string; verified: boolean; note: string | null }
   | { ok: false; reason: string };
 
-/** Meta's permission family: the account may not read pixels with this token. */
-const PERMISSION_CODES = new Set([10, 200, 272, 3]);
+/**
+ * The refusals that mean "this token may not read this account's pixels", as
+ * opposed to "this account has no such pixel". Meta answers a missing
+ * permission on an edge in two shapes: the OAuth family (10 "permission
+ * denied", 200 "permissions error", 272, 3 "unknown method"), and the generic
+ * 100 carrying subcode 33, which is what `act_<id>/adspixels` returns when the
+ * app has not been granted the pixel. Only these fall back; a bare 100 does
+ * not, because that is Meta's everyday "you asked for something wrong" and
+ * treating it as a permission problem would launch an unverified pixel on what
+ * is really a bug.
+ */
+function isPermissionRefusal(error: unknown): boolean {
+  if (!(error instanceof MetaApiError)) return false;
+  if ([10, 200, 272, 3].includes(error.code ?? 0)) return true;
+  return error.code === 100 && error.subcode === 33;
+}
 
 /**
  * The pixel this ad account may optimize toward, or the sentence saying why it
@@ -104,10 +69,10 @@ export async function resolveMetaPixel(transport: MetaTransport, accountId: stri
   try {
     rows = await metaList(transport, `${account}/adspixels`, { fields: "id,name,is_unavailable" });
   } catch (error) {
-    // Only the permission family falls back. Anything else (a dead token, a
-    // disabled account, a network refusal) is the launch's problem to report.
-    if (error instanceof MetaApiError && PERMISSION_CODES.has(error.code ?? 0))
-      return { ok: true, pixel_id: wanted, verified: false, note: `Meta would not list this account's pixels, so pixel ${wanted} is unverified. Grant ads_management on the pixel in Business settings, or check the first paused ad set in Ads Manager.` };
+    // Anything that is not the permission family (a dead token, a disabled
+    // account, a network refusal) is the launch's problem to report.
+    if (isPermissionRefusal(error))
+      return { ok: true, pixel_id: wanted, verified: false, note: `Meta would not list this account's pixels, so pixel ${wanted} is unverified. Grant the app access to the pixel in Business settings, or check the first paused ad set in Ads Manager.` };
     throw error;
   }
   const match = rows.find(row => String(row.id) === wanted);

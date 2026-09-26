@@ -561,9 +561,19 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
       if (currentDraft.content.some((c, i) => c.title_id !== r.draft.content[i]?.title_id || c.landing_url !== r.draft.content[i]?.landing_url))
         throw conflict("An ad's title or its crazydramas link changed since this draft was saved. Save the draft and preview again.");
       if (currentDraft.tiktok_settings.pixel_code !== r.draft.tiktok_settings.pixel_code) throw conflict("The TikTok pixel setting changed since this draft was saved. Save the draft and preview again.");
+      // The Meta pixel and the event are the other half of the same rule: the
+      // budget is signed against the event it optimizes toward, so a drift
+      // between save and approval says so in its own words rather than as "a
+      // selected clip changed" from the hash check below.
+      if (currentDraft.meta_settings.pixel_id !== r.draft.meta_settings.pixel_id || currentDraft.meta_settings.conversion_event !== r.draft.meta_settings.conversion_event)
+        throw conflict("The Meta pixel or conversion event changed since this draft was saved. Save the draft and preview again.");
       if (launchHash(currentDraft, []) !== launchHash(r.draft, [])) throw conflict("A selected clip changed. Save and preview the draft again.");
       const own = await connections(s, r.producer_id, r.draft.provider);
       await tiktokGate(s, r.draft, r.producer_id, own);
+      // The pixel is read again at approval, not only at preview: an approver
+      // signs minutes or hours later, and a pixel un-shared in between must
+      // stop here rather than fail the ad set create on a live campaign.
+      await metaGate(r.draft, own);
       const plan = buildLaunchPlan(r.draft, own, r.external_id, await takenCampaignNames(r.draft, own));
       if (r.connections && connectionSignature(r.connections) !== connectionSignature(own.filter(a => r.draft.account_ids.includes(a.id)))) throw conflict("Account assignment changed. Save and preview the draft again.");
       r.connections = own.filter(a => r.draft.account_ids.includes(a.id));

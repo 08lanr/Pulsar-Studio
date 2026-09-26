@@ -5057,5 +5057,8 @@
   "lr2.issue.conversionPixelShape": "该像素 ID 不是有效的 Meta 像素 ID。",
   "lr2.issue.conversionLink": "转化由 crazydramas 像素统计，因此广告必须指向 crazydramas 的剧集。请重新选择剧集，或把广告目标改为流量。",
   "lmx.monitorLine": "按像素 {pixel} 的{event}统计，{attribution}",
-  "lmx.attribution": "点击后 7 天、浏览后 1 天"
+  "lmx.attribution": "点击后 7 天、浏览后 1 天",
+  "lmx.event.CONTENT_VIEW": "浏览内容",
+  "lmx.event.INITIATED_CHECKOUT": "发起结账",
+  "lr2.issue.crossPlatformLink": "这是该剧的 TikTok 链接。请重新选择剧集，让广告带上 Meta 链接。"
 }

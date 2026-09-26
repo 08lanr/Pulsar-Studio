@@ -6,7 +6,8 @@ import { LaunchWaiting } from "@/lib/launch/waiting";
 import type { DeliverySnapshot, DriverContext, LaunchAdSetPlan, LaunchContent, LaunchControl, LaunchDriver, MetaLaunchSettings, MetaPlatform } from "@/lib/launch/types";
 import { metaTransport } from "./index";
 import { MetaApiError, metaList, type MetaObject, type MetaTransport } from "./transport";
-import { META_ACTION_TYPES, META_ATTRIBUTION_SPEC, resolveMetaPixel } from "./pixel";
+import { META_ACTION_TYPES, META_ATTRIBUTION_SPEC } from "./events";
+import { resolveMetaPixel } from "./pixel";
 
 type Intent = { edge: string; payload: MetaObject; phase: "sending" | "rejected" | "confirmed"; id?: string };
 type MetaState = {
@@ -288,7 +289,10 @@ async function launch(ctx: DriverContext, transport: MetaTransport) {
   const daily = ctx.campaign.daily_budget_cents;
   if (daily !== null) amount(daily);
   const campaignPayload: MetaObject = {
-    name: ctx.campaign.campid ?? `${ctx.run.external_id}/${ctx.campaign.index}`, objective: settings.objective, special_ad_categories: [], status: "PAUSED",
+    // A run approved before Meta conversions landed has no objective in its
+    // stored draft (a database JSON blob, never re-validated by zod), and Meta
+    // refuses a campaign create without one. Those runs were all Traffic.
+    name: ctx.campaign.campid ?? `${ctx.run.external_id}/${ctx.campaign.index}`, objective: settings.objective ?? "OUTCOME_TRAFFIC", special_ad_categories: [], status: "PAUSED",
     // Meta requires this whenever the budget is not on the campaign.
     // Studio always budgets per ad set, and the signed per-campaign
     // ceiling is exact, so ad sets must never borrow from each other.

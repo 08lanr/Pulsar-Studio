@@ -2,7 +2,7 @@ import type { Session } from "@/lib/auth";
 import type { ClipLibraryFilter, ClipLibraryRow, ClipPost, PublishClipInput } from "@/lib/launch/clip-posts";
 import type { LaunchSettings } from "@/lib/tiktok/settings";
 import type { WebConversions } from "@/lib/tiktok/web-metrics";
-import type { MetaConversionEvent } from "@/lib/meta/pixel";
+import type { MetaConversionEvent } from "@/lib/meta/events";
 
 export type LaunchProvider = "tiktok" | "meta";
 /**
@@ -135,9 +135,9 @@ export type DeliverySnapshot = {
   conversions: number | null; cpc_cents: number | null;
   /**
    * What the counted conversions were worth, when the provider reports a
-   * value with them (Meta's `action_values`). Undefined on a provider or a
-   * campaign that reports none; null when the campaign is measured but has
-   * reported nothing yet.
+   * value with them (Meta's `action_values`). Null on a campaign that
+   * optimizes toward no event, or one Meta has not reported a value for yet;
+   * absent from a provider that never reports one.
    */
   conversion_value_cents?: number | null;
   configured_status?: string; effective_status?: string;
