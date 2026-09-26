@@ -846,10 +846,14 @@ export function notCounted(report: CdStatsReport, r: { from: string; to: string 
 // tabbed panels; YouTube Studio: tabs by question): six headline numbers compared with the period before, one
 // chart per day of the picked number, and a tab per question.
 
-export const DASH_TABS = ["overview", "funnel", "playback", "series", "ads", "audience"] as const;
+// Since 2026-09-26 ("Stats: campaigns, buyers and the full episode curve"): Overview · Campaigns · Buyers ·
+// Series · Playback. The Funnel, Ads and Audience tabs are retired; an old address lands on their successor.
+export const DASH_TABS = ["overview", "campaigns", "buyers", "series", "playback"] as const;
 export type DashTab = (typeof DASH_TABS)[number];
+const RETIRED_TABS: Record<string, DashTab> = { funnel: "overview", ads: "campaigns", audience: "overview" };
 export function parseDashTab(raw: unknown): DashTab {
   const v = Array.isArray(raw) ? raw[0] : raw;
+  if (typeof v === "string" && RETIRED_TABS[v]) return RETIRED_TABS[v];
   return (DASH_TABS as readonly string[]).includes(v as string) ? (v as DashTab) : "overview";
 }
 

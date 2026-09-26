@@ -4,10 +4,16 @@
 // small hash of the series' slug and the day, so a screen and a test see the
 // same figures. Invented numbers for a demo; nothing here is measured.
 
+import type { LaunchRun } from "@/lib/launch/types";
 import { CdStatsPlaybackSchema, type CdStatsCohort, type CdStatsDay, type CdStatsDrop, type CdStatsPlayback, type CdStatsReport, type CdStatsSeries, type CdStatsSource } from "./stats-types";
 
-/** The fake's ads: TikTok-shaped ids, one campaign; the Monitor's fake launches carry other ids, so these read as ads Studio did not launch. */
-export const FAKE_STATS_ADS = ["1877000000000001", "1877000000000002", "1877000000000003"];
+/**
+ * The fake's ads: TikTok-shaped ids in two campaigns, the first optimizing purchases (ads 1 and 2), the second
+ * clicks (ads 3 and 4, the same two clips again). The Monitor's fake launches carry other ids; the stats pages
+ * in fixture mode add the invented launches of `fakeStatsLaunches` so the Campaigns tab has spend to show.
+ */
+export const FAKE_STATS_ADS = ["1877000000000001", "1877000000000002", "1877000000000003", "1877000000000004"];
+export const FAKE_STATS_CAMPAIGNS = ["1877000000000100", "1877000000000200"];
 
 type FakeSeriesIn = { id: string; slug: string; title: string; status: string; free_episode_count: number };
 type FakeEpisodeIn = { drama_id: string; episode_number: number; duration_seconds: number | null };
@@ -219,16 +225,20 @@ export function fakeStatsReport(series: FakeSeriesIn[], episodes: FakeEpisodeIn[
         team: 0,
       });
       // The same people by where they came from: three ads (Android and iPhone), TikTok's stored copy, and no ad.
+      // A landing with only TikTok's click id is TikTok with no campaign (since 2026-09-26).
+      const [campA, campB] = FAKE_STATS_CAMPAIGNS;
       const shares: [string, string | null, string | null, boolean, string, number][] = [
-        ["tiktok", "1877000000000000", FAKE_STATS_ADS[0], false, "tiktok_android", 0.3],
-        ["tiktok", "1877000000000000", FAKE_STATS_ADS[0], false, "tiktok_iphone", 0.15],
-        ["tiktok", "1877000000000000", FAKE_STATS_ADS[1], false, "tiktok_android", 0.2],
-        ["tiktok", "1877000000000000", FAKE_STATS_ADS[2], false, "tiktok_android", 0.1],
-        ["tiktok", null, null, true, "tiktok_android", 0.15],
+        ["tiktok", campA, FAKE_STATS_ADS[0], false, "tiktok_android", 0.25],
+        ["tiktok", campA, FAKE_STATS_ADS[0], false, "tiktok_iphone", 0.12],
+        ["tiktok", campA, FAKE_STATS_ADS[1], false, "tiktok_android", 0.18],
+        ["tiktok", campB, FAKE_STATS_ADS[2], false, "tiktok_android", 0.1],
+        ["tiktok", campB, FAKE_STATS_ADS[3], false, "tiktok_android", 0.05],
+        ["tiktok", null, null, true, "tiktok_android", 0.12],
+        ["tiktok", null, null, false, "tiktok_android", 0.05],
         ["organic", null, null, false, "iphone", 0.1],
       ];
       // Where each source's people were (the organic ones landed before places were recorded).
-      const places: [string | null, string | null][] = [["US", "CA"], ["US", "TX"], ["US", "NY"], ["PH", null], ["US", "FL"], [null, null]];
+      const places: [string | null, string | null][] = [["US", "CA"], ["US", "TX"], ["US", "NY"], ["PH", null], ["US", "WA"], ["US", "FL"], ["US", "GA"], [null, null]];
       for (const [i, [platform, campaign, ad, stored, device, share]] of shares.entries()) {
         const [country, region] = places[i];
         const q = (v: number) => Math.round(v * share * (0.8 + 0.4 * r(`${ad}${device}`)));
@@ -297,6 +307,7 @@ export function fakeStatsReport(series: FakeSeriesIn[], episodes: FakeEpisodeIn[
     });
   }
   const robots = days.reduce((a, d) => a + d.robots, 0);
+  const buyers = fakeBuyers(live, now);
   return {
     version: 1,
     generated_at: now.toISOString(),
@@ -311,5 +322,213 @@ export function fakeStatsReport(series: FakeSeriesIn[], episodes: FakeEpisodeIn[
     series: out,
     sources,
     drops: fakeDrops(live.map((x) => x.id), now),
+    ...buyers,
   };
+}
+
+// ---- invented buyers (2026-09-26): payments under person codes, and each buyer's steps -------------------------
+
+type FakeBuyer = {
+  person: string;
+  browser: string;
+  /** Hours before now of the landing, and of the payment. */
+  landed_h: number;
+  paid_h: number;
+  series: 0 | 1;
+  amount: number;
+  renewal?: boolean;
+  source: { platform: string; campaign: string | null; ad: string | null; stored_copy?: boolean; device: string; country: string | null; region: string | null };
+  /** Episodes watched after paying; `skim`: swiped to the last free episodes instead of watching them all. */
+  after: number;
+  skim?: boolean;
+  left?: boolean;
+};
+
+/**
+ * Six people, eight payments across two series: one person paid on two browsers (TikTok's, then Safari), one paid
+ * twice on one, one arrived from TikTok with no campaign tag, two came from the clicks campaign.
+ */
+function fakeBuyers(live: FakeSeriesIn[], now: Date): Pick<CdStatsReport, "purchases" | "journeys" | "people"> {
+  if (!live.length) return { purchases: [], journeys: {}, people: { buyers: 0, purchases: 0, revenue_cents: 0 } };
+  const [campA, campB] = FAKE_STATS_CAMPAIGNS;
+  const [ad1, ad2, ad3, ad4] = FAKE_STATS_ADS;
+  const tt = (campaign: string | null, ad: string | null, device: string, region: string) => ({ platform: "tiktok", campaign, ad, device, country: "US", region });
+  const list: FakeBuyer[] = [
+    { person: "m4rq2z", browser: "b7k2", landed_h: 5.2, paid_h: 4.9, series: 0, amount: 199, source: tt(campA, ad1, "tiktok_android", "CA"), after: 2 },
+    { person: "m4rq2z", browser: "x9d1", landed_h: 2.1, paid_h: 1.8, series: 1, amount: 199, source: { platform: "direct", campaign: null, ad: null, device: "iphone", country: "US", region: "CA" }, after: 1, skim: true, left: true },
+    { person: "t8wd1c", browser: "p3n8", landed_h: 30, paid_h: 29.4, series: 0, amount: 199, source: tt(campA, ad2, "tiktok_iphone", "TX"), after: 2 },
+    { person: "t8wd1c", browser: "p3n8", landed_h: 27, paid_h: 26.5, series: 1, amount: 499, source: tt(campA, ad2, "tiktok_iphone", "TX"), after: 1, skim: true, left: true },
+    { person: "w5ee3r", browser: "r1q6", landed_h: 52, paid_h: 51.2, series: 0, amount: 199, source: tt(campA, ad2, "tiktok_android", "NY"), after: 8 },
+    { person: "q2nn7e", browser: "h4v0", landed_h: 9.5, paid_h: 9, series: 1, amount: 199, source: tt(campB, ad3, "tiktok_android", "WA"), after: 2, left: true },
+    { person: "z1ab5k", browser: "s8c3", landed_h: 76, paid_h: 75.1, series: 0, amount: 999, source: tt(campB, ad4, "tiktok_android", "GA"), after: 7 },
+    { person: "h7yy0p", browser: "e2m5", landed_h: 20, paid_h: 19.6, series: 1, amount: 199, source: tt(null, null, "tiktok_android", "FL"), after: 3, left: true },
+  ];
+  const at = (h: number) => new Date(now.getTime() - h * 3_600_000).toISOString();
+  const purchases: NonNullable<CdStatsReport["purchases"]> = [];
+  const journeys: Record<string, NonNullable<CdStatsReport["journeys"]>[string]> = {};
+  list.forEach((b, i) => {
+    const s = live[Math.min(b.series, live.length - 1)];
+    const free = s.free_episode_count > 0 ? s.free_episode_count : 5;
+    const landed = now.getTime() - b.landed_h * 3_600_000;
+    const paid = now.getTime() - b.paid_h * 3_600_000;
+    const steps = (journeys[b.person] ??= []);
+    const iso = (t: number) => new Date(t).toISOString();
+    steps.push({ at: iso(landed), drama_id: s.id, kind: "landing", platform: b.source.platform, campaign: b.source.campaign, ad: b.source.ad });
+    // The free episodes, a couple left unfinished; then the paywall, checkout, payment, and some after.
+    const before = paid - 90_000;
+    const per = (before - landed - 30_000) / (b.skim ? 2 : free);
+    const firstEp = b.skim ? free - 1 : 1;
+    for (let n = firstEp; n <= free; n++) {
+      const t0 = landed + 20_000 + (n - firstEp) * per;
+      steps.push({ at: iso(t0), drama_id: s.id, kind: "ep_start", episode: n });
+      if (n !== 2 || i % 2 === 0) steps.push({ at: iso(t0 + per * 0.9), drama_id: s.id, kind: "ep_finish", episode: n });
+    }
+    steps.push({ at: iso(before), drama_id: s.id, kind: "paywall", episode: free + 1 });
+    steps.push({ at: iso(before + 40_000), drama_id: s.id, kind: "checkout", episode: free + 1 });
+    steps.push({ at: iso(paid), drama_id: s.id, kind: "paid", episode: free + 1, amount_cents: b.amount });
+    for (let k = 0; k < b.after; k++) {
+      const t0 = paid + 30_000 + k * 110_000;
+      steps.push({ at: iso(t0), drama_id: s.id, kind: "ep_start", episode: free + 1 + k });
+      if (k < b.after - 1 || !b.left) steps.push({ at: iso(t0 + 100_000), drama_id: s.id, kind: "ep_finish", episode: free + 1 + k });
+    }
+    if (b.left) steps.push({ at: iso(paid + 30_000 + b.after * 110_000), drama_id: s.id, kind: "left", episode: free + b.after });
+    purchases.push({
+      id: `pay_${String(i + 1).padStart(3, "0")}`,
+      at: at(b.paid_h),
+      drama_id: s.id,
+      amount_cents: b.amount,
+      renewal: !!b.renewal,
+      person: b.person,
+      browser: b.browser,
+      source: { stored_copy: false, ...b.source },
+      first_seen_at: at(b.landed_h),
+      paid_after_s: Math.round((paid - landed) / 1000),
+    });
+  });
+  for (const k of Object.keys(journeys)) journeys[k].sort((a, b) => a.at.localeCompare(b.at));
+  purchases.sort((a, b) => b.at.localeCompare(a.at));
+  return {
+    purchases,
+    journeys,
+    people: { buyers: new Set(purchases.map((p) => p.person)).size, purchases: purchases.length, revenue_cents: purchases.reduce((a, p) => a + p.amount_cents, 0) },
+  };
+}
+
+// ---- invented launches for the fake's ads (fixture mode only) ---------------------------------------------------
+
+/** One invented ad: its campaign, its clip, TikTok's numbers over its life. */
+const FAKE_LAUNCH_ADS = [
+  { ad: 0, campaign: 0, clip: "fake-clip-flirt-hook-v1", spend: 1040, clicks: 412, impressions: 21400, purchases: 2 },
+  { ad: 1, campaign: 0, clip: "fake-clip-flirt-v4", spend: 778, clicks: 305, impressions: 16800, purchases: 3 },
+  { ad: 2, campaign: 1, clip: "fake-clip-flirt-v4", spend: 621, clicks: 520, impressions: 19100, purchases: null },
+  { ad: 3, campaign: 1, clip: "fake-clip-flirt-hook-v1", spend: 512, clicks: 388, impressions: 15300, purchases: null },
+] as const;
+
+/** The invented clips those ads played (fixture mode: `adCreatives` reads them as it reads studio.clips). */
+export const FAKE_STATS_CLIPS = [
+  { id: "fake-clip-flirt-hook-v1", title_id: "fake-title", ad_format: "hook_ad", hook_en: "She flirted with the wrong CEO, and he flirted back.", render_path: "fake-title/ep1/upload-0123456789abcdef-flirt-hook-v1.mp4" },
+  { id: "fake-clip-flirt-v4", title_id: "fake-title", ad_format: "narration_trailer", hook_en: "I thought one night would end it. It started everything.", render_path: "fake-title/ep1/upload-fedcba9876543210-flirt-v4.mp4" },
+] as const;
+
+/**
+ * Launch records for the fake's two campaigns (fixture mode only, never written anywhere): the purchases
+ * campaign with TikTok's own purchases, the clicks one without, each ad's lifetime numbers, the content items
+ * that name the clips, and TikTok's days for the period's spend (the last six days).
+ */
+export function fakeStatsLaunches(now: Date = new Date()): {
+  runs: LaunchRun[];
+  days: { ok: true; from: string; to: string; campaigns: string[]; days: Record<string, { day: string; spend_cents: number | null; impressions: number | null; clicks: number | null }[]> };
+} {
+  const launched = new Date(now.getTime() - 6 * 86_400_000 + 3_600_000).toISOString();
+  const to = pacificDay(now);
+  const from = addDays(to, -29);
+  const names = ["da4a", "0d76"];
+  const days: Record<string, { day: string; spend_cents: number | null; impressions: number | null; clicks: number | null }[]> = {};
+  for (const a of FAKE_LAUNCH_ADS) {
+    // Six days, rising: the lifetime spread so it adds up exactly.
+    const weights = [1, 2, 3, 3, 4, 5];
+    const total = weights.reduce((x, y) => x + y, 0);
+    const left: Record<"spend" | "impressions" | "clicks", number> = { spend: a.spend, impressions: a.impressions, clicks: a.clicks };
+    const part = (k: keyof typeof left, i: number, w: number) => {
+      const v = i === weights.length - 1 ? left[k] : Math.round((a[k] * w) / total);
+      left[k] -= v;
+      return v;
+    };
+    days[FAKE_STATS_ADS[a.ad]] = weights.map((w, i) => ({ day: addDays(to, i - weights.length + 1), spend_cents: part("spend", i, w), impressions: part("impressions", i, w), clicks: part("clicks", i, w) }));
+  }
+  const runs = [0, 1].map((ci) => {
+    const website = ci === 0;
+    const ads = FAKE_LAUNCH_ADS.filter((a) => a.campaign === ci);
+    const settings = website
+      ? { objective_type: "WEB_CONVERSIONS", sales_destination: "website", optimization_goal: "CONVERT", optimization_event: "SHOPPING" }
+      : { objective_type: "TRAFFIC", optimization_goal: "CLICK" };
+    const sum = (k: "spend" | "clicks" | "impressions") => ads.reduce((x, a) => x + a[k], 0);
+    const content = ads.map((a) => {
+      const clip = FAKE_STATS_CLIPS.find((c) => c.id === a.clip)!;
+      return { kind: "video" as const, value: clip.id, clip_id: clip.id, title_id: clip.title_id, text: clip.hook_en, file_path: clip.render_path };
+    });
+    return {
+      id: `fake-stats-run-${ci + 1}`,
+      external_id: `lr_fakestats${ci + 1}`,
+      producer_id: "fake-stats",
+      draft: { provider: "tiktok", name: `Invented launch · ${names[ci]}`, content, tiktok_settings: settings },
+      round: 1,
+      parent_run_id: null,
+      status: "done",
+      revision: 1,
+      snapshot_hash: null,
+      approved_by: null,
+      approved_at: launched,
+      approval_note: null,
+      created_by: "fake-stats",
+      created_at: launched,
+      updated_at: launched,
+      mode: "fake",
+      error: null,
+      lease_owner: null,
+      lease_until: null,
+      campaigns: [
+        {
+          id: `fake-stats-campaign-${ci + 1}`,
+          run_id: `fake-stats-run-${ci + 1}`,
+          index: 0,
+          connection_id: "fake-stats",
+          advertiser_id: "7000000000000000001",
+          name: names[ci],
+          content,
+          budget_cents: 5000,
+          daily_budget_cents: null,
+          status: "done",
+          error: null,
+          state: { campaign_id: FAKE_STATS_CAMPAIGNS[ci], settings, groups: [{ ads: Object.fromEntries(ads.map((a) => [a.clip, FAKE_STATS_ADS[a.ad]])) }] },
+          snapshot: {
+            delivery: "live",
+            note: null,
+            checked_at: now.toISOString(),
+            spend_cents: sum("spend"),
+            impressions: sum("impressions"),
+            clicks: sum("clicks"),
+            conversions: sum("clicks"),
+            cpc_cents: Math.round(sum("spend") / sum("clicks")),
+            web: website ? { purchases: 5, purchase_value_cents: 995, cost_per_purchase_cents: Math.round(sum("spend") / 5), roas: 0.55, checkouts: 9, cost_per_checkout_cents: null, event: "SHOPPING", attribution: "7-day click, 1-day view" } : null,
+            ads: ads.map((a) => ({
+              id: FAKE_STATS_ADS[a.ad],
+              status: "live",
+              content_value: a.clip,
+              stats: {
+                spend_cents: a.spend,
+                impressions: a.impressions,
+                clicks: a.clicks,
+                ctr: a.clicks / a.impressions,
+                cpc_cents: Math.round(a.spend / a.clicks),
+                conversions: a.clicks,
+                web: a.purchases === null ? null : { purchases: a.purchases, purchase_value_cents: a.purchases * 199, cost_per_purchase_cents: Math.round(a.spend / a.purchases), roas: null, checkouts: null, cost_per_checkout_cents: null },
+              },
+            })),
+          },
+        },
+      ],
+    };
+  }) as unknown as LaunchRun[];
+  return { runs, days: { ok: true, from, to, campaigns: [...FAKE_STATS_CAMPAIGNS], days } };
 }

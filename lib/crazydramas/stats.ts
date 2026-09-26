@@ -8,8 +8,11 @@
 // once. Server-only; the sums the screens show are the pure functions in
 // ./stats-summary.ts.
 
+import type { Session } from "@/lib/auth";
+import { getData } from "@/lib/data";
 import type { LaunchRun } from "@/lib/launch/types";
 import { readTikTokAdDays } from "@/lib/tiktok/ad-days";
+import { launchClipTitles, type CreativeClip } from "./stats-ads";
 import { crazydramasStudioMode, crazydramasStudioTransport } from "./studio-client";
 import { readTeamList } from "./stats-team";
 import { rangeDays, type AdPeriod, type StatsRange } from "./stats-summary";
@@ -82,4 +85,19 @@ export async function readAdPeriod(report: CdStatsReport, range: StatsRange, run
   const span = rangeDays(report, range);
   const days = await readTikTokAdDays(runs, { to: report.to, fresh });
   return { ...span, timezone: report.timezone, days };
+}
+
+/**
+ * The Studio clips Studio's launches played (decision 2026-09-26: which clip each ad was), read per title the
+ * launches name and kept to the clips they name; a title that cannot be read is skipped, never an error.
+ */
+export async function readLaunchClips(session: Session, runs: LaunchRun[]): Promise<Map<string, CreativeClip>> {
+  const out = new Map<string, CreativeClip>();
+  await Promise.all(
+    [...launchClipTitles(runs)].map(async ([titleId, ids]) => {
+      const clips = await getData().listEpisodeClips(session, titleId).catch(() => []);
+      for (const c of clips) if (ids.has(c.id)) out.set(c.id, { id: c.id, title_id: c.title_id, ad_format: c.ad_format ?? null, hook_en: c.hook_en, render_path: c.render_path });
+    }),
+  );
+  return out;
 }
