@@ -9,6 +9,8 @@ import { call, int, usd } from "@/components/tiktok/api";
 import { adLandingUrl, splitBudget } from "@/lib/launch/plan";
 import { adTitleId, adsOfContent, campaignTitleIds, contentNumbers, resultsByTitle, runTitleIds, totalsOf, type Totals } from "@/lib/launch/title-stats";
 import AdCard, { type AdCardProps } from "@/components/launch/AdCard";
+import LaunchProgress from "@/components/launch/LaunchProgress";
+import { launchProgress, showsProgress } from "@/lib/launch/progress";
 import {
   adSetPlatforms, campaignPlatforms, explainProviderError, monitorState, needsFirstSweep,
   providerCampaignId, switchState, type AdPlatform, type MonitorState,
@@ -478,7 +480,11 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
             const controlError = actionError[c.id] || c.error || (typeof c.state.control_error === "string" ? c.state.control_error : null);
             const ctr = c.snapshot?.impressions && c.snapshot.clicks != null ? `${(c.snapshot.clicks / c.snapshot.impressions * 100).toFixed(2)}%` : "—";
             const costPerConversion = c.snapshot?.conversions && c.snapshot.spend_cents != null ? money(Math.round(c.snapshot.spend_cents / c.snapshot.conversions)) : "—";
-            const stateWord = state === "not_checked" ? tt("mr2.state.notChecked")
+            // While the campaign is being prepared, or failed before it finished,
+            // its row carries the step list; the failure sits under the failed step.
+            const progress = showsProgress(c) ? launchProgress(run.draft, c) : null;
+            const stateWord = progress && !progress.failed && (state === "waiting" || state === "not_checked") ? tt("lpg.preparing")
+              : state === "not_checked" ? tt("mr2.state.notChecked")
               : state === "created_paused" ? tt(`mr2.state.createdPaused.${run.draft.provider}`)
               : state === "waiting" ? tt("mr2.state.waiting")
               : tt(`lv2.delivery.${state}`);
@@ -516,12 +522,13 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
                 <td className="lm-number">{money(c.snapshot?.spend_cents)}</td><td className="lm-number">{int(c.snapshot?.clicks)}</td><td className="lm-number">{money(c.snapshot?.cpc_cents)}</td><td className="lm-number">{int(c.snapshot?.conversions)}</td><td className="lm-number">{costPerConversion}</td><td className="lm-number">{ctr}</td>
                 <td><div className="lm-actions"><button className="lm-row-button" aria-expanded={!!expanded[c.id]} aria-controls={`campaign-details-${c.id}`} onClick={() => setExpanded(x => ({ ...x, [c.id]: !x[c.id] }))}>{expanded[c.id] ? tt("lv2.hide") : tt("lv2.details")}</button>{(canControl || canEnd) && <button data-monitor-menu className="lm-row-button lm-more" aria-expanded={menu === c.id} aria-label={tt("monitorV2.moreActions")} onClick={event => { const rect = event.currentTarget.getBoundingClientRect(); setMenuPosition({ top: Math.max(12, Math.min(rect.bottom + 4, window.innerHeight - 300)), left: Math.max(12, Math.min(rect.right - 220, window.innerWidth - 232)) }); setMenu(menu === c.id ? "" : c.id); }}><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="3" cy="8" r="1.2" /><circle cx="8" cy="8" r="1.2" /><circle cx="13" cy="8" r="1.2" /></svg></button>}</div></td>
               </tr>
-              {state === "waiting" && <tr className="lm-error-row"><td colSpan={9}><div className="note mr2-waiting" role="status">
-                <p>{typeof c.state.waiting === "object" && c.state.waiting && "reason" in c.state.waiting ? String((c.state.waiting as { reason: string }).reason) : tt("mr2.waitingLine")}</p>
-                <p className="hint">{tt("mr2.waitingLine")}</p>
-                <button className="lm-row-button" disabled={!!busy || refreshing} onClick={() => void refresh(true)}>{tt("mr2.checkNow")}</button>
-              </div></td></tr>}
-              {controlError && !ended(c) && state !== "waiting" && <tr className="lm-error-row"><td colSpan={9}>{failure(run, controlError, `campaign-${c.index}`)}</td></tr>}
+              {/* A waiting campaign is a preparing one: its wait is the current step (showsProgress). */}
+              {progress ? <tr className="lm-error-row lm-progress-row"><td colSpan={9}>
+                <LaunchProgress progress={progress} tt={tt}
+                  failure={progress.failed ? failure(run, controlError || tt("lv2.run.failed"), `campaign-${c.index}`) : null}
+                  onCheckNow={() => void refreshDelivery()} checking={!!busy || refreshing} />
+              </td></tr> : null}
+              {controlError && !ended(c) && state !== "waiting" && !progress && <tr className="lm-error-row"><td colSpan={9}>{failure(run, controlError, `campaign-${c.index}`)}</td></tr>}
               {expanded[c.id] && <tr className="lm-detail-row"><td colSpan={9}><div className="lm-detail" id={`campaign-details-${c.id}`}>
                 {groups.length > 0 && <div className="lm-groups">{groups.map((g, i) => {
                   // The driver names its ad set's platform; older rows are read back from what it recorded.

@@ -261,7 +261,7 @@ async function uploadClip(ctx: DriverContext, c: Client, item: LaunchContent): P
       if (Date.now() - Date.parse(done.cover_wait_since!) > COVER_WAIT_MAX_MS) {
         throw new Error(`TikTok made no cover for an uploaded Studio clip in ${COVER_WAIT_MAX_MS / 60_000} minutes (video ${done.video_id}). Check the video in the ad account's library, then retry.`);
       }
-      throw new LaunchWaiting("TikTok is still processing an uploaded Studio clip; its cover will be ready in a minute.", 30_000);
+      throw new LaunchWaiting("TikTok is still processing an uploaded Studio clip; its cover will be ready in a minute.", 30_000, "videos");
     }
     await ctx.assertActive();
     const up = await c.tt.post("/file/image/ad/upload/", c.token, { advertiser_id: c.advertiser, upload_type: "UPLOAD_BY_URL", image_url: coverUrl, file_name: `studio-cover-${done.video_id}-${Date.now()}.jpg` });

@@ -235,7 +235,7 @@ async function launch(ctx: DriverContext, transport: MetaTransport) {
       if (status === "error") throw new Error("Meta could not process the uploaded clip. The campaign was not created.");
       // Transcoding takes a minute or two. Not a failure: the video id is
       // checkpointed, so the resume continues from here without re-uploading.
-      if (status !== "ready") throw new LaunchWaiting("Meta is still processing the uploaded clip.");
+      if (status !== "ready") throw new LaunchWaiting("Meta is still processing the uploaded clip.", undefined, "videos");
       const thumbnails = (details.thumbnails as { data?: { uri?: string; is_preferred?: boolean }[] } | undefined)?.data || [];
       const thumbnail = (thumbnails.find(row => row.is_preferred) || thumbnails[0])?.uri;
       if (!thumbnail?.startsWith("https://")) throw new Error("Meta has not returned a usable video thumbnail yet.");

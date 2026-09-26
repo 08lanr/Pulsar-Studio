@@ -1,0 +1,182 @@
+{
+  "lpg.title": {
+    "en": "Launch progress",
+    "zh": "投放进度"
+  },
+  "lpg.stepOf": {
+    "en": "{done} of {total} steps done",
+    "zh": "已完成 {done}/{total} 步"
+  },
+  "lpg.preparing": {
+    "en": "Preparing",
+    "zh": "准备中"
+  },
+  "lpg.queued": {
+    "en": "Queued: this campaign starts when the one before it is ready.",
+    "zh": "排队中：上一个广告系列准备好后开始。"
+  },
+  "lpg.step.account": {
+    "en": "Account",
+    "zh": "广告账户"
+  },
+  "lpg.step.accountPosts": {
+    "en": "Account and posts",
+    "zh": "广告账户和帖子"
+  },
+  "lpg.step.pixel": {
+    "en": "Pixel",
+    "zh": "Pixel"
+  },
+  "lpg.step.videos": {
+    "en": "Videos",
+    "zh": "视频"
+  },
+  "lpg.step.posts": {
+    "en": "Posts",
+    "zh": "帖子"
+  },
+  "lpg.step.page": {
+    "en": "Instant Page",
+    "zh": "即时页面"
+  },
+  "lpg.step.campaign": {
+    "en": "Campaign",
+    "zh": "广告系列"
+  },
+  "lpg.step.adgroup": {
+    "en": "Ad group",
+    "zh": "广告组"
+  },
+  "lpg.step.adsets": {
+    "en": "Ad sets",
+    "zh": "广告组"
+  },
+  "lpg.step.ads": {
+    "en": "Ads",
+    "zh": "广告"
+  },
+  "lpg.step.done": {
+    "en": "Done",
+    "zh": "完成"
+  },
+  "lpg.status.done": {
+    "en": "done",
+    "zh": "已完成"
+  },
+  "lpg.status.current": {
+    "en": "in progress",
+    "zh": "进行中"
+  },
+  "lpg.status.todo": {
+    "en": "not started",
+    "zh": "未开始"
+  },
+  "lpg.status.failed": {
+    "en": "failed",
+    "zh": "失败"
+  },
+  "lpg.count.uploaded": {
+    "en": "{done} of {of} uploaded",
+    "zh": "已上传 {done}/{of}"
+  },
+  "lpg.count.covers": {
+    "en": "{done} of {of} covers",
+    "zh": "封面 {done}/{of}"
+  },
+  "lpg.count.adsets": {
+    "en": "{done} of {of} created",
+    "zh": "已创建 {done}/{of}"
+  },
+  "lpg.count.ads": {
+    "en": "{done} of {of} created",
+    "zh": "已创建 {done}/{of}"
+  },
+  "lpg.outcome.paused": {
+    "en": "created paused",
+    "zh": "已创建，暂停中"
+  },
+  "lpg.outcome.live": {
+    "en": "switched on",
+    "zh": "已开启"
+  },
+  "lpg.for": {
+    "en": "for {n} min",
+    "zh": "已进行 {n} 分钟"
+  },
+  "lpg.forLess": {
+    "en": "under a minute so far",
+    "zh": "不到 1 分钟"
+  },
+  "lpg.stuck": {
+    "en": "Waiting {n} min on {what} (usually {usual}).",
+    "zh": "已等待 {n} 分钟：{what}（通常{usual}）。"
+  },
+  "lpg.checkNow": {
+    "en": "Check now",
+    "zh": "立即检查"
+  },
+  "lpg.what.account": {
+    "en": "the account check",
+    "zh": "广告账户检查"
+  },
+  "lpg.what.pixel": {
+    "en": "the pixel",
+    "zh": "Pixel"
+  },
+  "lpg.what.videos": {
+    "en": "the videos",
+    "zh": "视频"
+  },
+  "lpg.what.uploading": {
+    "en": "video uploads",
+    "zh": "视频上传"
+  },
+  "lpg.what.covers": {
+    "en": "video covers",
+    "zh": "视频封面"
+  },
+  "lpg.what.processing": {
+    "en": "Meta processing the videos",
+    "zh": "Meta 处理视频"
+  },
+  "lpg.what.posts": {
+    "en": "the posts",
+    "zh": "帖子"
+  },
+  "lpg.what.page": {
+    "en": "the Instant Page",
+    "zh": "即时页面"
+  },
+  "lpg.what.campaign": {
+    "en": "the campaign",
+    "zh": "广告系列"
+  },
+  "lpg.what.adgroup": {
+    "en": "the ad group",
+    "zh": "广告组"
+  },
+  "lpg.what.adsets": {
+    "en": "the ad sets",
+    "zh": "广告组"
+  },
+  "lpg.what.ads": {
+    "en": "the ads",
+    "zh": "广告"
+  },
+  "lpg.what.done": {
+    "en": "the last step",
+    "zh": "最后一步"
+  },
+  "lpg.usual.seconds": {
+    "en": "a few seconds",
+    "zh": "几秒钟"
+  },
+  "lpg.usual.underMinute": {
+    "en": "under a minute",
+    "zh": "不到 1 分钟"
+  },
+  "lpg.usual.fewMinutes": {
+    "en": "a minute or two",
+    "zh": "1–2 分钟"
+  }
+}

@@ -8,6 +8,27 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-09-26 · Launch progress on the Monitor
+
+Ruobin, 2026-09-26, after a TikTok launch sat "pending" for more than ten minutes with no campaign in TikTok: "in the launch process, you need to put some sort of progress bar, with error messages that appear if something goes wrong".
+
+The cause (fixed in 8207569) was a cover the driver could not read, but nobody could see that: the Monitor showed one generic waiting note whose `since` reset on every 30-second retry, so it never said which step was stuck or for how long.
+
+What the Monitor now shows. Every campaign that is being prepared (pending or running), or that failed before its launch finished and was not ended, carries a step list under its row (`components/launch/LaunchProgress.tsx`): a bar of steps done, then each step as done (check), current (spinner, "for N min"), not started, or failed (cross). A failed step has the provider's own sentence (`campaign.error`) directly under it in red, through the Monitor's existing `failure(...)` block with its hint and Retry. The state word reads "Preparing" instead of "Not checked yet" / "Preparing on Meta" while it runs. A campaign that has not started yet (the run prepares its campaigns one by one) says it is queued. The old waiting note is gone: a wait is the current step, with its reason under it.
+
+The steps are read only from checkpoints the drivers already write, in the order their `launch()` runs (`lib/launch/progress.ts`, pure, shared by the Monitor and the service):
+- **TikTok**: Account (verified, `settings` recorded) → Pixel (Website purchases only, `pixel.pixel_id`) → Videos when the run has Studio clips ("k of N uploaded" from `uploads[clip].video_id`, "k of N covers" from `.image_id`, counting `kind === "video"` items; done when `posts` is recorded), otherwise Posts (Spark codes and posts resolved, `posts`) → Instant Page (Instant Page launches only, `instant_page.phase === "published"`) → Campaign (`campaign_id`) → Ad group (the primary `groups` entry) → Ads (its `ready`, "k of N created") → Done (`launch_complete`; "created paused", or "switched on" when `activated`).
+- **Meta** (`state.meta`): Account (the first `meta` save follows `readAccount`; named "Account and posts" when there are no clips, because the post checks run inside it) → Videos (clips only: `video_ids`, then Meta's processing; done once the campaign intent exists) → Campaign (`campaign_id`) → Ad sets (`adset_ids` per planned platform, legacy `adset_id`) → Ads (`ad_ids` against the planned ads) → Done.
+A later step's evidence marks every earlier step done, so an old row whose checkpoints predate a step never shows a step that did not run.
+
+The honest timer. `campaign.state.waiting` keeps `since` (this attempt) and gains `first_since` (kept while the same reason repeats on the same step, reset when the reason or step changes; `nextWaiting` in `lib/launch/waiting.ts`) and `step` (the driver names it: `new LaunchWaiting(message, ms, "videos")` for TikTok's cover and Meta's processing; otherwise the derived current step). The service also stamps `campaign.state.progress = { step, since }` whenever a checkpoint moves the campaign to a new step, and afresh when an attempt starts that is not resuming a wait (a Retry starts the clock over). A wait on an earlier step is dropped once the launch moves past it, and a failure ends the wait. Every new field is optional; rows already in the database read as before (no timer where none was recorded).
+
+Stuck warning. When the current step has not moved for longer than its limit, it turns amber with "Waiting 7 min on video covers (usually under a minute)." and the driver's reason beneath. The wait is timed from the most precise record there is: the first empty cover answer (`cover_wait_since`), then `waiting.first_since`, then the step's stamp. Limits live in one map, `STUCK_AFTER` in `lib/launch/progress.ts`: five minutes for every step (uploads, covers, Meta processing, account, pixel, posts, Instant Page, campaign, ad group or sets, ads, activation); only the "usually" wording differs (covers and uploads under a minute, Meta processing a minute or two, single requests a few seconds). TikTok's own 20-minute cover limit (8207569) still turns a cover that never comes into a failure with words.
+
+After Launch the producer lands on the Monitor focused on the new run (`LaunchStudio` already routes there), and the Monitor already polls every 5 seconds while any run is pending or running and every 60 once none is; "Check now" on the step list runs the same sweep as Refresh.
+
+Checks: `tests/launch-progress.test.ts` (a fresh run, mid-upload 2 of 5 videos and 1 of 5 covers, a 7-minute cover wait turning amber, created paused, a failed ad group with TikTok's words, a Meta run, an old row without the new fields, and the timer's `first_since`); `tests/launch-service.test.ts` (a repeated TikTok timeout keeps its `first_since` and names the campaign step; the failure ends the wait and crosses out that step).
+
 ## 2026-09-25 · Ad types on clips
 
 Ruobin, 2026-09-25, on the finished ads he makes outside Studio and uploads through "Upload finished ads": "I would start to classify these ads as well, e.g. this is a hook ad".

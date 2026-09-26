@@ -158,3 +158,45 @@ button.lm-state-toggle { cursor:pointer; }
 .tr-table th:nth-child(n+2) { text-align:right; }
 .tr-table .lm-ad-link { margin-top:6px; }
 @media (max-width:700px) { .tr .lm-summary { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+/* Launch progress on the Monitor (2026-09-26): a campaign being prepared, or
+   one that failed before finishing, shows its steps under its row. Green
+   check = done, spinner = working, amber = not moved past its limit, red
+   cross = failed with the provider's words beneath. */
+.lm .lm-progress-row > td { padding-top:4px; }
+.lpg { position:sticky; left:14px; display:grid; gap:8px; max-width:min(620px,calc(100vw - 72px)); padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); font-size:12.5px; }
+.lpg-stuck { border-color:color-mix(in srgb,var(--warning) 45%,transparent); }
+.lpg-failed { border-color:color-mix(in srgb,var(--error) 40%,transparent); }
+.lpg-head { display:flex; align-items:center; flex-wrap:wrap; gap:6px 10px; }
+.lpg-head strong { font-weight:600; color:var(--text); }
+.lpg-count { color:var(--text-muted); font-variant-numeric:tabular-nums; }
+.lpg-check { margin-left:auto; }
+.lpg-bar { height:4px; border-radius:2px; background:var(--border-light); overflow:hidden; }
+.lpg-bar > i { display:block; height:100%; border-radius:2px; background:var(--brand); transition:width var(--dur) var(--ease-out); }
+.lpg-stuck .lpg-bar > i { background:var(--warning); }
+.lpg-failed .lpg-bar > i { background:var(--error); }
+.lpg-queued { margin:0; color:var(--text-muted); }
+.lpg-steps { list-style:none; margin:0; padding:0; display:grid; gap:2px; }
+.lpg-step { display:grid; gap:4px; }
+.lpg-line { display:flex; align-items:center; gap:8px; min-height:22px; }
+.lpg-icon { flex:none; display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; border:1.5px solid var(--border-strong); color:var(--text-faint); }
+.lpg-icon svg { width:12px; height:12px; }
+.lpg-label { color:var(--text-faint); }
+.lpg-meta { color:var(--text-muted); font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.lpg-step.is-done .lpg-icon { border-color:var(--success); background:var(--success); color:#fff; }
+.lpg-step.is-done .lpg-label { color:var(--text-muted); }
+.lpg-step.is-current .lpg-icon { border-color:var(--brand); color:var(--brand); }
+.lpg-step.is-current .lpg-label, .lpg-step.is-failed .lpg-label { color:var(--text); font-weight:600; }
+.lpg-step.is-stuck .lpg-icon { border-color:var(--warning); background:var(--warning-bg); color:var(--warning); }
+.lpg-step.is-stuck .lpg-meta { color:var(--warning); }
+.lpg-step.is-failed .lpg-icon { border-color:var(--error); background:var(--error); color:#fff; }
+.lpg-spin { display:block; width:10px; height:10px; border:1.5px solid color-mix(in srgb,var(--brand) 25%,transparent); border-top-color:var(--brand); border-radius:50%; animation:mr2-spin .8s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .lpg-spin { animation-duration:3s; } .lpg-bar > i { transition:none; } }
+.lpg-note, .lpg-wait { margin:0 0 4px 26px; }
+.lpg-note-stuck { padding:7px 10px; border-radius:var(--radius-sm); background:var(--warning-bg); color:var(--warning); }
+.lpg-note-stuck p { margin:0; line-height:1.5; }
+.lpg-note-stuck p:first-child { font-weight:600; }
+.lpg-reason { margin:0; color:var(--text-muted); font-size:11.5px; line-height:1.5; overflow-wrap:anywhere; }
+.lpg-note-stuck .lpg-reason { margin-top:2px; }
+.lpg .lpg-note-failed .note.mr2-failure { background:var(--error-bg); border-color:color-mix(in srgb,var(--error) 45%,transparent); color:var(--error); }
+.lpg .lpg-note-failed .mr2-said { color:var(--error); }
+@media (max-width:700px) { .lpg { padding:9px 10px; } .lpg-note, .lpg-wait { margin-left:0; } }

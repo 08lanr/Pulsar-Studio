@@ -9,6 +9,8 @@ import { defaultLaunchSettings } from "@/lib/tiktok/settings";
 import { scanLaunchAccounts } from "@/lib/launch/account-scan";
 import { controlLaunch, executeLaunch, monitorLaunch, monitorState, needsFirstSweep } from "@/lib/launch/service";
 import type { LaunchConnection, LaunchContent, LaunchProvider, LaunchRun } from "@/lib/launch/types";
+import { launchProgress, type ProgressMark } from "@/lib/launch/progress";
+import type { WaitingState } from "@/lib/launch/waiting";
 import { fakeMetaTransport, fakeMetaSnapshot, resetFakeMeta } from "@/lib/meta/fake";
 import { fakeTransport, fakeTikTokSnapshot, resetFakeTikTok } from "@/lib/tiktok/fake";
 import type { MetaObject } from "@/lib/meta/transport";
@@ -420,12 +422,27 @@ test("a TikTok timeout is a wait too, and the wait is bounded", async () => {
   let result = await executeLaunch(run.id);
   assert.equal(result?.campaigns[0].status, "pending");
   assert.equal(monitorState(result!.campaigns[0]), "waiting");
+  // The Monitor's honest timer (2026-09-26): the wait names its step, and its
+  // first time survives every retry of the same reason while `since` moves.
+  const first = result!.campaigns[0].state.waiting as WaitingState;
+  assert.equal(first.step, "campaign");
+  assert.equal(first.first_since, first.since);
+  assert.equal((result!.campaigns[0].state.progress as ProgressMark).step, "campaign");
+  await new Promise(resolve => setTimeout(resolve, 5));
   for (let attempt = 2; attempt <= 12; attempt++) result = await executeLaunch(run.id);
   assert.equal(result?.campaigns[0].state.provider_retries, 12);
+  const last = result!.campaigns[0].state.waiting as WaitingState;
+  assert.equal(last.first_since, first.first_since);
+  assert.notEqual(last.since, first.since);
+  assert.equal(launchProgress(run.draft, result!.campaigns[0]).current, "campaign");
   // The thirteenth "later" is a failure a person must look at.
   result = await executeLaunch(run.id);
   assert.equal(result?.campaigns[0].status, "failed");
   assert.match(result?.campaigns[0].error || "", /did not respond/);
+  // A failure ends the wait; the step list crosses out the campaign step.
+  assert.equal(result?.campaigns[0].state.waiting, undefined);
+  const failedAt = launchProgress(run.draft, result!.campaigns[0]);
+  assert.equal(failedAt.steps.find(step => step.status === "failed")?.key, "campaign");
   // Retry by hand starts the count over, and a provider that answers finishes the launch.
   fakeTransport.post = originalTikTokPost;
   await getData().retryLaunchRun(producer(), run.id);

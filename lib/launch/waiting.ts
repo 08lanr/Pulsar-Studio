@@ -5,10 +5,13 @@
 
 export class LaunchWaiting extends Error {
   readonly retryAfterMs: number;
-  constructor(message: string, retryAfterMs = 45_000) {
+  /** The progress step the driver is waiting on (lib/launch/progress.ts), when it names one. */
+  readonly step?: string;
+  constructor(message: string, retryAfterMs = 45_000, step?: string) {
     super(message);
     this.name = "LaunchWaiting";
     this.retryAfterMs = retryAfterMs;
+    if (step) this.step = step;
   }
 }
 
@@ -16,8 +19,20 @@ export function isLaunchWaiting(error: unknown): error is LaunchWaiting {
   return error instanceof LaunchWaiting || (error instanceof Error && error.name === "LaunchWaiting");
 }
 
-/** What a campaign row records while it waits; the monitor reads it. */
-export type WaitingState = { reason: string; since: string; retry_after_ms: number };
+/**
+ * What a campaign row records while it waits; the monitor reads it. `since` is
+ * this attempt's; `first_since` is when the same reason was first given and is
+ * kept while it repeats, so the Monitor's timer is honest (decision
+ * 2026-09-26). `step` names the progress step waited on. Both are optional:
+ * rows written before them still read.
+ */
+export type WaitingState = { reason: string; since: string; retry_after_ms: number; first_since?: string; step?: string };
+
+/** The wait to record now: `first_since` carried over while the same reason repeats on the same step. */
+export function nextWaiting(prior: Partial<WaitingState> | undefined, reason: string, retryAfterMs: number, step: string | null, at = new Date().toISOString()): WaitingState {
+  const same = !!prior && prior.reason === reason && (!prior.step || !step || prior.step === step);
+  return { reason, since: at, retry_after_ms: retryAfterMs, first_since: same ? prior!.first_since ?? prior!.since ?? at : at, ...(step ? { step } : {}) };
+}
 
 // Provider refusals that mean "later", not "no": a rate limit, a timeout, a
 // 5xx or a lost response. Meta's codes are its documented transient ones (the

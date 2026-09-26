@@ -3,7 +3,8 @@ import { systemSession, type Session } from "@/lib/auth";
 import { getData } from "@/lib/data";
 import { launchEnvironment } from "./environment";
 import { assertCampaignBudget } from "./budget";
-import { isLaunchWaiting, providerRetryDelay, type WaitingState } from "./waiting";
+import { isLaunchWaiting, nextWaiting, providerRetryDelay, type WaitingState } from "./waiting";
+import { currentStepKey, type ProgressMark } from "./progress";
 import { launchHash } from "@/lib/data/launch";
 import { conflict, forbidden, invalid, notFound } from "@/lib/data/errors";
 import type { DriverContext, LaunchCampaign, LaunchControl, LaunchDriver, LaunchRun } from "./types";
@@ -20,6 +21,20 @@ const now = () => new Date().toISOString();
 const MAX_PROVIDER_RETRIES = 12;
 const retriesLeft = (c: LaunchCampaign) => Number(c.state.provider_retries ?? 0) < MAX_PROVIDER_RETRIES;
 const message = (e: unknown) => e instanceof Error ? e.message : "Provider operation failed.";
+/**
+ * Stamp when the campaign's current progress step began (lib/launch/progress.ts,
+ * decision 2026-09-26): only when the step changes, or afresh when an attempt
+ * starts that is not resuming a wait. A wait on an earlier step has ended once
+ * the launch moves past it.
+ */
+function stampProgress(run: LaunchRun, campaign: LaunchCampaign, fresh = false) {
+  const step = currentStepKey(run.draft, campaign);
+  if (!step) return;
+  const mark = campaign.state.progress as Partial<ProgressMark> | undefined;
+  if (fresh || mark?.step !== step) campaign.state.progress = { step, since: now() } satisfies ProgressMark;
+  const waiting = campaign.state.waiting as Partial<WaitingState> | undefined;
+  if (waiting?.step && waiting.step !== step) delete campaign.state.waiting;
+}
 export async function launchDriver(run: LaunchRun): Promise<LaunchDriver> {
   return run.draft.provider === "meta" ? (await import("@/lib/meta/driver")).metaDriver : (await import("@/lib/tiktok/spark-driver")).tiktokSparkDriver;
 }
@@ -63,7 +78,7 @@ async function locked(id: string, task: (run: LaunchRun, context: (c: LaunchCamp
     const connection = run.connections?.find(a => a.id === campaign.connection_id);
     if (!connection) throw invalid("Approved account assignment is missing.");
     return { run, campaign, connection,
-      checkpoint: async patch => { campaign.state = { ...campaign.state, ...patch }; await persist(); },
+      checkpoint: async patch => { campaign.state = { ...campaign.state, ...patch }; stampProgress(run, campaign); await persist(); },
       assertActive: async () => {
         await refresh(); signed(run);
         if (!stopping) assertCampaignBudget(run, campaign);
@@ -91,6 +106,7 @@ export async function executeLaunch(id: string): Promise<LaunchRun | null> {
     for (const campaign of run.campaigns) {
       if (!["pending", "running"].includes(campaign.status)) continue;
       try {
+        stampProgress(run, campaign, !campaign.state.waiting);
         campaign.status = "running"; await persist();
         const ctx = context(campaign, true); await ctx.assertActive();
         await driver.launch(ctx);
@@ -120,10 +136,13 @@ export async function executeLaunch(id: string): Promise<LaunchRun | null> {
           const delay = isLaunchWaiting(e) ? e.retryAfterMs : providerRetryDelay(e)!;
           if (!isLaunchWaiting(e)) campaign.state.provider_retries = Number(campaign.state.provider_retries ?? 0) + 1;
           campaign.status = "pending"; campaign.error = null;
-          campaign.state.waiting = { reason: message(e), since: new Date().toISOString(), retry_after_ms: delay } satisfies WaitingState;
+          // `first_since` survives while the same reason repeats, so the
+          // Monitor counts the whole wait, not the last 30 seconds of it.
+          const step = (isLaunchWaiting(e) && e.step) || currentStepKey(run.draft, campaign);
+          campaign.state.waiting = nextWaiting(campaign.state.waiting as Partial<WaitingState> | undefined, message(e), delay, step);
           // The test runner never waits for a wake-up; the sweep is its recovery.
           if (process.env.NODE_ENV !== "test") setTimeout(() => queueLaunch(run.id), delay).unref?.();
-        } else { campaign.status = "failed"; campaign.error = message(e); }
+        } else { campaign.status = "failed"; campaign.error = message(e); delete campaign.state.waiting; }
       }
       await persist();
     }
