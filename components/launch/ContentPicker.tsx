@@ -28,7 +28,7 @@ import { createPortal } from "react-dom";
 import { useT } from "@/components/locale";
 import { call } from "@/components/tiktok/api";
 import PostClipDialog from "@/components/launch/PostClipDialog";
-import { postOn, publishedOn, shortDate } from "@/components/launch/clip-state";
+import { madeAt, postOn, publishedOn, shortDate } from "@/components/launch/clip-state";
 import { tiktokAdText } from "@/lib/launch/plan";
 import type { ClipLibraryRow, ClipPost, ClipPostPlatform, MetaPagePost, MetaPagePostList, TikTokAccountPostList } from "@/lib/launch/clip-posts";
 import type { LaunchConnection, LaunchContent, LaunchLibraryItem, LaunchProvider } from "@/lib/launch/types";
@@ -210,7 +210,7 @@ export default function ContentPicker({ clipsBase, pagePostsUrl, producerId, pro
           const chosen = has(entry);
           return <div className="content-pick-row" key={clip.id} data-clip-id={clip.id}>
             <span className="clips-poster">{clip.media_url ? <video src={clip.media_url} poster={clip.thumbnail_url ?? undefined} preload="metadata" playsInline muted /> : <span className="gt-muted">—</span>}</span>
-            <span className="content-pick-name"><strong>{clip.title_name}</strong><small>{clip.montage ? `${tt("montage.pill")} · ` : clip.episode_label ? `${tt("lpt.episode", { n: clip.episode_label })} · ` : ""}{clip.label ?? clip.value}</small></span>
+            <span className="content-pick-name"><strong>{clip.title_name}</strong><small>{clip.montage ? `${tt("montage.pill")} · ` : clip.episode_label ? `${tt("lpt.episode", { n: clip.episode_label })} · ` : ""}{clip.label ?? clip.value}</small><small className="content-pick-made"><time dateTime={clip.rendered_at ?? undefined}>{madeAt(clip.rendered_at, locale)}</time></small></span>
             <span className="content-pick-actions">
               <button type="button" className={`btn btn-sm ${chosen ? "btn-primary" : "btn-outline"}`} onClick={() => (chosen ? remove(entry) : add([entry]))}>{chosen ? `✓ ${tt("contentPicker.added")}` : tt("ltc.useClip")}</button>
             </span>
@@ -248,7 +248,7 @@ export default function ContentPicker({ clipsBase, pagePostsUrl, producerId, pro
           const chosen = entries.length > 0 && entries.every(has);
           return <div className="content-pick-row" key={clip.id} data-clip-id={clip.id}>
             <span className="clips-poster">{clip.media_url ? <video src={clip.media_url} poster={clip.thumbnail_url ?? undefined} preload="metadata" playsInline muted /> : <span className="gt-muted">—</span>}</span>
-            <span className="content-pick-name"><strong>{clip.title_name}</strong><small>{clip.montage ? `${tt("montage.pill")} · ` : ""}{clip.label ?? clip.value}</small></span>
+            <span className="content-pick-name"><strong>{clip.title_name}</strong><small>{clip.montage ? `${tt("montage.pill")} · ` : ""}{clip.label ?? clip.value}</small><small className="content-pick-made"><time dateTime={clip.rendered_at ?? undefined}>{madeAt(clip.rendered_at, locale)}</time></small></span>
             {PLATFORMS.map((platform) => <span className="content-pick-state" key={platform}>
               <small>{platformWord(platform)}</small>{clipState(clip, platform)}
             </span>)}

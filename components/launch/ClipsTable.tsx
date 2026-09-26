@@ -16,7 +16,7 @@ import { call } from "@/components/tiktok/api";
 import PostClipDialog from "@/components/launch/PostClipDialog";
 import AdMontage from "@/components/launch/AdMontage";
 import UploadAds from "@/components/launch/UploadAds";
-import { postOn, publishedOn, shortDate } from "@/components/launch/clip-state";
+import { madeAt, postOn, publishedOn, shortDate } from "@/components/launch/clip-state";
 import type { ClipLibraryRow, ClipPost, ClipPostPlatform } from "@/lib/launch/clip-posts";
 import type { MontageStatus } from "@/lib/clips/montage-run";
 import type { LaunchConnection, LaunchTitleOption, LaunchWorkspace } from "@/lib/launch/types";
@@ -342,7 +342,7 @@ export default function ClipsTable({ staff = false, titleId, montage }: Props) {
             {AD_FORMATS.map((f) => <option key={f} value={f}>{tt(`adFormat.${f}`)}</option>)}
           </select>}</span>
         <span className="gt-num">{duration(row.duration_ms)}</span>
-        <span>{shortDate(row.rendered_at, locale)}</span>
+        <span className="clips-made"><time dateTime={row.rendered_at ?? undefined}>{madeAt(row.rendered_at, locale)}</time></span>
         <span data-platform="facebook">{platformCell(row, "facebook")}</span>
         <span data-platform="instagram">{platformCell(row, "instagram")}</span>
         <span className="clips-actions">

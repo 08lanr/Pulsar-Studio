@@ -381,7 +381,11 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
         });
       }
     }
-    return out.filter(row => postedMatches(row, filter.posted))
+    // Newest first across every title (Ruobin, 2026-09-25: "are these sorted by recency? I want to be able to see the
+    // time made"): the ad just uploaded or cut is the first row, whatever its title; ties keep the title/rank order.
+    const made = (row: ClipLibraryRow) => row.rendered_at ?? "";
+    return out.map((row, i) => ({ row, i })).sort((a, b) => made(b.row).localeCompare(made(a.row)) || a.i - b.i).map(x => x.row)
+      .filter(row => postedMatches(row, filter.posted))
       .filter(row => !search || `${row.label} ${row.title_name}`.toLowerCase().includes(search));
   }
   /** The launch workspace's view of the same rows; episode labels are not needed to resolve a draft. */

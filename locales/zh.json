@@ -3343,7 +3343,7 @@
   "clipsPosting.col.episode": "分集",
   "clipsPosting.col.hook": "开场文案",
   "clipsPosting.col.duration": "时长",
-  "clipsPosting.col.rendered": "切好时间",
+  "clipsPosting.col.rendered": "制作时间",
   "clipsPosting.col.actions": "操作",
   "clipsPosting.state.notPosted": "未发布",
   "clipsPosting.state.publishing": "发布中…",

@@ -8,7 +8,7 @@
   "clipsPosting.episodeN": { "en": "Episode {n}", "zh": "分集 {n}" },
   "clipsPosting.col.hook": { "en": "Hook", "zh": "开场文案" },
   "clipsPosting.col.duration": { "en": "Length", "zh": "时长" },
-  "clipsPosting.col.rendered": { "en": "Cut on", "zh": "切好时间" },
+  "clipsPosting.col.rendered": { "en": "Made", "zh": "制作时间" },
   "clipsPosting.col.actions": { "en": "Actions", "zh": "操作" },
   "clipsPosting.state.notPosted": { "en": "Not posted", "zh": "未发布" },
   "clipsPosting.state.publishing": { "en": "Publishing…", "zh": "发布中…" },

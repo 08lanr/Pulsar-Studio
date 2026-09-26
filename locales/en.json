@@ -3343,7 +3343,7 @@
   "clipsPosting.col.episode": "Episode",
   "clipsPosting.col.hook": "Hook",
   "clipsPosting.col.duration": "Length",
-  "clipsPosting.col.rendered": "Cut on",
+  "clipsPosting.col.rendered": "Made",
   "clipsPosting.col.actions": "Actions",
   "clipsPosting.state.notPosted": "Not posted",
   "clipsPosting.state.publishing": "Publishing…",

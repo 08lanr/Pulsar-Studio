@@ -48,11 +48,22 @@ test("the library scopes by company: staff see every producer, a producer sessio
   assert.deepEqual([...new Set(all.map(row => row.producer_id))].sort(), [ownCompany, other.id].sort());
   assert.ok(all.every(row => row.producer_name));
   const staffFiltered = await data().listClipLibrary(staff(), { producer_id: other.id });
-  assert.deepEqual(staffFiltered.map(row => row.id), foreign.clips.map(clip => clip.id));
+  assert.deepEqual(staffFiltered.map(row => row.id).sort(), foreign.clips.map(clip => clip.id).sort());
   // A producer is always its own company, whatever the filter says.
   const asked = await data().listClipLibrary(approver(), { producer_id: other.id });
   assert.deepEqual(asked.map(row => row.id).sort(), own.clips.map(clip => clip.id).sort());
   assert.equal(networkCalls, 0);
+});
+
+test("the library lists the newest clip first, across titles, with the time it was made", async () => {
+  const { own } = await world({ episodes: 2 });
+  const before = await data().listClipLibrary(approver(), {});
+  const times = before.map(row => row.rendered_at ?? "");
+  assert.deepEqual(times, [...times].sort().reverse(), "rows are newest first");
+  assert.ok(before.every(row => row.rendered_at), "every row carries the time it was made");
+  // The first row is the one made last, whatever its title or episode.
+  assert.equal(before[0].rendered_at, [...times].sort().pop());
+  assert.ok(own.clips.some(clip => clip.id === before[0].id));
 });
 
 test("the library filters by title, episode, state and hook, and carries the episode and rendered file", async () => {
@@ -67,7 +78,7 @@ test("the library filters by title, episode, state and hook, and carries the epi
   assert.equal((await data().listClipLibrary(approver(), { search: "nothing matches this" })).length, 0);
   assert.equal((await data().listClipLibrary(approver(), { posted: "posted" })).length, 0);
   assert.equal((await data().listClipLibrary(approver(), { posted: "not_posted" })).length, 4);
-  const created = await data().createClipPost(approver(), post(own.clips[0].id, connection.id, { sha256: rows[0].sha256 }));
+  const created = await data().createClipPost(approver(), post(own.clips[0].id, connection.id, { sha256: rows.find(row => row.id === own.clips[0].id)!.sha256 }));
   const published = await data().updateClipPost(systemSession(), created.id, created.revision,
     { status: "published", step: "published", external_post_id: "9000000000000011_1", published_at: new Date().toISOString() });
   assert.equal(published.status, "published");

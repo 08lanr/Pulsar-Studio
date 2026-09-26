@@ -45,6 +45,20 @@ After Launch the producer lands on the Monitor focused on the new run (`LaunchSt
 
 Checks: `tests/launch-progress.test.ts` (a fresh run, mid-upload 2 of 5 videos and 1 of 5 covers, a 7-minute cover wait turning amber, created paused, a failed ad group with TikTok's words, a Meta run, an old row without the new fields, and the timer's `first_since`); `tests/launch-service.test.ts` (a repeated TikTok timeout keeps its `first_since` and names the campaign step; the failure ends the wait and crosses out that step).
 
+## 2026-09-25 · The clip library is newest first, with the time each ad was made
+
+Ruobin, looking at the Clips page after two trailers were uploaded: "which ones are the ones you just made? Are these
+sorted by recency? I want [to] be able to see the time made."
+
+- **Order.** `listClipLibrary` (`lib/data/launch.ts`, the one list the Clips page and Launch's "Choose content" read) returns
+  every row newest first by the clip's `created_at` (`rendered_at` on the row), across titles. Ties keep the old
+  title/rank order. It used to be grouped by title, then episode and rank.
+- **Time.** The Clips table's column is "Made" / 制作时间 (was "Cut on") and shows the date and time to the minute (`madeAt`
+  in `components/launch/clip-state.ts`: "Sep 25, 4:45 PM", following the chrome's locale). The picker's clip rows carry the
+  same line under the hook. `<time dateTime>` holds the exact instant.
+- Test: `tests/clip-posts.test.ts` "the library lists the newest clip first…"; the two assertions that relied on the old
+  order now look rows up by id.
+
 ## 2026-09-25 · Ad types on clips
 
 Ruobin, 2026-09-25, on the finished ads he makes outside Studio and uploads through "Upload finished ads": "I would start to classify these ads as well, e.g. this is a hook ad".

@@ -7,6 +7,9 @@ import type { ClipPost, ClipPostPlatform } from "@/lib/launch/clip-posts";
 export const dateTag = (locale: string) => (locale === "zh" ? "zh-CN" : "en-US");
 export const shortDate = (iso: string | null | undefined, locale: string) =>
   iso ? new Date(iso).toLocaleDateString(dateTag(locale), { day: "numeric", month: "short" }) : "—";
+/** When a clip was made, to the minute ("Sep 25, 4:45 PM"): the library is newest first, and two ads made the same day must be told apart. */
+export const madeAt = (iso: string | null | undefined, locale: string) =>
+  iso ? new Date(iso).toLocaleString(dateTag(locale), { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "—";
 
 /**
  * A repost supersedes the published row it replaces (Builder A's `superseded_by`).
