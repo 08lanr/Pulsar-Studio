@@ -39,13 +39,15 @@ export const draftSchema = z.object({
 export function defaultLaunchDraft(provider: LaunchProvider = "tiktok"): LaunchDraft {
   const start = new Date(Date.now() + 60 * 60 * 1000);
   const end = new Date(start.getTime() + 7 * 86400000);
-  // A TikTok launch starts as Website purchases at $30 a day per ad group
-  // (lib/tiktok/settings.ts defaultWebsitePurchaseSettings); the daily total
-  // here is that figure times the one ad group a new draft plans.
+  // A TikTok launch starts as Website purchases (lib/tiktok/settings.ts
+  // defaultWebsitePurchaseSettings): since 2026-09-26 a $50 lifetime budget
+  // with no daily total, as Ruobin launched Sep 26. A daily-budget shape keeps
+  // its daily figure times the one ad group a new draft plans.
   const tiktok = provider === "tiktok" ? defaultTikTokLaunchSettings() : null;
+  const daily = tiktok && tiktok.budget_mode === "BUDGET_MODE_DAY" ? Math.round((tiktok.daily_budget_usd ?? 20) * 100) : null;
   return { provider, name: "Launch", account_ids: [], campaigns_per_account: 1, content_per_campaign: provider === "tiktok" ? 5 : 1,
-    allocation: "unique", content: [], destination_url: "", total_budget_cents: 50000,
-    daily_budget_cents: tiktok ? Math.round((tiktok.daily_budget_usd ?? 20) * 100) : null, start_paused: true, campid_start: null, title_id: null,
+    allocation: "unique", content: [], destination_url: "", total_budget_cents: tiktok ? 5000 : 50000,
+    daily_budget_cents: daily, start_paused: true, campid_start: null, title_id: null,
     tiktok_settings: { ...(tiktok ?? defaultLaunchSettings()), start_paused: true },
     meta_settings: { countries: ["US"], placements: ["facebook"], optimization_goal: "LINK_CLICKS",
       bid_strategy: "LOWEST_COST_WITHOUT_CAP", bid_cents: null, call_to_action: "LEARN_MORE",

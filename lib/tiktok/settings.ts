@@ -149,11 +149,14 @@ export function webEventLabel(event: string | null | undefined): string {
 
 /**
  * Website purchases, the TikTok default since 2026-09-23: Sales to
- * crazydramas.com, optimized toward the pixel's Purchase event (CONVERT,
- * billed oCPM), 7-day click / 1-day view counting every purchase, lowest cost,
- * $30 a day per ad group (TikTok's advice for a new web-conversion ad group;
- * its hard floor stays $20), US, TikTok placement, comments off, no copies
- * while the group learns. The budget amount stays on the launch draft.
+ * crazydramas.com (CONVERT, billed oCPM), 7-day click / 1-day view, lowest
+ * cost, US, TikTok placement, comments off, no copies while the group learns.
+ * Since 2026-09-26 (Ruobin: "make ... whatever i have here the default"; "18+
+ * all devices") it is the Sep 26 launch's settings: the pixel's
+ * InitiateCheckout event, counted once per person (far more frequent than a
+ * purchase, so the group learns on a small budget; Purchase stays selectable),
+ * a lifetime budget (the amount stays on the launch draft, $50 by default),
+ * ages 18+ (only adults can pay), every device.
  */
 export function defaultWebsitePurchaseSettings(): LaunchSettings {
   return {
@@ -161,16 +164,18 @@ export function defaultWebsitePurchaseSettings(): LaunchSettings {
     objective_type: "WEB_CONVERSIONS",
     sales_destination: "website",
     optimization_goal: "CONVERT",
-    optimization_event: "SHOPPING",
-    attribution: { click: DEFAULT_CLICK_WINDOW, view: DEFAULT_VIEW_WINDOW, event_count: defaultEventCount("SHOPPING") },
+    optimization_event: "INITIATE_ORDER",
+    attribution: { click: DEFAULT_CLICK_WINDOW, view: DEFAULT_VIEW_WINDOW, event_count: defaultEventCount("INITIATE_ORDER") },
     location_ids: ["6252001"],
+    age_groups: ["AGE_18_24", "AGE_25_34", "AGE_35_44", "AGE_45_54", "AGE_55_100"],
+    operating_systems: [],
     placement: "tiktok",
     bid_strategy: "LOWEST_COST",
     bid_usd: null,
     pacing: "PACING_MODE_SMOOTH",
     comments_disabled: true,
-    budget_mode: "BUDGET_MODE_DAY",
-    daily_budget_usd: 30,
+    budget_mode: "BUDGET_MODE_TOTAL",
+    daily_budget_usd: null,
   };
 }
 
@@ -429,8 +434,10 @@ export function summarizeLaunchSettings(s: LaunchSettings, locationNames: Record
   const parts = [
     shape === "website_purchases" ? "Website purchases · crazydramas.com" : shape === "instant_page" ? "Sales · Instant Page" : "Traffic · website",
     loc.length <= 3 ? loc.join(", ") : `${loc.length} locations`,
-    s.age_groups.length ? `${s.age_groups.length} age band${s.age_groups.length === 1 ? "" : "s"}` : "all ages",
+    !s.age_groups.length ? "all ages" : s.age_groups.length === 5 && !s.age_groups.includes("AGE_13_17") ? "18+" : `${s.age_groups.length} age band${s.age_groups.length === 1 ? "" : "s"}`,
     s.gender === "GENDER_UNLIMITED" ? "everyone" : s.gender === "GENDER_MALE" ? "men" : "women",
+    // Shown always (2026-09-26): the Sep 26 launch went out iPhone-only while this line said nothing about devices.
+    !s.operating_systems.length ? "all devices" : s.operating_systems[0] === "IOS" ? "iPhone only" : "Android only",
     s.placement === "tiktok" ? "TikTok only" : "automatic placement",
     s.budget_mode === "BUDGET_MODE_TOTAL" ? "lifetime budget" : `$${s.daily_budget_usd ?? "?"}/day per ad group`,
     shape === "website_purchases" ? `optimizes for ${webEventLabel(s.optimization_event)} (pixel)` : shape === "instant_page" ? "Instant Page button taps (oCPM)" : goalOption(s.optimization_goal).label,

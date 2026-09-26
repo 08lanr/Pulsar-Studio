@@ -4182,7 +4182,7 @@
   "lpx.attribution": "归因",
   "lpx.attributionFixed": "点击后 7 天 · 浏览后 1 天，创建广告组时一并发送（之后 TikTok 不允许修改）。",
   "lpx.pixelServer": "像素为 crazydramas.com 的像素。预览时会检查它是否已共享给所选的每个广告账户。",
-  "lpx.defaultPreset": "（默认）· 网站购买 · 购买 · 每天 $30",
+  "lpx.defaultPreset": "（默认）· 网站购买 · 发起结账 · 18岁以上 · 总预算 $50",
   "lpx.factOptimizes": "优化目标",
   "lpx.optimizes": "crazydramas.com 上的 {event} · 像素 {code} · {attribution}",
   "lpx.attributed": "TikTok 归因",

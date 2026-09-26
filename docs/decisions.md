@@ -45,6 +45,28 @@ After Launch the producer lands on the Monitor focused on the new run (`LaunchSt
 
 Checks: `tests/launch-progress.test.ts` (a fresh run, mid-upload 2 of 5 videos and 1 of 5 covers, a 7-minute cover wait turning amber, created paused, a failed ad group with TikTok's words, a Meta run, an old row without the new fields, and the timer's `first_since`); `tests/launch-service.test.ts` (a repeated TikTok timeout keeps its `first_since` and names the campaign step; the failure ends the wait and crosses out that step).
 
+## 2026-09-26 · The TikTok default is InitiateCheckout, $50 lifetime, 18+, every device
+
+Ruobin, after the "Sep 26 Launch" (six ads, one campaign, paused): "can you make whatever the right one is the default, or
+whatever i have here? ... i've changed it for initiatecheckout. im tired of changing it everytime", then "make it 18+ all
+devices".
+
+- `defaultWebsitePurchaseSettings()` (the built-in "(default) · Website purchases" preset, and what a new TikTok draft
+  starts from) is now:
+  - the pixel's InitiateCheckout event (INITIATE_ORDER), counted once per person;
+  - a lifetime budget with no daily figure;
+  - ages 18-24 through 55+;
+  - every device.
+  The rest is unchanged: US, TikTok placement, lowest cost, 7-day click / 1-day view, comments off.
+- **Draft budget.** `defaultLaunchDraft("tiktok")` starts at $50 total with no daily total. A Meta draft is unchanged.
+- **Why InitiateCheckout.** crazydramas has had real purchases since 2026-09-26, so a Purchase-optimized ad group would
+  likely no longer be refused. But a checkout is far more frequent than a $0.99 purchase, so the group learns on a small
+  budget. Purchase stays one pick away; move the default back once ads bring about 50 purchases a week per ad group.
+- **The settings line** now always names devices ("all devices" / "iPhone only" / "Android only") and says "18+" for the
+  adult bands. The Sep 26 launch went out iPhone-only while the line said nothing about devices.
+- **Tests.** In `tests/tiktok-pixel-launch.test.ts` the Purchase-path tests now name Purchase explicitly
+  (`purchaseSettings()`), and a new test pins the default.
+
 ## 2026-09-25 · The clip library is newest first, with the time each ad was made
 
 Ruobin, looking at the Clips page after two trailers were uploaded: "which ones are the ones you just made? Are these

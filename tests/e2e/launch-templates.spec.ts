@@ -13,7 +13,7 @@ test("built-in Sales preset and saved Instant Page design reach the launch previ
     const templates = await staff.newPage();
     await templates.goto("/tiktok/templates");
     // Website purchases is the TikTok default (decision 2026-09-23); the Instant Page built-in stays beside it.
-    await expect(templates.locator(".tk-presets li").first()).toContainText("(default) · Website purchases · Purchase · $30/day");
+    await expect(templates.locator(".tk-presets li").first()).toContainText("(default) · Website purchases · InitiateCheckout · 18+ · $50 lifetime");
     const builtIn = templates.locator(".tk-presets li").filter({ hasText: "(default) · 1 Geo Sales · $0.20 cost cap" });
     await expect(builtIn).toHaveCount(1);
     await expect(builtIn.getByRole("button", { name: "Edit" })).toHaveCount(0);

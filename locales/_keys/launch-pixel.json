@@ -22,7 +22,7 @@
   "lpx.attribution": { "en": "Attribution", "zh": "归因" },
   "lpx.attributionFixed": { "en": "7-day click · 1-day view, sent when the ad group is created (TikTok never lets it change).", "zh": "点击后 7 天 · 浏览后 1 天，创建广告组时一并发送（之后 TikTok 不允许修改）。" },
   "lpx.pixelServer": { "en": "The pixel is crazydramas.com's. Preview checks it is shared with every chosen ad account.", "zh": "像素为 crazydramas.com 的像素。预览时会检查它是否已共享给所选的每个广告账户。" },
-  "lpx.defaultPreset": { "en": "(default) · Website purchases · Purchase · $30/day", "zh": "（默认）· 网站购买 · 购买 · 每天 $30" },
+  "lpx.defaultPreset": { "en": "(default) · Website purchases · InitiateCheckout · 18+ · $50 lifetime", "zh": "（默认）· 网站购买 · 发起结账 · 18岁以上 · 总预算 $50" },
   "lpx.factOptimizes": { "en": "Optimizes for", "zh": "优化目标" },
   "lpx.optimizes": { "en": "{event} on crazydramas.com · pixel {code} · {attribution}", "zh": "crazydramas.com 上的 {event} · 像素 {code} · {attribution}" },
   "lpx.attributed": { "en": "TikTok-attributed", "zh": "TikTok 归因" },

@@ -4182,7 +4182,7 @@
   "lpx.attribution": "Attribution",
   "lpx.attributionFixed": "7-day click · 1-day view, sent when the ad group is created (TikTok never lets it change).",
   "lpx.pixelServer": "The pixel is crazydramas.com's. Preview checks it is shared with every chosen ad account.",
-  "lpx.defaultPreset": "(default) · Website purchases · Purchase · $30/day",
+  "lpx.defaultPreset": "(default) · Website purchases · InitiateCheckout · 18+ · $50 lifetime",
   "lpx.factOptimizes": "Optimizes for",
   "lpx.optimizes": "{event} on crazydramas.com · pixel {code} · {attribution}",
   "lpx.attributed": "TikTok-attributed",
