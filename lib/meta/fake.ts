@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import { MetaApiError, type MetaFile, type MetaObject, type MetaTransport } from "./transport";
 import type { LaunchRun } from "@/lib/launch/types";
+import { META_ACTION_TYPES, META_CONVERSION_EVENTS, type MetaConversionEvent } from "./events";
+import { metaPixelId } from "./pixel";
 
 type FakeRow = MetaObject & { id: string; edge: string; account_id: string };
 type Failure = { method: "GET" | "POST" | "UPLOAD"; path: string; after: boolean; ambiguous: boolean; code: number };
@@ -54,11 +56,20 @@ export class FakeMetaTransport implements MetaTransport {
   videoStatus = "ready";
   /** Instagram's rolling 24-hour publishing allowance, as the fake reports it. */
   publishingQuota = { used: 0, total: 50 };
+  /** The pixels this fake ad account may use (`act_<id>/adspixels`). */
+  pixels: { id: string; name: string; is_unavailable?: boolean }[] = [{ id: metaPixelId(), name: "CrazyDramas" }];
+  /** Meta refuses the pixel list for want of the permission, the way it does before App Review. */
+  pixelReadRefused = false;
+  /** What a conversions campaign's insights report. */
+  conversions = 0;
+  conversionValue = 0;
 
   reset() {
     this.calls.length = 0; this.objects.clear(); this.sequence = 0; this.failures = []; this.sources.clear();
     this.blocked.clear(); this.containerPolls.clear(); this.throttledOnce = false;
     this.publishingQuota = { used: 0, total: 50 }; this.videoStatus = "ready";
+    this.pixels = [{ id: metaPixelId(), name: "CrazyDramas" }]; this.pixelReadRefused = false;
+    this.conversions = 0; this.conversionValue = 0;
   }
   removeForRuns(runs: readonly LaunchRun[]) { removeRunObjects(this.objects, runs); }
   /** Organic publishing never derives a Page token from the fake; the fake is already the Page. */
@@ -87,8 +98,18 @@ export class FakeMetaTransport implements MetaTransport {
     const publish = this.publishGet(id, edge, fields);
     if (publish) return publish as T;
     if (edge === "insights") {
-      const data = this.objects.has(id) ? [{ spend: "0", impressions: "0", clicks: "0" }] : [];
-      return { data } as unknown as T;
+      if (!this.objects.has(id)) return { data: [] } as unknown as T;
+      // A conversions campaign reports the event it optimizes toward, so the
+      // Monitor and the stats can be exercised without a live Meta account.
+      // The demo numbers are invented and stay zero unless a test sets them.
+      const row = this.objects.get(id)!;
+      const event = (row.edge === "campaigns" && this.conversionEventOf(String(row.id))) || null;
+      return { data: [{ spend: "0", impressions: "0", clicks: "0",
+        ...(event ? { actions: [{ action_type: event, value: String(this.conversions) }], action_values: [{ action_type: event, value: this.conversionValue.toFixed(2) }] } : {}) }] } as unknown as T;
+    }
+    if (edge === "adspixels") {
+      if (this.pixelReadRefused) throw new MetaApiError("Permissions error: the app does not have ads_management on this pixel.", 200);
+      return { data: this.pixels.map(pixel => ({ ...pixel })) } as unknown as T;
     }
     if (edge === "instagram_accounts") return { data: [{ id: "demo-instagram", username: "demo" }, { id: "9000000000000020", username: "demo_studio" }] } as unknown as T;
     if (edge) return { data: this.snapshot().filter(r => r.account_id === id.replace(/^act_/, "") && r.edge === edge) } as unknown as T;
@@ -148,6 +169,7 @@ export class FakeMetaTransport implements MetaTransport {
       if (params.status) row.effective_status = params.status;
       return { success: true };
     }
+    if (edge === "adsets") this.checkAdSet(params);
     const ref = params.object_story_id ?? params.source_instagram_media_id;
     if (typeof ref === "string" && this.blocked.has(ref)) throw new MetaApiError("Content is not eligible for ads.", 100);
     if (Array.isArray(params.execution_options) && params.execution_options.includes("validate_only")) return { success: true };
@@ -163,6 +185,37 @@ export class FakeMetaTransport implements MetaTransport {
     return { id };
   }
   private nextId(): string { return String(880000000000000n + BigInt(++this.sequence)); }
+
+  /**
+   * What Meta refuses about a conversions ad set, modelled so a wrong pairing
+   * fails in fixture mode instead of on the live account: the goal belongs to
+   * a Sales campaign, it needs a promoted_object naming a pixel the account
+   * may use and an event, and a click goal may carry no promoted_object.
+   */
+  private checkAdSet(params: MetaObject) {
+    const goal = String(params.optimization_goal ?? "");
+    const promoted = params.promoted_object as MetaObject | undefined;
+    const campaign = this.objects.get(String(params.campaign_id ?? ""));
+    if (goal === "OFFSITE_CONVERSIONS") {
+      if (campaign && String(campaign.objective) !== "OUTCOME_SALES")
+        throw new MetaApiError(`optimization_goal OFFSITE_CONVERSIONS is not supported by objective ${campaign.objective}`, 100);
+      if (!promoted?.pixel_id) throw new MetaApiError("promoted_object with a pixel_id is required when optimization_goal is OFFSITE_CONVERSIONS", 100);
+      if (!promoted.custom_event_type) throw new MetaApiError("promoted_object requires custom_event_type", 100);
+      if (!(META_CONVERSION_EVENTS as readonly string[]).includes(String(promoted.custom_event_type)))
+        throw new MetaApiError(`(#100) Invalid parameter: ${promoted.custom_event_type} is not a valid custom_event_type`, 100);
+      const pixel = this.pixels.find(row => row.id === String(promoted.pixel_id));
+      if (!pixel || pixel.is_unavailable) throw new MetaApiError(`Pixel ${promoted.pixel_id} is not available to this ad account`, 100);
+    } else if (promoted) {
+      throw new MetaApiError(`promoted_object is not supported when optimization_goal is ${goal}`, 100);
+    }
+  }
+
+  /** The action type a campaign's conversions ad sets optimize toward, or null when none do. */
+  private conversionEventOf(campaignId: string): string | null {
+    const set = this.snapshot().find(row => row.edge === "adsets" && String(row.campaign_id) === campaignId && (row.promoted_object as MetaObject | undefined)?.custom_event_type);
+    const event = set ? String((set.promoted_object as MetaObject).custom_event_type) : null;
+    return event && event in META_ACTION_TYPES ? META_ACTION_TYPES[event as MetaConversionEvent] : null;
+  }
 
   /** The organic publishing writes; null when this is not one of them. */
   private publishPost(account: string, edge: string, params: MetaObject): MetaObject | null {

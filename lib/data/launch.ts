@@ -12,7 +12,7 @@ import { launchEnvironment } from "@/lib/launch/environment";
 import { defaultLaunchConnectionId, eligibleMetaAssignment, eligibleTikTokBcAccount } from "@/lib/launch/account-authority";
 import { launchShape } from "@/lib/tiktok/settings";
 import type { ClipLibraryFilter, ClipLibraryRow, ClipPost, ClipPostPlatform, ClipPostStatus, ClipPostStep } from "@/lib/launch/clip-posts";
-import type { ClipPostPatch, LaunchConnection, LaunchDataLayer, LaunchDraft, LaunchLibraryItem, LaunchRun, LaunchProvider, LaunchPlanRow } from "@/lib/launch/types";
+import type { ClipPostPatch, LaunchConnection, LaunchDataLayer, LaunchDraft, LaunchLibraryItem, LaunchRun, LaunchProvider, LaunchPlan, LaunchPlanRow } from "@/lib/launch/types";
 import type { DataLayer } from "./index";
 import type { Clip } from "@/lib/types";
 import { montageEpisodesLabel } from "@/lib/clips/montage";
@@ -29,6 +29,31 @@ async function tiktokGate(s: Session, draft: LaunchDraft, producerId: string, ow
   if (draft.provider !== "tiktok") return undefined;
   const { tiktokLaunchGate } = await import("@/lib/launch/tiktok-gate");
   return tiktokLaunchGate(s, draft, producerId, own);
+}
+
+/**
+ * The Meta pixel a conversions launch optimizes toward, resolved on every
+ * chosen ad account at preview (lib/meta/pixel.ts) so the approver signs a
+ * pixel Meta has confirmed the account may use. The driver reads it again
+ * before its first write. A Traffic launch needs none and reads nothing.
+ */
+async function metaGate(draft: LaunchDraft, own: LaunchConnection[]): Promise<LaunchPlan["meta_pixel"] | undefined> {
+  if (draft.provider !== "meta" || draft.meta_settings.optimization_goal !== "OFFSITE_CONVERSIONS") return undefined;
+  const event = draft.meta_settings.conversion_event;
+  const signed = draft.meta_settings.pixel_id;
+  if (!event || !signed) throw invalid("This Meta launch optimizes toward a pixel event but names no pixel or event. Save the draft and preview again.");
+  const { META_ATTRIBUTION_LABEL, resolveMetaPixel } = await import("@/lib/meta/pixel");
+  const { metaTransport } = await import("@/lib/meta");
+  const transport = metaTransport();
+  const chosen = own.filter(c => draft.account_ids.includes(c.id));
+  const accounts: NonNullable<LaunchPlan["meta_pixel"]>["accounts"] = [];
+  for (const connection of chosen) {
+    const resolved = await resolveMetaPixel(transport, connection.advertiser_id);
+    if (!resolved.ok) throw invalid(resolved.reason);
+    if (resolved.pixel_id !== signed) throw conflict("The Meta pixel setting changed since this draft was saved. Save the draft and preview again.");
+    accounts.push({ connection_id: connection.id, pixel_id: resolved.pixel_id, ...(resolved.verified ? {} : { unverified: true as const }) });
+  }
+  return { pixel_id: signed, event, attribution: META_ATTRIBUTION_LABEL, accounts };
 }
 
 /**
@@ -434,11 +459,22 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
         const { tiktokPixelCode } = await import("@/lib/tiktok/pixel");
         safe.tiktok_settings = { ...settings, pixel_code: tiktokPixelCode() };
       } else safe.tiktok_settings = settings;
-    } else if (safe.content.some(c => c.title_id)) {
-      // Meta: the title is display only (the monitor and the title's stats),
-      // so one this company does not own is dropped rather than refused.
-      const titles = new Set((await base.listTitles(s)).filter(t => t.producer_id === producerId).map(t => t.id));
-      for (const c of safe.content) ads.set(c, { title_id: c.title_id && titles.has(c.title_id) ? c.title_id : undefined });
+    } else {
+      if (safe.content.some(c => c.title_id)) {
+        // Meta: the title is display only (the monitor and the title's stats),
+        // so one this company does not own is dropped rather than refused.
+        const titles = new Set((await base.listTitles(s)).filter(t => t.producer_id === producerId).map(t => t.id));
+        for (const c of safe.content) ads.set(c, { title_id: c.title_id && titles.has(c.title_id) ? c.title_id : undefined });
+      }
+      // The server decides the pixel a Meta conversions launch is signed with
+      // (decision 2026-09-25, "Meta conversions"), the way it decides TikTok's
+      // pixel code above: the client may choose the objective and the event,
+      // never which pixel the money optimizes toward. Traffic carries neither,
+      // so a draft switched back to Traffic cannot keep a stale pixel.
+      const { metaPixelId, DEFAULT_META_CONVERSION_EVENT } = await import("@/lib/meta/pixel");
+      safe.meta_settings = safe.meta_settings.objective === "OUTCOME_SALES"
+        ? { ...safe.meta_settings, optimization_goal: "OFFSITE_CONVERSIONS", conversion_event: safe.meta_settings.conversion_event ?? DEFAULT_META_CONVERSION_EVENT, pixel_id: metaPixelId() }
+        : { ...safe.meta_settings, conversion_event: null, pixel_id: null };
     }
     return { ...safe, content: safe.content.map(c => {
       // Clip provenance is display only, so an unknown one is dropped rather
@@ -511,7 +547,8 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
       const pixel = await tiktokGate(s, r.draft, r.producer_id, own);
       const plan = buildLaunchPlan(r.draft, own, r.external_id, await takenCampaignNames(r.draft, own));
       const identity = await tiktokIdentity(r.draft, plan.rows, own);
-      return { ...plan, ...(pixel ? { tiktok_pixel: pixel } : {}), ...(identity ? { tiktok_identity: identity } : {}) };
+      const metaPixel = await metaGate(r.draft, own);
+      return { ...plan, ...(pixel ? { tiktok_pixel: pixel } : {}), ...(identity ? { tiktok_identity: identity } : {}), ...(metaPixel ? { meta_pixel: metaPixel } : {}) };
     },
     async submitLaunchRun(s, id, revision, note) {
       const r = await find(s, id); authorize(s, r.producer_id, "launch");
@@ -524,9 +561,19 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
       if (currentDraft.content.some((c, i) => c.title_id !== r.draft.content[i]?.title_id || c.landing_url !== r.draft.content[i]?.landing_url))
         throw conflict("An ad's title or its crazydramas link changed since this draft was saved. Save the draft and preview again.");
       if (currentDraft.tiktok_settings.pixel_code !== r.draft.tiktok_settings.pixel_code) throw conflict("The TikTok pixel setting changed since this draft was saved. Save the draft and preview again.");
+      // The Meta pixel and the event are the other half of the same rule: the
+      // budget is signed against the event it optimizes toward, so a drift
+      // between save and approval says so in its own words rather than as "a
+      // selected clip changed" from the hash check below.
+      if (currentDraft.meta_settings.pixel_id !== r.draft.meta_settings.pixel_id || currentDraft.meta_settings.conversion_event !== r.draft.meta_settings.conversion_event)
+        throw conflict("The Meta pixel or conversion event changed since this draft was saved. Save the draft and preview again.");
       if (launchHash(currentDraft, []) !== launchHash(r.draft, [])) throw conflict("A selected clip changed. Save and preview the draft again.");
       const own = await connections(s, r.producer_id, r.draft.provider);
       await tiktokGate(s, r.draft, r.producer_id, own);
+      // The pixel is read again at approval, not only at preview: an approver
+      // signs minutes or hours later, and a pixel un-shared in between must
+      // stop here rather than fail the ad set create on a live campaign.
+      await metaGate(r.draft, own);
       const plan = buildLaunchPlan(r.draft, own, r.external_id, await takenCampaignNames(r.draft, own));
       if (r.connections && connectionSignature(r.connections) !== connectionSignature(own.filter(a => r.draft.account_ids.includes(a.id)))) throw conflict("Account assignment changed. Save and preview the draft again.");
       r.connections = own.filter(a => r.draft.account_ids.includes(a.id));

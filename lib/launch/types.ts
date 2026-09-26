@@ -2,6 +2,7 @@ import type { Session } from "@/lib/auth";
 import type { ClipLibraryFilter, ClipLibraryRow, ClipPost, PublishClipInput } from "@/lib/launch/clip-posts";
 import type { LaunchSettings } from "@/lib/tiktok/settings";
 import type { WebConversions } from "@/lib/tiktok/web-metrics";
+import type { MetaConversionEvent } from "@/lib/meta/events";
 
 export type LaunchProvider = "tiktok" | "meta";
 /**
@@ -34,7 +35,23 @@ export type LaunchContent = {
 };
 export type MetaLaunchSettings = {
   countries: string[]; placements: ("facebook" | "instagram")[];
-  optimization_goal: "LINK_CLICKS" | "LANDING_PAGE_VIEWS";
+  /**
+   * What the campaign buys. Traffic sends clicks or landing page views and
+   * needs no pixel; Sales optimizes toward a crazydramas pixel event and is
+   * the shape `OFFSITE_CONVERSIONS` belongs to (decision 2026-09-25, "Meta
+   * conversions"). The two move together: the plan refuses one without the
+   * other rather than letting Meta reject the campaign after it exists.
+   */
+  objective: "OUTCOME_TRAFFIC" | "OUTCOME_SALES";
+  optimization_goal: "LINK_CLICKS" | "LANDING_PAGE_VIEWS" | "OFFSITE_CONVERSIONS";
+  /** The pixel event a Sales ad set optimizes toward; null on Traffic. */
+  conversion_event: MetaConversionEvent | null;
+  /**
+   * The pixel signed into the draft, so the approved run names the pixel it
+   * was approved with. Resolved from the ad account at preview and re-checked
+   * by the driver before any write; null on Traffic.
+   */
+  pixel_id: string | null;
   bid_strategy: "LOWEST_COST_WITHOUT_CAP" | "LOWEST_COST_WITH_BID_CAP";
   bid_cents: number | null; call_to_action: "LEARN_MORE" | "WATCH_MORE";
   start_time: string; end_time: string;
@@ -103,12 +120,26 @@ export type LaunchPlan = {
    * by the same rule before anything is written.
    */
   tiktok_identity?: { clips: number; posts: number; accounts: { connection_id: string; name: string; handle: string; ads_only: boolean }[] };
+  /**
+   * Meta conversions: the pixel the preview resolved on every chosen account
+   * and the event the ad sets optimize toward (decision 2026-09-25, "Meta
+   * conversions"). `unverified`: Meta refused the pixel read for want of the
+   * permission and the configured id stood in (lib/meta/pixel.ts).
+   */
+  meta_pixel?: { pixel_id: string; event: MetaConversionEvent; attribution: string; accounts: { connection_id: string; pixel_id: string; unverified?: true }[] };
 };
 export type DeliveryState = "submitted" | "review" | "live" | "paused" | "ended" | "rejected" | "failed" | "suspended" | "unknown";
 export type DeliverySnapshot = {
   delivery: DeliveryState; note: string | null; checked_at: string;
   spend_cents: number | null; impressions: number | null; clicks: number | null;
   conversions: number | null; cpc_cents: number | null;
+  /**
+   * What the counted conversions were worth, when the provider reports a
+   * value with them (Meta's `action_values`). Null on a campaign that
+   * optimizes toward no event, or one Meta has not reported a value for yet;
+   * absent from a provider that never reports one.
+   */
+  conversion_value_cents?: number | null;
   configured_status?: string; effective_status?: string;
   ads?: {
     id: string; status: string; note?: string; content_value?: string; stats?: AdStats;

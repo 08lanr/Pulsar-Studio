@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { defaultLaunchSettings, defaultTikTokLaunchSettings, launchSettingsSchema, launchShape, validateLaunchSettings, type LaunchShape } from "@/lib/tiktok/settings";
 import { isCrazydramasAdUrl } from "@/lib/tiktok/ad-url";
-import type { LaunchAdSetPlan, LaunchConnection, LaunchContent, LaunchDraft, LaunchPlan, LaunchPlanIssue, LaunchProvider, MetaPlatform } from "./types";
+import type { LaunchAdSetPlan, LaunchConnection, LaunchContent, LaunchDraft, LaunchPlan, LaunchPlanIssue, LaunchProvider, MetaLaunchSettings, MetaPlatform } from "./types";
+import { DEFAULT_META_CONVERSION_EVENT, META_CONVERSION_EVENTS, META_PIXEL_ID_SHAPE } from "@/lib/meta/events";
 
 const cents = z.number().int().min(1).max(100_000_000);
 export const contentSchema = z.object({
@@ -27,7 +28,13 @@ export const draftSchema = z.object({
   meta_settings: z.object({
     countries: z.array(z.string().regex(/^[A-Z]{2}$/)).min(1).max(50),
     placements: z.array(z.enum(["facebook", "instagram"])).min(1).max(2),
-    optimization_goal: z.enum(["LINK_CLICKS", "LANDING_PAGE_VIEWS"]),
+    // Defaulted, not required: a draft saved before Meta conversions landed
+    // carries none of these, and it must still save, preview and start a
+    // second round rather than failing validation.
+    objective: z.enum(["OUTCOME_TRAFFIC", "OUTCOME_SALES"]).default("OUTCOME_TRAFFIC"),
+    optimization_goal: z.enum(["LINK_CLICKS", "LANDING_PAGE_VIEWS", "OFFSITE_CONVERSIONS"]),
+    conversion_event: z.enum(META_CONVERSION_EVENTS).nullable().default(null),
+    pixel_id: z.string().regex(META_PIXEL_ID_SHAPE).nullable().default(null),
     bid_strategy: z.enum(["LOWEST_COST_WITHOUT_CAP", "LOWEST_COST_WITH_BID_CAP"]),
     bid_cents: cents.nullable(), call_to_action: z.enum(["LEARN_MORE", "WATCH_MORE"]),
     start_time: z.string().datetime({ offset: true }), end_time: z.string().datetime({ offset: true }),
@@ -47,7 +54,8 @@ export function defaultLaunchDraft(provider: LaunchProvider = "tiktok"): LaunchD
     allocation: "unique", content: [], destination_url: "", total_budget_cents: 50000,
     daily_budget_cents: tiktok ? Math.round((tiktok.daily_budget_usd ?? 20) * 100) : null, start_paused: true, campid_start: null, title_id: null,
     tiktok_settings: { ...(tiktok ?? defaultLaunchSettings()), start_paused: true },
-    meta_settings: { countries: ["US"], placements: ["facebook"], optimization_goal: "LINK_CLICKS",
+    meta_settings: { countries: ["US"], placements: ["facebook"], objective: "OUTCOME_TRAFFIC", optimization_goal: "LINK_CLICKS",
+      conversion_event: null, pixel_id: null,
       bid_strategy: "LOWEST_COST_WITHOUT_CAP", bid_cents: null, call_to_action: "LEARN_MORE",
       start_time: start.toISOString(), end_time: end.toISOString() } };
 }
@@ -142,6 +150,66 @@ export function deriveAdSets(content: LaunchContent[], placements: MetaPlatform[
 /** The amount Meta actually receives for an ad set: the daily budget when pacing is on, else the lifetime share. */
 export const adSetSpendCents = (set: LaunchAdSetPlan) => set.daily_budget_cents ?? set.budget_cents;
 
+/**
+ * What a Meta conversions launch needs before anything is created (decision
+ * 2026-09-25, "Meta conversions"). Pure, and the one rule the settings panel,
+ * the preview and the driver share.
+ *
+ * The objective and the optimization goal move together because Meta pairs
+ * them: `OFFSITE_CONVERSIONS` is refused under `OUTCOME_TRAFFIC`, and
+ * `OUTCOME_SALES` with a click goal buys clicks at a conversion campaign's
+ * price. Refusing the mismatch here keeps it out of the ad set create, which
+ * happens after the campaign already exists and would leave a half-built run.
+ *
+ * The link is checked too: crazydramas.com is what fires the pixel, so an ad
+ * set optimizing toward a crazydramas event whose ad points somewhere else can
+ * never report a conversion, and Meta would spend the whole budget learning
+ * from nothing.
+ */
+/**
+ * The settings a person gets when they switch the Meta campaign's objective.
+ * Pure, and the one place the pairing is decided, so the panel cannot leave a
+ * combination the preview would refuse. The pixel is left alone: the server
+ * writes it at save (lib/data/launch.ts), never the client.
+ */
+export function metaObjectiveSettings(settings: MetaLaunchSettings, objective: MetaLaunchSettings["objective"]): MetaLaunchSettings {
+  if (objective === settings.objective) return settings;
+  // A bid cap is a price for the thing being bought, and the thing changes: a
+  // $0.40 cap meant per click becomes $0.40 per checkout, which buys nothing.
+  // Clearing it asks for the number again rather than spending on the old one.
+  const bid = { bid_strategy: "LOWEST_COST_WITHOUT_CAP" as const, bid_cents: null };
+  if (objective === "OUTCOME_SALES")
+    return { ...settings, ...bid, objective, optimization_goal: "OFFSITE_CONVERSIONS", conversion_event: settings.conversion_event ?? DEFAULT_META_CONVERSION_EVENT };
+  return { ...settings, ...bid, objective, conversion_event: null, pixel_id: null,
+    optimization_goal: settings.optimization_goal === "OFFSITE_CONVERSIONS" ? "LINK_CLICKS" : settings.optimization_goal };
+}
+
+export function metaConversionIssues(settings: MetaLaunchSettings, destinationUrl: string): { code: string; message: string }[] {
+  const issues: { code: string; message: string }[] = [];
+  const sales = settings.objective === "OUTCOME_SALES";
+  const conversions = settings.optimization_goal === "OFFSITE_CONVERSIONS";
+  if (sales !== conversions) {
+    issues.push(sales
+      ? { code: "conversionGoal", message: "A Sales campaign optimizes toward a pixel event. Choose the conversion goal, or switch the campaign back to Traffic." }
+      : { code: "conversionObjective", message: "Optimizing toward a pixel event needs the Sales objective. Switch the campaign to Sales, or choose a click goal." });
+    return issues;
+  }
+  if (!conversions) {
+    if (settings.conversion_event) issues.push({ code: "conversionEventUnused", message: "A Traffic campaign optimizes toward clicks, not a pixel event. Clear the event, or switch the campaign to Sales." });
+    if (settings.pixel_id) issues.push({ code: "conversionPixelUnused", message: "A Traffic campaign uses no pixel. Clear it, or switch the campaign to Sales." });
+    return issues;
+  }
+  if (!settings.conversion_event) issues.push({ code: "conversionEvent", message: "Choose the pixel event this campaign optimizes toward." });
+  // A missing pixel is NOT an issue here. The server writes it at save
+  // (lib/data/launch.ts) and the preview gate refuses an unresolvable one in a
+  // sentence, so complaining about it in the panel would show the person a
+  // blocker they cannot clear on a draft they have not saved yet.
+  if (settings.pixel_id && !META_PIXEL_ID_SHAPE.test(settings.pixel_id)) issues.push({ code: "conversionPixelShape", message: "The pixel id is not a Meta pixel id." });
+  if (!isCrazydramasAdUrl(destinationUrl, "meta"))
+    issues.push({ code: "conversionLink", message: "Conversions are counted by the crazydramas pixel, so the ad must point at a crazydramas series. Choose the drama again, or switch the campaign to Traffic." });
+  return issues;
+}
+
 /** The content each campaign carries, in the order the preview lists them. */
 export function campaignContentSlices(draft: Pick<LaunchDraft, "allocation" | "content" | "content_per_campaign">, count: number): LaunchContent[][] {
   return Array.from({ length: Math.max(0, count) }, (_, index) => draft.allocation === "shared"
@@ -229,6 +297,7 @@ export function metaDraftIssues(draft: LaunchDraft, connections: LaunchConnectio
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) list.add("schedule", "Meta needs a valid start and end time.");
   else if (end <= Date.now() + META_SCHEDULE_MARGIN_MS) list.add("scheduleEnded", "The Meta end time has passed or is about to. Move it forward before previewing.");
   if (settings.bid_strategy === "LOWEST_COST_WITH_BID_CAP" && !settings.bid_cents) list.add("bid", "Set the Meta bid cap.");
+  for (const issue of metaConversionIssues(settings, draft.destination_url)) list.add(issue.code, issue.message);
   if (count > 0) {
     const shares = evenly(draft.total_budget_cents, count);
     if (shares.some(share => share < META_MIN_BUDGET_CENTS))

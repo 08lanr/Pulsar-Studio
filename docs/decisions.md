@@ -8,6 +8,39 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-09-25 · Meta conversions: a Sales campaign optimizes on a crazydramas pixel event
+
+Andre, 2026-09-25: "real quick before submission i set up the meta pixel already right? shouldnt there be like an event like purchase we can set the objective to?" — and then, on who signs off: "i have the same amount of authority as ruobin and he knows im taking care of the meta stuff we dont need to wait on anything." Andre owns the Meta side end to end. That is recorded here so the TikTok sign-off in `CLAUDE.md` is read as TikTok's alone.
+
+A Meta launch's campaign goal is now Traffic or Sales (`meta_settings.objective`), and it decides everything downstream:
+
+- **Traffic** is `OUTCOME_TRAFFIC` with `LINK_CLICKS` or `LANDING_PAGE_VIEWS`, no pixel, no `promoted_object`. Unchanged, and still the default for a new draft.
+- **Sales** is `OUTCOME_SALES` with `OFFSITE_CONVERSIONS`, and every ad set carries `promoted_object: { pixel_id, custom_event_type }` plus `attribution_spec` of 7-day click / 1-day view. The window is sent on create rather than left to the account default, so a change in Business settings can never silently move what the Monitor is counting. `META_ATTRIBUTION_LABEL` is derived from `META_ATTRIBUTION_SPEC`, so the words on the preview cannot disagree with the bytes that were sent.
+
+The two move together because Meta pairs them: `OFFSITE_CONVERSIONS` is refused under a Traffic objective, and a Sales campaign with a click goal buys clicks at a conversion campaign's price. `metaObjectiveSettings` is the one pairing rule the settings panel uses and `metaConversionIssues` the one refusal the preview reads (both pure, `lib/launch/plan.ts`), so a combination Meta would reject never reaches the ad set create — which happens after the campaign already exists and would otherwise leave a half-built run.
+
+**The link is part of the contract.** crazydramas.com is what fires the pixel, so a Sales ad whose destination is not a crazydramas *Meta* link can never report a conversion and would spend the whole budget learning from nothing. The plan refuses it, including the TikTok form of the same link.
+
+**The pixel is the server's to decide.** `META_PIXEL_ID` (blank = crazydramas.com's `2634408510362983`) is written into the draft at save by `lib/data/launch.ts`, never accepted from the client, the same way TikTok's pixel code is. The client chooses the objective and the event; it never chooses which pixel the money optimizes toward. Switching back to Traffic clears the event and the pixel, so a stale one cannot survive the change.
+
+`resolveMetaPixel` (`lib/meta/pixel.ts`) reads `act_<id>/adspixels` and is asked three times: at preview, per chosen account, so the approver sees a pixel Meta has confirmed; again at approval, because an approver signs minutes or hours later and a pixel un-shared in between must stop there rather than fail a live campaign's ad set; and in the driver before its first write, recorded on the run. A missing pixel is never the settings panel's complaint — the server writes it at save, so the panel would be showing a blocker the person cannot clear. A pixel the list does not carry, or carries as `is_unavailable`, is refused in a sentence naming Business settings — not sent and rejected later. A resume that finds a different pixel than the one the run already created ad sets against stops rather than building a second ad set against another pixel.
+
+While Meta refuses that read for want of the permission (codes 10, 200, 272 and 3, plus the generic 100 carrying subcode 33, which is what `adspixels` actually returns for an app without pixel access — a bare 100 does not fall back, because that is Meta's everyday "you asked for something wrong") the configured id stands in, marked unverified and said so in plain words, exactly as TikTok's 40001 fallback does. When the list answers, it wins.
+
+**Two spellings, and they are Meta's.** crazydramas fires `InitiateCheckout` and `ViewContent`; insights report `offsite_conversion.fb_pixel_initiate_checkout` and `..._view_content`; but `promoted_object.custom_event_type` takes `INITIATED_CHECKOUT` and `CONTENT_VIEW` and refuses the others with code 100. `META_CONVERSION_EVENTS` is spelled the ad set's way and `META_ACTION_TYPES` is keyed by it and valued by insights', so no reader has to know which one it is holding. The fake refuses anything outside the enum, because the wrong spelling fails the ad set create *after* the campaign exists — which a first draft of this change would have done on every default Sales launch.
+
+**The pure half is separate.** `lib/meta/events.ts` holds the constants with no transport and no `process.env`, so the settings panel imports them without pulling the live Meta HTTP client into the browser bundle; `lib/meta/pixel.ts` holds `metaPixelId()` and `resolveMetaPixel()` and is server-only.
+
+**Older drafts and older runs keep working.** The three new `meta_settings` fields are zod-*defaulted*, not required, so a Meta draft saved before this change still saves, previews and starts a second round. A run approved before it has no objective in its stored draft JSON — which is never re-validated — so the driver falls back to `OUTCOME_TRAFFIC` rather than sending a campaign create with `objective: undefined`.
+
+**The default event is InitiateCheckout, not Purchase.** crazydramas.com's pixel fired 2 purchases in the 28 days to 2026-09-25, far under the ~50 a week Meta's optimizer needs to leave the learning phase; a Purchase ad set would spend the budget without ever learning. InitiateCheckout is the densest event on the way to a sale. The panel says so.
+
+**Reading it back.** The monitor asks `/insights` for `actions` and `action_values` and picks out the approved event by name — an Add to cart is not a purchase — filling `conversions` and the new `conversion_value_cents`. A Traffic campaign has no event and reports null, never 0, so the screens can tell "none yet" from "not measured" apart. The Monitor line names the event, the pixel and the window.
+
+`lib/meta/fake.ts` models what Meta refuses, so fixture mode exercises the whole path with no account: the pixel list (and its permission refusal), a goal that does not match the campaign objective, a missing or unusable `promoted_object`, a `promoted_object` on a click goal, and insights that report the event the ad set optimizes toward.
+
+Meta's own gate is unchanged by any of this: the app must be published before it may create an ad creative (`100/1885183`), and publishing waits on CrazyDramas' business verification.
+
 ## 2026-09-25 · CrazyDramas stats: the playback report on the Playback tab
 
 Ruobin, 2026-09-25: "We're having a lot of drop off between saw the page / episode 1 playing --> finishing episode 1. This doesn't make sense to me, and I suspect it's because of a technical issue? Why is the phone pausing the video 3 times. Why does it take 2.8 seconds? Can we record these things or aggregate these stats? I need to know why users are dropping off, and what issues (e.g. loading) they face." His choices: every episode (not only episode 1), one build with the tabbed dashboard, and a per-viewer drill-down.

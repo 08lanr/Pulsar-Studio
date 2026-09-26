@@ -25,7 +25,7 @@ function context(codes = ["spark-one", "spark-two"], options: { copies?: number;
       allocation: "unique", content: campaign.content, destination_url: "https://crazydramas.com/watch", total_budget_cents: campaign.budget_cents,
       daily_budget_cents: campaign.daily_budget_cents, start_paused: options.paused ?? true,
       tiktok_settings: { ...defaultLaunchSettings(), duplicate_copies: options.copies ?? 0 },
-      meta_settings: { countries: ["US"], placements: ["facebook", "instagram"], optimization_goal: "LINK_CLICKS", bid_strategy: "LOWEST_COST_WITHOUT_CAP", bid_cents: null,
+      meta_settings: { countries: ["US"], placements: ["facebook", "instagram"], objective: "OUTCOME_TRAFFIC", optimization_goal: "LINK_CLICKS", conversion_event: null, pixel_id: null, bid_strategy: "LOWEST_COST_WITHOUT_CAP", bid_cents: null,
         call_to_action: "LEARN_MORE", start_time: new Date().toISOString(), end_time: new Date(Date.now() + 86_400_000).toISOString() },
     },
   };
