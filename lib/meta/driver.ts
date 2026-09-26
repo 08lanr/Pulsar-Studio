@@ -6,6 +6,7 @@ import { LaunchWaiting } from "@/lib/launch/waiting";
 import type { DeliverySnapshot, DriverContext, LaunchAdSetPlan, LaunchContent, LaunchControl, LaunchDriver, MetaLaunchSettings, MetaPlatform } from "@/lib/launch/types";
 import { metaTransport } from "./index";
 import { MetaApiError, metaList, type MetaObject, type MetaTransport } from "./transport";
+import { META_ACTION_TYPES, META_ATTRIBUTION_SPEC, resolveMetaPixel } from "./pixel";
 
 type Intent = { edge: string; payload: MetaObject; phase: "sending" | "rejected" | "confirmed"; id?: string };
 type MetaState = {
@@ -26,6 +27,13 @@ type MetaState = {
   /** Which ad set an ad belongs to, and which creative key it carries. Absent on legacy single-ad-set runs. */
   ad_platforms?: Record<string, MetaPlatform>; ad_content_keys?: Record<string, string>;
   content_values: Record<string, string>; stopped?: boolean; paused?: boolean; activated?: boolean;
+  /**
+   * The pixel this run's conversions ad sets were created against, recorded
+   * before the first ad set is sent. A resume re-reads and re-checks it, so a
+   * pixel that was un-shared between attempts stops the launch instead of
+   * silently creating a second ad set against a different one.
+   */
+  pixel_id?: string;
 };
 type ResolvedAdSet = LaunchAdSetPlan & { platforms: MetaPlatform[]; id?: string };
 
@@ -165,7 +173,7 @@ async function create(ctx: DriverContext, transport: MetaTransport, current: Met
   return response.id;
 }
 
-async function readAccount(ctx: DriverContext, transport: MetaTransport, sets: ResolvedAdSet[]) {
+async function readAccount(ctx: DriverContext, transport: MetaTransport, sets: ResolvedAdSet[], current: MetaState) {
   const result = await transport.get(account(ctx), { fields: "id,account_status,currency,timezone_name" });
   if (Number(result.account_status) !== 1) throw new Error("Meta ad account is not active.");
   if (result.currency !== ctx.connection.currency) throw new Error("Meta account currency differs from the approved connection.");
@@ -174,6 +182,33 @@ async function readAccount(ctx: DriverContext, transport: MetaTransport, sets: R
     const identities = await metaList(transport, `${account(ctx)}/instagram_accounts`, { fields: "id" });
     if (!identities.some(row => row.id === ctx.connection.instagram_id)) throw new Error("Instagram identity is not available to this ad account.");
   }
+  await readPixel(ctx, transport, current);
+}
+
+/**
+ * The pixel a conversions run optimizes toward, checked against the ad account
+ * before any paid object exists and recorded on the run. The approved draft
+ * names a pixel; this refuses to send a different one, because the budget was
+ * signed against the event that pixel reports.
+ */
+async function readPixel(ctx: DriverContext, transport: MetaTransport, current: MetaState) {
+  const settings = ctx.run.draft.meta_settings;
+  if (settings.optimization_goal !== "OFFSITE_CONVERSIONS") return;
+  if (!settings.conversion_event) throw new Error("This Meta launch optimizes toward a pixel event but names none. Create and approve a new round.");
+  const approved = settings.pixel_id;
+  if (!approved) throw new Error("This Meta launch optimizes toward a pixel event but names no pixel. Create and approve a new round.");
+  const resolved = await resolveMetaPixel(transport, ctx.connection.advertiser_id);
+  if (!resolved.ok) throw new Error(resolved.reason);
+  if (resolved.pixel_id !== approved) throw new Error(`The approved pixel ${approved} is not the pixel this ad account resolves (${resolved.pixel_id}). Create and approve a new round.`);
+  if (current.pixel_id && current.pixel_id !== resolved.pixel_id) throw new Error(`This launch already created ad sets against pixel ${current.pixel_id}. Create a new round to move to ${resolved.pixel_id}.`);
+  current.pixel_id = resolved.pixel_id;
+  await save(ctx, current);
+}
+
+/** The pixel `readPixel` recorded. Never reached without it: the ad set payload is built after readAccount. */
+function requirePixel(ctx: DriverContext, current: MetaState): string {
+  if (!current.pixel_id) throw new Error("The Meta pixel was not resolved before the ad set was built.");
+  return current.pixel_id;
 }
 
 function creativePayload(ctx: DriverContext, content: LaunchContent, name: string, video?: { id: string; thumbnail: string }): MetaObject {
@@ -214,7 +249,7 @@ async function launch(ctx: DriverContext, transport: MetaTransport) {
   const sets = adSetsOf(ctx, current);
   if (!sets.length) throw new Error("No eligible Meta content; no campaign was created.");
   if (sets.some(set => (set.daily_budget_cents ?? set.budget_cents) < META_MIN_BUDGET_CENTS)) throw new Error("Each Meta ad set needs at least $1 of allocated budget. Create and approve a new round.");
-  await readAccount(ctx, transport, sets);
+  await readAccount(ctx, transport, sets, current);
   const payloads: { content: LaunchContent; key: string; payload: MetaObject }[] = [];
   for (let index = 0; index < ctx.campaign.content.length; index++) {
     const content = ctx.campaign.content[index];
@@ -253,7 +288,7 @@ async function launch(ctx: DriverContext, transport: MetaTransport) {
   const daily = ctx.campaign.daily_budget_cents;
   if (daily !== null) amount(daily);
   const campaignPayload: MetaObject = {
-    name: ctx.campaign.campid ?? `${ctx.run.external_id}/${ctx.campaign.index}`, objective: "OUTCOME_TRAFFIC", special_ad_categories: [], status: "PAUSED",
+    name: ctx.campaign.campid ?? `${ctx.run.external_id}/${ctx.campaign.index}`, objective: settings.objective, special_ad_categories: [], status: "PAUSED",
     // Meta requires this whenever the budget is not on the campaign.
     // Studio always budgets per ad set, and the signed per-campaign
     // ceiling is exact, so ad sets must never borrow from each other.
@@ -297,6 +332,13 @@ async function launch(ctx: DriverContext, transport: MetaTransport) {
         // Meta asks every new ad set whether Advantage+ audience may widen the
         // targeting beyond what was set; the approved audience is the audience.
         targeting: { geo_locations: { countries: settings.countries }, publisher_platforms: set.platforms, age_min: 18, targeting_automation: { advantage_audience: 0 } },
+        // A conversions ad set names the pixel and the event it optimizes
+        // toward, and the window its numbers are counted over (decision
+        // 2026-09-25, "Meta conversions"). The pixel is the one re-checked
+        // above, never the one the stored draft asks for on its own.
+        ...(settings.optimization_goal === "OFFSITE_CONVERSIONS"
+          ? { promoted_object: { pixel_id: requirePixel(ctx, current), custom_event_type: settings.conversion_event }, attribution_spec: META_ATTRIBUTION_SPEC }
+          : {}),
       };
       set.id = await create(ctx, transport, current, `adset/${set.platform}`, "adsets", adsetPayload);
       rememberAdSet(current, set.platform, set.id);
@@ -403,6 +445,14 @@ async function activate(ctx: DriverContext, transport: MetaTransport, current: M
   await save(ctx, current);
 }
 
+/** One `action_type` out of Meta's `actions` / `action_values` array, or null when it is not reported yet. */
+function actionValue(rows: unknown, actionType: string): number | null {
+  if (!Array.isArray(rows)) return null;
+  const row = rows.find(item => item && typeof item === "object" && String((item as MetaObject).action_type) === actionType);
+  return row ? metric((row as MetaObject).value) : null;
+}
+const centsOf = (value: number | null) => (value === null ? null : Math.round(value * 100));
+
 function metric(value: unknown): number | null {
   if (value === undefined || value === null || value === "") return null;
   const parsed = Number(value);
@@ -411,12 +461,20 @@ function metric(value: unknown): number | null {
 async function monitor(ctx: DriverContext, transport: MetaTransport): Promise<DeliverySnapshot> {
   requireMeta(ctx, transport);
   const current = state(ctx);
-  const base = { checked_at: new Date().toISOString(), spend_cents: null, impressions: null, clicks: null, conversions: null, cpc_cents: null };
+  const base = { checked_at: new Date().toISOString(), spend_cents: null, impressions: null, clicks: null, conversions: null, conversion_value_cents: null, cpc_cents: null };
   if (!current.campaign_id || !adSetsOf(ctx, current).some(set => set.id)) return { ...base, delivery: ctx.campaign.status === "failed" ? "failed" : "submitted", note: ctx.campaign.error };
   const { campaign, groups, ads } = await hierarchy(ctx, transport, current);
-  const report = await metaList(transport, `${current.campaign_id}/insights`, { fields: "spend,impressions,clicks", date_preset: "maximum", level: "campaign" });
+  const report = await metaList(transport, `${current.campaign_id}/insights`, { fields: "spend,impressions,clicks,actions,action_values", date_preset: "maximum", level: "campaign" });
   const spend = metric(report[0]?.spend);
   const clicks = metric(report[0]?.clicks);
+  // Conversions of the event this campaign was approved to optimize toward,
+  // and what they were worth. Meta reports every action it attributes, so the
+  // one we asked for is picked out by name rather than summed: an Add to cart
+  // is not a purchase. A Traffic campaign has no event and stays null, which
+  // is how the screens tell "none yet" from "not measured" apart.
+  const event = ctx.run.draft.meta_settings.conversion_event;
+  const conversions = event ? actionValue(report[0]?.actions, META_ACTION_TYPES[event]) : null;
+  const conversion_value_cents = event ? centsOf(actionValue(report[0]?.action_values, META_ACTION_TYPES[event])) : null;
   const statuses = ads.map(ad => String(ad.effective_status || ad.status || "UNKNOWN"));
   const configured = String(campaign.status || "UNKNOWN");
   const effective = String(campaign.effective_status || configured);
@@ -430,6 +488,7 @@ async function monitor(ctx: DriverContext, transport: MetaTransport): Promise<De
   return {
     ...base, delivery, note: null, configured_status: configured, effective_status: effective,
     spend_cents: spend === null ? null : Math.round(spend * 100), impressions: metric(report[0]?.impressions), clicks,
+    conversions, conversion_value_cents,
     cpc_cents: spend !== null && clicks !== null && clicks > 0 ? Math.round(spend * 100 / clicks) : null,
     ads: ads.map(ad => ({ id: String(ad.id), status: String(ad.effective_status || ad.status || "UNKNOWN"), content_value: current.content_values[String(ad.id)], ...(Array.isArray(ad.issues_info) && ad.issues_info.length ? { note: "Meta reports an ad review or delivery issue." } : {}) })),
     groups: groups.map(({ set: adSet, group }) => ({ id: adSet.id!, platform: adSet.platform, status: String(group.effective_status || group.status || "UNKNOWN"), budget_cents: Number(group.lifetime_budget || group.daily_budget) || undefined, bid_cents: metric(group.bid_amount), end_time: String(group.end_time || "") })),
