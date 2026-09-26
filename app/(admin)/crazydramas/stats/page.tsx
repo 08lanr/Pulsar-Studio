@@ -1,23 +1,27 @@
 import "@/app/crazydramas-stats.css";
 import { adminLocale, staffSession } from "@/components/admin/server";
+import { AdDetail, AdTypeTable, type AdRun } from "@/components/admin/cd-stats/AdDetail";
 import { RangeTabs, ReadFailure } from "@/components/admin/cd-stats/Bits";
-import CampaignTable from "@/components/admin/cd-stats/CampaignTable";
-import { CompareTable, FunnelChart, type CompareRow } from "@/components/admin/cd-stats/Dash";
+import { BuyersTable, PersonPanel, type Names } from "@/components/admin/cd-stats/Buyers";
+import CampaignsView, { type CampaignsViewRow } from "@/components/admin/cd-stats/Campaigns";
+import { FunnelChart } from "@/components/admin/cd-stats/Dash";
 import FilterBar, { type FilterOptions } from "@/components/admin/cd-stats/FilterBar";
 import Info from "@/components/admin/cd-stats/Info";
-import { KpiCard, TrendChart } from "@/components/admin/cd-stats/Overview";
-import { HeadlineNumbers, PlaybackSection } from "@/components/admin/cd-stats/Sections";
-import { SurveyView } from "@/components/admin/cd-stats/Tables";
+import { SpendRevenueChart } from "@/components/admin/cd-stats/Money";
+import { KpiCard } from "@/components/admin/cd-stats/Overview";
+import { PlaybackSection } from "@/components/admin/cd-stats/Sections";
+import { EpisodeCurveChart, SeriesFunnelList } from "@/components/admin/cd-stats/SeriesCurve";
 import TeamEditor from "@/components/admin/cd-stats/TeamEditor";
-import TopPanel, { type TopTab } from "@/components/admin/cd-stats/TopPanel";
-import { readAdPeriod, readCrazydramasStats } from "@/lib/crazydramas/stats";
+import { fakeStatsLaunches, FAKE_STATS_CLIPS } from "@/lib/crazydramas/fake-stats";
+import { readCrazydramasStats, readLaunchClips } from "@/lib/crazydramas/stats";
+import { adCreatives, byAdType, campaignFacts, changeAbove, compareCampaigns, dailySpend, fmtRatio, returnOnSpend, spendIn, type AdCreative } from "@/lib/crazydramas/stats-ads";
+import { adBuyers, browsersOf, buyerCounts, buyersByAd, fmtDuration, hasBuyerDetails, personOf, purchasesIn, untaggedBuyers } from "@/lib/crazydramas/stats-buyers";
+import { episodeCurve, seriesFunnel } from "@/lib/crazydramas/stats-series";
 import { readTeamList } from "@/lib/crazydramas/stats-team";
 import {
   adSpendsFromRuns,
-  audience,
   biggestDrop,
   byDevice,
-  byPlace,
   campaignTable,
   change,
   chartSpan,
@@ -27,79 +31,83 @@ import {
   dashBy,
   dashPath,
   dashRows,
+  dayIn,
   DEVICE_ORDER,
   dropsFor,
   fmtShare,
   fmtUsdCents,
-  histSummary,
-  KPI_METRICS,
-  kpiValue,
   NO_FILTER,
   NO_PLACE,
   notCounted,
   parseDashFilter,
   parseDashTab,
-  parseKpiMetric,
   parsePlayEps,
   parseStatsRange,
   prevSpan,
   rangeDays,
-  regionName,
   share,
   sourceKey,
   sourceOptions,
   sumRows,
+  type AdPeriod,
   type DashFilter,
-  type DashTotals,
-  type KpiMetric,
 } from "@/lib/crazydramas/stats-summary";
+import type { CdStatsPurchase } from "@/lib/crazydramas/stats-types";
 import { getData } from "@/lib/data";
+import { mediaUrl } from "@/lib/data/storage";
 import { t } from "@/lib/i18n";
+import { readTikTokAdDays, type AdDaysRead } from "@/lib/tiktok/ad-days";
 
 // /crazydramas/stats — viewing and money on crazydramas.com, staff only. Decisions 2026-09-24 "CrazyDramas
-// stats" and 2026-09-25 "the stats dashboard, second cut" (Ruobin: "information overload ... no tabs ... 50% less
-// text"): laid out the way analytics dashboards are (Plausible, YouTube Studio), a tab per question. Overview:
-// six headline numbers against the period before, one chart of the picked number per day, where people drop,
-// the top series / phones / sources / countries. Funnel: every step, and groups compared. Playback: does the
-// video start. Series, Ads, Audience. One filter row (period, series, phone, source, country) scopes every tab;
-// words that explain a number live in its ⓘ. The numbers are crazydramas' /api/studio/stats source rows
-// (lib/crazydramas/stats.ts), summed in lib/crazydramas/stats-summary.ts.
+// stats", 2026-09-25 "the stats dashboard, second cut" and 2026-09-26 "Stats: campaigns, buyers and the full
+// episode curve" (Ruobin: "I dont know if the 6 buyers are different for the same people ... perhaps i can
+// click on buyers? see where they came from? Our current series metric also stops at episode 2"). Tabs:
+// Overview (spend, revenue, return, cost per buyer, buyers; spend against revenue per day), Campaigns (each
+// campaign and ad: what TikTok says it sold against what we saw, why they differ, which clip each ad played),
+// Buyers (every payment, each person's way through the site), Series (the whole episode curve), Playback. One
+// filter row (period, series, phone, source, country) scopes every tab; words that explain a number live in
+// its ⓘ. The numbers are crazydramas' /api/studio/stats report (lib/crazydramas/stats.ts), summed in the pure
+// lib/crazydramas/stats-*.ts modules.
 
 export const dynamic = "force-dynamic";
 
 const n0 = (v: number) => v.toLocaleString("en-US");
 
-type Search = { range?: string; fresh?: string; series?: string; device?: string; source?: string; country?: string; tab?: string; metric?: string; by?: string; eps?: string };
-const COMPARE_BY = ["device", "source", "series", "country"] as const;
+type Search = { range?: string; fresh?: string; series?: string; device?: string; source?: string; country?: string; tab?: string; eps?: string; ad?: string; person?: string; curve?: string };
+
+/** TikTok's days of spend, with the fixture's invented launches' days laid over them. */
+function withDays(read: AdDaysRead, extra: AdDaysRead | null): AdDaysRead {
+  if (!extra || !extra.ok) return read;
+  if (!read.ok) return extra;
+  return { ...read, campaigns: [...read.campaigns, ...extra.campaigns], days: { ...read.days, ...extra.days } };
+}
+
+const nextDay = (d: string) => new Date(Date.parse(`${d}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
 
 export default async function CrazydramasStatsPage({ searchParams }: { searchParams: Search }) {
   const session = await staffSession();
   const locale = adminLocale();
+  const tt = (k: string, v?: Record<string, string | number>) => t(locale, k, v);
   const range = parseStatsRange(searchParams.range);
   const tab = parseDashTab(searchParams.tab);
-  const metric = parseKpiMetric(searchParams.metric);
-  const by = (COMPARE_BY as readonly string[]).includes(searchParams.by ?? "") ? (searchParams.by as (typeof COMPARE_BY)[number]) : "device";
   const eps = parsePlayEps(searchParams.eps);
-  const [read, team, runs] = await Promise.all([
-    readCrazydramasStats({ fresh: searchParams.fresh === "1" }),
-    readTeamList(),
-    getData().listLaunchRuns(session).catch(() => []),
-  ]);
-  // Every link keeps the rest of the address; `patch` changes some of it.
+  const fresh = searchParams.fresh === "1";
+  const [read, team, launched] = await Promise.all([readCrazydramasStats({ fresh }), readTeamList(), getData().listLaunchRuns(session).catch(() => [])]);
+  // Every link keeps the filters and the period; `patch` changes some of it. The ad, person and curve belong to their tab.
   const hrefWith = (patch: Partial<Search>) => {
     const q = new URLSearchParams();
-    const next = { range, tab, metric, by, eps, series: searchParams.series, device: searchParams.device, source: searchParams.source, country: searchParams.country, ...patch };
+    const next: Partial<Search> = { range, tab, eps, series: searchParams.series, device: searchParams.device, source: searchParams.source, country: searchParams.country, ...patch };
     for (const [k, v] of Object.entries(next)) {
-      // Defaults stay out of the address.
-      if (v && !(k === "tab" && v === "overview") && !(k === "metric" && v === "visitors") && !(k === "by" && v === "device") && !(k === "eps" && v === "1")) q.set(k, v);
+      if (v && !(k === "tab" && v === "overview") && !(k === "eps" && v === "1")) q.set(k, v);
     }
     return `/crazydramas/stats?${q.toString()}`;
   };
+  const here = { ad: searchParams.ad, person: searchParams.person, curve: searchParams.curve };
 
   const head = (
     <div className="page-head cdx-head">
-      <h1>{t(locale, "cds.title")}</h1>
-      <RangeTabs range={range} hrefFor={(r) => hrefWith({ range: r })} locale={locale} />
+      <h1>{tt("cds.title")}</h1>
+      <RangeTabs range={range} hrefFor={(r) => hrefWith({ range: r, ...here })} locale={locale} />
     </div>
   );
   if (!read.ok) {
@@ -112,58 +120,69 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
   }
 
   const report = read.report;
+  // Fixture mode: the fake report's ads get invented launch records (never stored), so Campaigns has spend to show.
+  const fake = read.mode === "fake" ? fakeStatsLaunches() : null;
+  const runs = fake ? [...launched, ...fake.runs] : launched;
+  const [realDays, clips] = await Promise.all([readTikTokAdDays(launched, { to: report.to, fresh }), readLaunchClips(session, launched)]);
+  if (fake) for (const c of FAKE_STATS_CLIPS) clips.set(c.id, { ...c });
+  const adDays = withDays(realDays, fake?.days ?? null);
+
   const span = rangeDays(report, range);
   const prev = prevSpan(report, range);
-  const edges = report.timing_edges_s;
+  const vs = prev ? tt(`cdx.vs.${range}`) : null;
   const filter: DashFilter = parseDashFilter(searchParams, report);
-  const spends = adSpendsFromRuns(runs);
   const titleOf = new Map(report.series.map((s) => [s.drama_id, s]));
   const totals = sumRows(dashRows(report, span, filter));
   const before = prev ? sumRows(dashRows(report, prev, filter)) : null;
+  const spends = adSpendsFromRuns(runs);
+  const creatives = adCreatives(runs, clips);
+  const adPeriod: AdPeriod | undefined = range === "all" ? undefined : { ...span, timezone: report.timezone, days: adDays };
+  // Spend is per ad, not per phone or country: with one of those picked, no spend (costs would divide an ad's whole spend).
+  const adSpends =
+    filter.device || filter.country
+      ? []
+      : !filter.source || filter.source === "ads"
+        ? spends
+        : filter.source.startsWith("campaign:")
+          ? spends.filter((sp) => sp.campaign_id === filter.source!.slice(9))
+          : [];
+  const details = hasBuyerDetails(report);
+  const paid = details ? purchasesIn(report, span, filter) : null;
+  const paidBefore = details && prev ? purchasesIn(report, prev, filter) : null;
 
   // The filter row's choices.
-  const campaignLabel = (key: string, name: string | null) => name ?? t(locale, "cdd.filter.campaign", { id: key.slice(9) });
+  const campaignLabel = (key: string, name: string | null) => name ?? tt("cdd.filter.campaign", { id: key.slice(9) });
   const sources = sourceOptions(report, span, spends);
   const allRows = dashRows(report, span, NO_FILTER);
   const devicesSeen = new Set(allRows.map((x) => x.device));
   const countriesSeen = new Set(allRows.map((x) => x.country ?? NO_PLACE));
   if (filter.country) countriesSeen.add(filter.country);
-  const sourceLabel = (key: string) =>
-    key === "stored_copy" ? t(locale, "cds.ads.storedCopy") : key === "no_ad" ? t(locale, "cds.ads.noAd") : campaignLabel(key, sources.find((s) => s.key === key)?.name ?? null);
-  const placeLabel = (key: string) => (key === NO_PLACE ? t(locale, "cdd.place.none") : countryName(key, locale));
+  const placeLabel = (key: string) => (key === NO_PLACE ? tt("cdd.place.none") : countryName(key, locale));
   const options: FilterOptions = {
     series: report.series.filter((s) => s.cohorts.some((c) => c.day >= span.from && c.day <= span.to && c.opened + c.unseen > 0) || s.drama_id === filter.series).map((s) => ({ slug: s.slug, title: s.title })),
     devices: DEVICE_ORDER.filter((d) => devicesSeen.has(d) || d === filter.device),
     countries: [...countriesSeen].map((c) => ({ key: c, label: placeLabel(c) })).sort((a, b) => Number(a.key === NO_PLACE) - Number(b.key === NO_PLACE) || a.label.localeCompare(b.label)),
-    sources: [{ key: "ads", label: t(locale, "cdd.filter.ads") }, ...sources.map((s) => ({ key: s.key, label: campaignLabel(s.key, s.name) })), { key: "stored_copy", label: t(locale, "cds.ads.storedCopy") }, { key: "no_ad", label: t(locale, "cds.ads.noAd") }],
+    sources: [{ key: "ads", label: tt("cdd.filter.ads") }, ...sources.map((s) => ({ key: s.key, label: campaignLabel(s.key, s.name) })), { key: "stored_copy", label: tt("cds.ads.storedCopy") }, { key: "no_ad", label: tt("cds.ads.noAd") }],
   };
   const seriesSlug = filter.series ? (titleOf.get(filter.series)?.slug ?? null) : null;
   const time = new Date(read.read_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Los_Angeles" });
 
-  // Groups of the filtered people, each ignoring its own filter: the rows of Top, Compare and the tables.
-  const inCountry = !!filter.country && filter.country !== NO_PLACE;
-  const groups = {
-    series: dashBy(dashRows(report, span, filter, "series"), (x) => x.drama_id).map((g) => ({
-      key: g.key,
-      name: titleOf.get(g.key)?.title ?? g.key,
-      href: titleOf.get(g.key) ? hrefWith({ series: titleOf.get(g.key)!.slug }) : null,
-      totals: g.totals,
-    })),
-    device: byDevice(dashRows(report, span, filter, "device")).map((g) => ({ key: g.key, name: t(locale, `cds.dev.${g.key}`), href: hrefWith({ device: g.key }), totals: g.totals })),
-    source: dashBy(dashRows(report, span, filter, "source"), sourceKey).map((g) => ({ key: g.key, name: sourceLabel(g.key), href: hrefWith({ source: g.key }), totals: g.totals })),
-    country: byPlace(dashRows(report, span, filter, inCountry ? undefined : "country"), filter.country).map((g) => ({
-      key: g.key,
-      name: g.key === NO_PLACE ? t(locale, "cdd.place.none") : inCountry ? regionName(filter.country!, g.key) : countryName(g.key, locale),
-      href: inCountry ? null : hrefWith({ country: g.key }),
-      totals: g.totals,
-    })),
-  } satisfies Record<(typeof COMPARE_BY)[number], CompareRow[]>;
+  // What names a campaign, an ad and a series (the Buyers tab, the ad panel).
+  const campaignNames = new Map(spends.filter((s) => s.campaign_id).map((s) => [s.campaign_id!, s.launch_name]));
+  const names: Names = {
+    campaign: (id) => campaignNames.get(id) ?? tt("cdd.filter.campaign", { id }),
+    ad: (id) => creatives.get(id) ?? null,
+    media: (c: AdCreative | null) => (c?.file_path ? mediaUrl(c.file_path) : null),
+    adHref: (id) => hrefWith({ tab: "campaigns", ad: id }),
+    series: (id) => (id ? (titleOf.get(id)?.title ?? id) : tt("cdb.noSeries")),
+  };
+  const personHref = (p: string) => hrefWith({ tab: "buyers", person: p });
 
   const tabs = (
-    <nav className="tabs cdx-tabs" aria-label={t(locale, "cds.title")}>
+    <nav className="tabs cdx-tabs" aria-label={tt("cds.title")}>
       {DASH_TABS.map((x) => (
         <a key={x} className={`tab${x === tab ? " on" : ""}`} aria-current={x === tab ? "page" : undefined} href={hrefWith({ tab: x })}>
-          {t(locale, `cdx.tab.${x}`)}
+          {tt(`cdx.tab.${x}`)}
         </a>
       ))}
     </nav>
@@ -175,65 +194,121 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
       <div className="cdx-bar">
         <FilterBar
           range={range}
-          keep={Object.fromEntries(Object.entries({ tab: tab === "overview" ? "" : tab, metric: metric === "visitors" ? "" : metric, by: by === "device" ? "" : by, eps: eps === "1" ? "" : eps }).filter(([, v]) => v))}
+          keep={Object.fromEntries(Object.entries({ tab: tab === "overview" ? "" : tab, eps: eps === "1" ? "" : eps, ...here }).filter((e): e is [string, string] => !!e[1]))}
           value={{ series: seriesSlug, device: filter.device, source: filter.source, country: filter.country ?? null }}
           options={options}
         />
         <span className="cdx-updated">
-          {read.mode === "fake" ? t(locale, "cdx.testData") : t(locale, "cdx.updated", { time })} · <a href={`${hrefWith({})}&fresh=1`}>{t(locale, "cdx.refresh")}</a>
+          {read.mode === "fake" ? tt("cdx.testData") : tt("cdx.updated", { time })} · <a href={`${hrefWith(here)}&fresh=1`}>{tt("cdx.refresh")}</a>
         </span>
       </div>
       {tabs}
 
       {tab === "overview" && <OverviewTab />}
-      {tab === "funnel" && <FunnelTab />}
-      {tab === "playback" && <PlaybackTab />}
+      {tab === "campaigns" && <CampaignsTab />}
+      {tab === "buyers" && <BuyersTab />}
       {tab === "series" && <SeriesTab />}
-      {tab === "ads" && (await AdsTab())}
-      {tab === "audience" && <AudienceTab />}
+      {tab === "playback" && <PlaybackTab />}
     </>
   );
 
   // ---- the tabs ----------------------------------------------------------------------------------------------
 
   function OverviewTab() {
-    const days = dailyTotals(report, chartSpan(report, range), filter);
-    const vs = prev ? t(locale, `cdx.vs.${range}`) : null;
-    const steps = dashPath(totals).filter((s) => ["seen", "played", "finished", "ep2", "paid"].includes(s.key));
-    const drop = biggestDrop(steps);
+    const chart = chartSpan(report, range);
+    const spendDays = dailySpend(adSpends, adDays, chart);
+    const paidDays = details ? purchasesIn(report, chart, filter) : null;
+    const onDay = (list: CdStatsPurchase[], day: string) => list.filter((p) => dayIn(p.at, report.timezone) === day);
+    const revenueDays = paidDays ? spendDays.map((d) => onDay(paidDays, d.day).reduce((a, p) => a + p.amount_cents, 0)) : dailyTotals(report, chart, filter).map((d) => d.totals.revenue_cents);
+    const buyerDays = paidDays ? spendDays.map((d) => new Set(onDay(paidDays, d.day).map((p) => p.person)).size) : dailyTotals(report, chart, filter).map((d) => d.totals.buyers);
+    const known = (list: { cents: number | null }[]) => (list.every((d) => d.cents !== null) ? list.reduce((a, d) => a + (d.cents ?? 0), 0) : null);
+    const spendKnown = !spendDays.every((d) => d.cents === null);
+
+    const spend = adSpends.length ? spendIn(adSpends, adPeriod) : { cents: null, partial: false };
+    const spendBefore = prev && adSpends.length ? known(dailySpend(adSpends, adDays, prev)) : null;
+    const revenue = paid ? paid.reduce((a, p) => a + p.amount_cents, 0) : totals.revenue_cents;
+    const revenueBefore = prev ? (paidBefore ? paidBefore.reduce((a, p) => a + p.amount_cents, 0) : (before?.revenue_cents ?? null)) : null;
+    const roas = returnOnSpend(revenue, spend.cents);
+    const roasBefore = spendBefore && revenueBefore !== null && spendBefore >= 1000 ? revenueBefore / spendBefore : null;
+    const counts = paid ? buyerCounts(paid) : null;
+    const countsBefore = paidBefore ? buyerCounts(paidBefore) : null;
+    // Buyers who came from ads: the payments' own landings, or (an older report) the ad rows' buyers.
+    const fromAds = (list: CdStatsPurchase[] | null, rows: ReturnType<typeof dashRows>) => (list ? adBuyers(list) : rows.filter((x) => x.platform === "tiktok" || sourceKey(x) !== "no_ad").reduce((a, x) => a + x.buyers, 0));
+    const adBuyersNow = fromAds(paid, dashRows(report, span, filter));
+    const adBuyersBefore = prev ? fromAds(paidBefore, dashRows(report, prev, filter)) : null;
+    const perBuyer = spend.cents !== null && adBuyersNow > 0 ? Math.round(spend.cents / adBuyersNow) : null;
+    const perBuyerBefore = spendBefore !== null && adBuyersBefore ? Math.round(spendBefore / adBuyersBefore) : null;
+    const people = counts ? counts.people : totals.buyers;
+    const peopleBefore = countsBefore ? countsBefore.people : (before?.buyers ?? null);
+
+    const steps = dashPath(totals).filter((s) => ["seen", "played", "finished", "ep2", "paywall", "paid"].includes(s.key));
     const out = notCounted(report, span);
-    const top = (rows: CompareRow[]) => rows.map((r) => ({ key: r.key, name: r.name, href: r.href ?? null, visitors: r.totals.opened, started: share(r.totals.started_ep1, r.totals.opened), finished: share(r.totals.finished_ep1, r.totals.opened) }));
-    const topTabs: TopTab[] = [
-      { key: "series", label: t(locale, "cdx.top.series"), rows: top(groups.series), allHref: hrefWith({ tab: "series" }) },
-      { key: "phones", label: t(locale, "cdx.top.phones"), rows: top(groups.device), allHref: hrefWith({ tab: "funnel", by: "device" }) },
-      { key: "sources", label: t(locale, "cdx.top.sources"), rows: top(groups.source), allHref: hrefWith({ tab: "funnel", by: "source" }) },
-      { key: "countries", label: t(locale, "cdx.top.countries"), rows: top(groups.country), allHref: hrefWith({ tab: "funnel", by: "country" }) },
-    ];
+    const noSpend = !!(filter.device || filter.country);
     return (
       <>
-        <HeadlineNumbers totals={totals} before={before} days={days} metric={metric} hrefFor={(m) => hrefWith({ metric: m })} vs={vs} locale={locale} />
-        <div className="cdx-grid2">
-          <section className="rs-panel cdx-card">
-            <div className="cdx-card-head">
-              <h2>{t(locale, "cdx.drop.title")}</h2>
-              <a href={hrefWith({ tab: "funnel" })}>{t(locale, "cdx.drop.full")} →</a>
-            </div>
-            <FunnelChart steps={steps} drop={drop} locale={locale} />
-          </section>
-          <section className="rs-panel cdx-card">
-            <div className="cdx-card-head">
-              <h2>{t(locale, "cdx.top.title")}</h2>
-            </div>
-            <TopPanel tabs={topTabs} labels={{ visitors: t(locale, "cdx.kpi.visitors"), started: t(locale, "cdx.col.started"), finished: t(locale, "cdx.col.finished"), all: t(locale, "cdx.top.all") }} />
-          </section>
+        <div className="cdx-kpis cdx-kpis-5">
+          <KpiCard
+            label={tt("cdo.spend")}
+            info={tt(noSpend ? "cdo.spendSplitInfo" : "cdo.spendInfo")}
+            value={spend.cents === null ? "–" : fmtUsdCents(spend.cents)}
+            sub={spend.partial ? tt("cdo.partial") : null}
+            change={changeAbove(spend.cents, spendBefore, 1000)}
+            vs={vs}
+            upIsGood={false}
+            spark={spendKnown ? spendDays.map((d) => d.cents ?? 0) : undefined}
+          />
+          <KpiCard label={tt("cdx.kpi.revenue")} info={tt(details ? "cdo.revenueInfo" : "cdx.info.revenue")} value={fmtUsdCents(revenue)} change={changeAbove(revenue, revenueBefore, 1000)} vs={vs} spark={revenueDays} />
+          <KpiCard
+            label={tt("cdo.roas")}
+            info={tt("cdo.roasInfo")}
+            value={fmtRatio(roas)}
+            sub={roas !== null ? tt("cdo.roasSub", { back: fmtUsdCents(Math.round(roas * 100)) }) : null}
+            change={roas !== null && roasBefore ? (roas - roasBefore) / roasBefore : null}
+            vs={vs}
+            spark={spendKnown ? spendDays.map((d, i) => (d.cents ? revenueDays[i] / d.cents : 0)) : undefined}
+          />
+          <KpiCard
+            label={tt("cdo.perBuyer")}
+            info={tt("cdo.perBuyerInfo")}
+            value={perBuyer === null ? "–" : fmtUsdCents(perBuyer)}
+            sub={tt(adBuyersNow === 1 ? "cdo.adBuyers1" : "cdo.adBuyers", { n: n0(adBuyersNow) })}
+            change={adBuyersBefore && adBuyersBefore >= 3 ? changeAbove(perBuyer, perBuyerBefore, 1) : null}
+            vs={vs}
+            upIsGood={false}
+          />
+          <KpiCard
+            label={tt("cdx.kpi.buyers")}
+            info={tt(details ? "cdo.buyersInfo" : "cdx.info.buyers")}
+            value={tt(people === 1 ? "cdc.people1" : "cdc.people", { n: n0(people) })}
+            sub={counts ? tt(counts.purchases === 1 ? "cdc.purchases1" : "cdc.purchases", { n: n0(counts.purchases) }) : null}
+            change={change(people, peopleBefore)}
+            vs={vs}
+            spark={buyerDays}
+            href={hrefWith({ tab: "buyers" })}
+          />
         </div>
+        <section className="rs-panel cdx-card">
+          <SpendRevenueChart
+            title={tt("cdo.chart")}
+            days={spendDays.map((d, i) => ({ day: d.day, spend_cents: d.cents, revenue_cents: revenueDays[i] }))}
+            labels={{ spend: tt("cdo.spend"), revenue: tt("cdx.kpi.revenue") }}
+            tableLabel={tt("cdx.numbers")}
+          />
+        </section>
+        <section className="rs-panel cdx-card">
+          <div className="cdx-card-head">
+            <h2>{tt("cdx.drop.title")}</h2>
+            <a href={hrefWith({ tab: "series" })}>{tt("cdo.bySeries")} →</a>
+          </div>
+          <FunnelChart steps={steps} drop={biggestDrop(steps)} locale={locale} />
+        </section>
         <div className="cdx-foot">
           <span>
-            {t(locale, "cdx.leftOut", { robots: n0(out.robots), unseen: n0(out.unseen), browsed: n0(out.browsed) })}{" "}
-            <Info text={t(locale, "cdx.leftOutInfo")} label={t(locale, "cdx.about", { what: t(locale, "cdx.leftOutName") })} />
+            {tt("cdx.leftOut", { robots: n0(out.robots), unseen: n0(out.unseen), browsed: n0(out.browsed) })}{" "}
+            <Info text={tt("cdx.leftOutInfo")} label={tt("cdx.about", { what: tt("cdx.leftOutName") })} />
           </span>
           <details className="cdx-team">
-            <summary>{t(locale, "cdx.team", { n: team.emails.length })}</summary>
+            <summary>{tt("cdx.team", { n: team.emails.length })}</summary>
             <TeamEditor emails={team.emails} canEdit={session.staffRole === "admin"} updatedAt={team.updated_at} updatedBy={team.updated_by} />
           </details>
         </div>
@@ -241,37 +316,167 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
     );
   }
 
-  function FunnelTab() {
-    const steps = dashPath(totals);
-    const drop = biggestDrop(steps);
+  function CampaignsTab() {
+    // The people are the filtered rows over the report (the period is the table's own, as TikTok's days are).
+    const adReport = { ...report, sources: dashRows(report, { from: report.from, to: report.to }, filter) };
+    const rows = campaignTable(adReport, adSpends, filter.series ?? undefined, adPeriod);
+    const untaggedN = paid ? untaggedBuyers(paid) : 0;
+    const views = compareCampaigns(rows, campaignFacts(runs), creatives, paid ? buyersByAd(paid) : null, untaggedN, adPeriod);
+    const launchDay = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Los_Angeles" });
+    const viewRows: CampaignsViewRow[] = views.map((v) => ({ ...v, ads: v.ads.map((a) => ({ ...a, href: hrefWith({ ad: a.ad_id }), media_url: names.media(a.creative) })) }));
+    const launchedLabel = Object.fromEntries(views.filter((v) => v.launched_at).map((v) => [v.key, tt("cds.ads.launched", { day: launchDay(v.launched_at!) })]));
+    const ads = views.filter((v) => v.kind === "campaign").flatMap((v) => v.ads);
+    const picked = searchParams.ad ? ads.find((a) => a.ad_id === searchParams.ad) : undefined;
+    let detail = null;
+    if (searchParams.ad && !picked) detail = <p className="note">{tt("cdc.detail.notHere")}</p>;
+    if (picked) {
+      // The same clip in every campaign it ran in (a Spark code or a post: only this ad).
+      const clip = picked.creative?.clip_id ?? null;
+      const same = clip ? ads.filter((a) => a.creative?.clip_id === clip) : [picked];
+      const runsOf: AdRun[] = same.map((a) => ({ ...a, launch_name: a.creative?.launch_name ?? "–", campaign_name: a.creative?.campaign_name ?? "–", href: hrefWith({ ad: a.ad_id }) }));
+      const ids = new Set(same.map((a) => a.ad_id));
+      const buyers = details ? purchasesIn(report, span, filter, "source").filter((p) => !!p.source?.ad && ids.has(p.source.ad)) : null;
+      detail = <AdDetail ad={picked} media={names.media(picked.creative)} runs={runsOf} buyers={buyers} personHref={personHref} seriesTitle={names.series} closeHref={hrefWith({})} locale={locale} />;
+    }
     return (
       <>
+        {detail}
         <section className="rs-panel cdx-card">
           <div className="cdx-card-head">
-            <h2>{t(locale, "cdx.funnel.title")}</h2>
+            <h2>{tt("cdx.ads.campaigns")}</h2>
+            {range !== "all" && <span className="cdx-muted">{tt("cdc.periodNote")}</span>}
           </div>
-          <FunnelChart steps={steps} drop={drop} locale={locale} />
+          {!adDays.ok && <p className="note note-warn">{tt("cds.ads.daysFailed", { error: adDays.error })}</p>}
+          {(filter.device || filter.country) && <p className="note">{tt("cdd.ads.byPhoneNote")}</p>}
+          <CampaignsView rows={viewRows} caption={tt("cdx.ads.campaigns")} launchedLabel={launchedLabel} />
+          {untaggedN > 0 && <p className="cdx-note">{tt(untaggedN === 1 ? "cdc.untaggedLine1" : "cdc.untaggedLine", { n: untaggedN })}</p>}
         </section>
         <section className="rs-panel cdx-card">
           <div className="cdx-card-head">
-            <h2>{t(locale, "cdx.compare.title")}</h2>
-            <nav className="seg" aria-label={t(locale, "cdx.compare.title")}>
-              {COMPARE_BY.map((b) => (
-                <a key={b} className={`seg-btn${b === by ? " on" : ""}`} aria-current={b === by ? "true" : undefined} href={hrefWith({ by: b })}>
-                  {t(locale, `cdx.compare.${b}`)}
-                </a>
-              ))}
-            </nav>
+            <h2>
+              {tt("cdc.types.title")} <Info text={tt("cdc.types.info")} label={tt("cdx.about", { what: tt("cdc.types.title") })} />
+            </h2>
           </div>
-          <CompareTable rows={groups[by]} caption={t(locale, "cdx.compare.title")} locale={locale} />
+          <AdTypeTable rows={byAdType(ads)} locale={locale} />
         </section>
+      </>
+    );
+  }
+
+  function BuyersTab() {
+    if (!paid) return <p className="rs-empty">{tt("cdb.none")}</p>;
+    const counts = buyerCounts(paid);
+    const countsBefore = paidBefore ? buyerCounts(paidBefore) : null;
+    const chart = chartSpan(report, range);
+    const byDay = new Map<string, CdStatsPurchase[]>();
+    for (const p of purchasesIn(report, chart, filter)) {
+      const d = dayIn(p.at, report.timezone);
+      byDay.set(d, [...(byDay.get(d) ?? []), p]);
+    }
+    const days: string[] = [];
+    for (let d = chart.from; d <= chart.to; d = nextDay(d)) days.push(d);
+    const spark = (f: (list: CdStatsPurchase[]) => number) => days.map((d) => f(byDay.get(d) ?? []));
+    const firsts = paid.filter((p) => !p.renewal && p.paid_after_s !== null).map((p) => p.paid_after_s!).sort((a, b) => a - b);
+    const median = firsts.length ? firsts[Math.floor((firsts.length - 1) / 2)] : null;
+    const person = searchParams.person ? personOf(report, searchParams.person) : null;
+    return (
+      <>
+        <div className="cdx-kpis cdx-kpis-4">
+          <KpiCard label={tt("cdb.kpi.people")} info={tt("cdb.kpi.peopleInfo")} value={n0(counts.people)} change={change(counts.people, countsBefore?.people ?? null)} vs={vs} spark={spark((l) => new Set(l.map((p) => p.person)).size)} />
+          <KpiCard
+            label={tt("cdb.kpi.purchases")}
+            info={tt("cdb.kpi.purchasesInfo")}
+            value={n0(counts.purchases)}
+            sub={counts.renewals ? tt("cdb.kpi.renewals", { n: counts.renewals }) : null}
+            change={change(counts.purchases, countsBefore?.purchases ?? null)}
+            vs={vs}
+            spark={spark((l) => l.length)}
+          />
+          <KpiCard label={tt("cdx.kpi.revenue")} info={tt("cdo.revenueInfo")} value={fmtUsdCents(counts.revenue_cents)} change={changeAbove(counts.revenue_cents, countsBefore?.revenue_cents ?? null, 1000)} vs={vs} spark={spark((l) => l.reduce((a, p) => a + p.amount_cents, 0))} />
+          <KpiCard label={tt("cdb.kpi.toPay")} info={tt("cdb.kpi.toPayInfo")} value={fmtDuration(median)} />
+        </div>
+        {searchParams.person && !person && <p className="note">{tt("cdb.person.notFound", { code: searchParams.person })}</p>}
+        {person && <PersonPanel person={person} names={names} closeHref={hrefWith({})} locale={locale} />}
         <section className="rs-panel cdx-card">
           <div className="cdx-card-head">
-            <h2>{t(locale, "cdx.why")}</h2>
+            <h2>{tt("cdb.list")}</h2>
+            <span className="cdx-muted">{tt("cdb.listSub", { people: n0(counts.people), purchases: n0(counts.purchases) })}</span>
           </div>
-          <div className="cds-surveys">
-            <SurveyView kind="ep1_stop" shown={totals.survey_ep1_shown} answers={totals.survey_ep1} locale={locale} />
-            <SurveyView kind="paywall_close" shown={totals.survey_paywall_shown} answers={totals.survey_paywall} locale={locale} />
+          <BuyersTable list={paid} browsers={browsersOf(report.purchases ?? [])} names={names} personHref={personHref} current={person?.person ?? null} locale={locale} />
+        </section>
+      </>
+    );
+  }
+
+  function SeriesTab() {
+    const groups = dashBy(dashRows(report, span, filter, "series"), (x) => x.drama_id);
+    const bySlug = (slug?: string) => (slug ? report.series.find((s) => s.slug === slug) : undefined);
+    const top = [...groups].sort((a, b) => b.totals.started_ep1 - a.totals.started_ep1)[0];
+    const shown = bySlug(searchParams.curve) ?? (filter.series ? titleOf.get(filter.series) : undefined) ?? (top ? titleOf.get(top.key) : undefined);
+    const curve = shown ? episodeCurve(shown, span, report.journeys) : null;
+    const fun = shown ? seriesFunnel(sumRows(dashRows(report, span, { ...filter, series: shown.drama_id }))) : null;
+    return (
+      <>
+        {shown && curve && fun ? (
+          <div className="cdv-grid">
+            <section className="rs-panel cdx-card">
+              <div className="cdx-card-head">
+                <h2>
+                  {shown.title} <Info text={tt("cdv.info")} label={tt("cdx.about", { what: tt("cdv.title") })} />
+                </h2>
+                <a href={`/crazydramas/stats/${encodeURIComponent(shown.slug)}?range=${range}`}>{tt("cdv.open")} →</a>
+              </div>
+              <EpisodeCurveChart title={tt("cdv.title")} curve={curve} locale={locale} />
+            </section>
+            <section className="rs-panel cdx-card">
+              <div className="cdx-card-head">
+                <h2>{tt("cdv.funnel")}</h2>
+              </div>
+              <SeriesFunnelList steps={fun.steps} paywallToPaid={fun.paywall_to_paid} revenuePerBuyer={fun.revenue_per_buyer_cents} locale={locale} />
+            </section>
+          </div>
+        ) : (
+          <p className="rs-empty">{tt("cdx.empty")}</p>
+        )}
+        <section className="rs-panel cdx-card">
+          <div className="an-scroll" tabIndex={0} role="region" aria-label={tt("cdx.tab.series")}>
+            <table className="an-table cds-table cdx-table">
+              <thead>
+                <tr>
+                  <th scope="col" />
+                  <th scope="col" className="gt-num">{tt("cdx.kpi.visitors")}</th>
+                  <th scope="col" className="gt-num">{tt("cdx.kpi.started")}</th>
+                  <th scope="col" className="gt-num">{tt("cdx.kpi.finished")}</th>
+                  <th scope="col" className="gt-num">{tt("cdx.col.paywall")}</th>
+                  <th scope="col" className="gt-num">{tt("cdx.kpi.buyers")}</th>
+                  <th scope="col" className="gt-num">{tt("cdx.kpi.revenue")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {groups.map((g) => {
+                  const x = g.totals;
+                  const s = titleOf.get(g.key);
+                  const rate = (n: number) => (
+                    <td className="gt-num" title={n0(n)}>
+                      {fmtShare(share(n, x.opened))}
+                    </td>
+                  );
+                  return (
+                    <tr key={g.key} className={s && s.drama_id === shown?.drama_id ? "cdc-this" : undefined}>
+                      <th scope="row" className="cds-title">
+                        {s ? <a href={hrefWith({ curve: s.slug })}>{s.title}</a> : g.key}
+                      </th>
+                      <td className="gt-num">{n0(x.opened)}</td>
+                      {rate(x.started_ep1)}
+                      {rate(x.finished_ep1)}
+                      {rate(x.paywall)}
+                      <td className="gt-num">{n0(x.buyers)}</td>
+                      <td className="gt-num">{fmtUsdCents(x.revenue_cents)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </section>
       </>
@@ -283,141 +488,15 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
       <PlaybackSection
         totals={totals}
         before={before}
-        vs={prev ? t(locale, `cdx.vs.${range}`) : null}
-        phones={groups.device}
-        edges={edges}
+        vs={vs}
+        phones={byDevice(dashRows(report, span, filter, "device")).map((g) => ({ key: g.key, name: tt(`cds.dev.${g.key}`), href: hrefWith({ device: g.key }), totals: g.totals }))}
+        edges={report.timing_edges_s}
         eps={eps}
         epsHref={(e) => hrefWith({ eps: e })}
         drops={dropsFor(report, span, filter, eps)}
         titleOf={(id) => titleOf.get(id)?.title ?? id}
         locale={locale}
       />
-    );
-  }
-
-  function SeriesTab() {
-    return (
-      <section className="rs-panel cdx-card">
-        <div className="an-scroll" tabIndex={0} role="region" aria-label={t(locale, "cdx.tab.series")}>
-          <table className="an-table cds-table cdx-table">
-            <thead>
-              <tr>
-                <th scope="col" />
-                <th scope="col" className="gt-num">{t(locale, "cdx.kpi.visitors")}</th>
-                <th scope="col" className="gt-num">{t(locale, "cdx.kpi.started")}</th>
-                <th scope="col" className="gt-num">{t(locale, "cdx.kpi.finished")}</th>
-                <th scope="col" className="gt-num">{t(locale, "cdx.kpi.ep2")}</th>
-                <th scope="col" className="gt-num">{t(locale, "cdx.col.paywall")}</th>
-                <th scope="col" className="gt-num">{t(locale, "cdx.kpi.buyers")}</th>
-                <th scope="col" className="gt-num">{t(locale, "cdx.kpi.revenue")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {groups.series.map((g) => {
-                const x = g.totals;
-                const s = titleOf.get(g.key);
-                const rate = (n: number) => (
-                  <td className="gt-num" title={n0(n)}>
-                    {fmtShare(share(n, x.opened))}
-                  </td>
-                );
-                return (
-                  <tr key={g.key}>
-                    <th scope="row" className="cds-title">
-                      {s ? <a href={`/crazydramas/stats/${encodeURIComponent(s.slug)}?range=${range}`}>{g.name}</a> : g.name}
-                      {g.href && filter.series !== g.key && (
-                        <a className="cdd-only" href={g.href}>
-                          {t(locale, "cdx.filter")}
-                        </a>
-                      )}
-                    </th>
-                    <td className="gt-num">{n0(x.opened)}</td>
-                    {rate(x.started_ep1)}
-                    {rate(x.finished_ep1)}
-                    {rate(x.watched_ep2)}
-                    {rate(x.paywall)}
-                    <td className="gt-num">{n0(x.buyers)}</td>
-                    <td className="gt-num">{fmtUsdCents(x.revenue_cents)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    );
-  }
-
-  async function AdsTab() {
-    // Its people are the filtered rows over the report (the period is the ad table's own); spend is per ad, not
-    // per phone or country, so with one of those picked the costs would divide an ad's whole spend: none then.
-    const adReport = { ...report, sources: dashRows(report, { from: report.from, to: report.to }, filter) };
-    const adPeriod = await readAdPeriod(report, range, runs, searchParams.fresh === "1");
-    const adSpends =
-      filter.device || filter.country
-        ? []
-        : !filter.source || filter.source === "ads"
-          ? spends
-          : filter.source.startsWith("campaign:")
-            ? spends.filter((sp) => sp.campaign_id === filter.source!.slice(9))
-            : [];
-    const campaigns = campaignTable(adReport, adSpends, filter.series ?? undefined, adPeriod);
-    const ads = campaigns.filter((c) => c.kind === "campaign");
-    const spend = ads.reduce((a, c) => a + (c.spend_cents ?? 0), 0);
-    const known = ads.some((c) => c.spend_cents != null);
-    const people = ads.reduce((a, c) => a + c.opened, 0);
-    const finishers = ads.reduce((a, c) => a + c.finished_ep1, 0);
-    const per = (n: number) => (known && n > 0 ? fmtUsdCents(Math.round(spend / n)) : "–");
-    return (
-      <>
-        <div className="cdx-kpis">
-          <KpiCard label={t(locale, "cdx.ads.spend")} info={t(locale, "cdx.ads.spendInfo")} value={known ? fmtUsdCents(spend) : "–"} />
-          <KpiCard label={t(locale, "cdx.ads.visitors")} info={t(locale, "cdx.info.visitors")} value={n0(people)} />
-          <KpiCard label={t(locale, "cdx.ads.perVisitor")} info={t(locale, "cdx.ads.perInfo")} value={per(people)} />
-          <KpiCard label={t(locale, "cdx.ads.perFinisher")} info={t(locale, "cdx.ads.perInfo")} value={per(finishers)} />
-          <KpiCard label={t(locale, "cdx.kpi.buyers")} info={t(locale, "cdx.info.buyers")} value={n0(ads.reduce((a, c) => a + c.buyers, 0))} />
-          <KpiCard label={t(locale, "cdx.kpi.revenue")} info={t(locale, "cdx.info.revenue")} value={fmtUsdCents(ads.reduce((a, c) => a + c.revenue_cents, 0))} />
-        </div>
-        <section className="rs-panel cdx-card">
-          <div className="cdx-card-head">
-            <h2>{t(locale, "cdx.ads.campaigns")}</h2>
-          </div>
-          {adPeriod?.days && !adPeriod.days.ok && <p className="note note-warn">{t(locale, "cds.ads.daysFailed", { error: adPeriod.days.error })}</p>}
-          {(filter.device || filter.country) && <p className="note">{t(locale, "cdd.ads.byPhoneNote")}</p>}
-          <CampaignTable rows={campaigns} caption={t(locale, "cdx.ads.campaigns")} />
-        </section>
-      </>
-    );
-  }
-
-  function AudienceTab() {
-    const aud = audience(report, range);
-    return (
-      <>
-        <div className="cdx-kpis cdx-kpis-4">
-          <KpiCard label={t(locale, "cds.aud.today")} info={t(locale, "cds.aud.sub")} value={n0(aud.today?.watchers ?? 0)} sub={t(locale, "cds.aud.opened", { n: n0(aud.today?.visitors ?? 0) })} />
-          <KpiCard label={t(locale, "cds.aud.yesterday")} info={t(locale, "cds.aud.sub")} value={n0(aud.yesterday?.watchers ?? 0)} />
-          <KpiCard label={t(locale, "cds.aud.wau")} info={t(locale, "cds.aud.sub")} value={n0(aud.wau)} />
-          <KpiCard label={t(locale, "cds.aud.mau")} info={t(locale, "cds.aud.sub")} value={n0(aud.mau)} />
-        </div>
-        {aud.days.length > 1 && (
-          <section className="rs-panel cdx-card">
-            <TrendChart title={t(locale, "cds.aud.chart")} points={aud.days.map((d) => ({ day: d.day, value: d.watchers }))} tableLabel={t(locale, "cdx.numbers")} />
-          </section>
-        )}
-        <div className="cdx-kpis cdx-kpis-4">
-          <KpiCard label={t(locale, "cds.money.revenue")} info={t(locale, "cds.money.sub")} value={fmtUsdCents(aud.money.revenue_cents)} />
-          <KpiCard label={t(locale, "cds.money.payments")} info={t(locale, "cds.money.sub")} value={n0(aud.money.payments)} />
-          <KpiCard label={t(locale, "cds.money.first")} info={t(locale, "cds.money.sub")} value={n0(aud.money.first_purchases)} />
-          <KpiCard label={t(locale, "cds.money.renewals")} info={t(locale, "cds.money.sub")} value={n0(aud.money.renewals)} />
-        </div>
-        <section className="rs-panel cdx-card">
-          <div className="cdx-card-head">
-            <h2>{inCountry ? t(locale, "cdd.place.inTitle", { country: countryName(filter.country!, locale) }) : t(locale, "cdx.aud.where")}</h2>
-          </div>
-          <CompareTable rows={groups.country} caption={t(locale, "cdx.aud.where")} locale={locale} />
-        </section>
-      </>
     );
   }
 }

@@ -123,6 +123,20 @@ export function launchShape(s: Pick<LaunchSettings, "objective_type" | "sales_de
   return s.sales_destination === "website" ? "website_purchases" : "instant_page";
 }
 
+/**
+ * What TikTok optimizes a campaign toward, in the stats pages' words (decision 2026-09-26): only `purchases`
+ * (Website purchases on the Purchase event) makes TikTok count purchases; clicks, landing page views, checkouts
+ * and Instant Page taps do not, while crazydramas still counts every buyer.
+ */
+export type PurchaseGoal = "purchases" | "checkouts" | "instant_page" | "clicks" | "page_views";
+export function purchaseGoal(s: Pick<LaunchSettings, "objective_type" | "sales_destination" | "optimization_goal" | "optimization_event">): PurchaseGoal {
+  const shape = launchShape(s);
+  if (shape === "website_purchases") return (s.optimization_event ?? "SHOPPING") === "SHOPPING" ? "purchases" : "checkouts";
+  if (shape === "instant_page") return "instant_page";
+  return s.optimization_goal === "TRAFFIC_LANDING_PAGE_VIEW" ? "page_views" : "clicks";
+}
+export const optimizesPurchases = (s: Parameters<typeof purchaseGoal>[0]): boolean => purchaseGoal(s) === "purchases";
+
 /** The attribution a Website purchases ad group sends: its own, or 7-day click / 1-day view with the event's count. */
 export function attributionOf(s: Pick<LaunchSettings, "attribution" | "optimization_event">): Attribution {
   return s.attribution ?? { click: DEFAULT_CLICK_WINDOW, view: DEFAULT_VIEW_WINDOW, event_count: defaultEventCount(s.optimization_event ?? "SHOPPING") };

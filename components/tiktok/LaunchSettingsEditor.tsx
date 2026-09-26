@@ -9,7 +9,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useT } from "@/components/locale";
 import { AGE_OPTIONS, BID_STRATEGY_OPTIONS, BUDGET_MODE_OPTIONS, COMMON_LANGUAGES, CTA_OPTIONS, GENDER_OPTIONS, GOAL_OPTIONS, MAX_DURATION_DAYS, MAX_DUPLICATE_COPIES, MIN_ADGROUP_BUDGET_USD, OS_OPTIONS, PACING_OPTIONS, PLACEMENT_OPTIONS, WEB_EVENT_OPTIONS, defaultEventCount, goalOption } from "@/lib/tiktok/options";
-import { attributionOf, defaultSalesLaunchSettings, defaultWebsitePurchaseSettings, launchShape, planAdGroup, type LaunchSettings } from "@/lib/tiktok/settings";
+import { attributionOf, defaultSalesLaunchSettings, defaultWebsitePurchaseSettings, launchShape, optimizesPurchases, planAdGroup, type LaunchSettings } from "@/lib/tiktok/settings";
 import InstantPageTemplatePicker from "@/components/launch/InstantPageTemplatePicker";
 import { call } from "./api";
 
@@ -123,6 +123,8 @@ export default function LaunchSettingsEditor({ value, onChange, budgetUsd, regio
         <select id="tk-goal" className="select" value={value.optimization_goal} onChange={(e) => set("optimization_goal", e.target.value)}>{GOAL_OPTIONS.filter(g => shape !== "traffic" ? g.value === "CONVERT" : g.value !== "CONVERT").map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}</select>
         <span className="gt-muted">{goal.billingLabel}</span>
       </div>
+      {/* Decision 2026-09-26: only Website purchases on Purchase makes TikTok count purchases. */}
+      {!optimizesPurchases(value) && <p className="note note-warn" role="note" data-testid="goal-no-purchases">{tt("lpx.goalNoPurchases")}</p>}
       <div className="tk-field"><span className="tk-label">{tt("tk.bidStrategy")}</span><div className="seg tk-seg" role="radiogroup">{BID_STRATEGY_OPTIONS.map((b) => <button type="button" key={b.value} className={`seg-btn${value.bid_strategy === b.value ? " on" : ""}`} onClick={() => set("bid_strategy", b.value as LaunchSettings["bid_strategy"])}>{tt(`tk.bid.${b.value}`)}</button>)}</div></div>
       {value.bid_strategy === "COST_CAP" && <div className="tk-field tk-row">
         <label className="tk-label" htmlFor="tk-bid">{tt("tk.bidAmount")}</label>

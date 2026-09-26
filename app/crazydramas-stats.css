@@ -203,6 +203,90 @@
 .cdp-steps { list-style: none; margin: 0; padding-left: 0; display: grid; gap: 2px; font-size: 12.5px; }
 .cdp-step-t { font-variant-numeric: tabular-nums; color: var(--text-muted); display: inline-block; min-width: 44px; }
 .cdp-facts { margin: 6px 0 0; }
+/* Stats: campaigns, buyers and the full episode curve (2026-09-26). Spend in the second data colour, revenue in
+   the first; the clip an ad played as a still, its type as a pill and its words, the TikTok id in grey; the gap
+   between TikTok and us as short chips; a buyer's steps as a vertical timeline. */
+.cdx-kpis-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.cdm-spend { fill: var(--data-2); }
+.cdm-revenue { fill: var(--data-1); }
+.cdm-spend-dot { background: var(--data-2); }
+.cdm-revenue-dot { background: var(--data-1); }
+.cdm-legend { list-style: none; margin: 4px 0 0; padding: 0; display: flex; gap: 16px; font-size: 12.5px; color: var(--text-muted); }
+.cdm-legend li { display: inline-flex; align-items: center; gap: 6px; }
+.cdc-table th, .cdc-table td { vertical-align: top; }
+.cdc-creative { display: inline-flex; align-items: flex-start; gap: 10px; min-width: 240px; max-width: 360px; color: var(--text); text-decoration: none; white-space: normal; }
+a.cdc-creative:hover .cdc-words { color: var(--brand); text-decoration: underline; }
+.cdc-thumb { flex: none; width: 36px; height: 64px; border-radius: 6px; object-fit: cover; background: var(--surface-3); border: 1px solid var(--border); }
+.cdc-thumb.is-empty { display: inline-block; }
+.cdc-thumb-sm { width: 27px; height: 48px; border-radius: 4px; }
+.cdc-creative-text { display: grid; gap: 3px; min-width: 0; }
+.cdc-creative-top { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.cdc-words { font-weight: var(--w-medium); font-size: 13px; line-height: 1.35; }
+.cdc-id { font-size: 11.5px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.cdc-pill { font-size: 11px; white-space: nowrap; }
+.cdc-pill-none { color: var(--text-faint); }
+.cdc-why-cell { min-width: 220px; white-space: normal !important; }
+.cdc-reasons { display: flex; flex-wrap: wrap; gap: 4px; }
+.cdc-chip { display: inline-flex; align-items: center; gap: 2px; padding: 2px 8px; border-radius: 999px; font-size: 11.5px; line-height: 1.4; background: var(--surface-3); color: var(--text-muted); }
+.cdc-chip-not_purchases, .cdc-chip-untagged { background: var(--warning-bg, var(--surface-3)); color: var(--warning, var(--text)); }
+.cdc-chip-match { color: var(--success, var(--text-muted)); }
+.cdc-table tr.cds-ad-row > th.cds-ad-name { padding-left: 28px; }
+tr.cdc-this > th, tr.cdc-this > td { background: var(--surface-2); }
+.cdc-detail-top { display: grid; grid-template-columns: minmax(160px, 240px) minmax(0, 1fr); gap: 18px; margin-bottom: 14px; }
+.cdc-player { width: 100%; aspect-ratio: 9 / 16; max-height: 420px; border-radius: var(--radius-lg); background: #000; object-fit: contain; }
+.cdc-player.is-empty { display: flex; align-items: center; justify-content: center; padding: 12px; color: var(--text-faint); background: var(--surface-3); font-size: 12.5px; text-align: center; }
+.cdc-facts, .cdb-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 18px; margin: 0; align-content: start; }
+.cdc-facts > div, .cdb-facts > div { min-width: 0; }
+.cdc-facts dt, .cdb-facts dt { font-size: 11.5px; color: var(--text-faint); margin: 0 0 2px; }
+.cdc-facts dd, .cdb-facts dd { margin: 0; font-size: 13.5px; overflow-wrap: anywhere; }
+.cdc-facts > div:nth-child(2), .cdb-fact-wide { grid-column: 1 / -1; }
+.cdc-h3 { font-size: 13.5px; margin: 16px 0 8px; }
+.cdb-table td, .cdb-table th { vertical-align: top; }
+.cdb-series { min-width: 140px; white-space: normal !important; }
+.cdb-badge { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: var(--w-medium); background: var(--warning-bg, var(--surface-3)); color: var(--warning, var(--text)); vertical-align: middle; white-space: nowrap; }
+.cdb-src { display: inline-flex; align-items: flex-start; gap: 8px; min-width: 180px; max-width: 300px; white-space: normal; }
+.cdb-src > span { display: grid; gap: 2px; min-width: 0; }
+.cdb-src-head { font-size: 13px; }
+.cdb-src a.cds-sub { color: var(--brand); text-decoration: none; }
+.cdb-src a.cds-sub:hover { text-decoration: underline; }
+.cdb-person .cdx-card-head h2 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.cdb-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 16px; }
+.cdb-timeline { list-style: none; margin: 0; padding: 0; display: grid; }
+.cdb-tl { display: grid; grid-template-columns: 76px 14px minmax(0, 1fr); gap: 10px; position: relative; padding: 0 0 12px; font-size: 13px; }
+.cdb-tl::before { content: ""; position: absolute; left: 92px; top: 12px; bottom: -2px; width: 2px; background: var(--border); }
+.cdb-tl:last-child::before { display: none; }
+.cdb-tl-time { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-muted); font-size: 12px; line-height: 1.6; }
+.cdb-tl-day { display: block; font-weight: var(--w-strong); color: var(--text); }
+.cdb-tl-dot { width: 10px; height: 10px; margin: 5px 0 0 2px; border-radius: 50%; background: var(--surface); border: 2px solid var(--data-1); position: relative; z-index: 1; }
+.cdb-tl-landing .cdb-tl-dot { background: var(--data-1); }
+.cdb-tl-paywall .cdb-tl-dot, .cdb-tl-checkout .cdb-tl-dot { border-color: var(--warning, var(--data-2)); }
+.cdb-tl-paid .cdb-tl-dot { background: var(--success, var(--data-1)); border-color: var(--success, var(--data-1)); }
+.cdb-tl-left .cdb-tl-dot { border-color: var(--border-strong); }
+.cdb-tl-body { display: grid; gap: 2px; min-width: 0; line-height: 1.45; }
+.cdb-tl-sub, .cdb-tl-gap { font-size: 12px; color: var(--text-muted); }
+.cdb-tl-sub a { color: var(--brand); }
+.cdb-tl-paid strong { color: var(--success, var(--text)); }
+.cdv-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(240px, 1fr); gap: 16px; }
+.cdv-grid > .cdx-card { margin-bottom: 16px; }
+.cds-chart .cdv-drop-dot { fill: var(--warning, var(--data-2)); stroke: var(--surface); stroke-width: 1.5; }
+.cdv-drop-label { fill: var(--warning, var(--text)); font-weight: var(--w-strong); }
+.cdv-rates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.cdv-rates > div { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-lg); }
+.cdv-rates strong { font-size: 20px; font-variant-numeric: tabular-nums; }
+@media (max-width: 1100px) {
+  .cdx-kpis-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 800px) {
+  .cdv-grid { grid-template-columns: minmax(0, 1fr); }
+  .cdc-detail-top { grid-template-columns: minmax(0, 1fr); }
+  .cdc-player { width: 200px; max-height: none; justify-self: center; }
+  .cdb-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) {
+  .cdx-kpis-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cdb-tl { grid-template-columns: 58px 14px minmax(0, 1fr); gap: 8px; }
+  .cdb-tl::before { left: 70px; }
+}
 @media (max-width: 1100px) {
   .cdx-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }

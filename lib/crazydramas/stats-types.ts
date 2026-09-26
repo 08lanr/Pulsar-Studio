@@ -1,7 +1,8 @@
 // crazydramas' stats report (GET /api/studio/stats, crazydramas
 // docs/STUDIO_API.md "GET /api/studio/stats"), as Studio reads it: a zod
-// whitelist, so nothing outside these fields survives a parse. Counts only:
-// the report holds no ids of people, no user agents and no playback ids.
+// whitelist, so nothing outside these fields survives a parse. Counts, plus
+// (since 2026-09-26) each buyer's payments and steps under crazydramas' short
+// person and browser codes: no account ids, emails, user agents or playback ids.
 // Client-safe (no server imports): the stats screens and the pure sums in
 // ./stats-summary.ts share these types.
 
@@ -196,6 +197,54 @@ export const CdStatsSourceSchema = z.object({
   robots: count,
 });
 
+/**
+ * Where a buyer came from, as crazydramas recorded their landing (since 2026-09-26). A landing with only
+ * TikTok's click id is platform "tiktok" with campaign null (it read "organic" before). `device` is
+ * crazydramas' kind of browser (tiktok_android, iphone, ...), read as any string.
+ */
+export const CdStatsTouchSchema = z.object({
+  platform: z.string().max(40),
+  campaign: z.string().max(64).nullable().default(null),
+  ad: z.string().max(64).nullable().default(null),
+  stored_copy: z.boolean().default(false),
+  device: z.string().max(40).default("unknown"),
+  country: z.string().regex(/^[A-Z]{2}$/).nullable().default(null),
+  region: z.string().regex(/^[A-Z0-9]{1,3}$/).nullable().default(null),
+});
+
+/** One payment (since 2026-09-26): `person` is crazydramas' short code for the buyer (one code across their browsers), `browser` the browser's. */
+export const CdStatsPurchaseSchema = z.object({
+  id: z.string().max(64),
+  at: z.string(),
+  /** Null: a payment crazydramas credits to no series (still money in). */
+  drama_id: z.string().nullable(),
+  amount_cents: count,
+  renewal: z.boolean().default(false),
+  person: z.string().max(32),
+  /** Null when crazydramas knows no browser for the payment (its source is then null too). */
+  browser: z.string().max(32).nullable(),
+  source: CdStatsTouchSchema.nullable().default(null),
+  first_seen_at: z.string().nullable().default(null),
+  paid_after_s: z.number().nonnegative().nullable().default(null),
+});
+
+export const JOURNEY_KINDS = ["landing", "ep_start", "ep_finish", "paywall", "checkout", "paid", "left"] as const;
+
+/**
+ * One step of a buyer's way through crazydramas (since 2026-09-26). `ep_finish` is the end of the episode or its
+ * 75% mark; a visit is a browser's events with no gap over 30 minutes.
+ */
+export const CdStatsJourneyStepSchema = z.object({
+  at: z.string(),
+  drama_id: z.string().nullable(),
+  kind: z.enum(JOURNEY_KINDS),
+  episode: count.optional(),
+  platform: z.string().max(40).optional(),
+  campaign: z.string().max(64).nullable().optional(),
+  ad: z.string().max(64).nullable().optional(),
+  amount_cents: count.optional(),
+});
+
 export const CdStatsReportSchema = z.object({
   version: z.literal(1),
   generated_at: z.string(),
@@ -213,6 +262,14 @@ export const CdStatsReportSchema = z.object({
   sources: z.array(CdStatsSourceSchema).default([]),
   /** The latest episode views that ended early, newest first (the Playback tab's drill-down). */
   drops: z.array(CdStatsDropSchema).default([]),
+  /**
+   * Buyer details (since 2026-09-26): every payment, newest first; each buyer's steps by person code; the
+   * period's distinct buyers. Absent (not empty) in an older report: the Buyers tab then says they arrive
+   * with the next crazydramas release.
+   */
+  purchases: z.array(CdStatsPurchaseSchema).optional(),
+  journeys: z.record(z.array(CdStatsJourneyStepSchema)).optional(),
+  people: z.object({ buyers: count, purchases: count, revenue_cents: count }).optional(),
 });
 
 export type CdStatsDay = z.infer<typeof CdStatsDaySchema>;
@@ -222,3 +279,7 @@ export type CdStatsSource = z.infer<typeof CdStatsSourceSchema>;
 export type CdStatsReport = z.infer<typeof CdStatsReportSchema>;
 export type CdStatsPlayback = z.infer<typeof CdStatsPlaybackSchema>;
 export type CdStatsDrop = z.infer<typeof CdStatsDropSchema>;
+export type CdStatsTouch = z.infer<typeof CdStatsTouchSchema>;
+export type CdStatsPurchase = z.infer<typeof CdStatsPurchaseSchema>;
+export type CdStatsJourneyStep = z.infer<typeof CdStatsJourneyStepSchema>;
+export type JourneyKind = (typeof JOURNEY_KINDS)[number];

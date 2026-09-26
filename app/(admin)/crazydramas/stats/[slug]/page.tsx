@@ -8,7 +8,10 @@ import { KpiCard } from "@/components/admin/cd-stats/Overview";
 import { HeadlineNumbers, PlaybackSection } from "@/components/admin/cd-stats/Sections";
 import { SurveyView } from "@/components/admin/cd-stats/Tables";
 import { crazydramasPublicUrl } from "@/lib/crazydramas";
-import { readAdPeriod, readCrazydramasStats } from "@/lib/crazydramas/stats";
+import { fakeStatsLaunches, FAKE_STATS_CLIPS } from "@/lib/crazydramas/fake-stats";
+import { readAdPeriod, readCrazydramasStats, readLaunchClips } from "@/lib/crazydramas/stats";
+import { adCreatives } from "@/lib/crazydramas/stats-ads";
+import { mediaUrl } from "@/lib/data/storage";
 import {
   adSpendsFromRuns,
   biggestDrop,
@@ -254,11 +257,20 @@ export default async function CrazydramasSeriesStatsPage({ params, searchParams 
   }
 
   async function Ads() {
-    const adPeriod = await readAdPeriod(report, range, runs, searchParams.fresh === "1");
+    // Fixture mode: the fake report's ads get the invented launch records the dashboard shows (never stored).
+    const fake = read.ok && read.mode === "fake" ? fakeStatsLaunches() : null;
+    const [adPeriod, clips] = await Promise.all([readAdPeriod(report, range, runs, searchParams.fresh === "1"), readLaunchClips(session, runs)]);
+    if (fake) for (const c of FAKE_STATS_CLIPS) clips.set(c.id, { ...c });
+    const all = fake ? [...runs, ...fake.runs] : runs;
+    const period = adPeriod && fake && adPeriod.days ? { ...adPeriod, days: adPeriod.days.ok ? { ...adPeriod.days, campaigns: [...adPeriod.days.campaigns, ...fake.days.campaigns], days: { ...adPeriod.days.days, ...fake.days.days } } : fake.days } : adPeriod;
+    // Every ad names the clip it played and opens its panel on the dashboard's Campaigns tab (decision 2026-09-26).
+    const cells = Object.fromEntries(
+      [...adCreatives(all, clips)].map(([id, c]) => [id, { creative: c, media_url: c.file_path ? mediaUrl(c.file_path) : null, href: `/crazydramas/stats?range=${range}&tab=campaigns&ad=${encodeURIComponent(id)}` }]),
+    );
     return (
       <section className="rs-panel cdx-card">
-        {adPeriod?.days && !adPeriod.days.ok && <p className="note note-warn">{t(locale, "cds.ads.daysFailed", { error: adPeriod.days.error })}</p>}
-        <CampaignTable rows={campaignTable(report, adSpendsFromRuns(runs), series!.drama_id, adPeriod)} showTitle={false} caption={t(locale, "cdx.ads.campaigns")} />
+        {period?.days && !period.days.ok && <p className="note note-warn">{t(locale, "cds.ads.daysFailed", { error: period.days.error })}</p>}
+        <CampaignTable rows={campaignTable(report, adSpendsFromRuns(all), series!.drama_id, period)} showTitle={false} caption={t(locale, "cdx.ads.campaigns")} creatives={cells} />
       </section>
     );
   }

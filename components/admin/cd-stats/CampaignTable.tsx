@@ -2,7 +2,9 @@
 
 import { Fragment, useMemo, useState } from "react";
 import { useT } from "@/components/locale";
+import { CreativeLabel } from "@/components/admin/cd-stats/Creative";
 import Info from "@/components/admin/cd-stats/Info";
+import type { AdCreative } from "@/lib/crazydramas/stats-ads";
 import { CAMPAIGN_SORTS, fmtShare, fmtUsdCents, share, sortCampaigns, type AdRow, type AdTitle, type CampaignRow, type CampaignSort } from "@/lib/crazydramas/stats-summary";
 
 // "By ad", grouped by campaign (Ruobin, 2026-09-24: "add the title it was
@@ -63,7 +65,10 @@ function Numbers({ r, tt }: { r: CampaignRow | AdRow; tt: (k: string, v?: Record
   );
 }
 
-export default function CampaignTable({ rows, showTitle = true, caption }: { rows: CampaignRow[]; showTitle?: boolean; caption: string }) {
+/** Which clip an ad played, and where its panel and its still are (decision 2026-09-26), by TikTok's ad id. */
+export type AdCreativeCell = { creative: AdCreative | null; media_url: string | null; href: string | null };
+
+export default function CampaignTable({ rows, showTitle = true, caption, creatives = {} }: { rows: CampaignRow[]; showTitle?: boolean; caption: string; creatives?: Record<string, AdCreativeCell> }) {
   const { tt } = useT();
   const [sort, setSort] = useState<CampaignSort>("spend");
   const [open, setOpen] = useState<Set<string>>(() => new Set());
@@ -153,7 +158,11 @@ export default function CampaignTable({ rows, showTitle = true, caption }: { row
                     c.ads.map((a) => (
                       <tr key={a.key} className={`cds-ad-row${a.key === best ? " cds-best" : ""}`}>
                         <th scope="row" className="cds-title cds-ad-name">
-                          <strong>{tt("cds.ads.adId", { id: a.ad ?? "–" })}</strong>
+                          {a.ad && creatives[a.ad] ? (
+                            <CreativeLabel ad={{ ad_id: a.ad, creative: creatives[a.ad].creative }} media={creatives[a.ad].media_url} href={creatives[a.ad].href ?? undefined} tt={tt} />
+                          ) : (
+                            <strong>{tt("cds.ads.adId", { id: a.ad ?? "–" })}</strong>
+                          )}
                           {a.key === best && <span className="cds-badge">{tt("cds.ads.best")}</span>}
                         </th>
                         {showTitle && <Titles titles={a.titles} tt={tt} />}
