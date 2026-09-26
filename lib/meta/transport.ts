@@ -18,9 +18,12 @@ export interface MetaTransport {
 
 /** Sanitized diagnostics never include URLs, response bodies or credentials. */
 export class MetaApiError extends Error {
-  constructor(message: string, readonly code?: number, readonly ambiguous = false) {
+  /** Meta's `error_subcode`, when it sent one: a bare code 100 and 100/33 are different refusals. */
+  readonly subcode?: number;
+  constructor(message: string, readonly code?: number, readonly ambiguous = false, subcode?: number) {
     super(message);
     this.name = "MetaApiError";
+    this.subcode = subcode;
   }
 }
 
@@ -81,7 +84,7 @@ async function request<T extends MetaObject>(method: "GET" | "POST", path: strin
       .filter((part): part is string => typeof part === "string" && part.trim().length > 0)
       .join(" — ").slice(0, 300);
     const where = `HTTP ${response.status}${code === undefined ? "" : `, code ${code}`}${subcode === undefined ? "" : `/${subcode}`}`;
-    throw new MetaApiError(`Meta rejected the request (${where})${said ? `: ${said}` : ""}`, code, method === "POST" && response.status >= 500);
+    throw new MetaApiError(`Meta rejected the request (${where})${said ? `: ${said}` : ""}`, code, method === "POST" && response.status >= 500, subcode);
   }
   return json as T;
 }
