@@ -256,6 +256,7 @@ export function fakeStatsReport(series: FakeSeriesIn[], episodes: FakeEpisodeIn[
           ep1_sound_known: q(soundKnown), ep1_sound_on: q(Math.round(soundKnown * 0.8)),
           paywall: q(paywall), paywall_watched: q(watchedBefore), paywall_skipped: q(paywall - watchedBefore),
           checkouts: q(checkouts), buyers: q(buyers), revenue_cents: q(cents),
+          revenue_d0_cents: q(Math.round(cents * 0.55)), revenue_d7_cents: q(Math.round(cents * 0.85)),
           returned: q(Math.round(started * 0.12)), errors: q(Math.round(opened * 0.01)),
           restarted: recent ? ep1(0.1) : 0, restarted_muted: recent ? ep1(0.08) : 0, blocked: recent ? ep1(0.05) : 0,
           survey_ep1_shown: recent ? ep1(0.2) : 0,
@@ -308,6 +309,7 @@ export function fakeStatsReport(series: FakeSeriesIn[], episodes: FakeEpisodeIn[
   }
   const robots = days.reduce((a, d) => a + d.robots, 0);
   const buyers = fakeBuyers(live, now);
+  const money = fakeMoney(live, from, to, (d) => watchersOn(d));
   return {
     version: 1,
     generated_at: now.toISOString(),
@@ -323,6 +325,108 @@ export function fakeStatsReport(series: FakeSeriesIn[], episodes: FakeEpisodeIn[
     sources,
     drops: fakeDrops(live.map((x) => x.id), now),
     ...buyers,
+    ...money,
+  };
+}
+
+/**
+ * Invented coins and VIP (crazydramas since 2026-09-28): every payment of the last 60 days (coin packs, the $1.99
+ * VIP first week, new VIP, renewals, a few refunds), the wallets' coins per day, every VIP, and the unlock sheet and
+ * pop-ups per day. About one in 25 new watchers pays; a third of the $1.99 weeks renew.
+ */
+function fakeMoney(live: FakeSeriesIn[], from: string, to: string, watchersOn: (day: string) => number): Pick<CdStatsReport, "payments" | "coins" | "vip" | "paywall_days"> {
+  if (!live.length) return { payments: [], coins: { days: [], unspent_paid: 0, unspent_paid_cents: 0, unspent_bonus: 0, series_days: [] }, vip: [], paywall_days: [] };
+  const packs: [string, number, number, number][] = [
+    ["coins:c500first", 499, 500, 75],
+    ["coins:c500", 499, 500, 25],
+    ["coins:c1000", 999, 1000, 100],
+    ["coins:c2000", 1999, 2000, 400],
+    ["coins:c5000", 4999, 5000, 2500],
+  ];
+  const [campA, campB] = FAKE_STATS_CAMPAIGNS;
+  const payments: NonNullable<CdStatsReport["payments"]> = [];
+  const coinDays = new Map<string, NonNullable<CdStatsReport["coins"]>["days"][number]>();
+  const seriesDays: NonNullable<CdStatsReport["coins"]>["series_days"] = [];
+  const paywallDays: NonNullable<CdStatsReport["paywall_days"]> = [];
+  const vip: NonNullable<CdStatsReport["vip"]> = [];
+  const start = addDays(to, -59) > from ? addDays(to, -59) : from;
+  let n = 0;
+  for (let day = start; day <= to; day = addDays(day, 1)) {
+    const r = (k: string) => unit(`${day}:${k}`);
+    const watchers = Math.max(20, watchersOn(day));
+    const views = Math.round(watchers * (0.35 + 0.1 * r("v")));
+    const payers = Math.max(1, Math.round(watchers / (22 + 8 * r("p"))));
+    const coin = { day, bought: 0, bonus: 0, reward: Math.round(watchers * 4 * (0.6 + r("rw"))), spent_paid: 0, spent_bonus: 0, expired: Math.round(watchers * 1.5 * r("ex")), clawed_back: 0, unlocks: 0 };
+    const checkouts = { sheet: 0, gift: 0, retention: 0, store: 0 };
+    for (let i = 0; i < payers; i++) {
+      n++;
+      const person = `f${n.toString(36).padStart(5, "0")}`;
+      const x = r(`k${i}`);
+      const series = live[i % live.length];
+      const fromAd = r(`a${i}`) < 0.75;
+      const placement = (["sheet", "sheet", "sheet", "gift", "retention", "store"] as const)[Math.floor(r(`pl${i}`) * 6)];
+      checkouts[placement] += 1 + (r(`c${i}`) < 0.6 ? 1 : 0);
+      const base = { day, person, first: true, refunded: r(`rf${i}`) < 0.03, placement, drama_id: placement === "store" ? null : series.id, platform: fromAd ? "tiktok" : "organic", campaign: fromAd ? (i % 3 === 0 ? campB : campA) : null, paid_after_s: Math.round(600 + 5400 * r(`t${i}`)) };
+      if (x < 0.6) {
+        // Coins: the first-time $4.99 pack most often, then bigger ones; a quarter of buyers come back for more.
+        const [product, cents, coins, bonus] = packs[x < 0.3 ? 0 : x < 0.45 ? 2 : x < 0.55 ? 3 : 4];
+        payments.push({ ...base, kind: "coins", product, cents, offer: null });
+        coin.bought += coins;
+        coin.bonus += bonus;
+        if (r(`again${i}`) < 0.25) {
+          const [p2, c2, k2, b2] = packs[1 + Math.floor(r(`p2${i}`) * 3)];
+          payments.push({ ...base, first: false, refunded: false, kind: "coins", product: p2, cents: c2, offer: null });
+          coin.bought += k2;
+          coin.bonus += b2;
+        }
+      } else if (x < 0.85) {
+        // The $1.99 VIP first week; a third renew at $6.99 a week later.
+        payments.push({ ...base, kind: "vip_intro", product: "all_access_weekly", cents: 199, offer: "first_week" });
+        const renews = r(`rn${i}`) < 0.34;
+        const renewDay = addDays(day, 7);
+        if (renews && renewDay <= to) payments.push({ ...base, day: renewDay, first: false, refunded: false, kind: "vip_renewal", product: "all_access_weekly", cents: 699, offer: null, placement: null });
+        const end = renews ? addDays(day, 14) : renewDay;
+        vip.push({ plan: "all_access_weekly", intro: !renews && renewDay > to, active: end >= to, expires_day: end });
+      } else {
+        const monthly = x < 0.95;
+        payments.push({ ...base, kind: "vip", product: monthly ? "vip_monthly" : "vip_yearly", cents: monthly ? 1399 : 6999, offer: null });
+        const end = addDays(day, monthly ? 30 : 365);
+        if (monthly && end <= to) payments.push({ ...base, day: end, first: false, refunded: false, kind: "vip_renewal", product: "vip_monthly", cents: 1399, offer: null, placement: null });
+        vip.push({ plan: monthly ? "vip_monthly" : "vip_yearly", intro: false, active: true, expires_day: monthly && end <= to ? addDays(end, 30) : end });
+      }
+    }
+    // Coins spent on episodes: most of what was bought and given, bonus first.
+    const unlocks = Math.round((coin.bought + coin.bonus + coin.reward) * (0.7 + 0.2 * r("u")) / 60);
+    coin.unlocks = unlocks;
+    coin.spent_bonus = Math.min(coin.bonus + coin.reward, unlocks * 60);
+    coin.spent_paid = unlocks * 60 - coin.spent_bonus;
+    coinDays.set(day, coin);
+    const weightSum = live.reduce((a, _sr, i) => a + 1 / (i + 1), 0);
+    live.forEach((sr, i) => {
+      const part = 1 / (i + 1) / weightSum;
+      const u = Math.round(unlocks * part);
+      if (!u) return;
+      const paid = Math.round(coin.spent_paid * part);
+      seriesDays.push({ day, drama_id: sr.id, spent_paid: Math.min(paid, u * 60), spent_bonus: Math.max(0, u * 60 - paid), cents: Math.min(paid, u * 60), unlocks: u });
+    });
+    paywallDays.push({
+      day,
+      views: views + Math.round(views * 0.3),
+      viewers: views,
+      unlocks,
+      unlockers: Math.round(unlocks / 2.5),
+      checkouts,
+      gift_shown: Math.round(watchers * 0.15),
+      retention_shown: Math.round(views * 0.4),
+      not_completed: Math.round(payers * 0.6),
+    });
+  }
+  const unspentPaid = Math.max(0, Math.round([...coinDays.values()].reduce((a, d) => a + d.bought - d.spent_paid, 0) * 0.35));
+  return {
+    payments: payments.sort((a, b) => b.day.localeCompare(a.day)),
+    coins: { days: [...coinDays.values()], unspent_paid: unspentPaid, unspent_paid_cents: Math.round(unspentPaid * 0.998), unspent_bonus: Math.round(unspentPaid * 0.2), series_days: seriesDays },
+    vip,
+    paywall_days: paywallDays,
   };
 }
 

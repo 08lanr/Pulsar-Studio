@@ -7,7 +7,7 @@ import CampaignsView, { type CampaignsViewRow } from "@/components/admin/cd-stat
 import { FunnelChart } from "@/components/admin/cd-stats/Dash";
 import FilterBar, { type FilterOptions } from "@/components/admin/cd-stats/FilterBar";
 import Info from "@/components/admin/cd-stats/Info";
-import { SpendRevenueChart } from "@/components/admin/cd-stats/Money";
+import { SpendRevenueChart, StackedDaysChart, type StackSeries } from "@/components/admin/cd-stats/Money";
 import { KpiCard } from "@/components/admin/cd-stats/Overview";
 import { PlaybackSection } from "@/components/admin/cd-stats/Sections";
 import { EpisodeCurveChart, SeriesFunnelList } from "@/components/admin/cd-stats/SeriesCurve";
@@ -17,6 +17,26 @@ import { fakeStatsLaunches, FAKE_STATS_CLIPS } from "@/lib/crazydramas/fake-stat
 import { readCrazydramasStats, readLaunchClips } from "@/lib/crazydramas/stats";
 import { adCreatives, byAdType, campaignFacts, changeAbove, compareCampaigns, dailySpend, fmtRatio, returnOnSpend, spendIn, type AdCreative } from "@/lib/crazydramas/stats-ads";
 import { adBuyers, browsersOf, buyerCounts, buyersByAd, fmtDuration, hasBuyerDetails, personOf, purchasesIn, untaggedBuyers } from "@/lib/crazydramas/stats-buyers";
+import {
+  coinsByDay,
+  coinsBySeries,
+  coinsIn,
+  firstOffersTaken,
+  hasMoneyDetails,
+  medianToFirstPay,
+  moneyByDay,
+  moneyTotals,
+  paymentsIn,
+  paywallIn,
+  perPayer,
+  placementRows,
+  productMix,
+  repeatCoinBuyers,
+  vipEnded,
+  vipNow,
+  vipPeriod,
+  vipWeeks,
+} from "@/lib/crazydramas/stats-money";
 import { episodeCurve, seriesFunnel } from "@/lib/crazydramas/stats-series";
 import { readTeamList } from "@/lib/crazydramas/stats-team";
 import {
@@ -53,7 +73,7 @@ import {
   type AdPeriod,
   type DashFilter,
 } from "@/lib/crazydramas/stats-summary";
-import type { CdStatsPurchase } from "@/lib/crazydramas/stats-types";
+import type { CdStatsPayment, CdStatsPurchase, PaymentKind } from "@/lib/crazydramas/stats-types";
 import { getData } from "@/lib/data";
 import { mediaUrl } from "@/lib/data/storage";
 import { t } from "@/lib/i18n";
@@ -65,7 +85,9 @@ import { readTikTokAdDays, type AdDaysRead } from "@/lib/tiktok/ad-days";
 // click on buyers? see where they came from? Our current series metric also stops at episode 2"). Tabs:
 // Overview (spend, revenue, return, cost per buyer, buyers; spend against revenue per day), Campaigns (each
 // campaign and ad: what TikTok says it sold against what we saw, why they differ, which clip each ad played),
-// Buyers (every payment, each person's way through the site), Series (the whole episode curve), Playback. One
+// Money (decision 2026-09-28 "Stats for coins and VIP": cash by product, refunds, payers, what sold, every payment
+// and each person's way through the site), Paywall (the unlock sheet and the pop-ups), VIP, Coins, Series (the
+// whole episode curve), Playback. One
 // filter row (period, series, phone, source, country) scopes every tab; words that explain a number live in
 // its ⓘ. The numbers are crazydramas' /api/studio/stats report (lib/crazydramas/stats.ts), summed in the pure
 // lib/crazydramas/stats-*.ts modules.
@@ -150,6 +172,16 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
   const details = hasBuyerDetails(report);
   const paid = details ? purchasesIn(report, span, filter) : null;
   const paidBefore = details && prev ? purchasesIn(report, prev, filter) : null;
+  // Coins and VIP (crazydramas since 2026-09-28): every payment, cash the day it was paid.
+  const money = hasMoneyDetails(report);
+  const pays = money ? paymentsIn(report, span, filter) : null;
+  const paysBefore = money && prev ? paymentsIn(report, prev, filter) : null;
+  const daysOf = (r: { from: string; to: string }) => {
+    const out: string[] = [];
+    for (let d = r.from; d <= r.to; d = nextDay(d)) out.push(d);
+    return out;
+  };
+  const newWatchers = (r: { from: string; to: string }) => report.days.filter((d) => d.day >= r.from && d.day <= r.to).reduce((a, d) => a + d.new_watchers, 0);
 
   // The filter row's choices.
   const campaignLabel = (key: string, name: string | null) => name ?? tt("cdd.filter.campaign", { id: key.slice(9) });
@@ -206,8 +238,11 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
       {tabs}
 
       {tab === "overview" && <OverviewTab />}
+      {tab === "money" && <MoneyTab />}
+      {tab === "paywall" && <PaywallTab />}
+      {tab === "vip" && <VipTab />}
+      {tab === "coins" && <CoinsTab />}
       {tab === "campaigns" && <CampaignsTab />}
-      {tab === "buyers" && <BuyersTab />}
       {tab === "series" && <SeriesTab />}
       {tab === "playback" && <PlaybackTab />}
     </>
@@ -220,15 +255,21 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
     const spendDays = dailySpend(adSpends, adDays, chart);
     const paidDays = details ? purchasesIn(report, chart, filter) : null;
     const onDay = (list: CdStatsPurchase[], day: string) => list.filter((p) => dayIn(p.at, report.timezone) === day);
-    const revenueDays = paidDays ? spendDays.map((d) => onDay(paidDays, d.day).reduce((a, p) => a + p.amount_cents, 0)) : dailyTotals(report, chart, filter).map((d) => d.totals.revenue_cents);
+    const chartPays = money ? paymentsIn(report, chart, filter) : null;
+    const revenueDays = chartPays
+      ? spendDays.map((d) => chartPays.filter((p) => p.day === d.day && !p.refunded).reduce((a, p) => a + p.cents, 0))
+      : paidDays
+        ? spendDays.map((d) => onDay(paidDays, d.day).reduce((a, p) => a + p.amount_cents, 0))
+        : dailyTotals(report, chart, filter).map((d) => d.totals.revenue_cents);
     const buyerDays = paidDays ? spendDays.map((d) => new Set(onDay(paidDays, d.day).map((p) => p.person)).size) : dailyTotals(report, chart, filter).map((d) => d.totals.buyers);
     const known = (list: { cents: number | null }[]) => (list.every((d) => d.cents !== null) ? list.reduce((a, d) => a + (d.cents ?? 0), 0) : null);
     const spendKnown = !spendDays.every((d) => d.cents === null);
 
     const spend = adSpends.length ? spendIn(adSpends, adPeriod) : { cents: null, partial: false };
     const spendBefore = prev && adSpends.length ? known(dailySpend(adSpends, adDays, prev)) : null;
-    const revenue = paid ? paid.reduce((a, p) => a + p.amount_cents, 0) : totals.revenue_cents;
-    const revenueBefore = prev ? (paidBefore ? paidBefore.reduce((a, p) => a + p.amount_cents, 0) : (before?.revenue_cents ?? null)) : null;
+    const net = (list: CdStatsPayment[]) => moneyTotals(list).net_cents;
+    const revenue = pays ? net(pays) : paid ? paid.reduce((a, p) => a + p.amount_cents, 0) : totals.revenue_cents;
+    const revenueBefore = prev ? (paysBefore ? net(paysBefore) : paidBefore ? paidBefore.reduce((a, p) => a + p.amount_cents, 0) : (before?.revenue_cents ?? null)) : null;
     const roas = returnOnSpend(revenue, spend.cents);
     const roasBefore = spendBefore && revenueBefore !== null && spendBefore >= 1000 ? revenueBefore / spendBefore : null;
     const counts = paid ? buyerCounts(paid) : null;
@@ -241,6 +282,14 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
     const perBuyerBefore = spendBefore !== null && adBuyersBefore ? Math.round(spendBefore / adBuyersBefore) : null;
     const people = counts ? counts.people : totals.buyers;
     const peopleBefore = countsBefore ? countsBefore.people : (before?.buyers ?? null);
+    // With coins and VIP: new payers (a person's first payment of all), and what each one from ads cost.
+    const firstsOf = (list: CdStatsPayment[]) => moneyTotals(list).first_payers;
+    const firstFromAds = (list: CdStatsPayment[]) => new Set(list.filter((p) => p.first && !p.refunded && (p.platform === "tiktok" || !!p.campaign)).map((p) => p.person)).size;
+    const newPayers = pays ? firstsOf(pays) : null;
+    const newPayersBefore = paysBefore ? firstsOf(paysBefore) : null;
+    const perFirst = pays && spend.cents !== null && firstFromAds(pays) > 0 ? Math.round(spend.cents / firstFromAds(pays)) : null;
+    const perFirstBefore = paysBefore && spendBefore !== null && firstFromAds(paysBefore) > 0 ? Math.round(spendBefore / firstFromAds(paysBefore)) : null;
+    const firstDays = chartPays ? spendDays.map((d) => new Set(chartPays.filter((p) => p.day === d.day && p.first && !p.refunded).map((p) => p.person)).size) : null;
 
     const steps = dashPath(totals).filter((s) => ["seen", "played", "finished", "ep2", "paywall", "paid"].includes(s.key));
     const out = notCounted(report, span);
@@ -258,7 +307,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
             upIsGood={false}
             spark={spendKnown ? spendDays.map((d) => d.cents ?? 0) : undefined}
           />
-          <KpiCard label={tt("cdx.kpi.revenue")} info={tt(details ? "cdo.revenueInfo" : "cdx.info.revenue")} value={fmtUsdCents(revenue)} change={changeAbove(revenue, revenueBefore, 1000)} vs={vs} spark={revenueDays} />
+          <KpiCard label={tt("cdx.kpi.revenue")} info={tt(money ? "cdo.cashInfo" : details ? "cdo.revenueInfo" : "cdx.info.revenue")} value={fmtUsdCents(revenue)} change={changeAbove(revenue, revenueBefore, 1000)} vs={vs} spark={revenueDays} href={money ? hrefWith({ tab: "money" }) : undefined} />
           <KpiCard
             label={tt("cdo.roas")}
             info={tt("cdo.roasInfo")}
@@ -268,25 +317,48 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
             vs={vs}
             spark={spendKnown ? spendDays.map((d, i) => (d.cents ? revenueDays[i] / d.cents : 0)) : undefined}
           />
-          <KpiCard
-            label={tt("cdo.perBuyer")}
-            info={tt("cdo.perBuyerInfo")}
-            value={perBuyer === null ? "–" : fmtUsdCents(perBuyer)}
-            sub={tt(adBuyersNow === 1 ? "cdo.adBuyers1" : "cdo.adBuyers", { n: n0(adBuyersNow) })}
-            change={adBuyersBefore && adBuyersBefore >= 3 ? changeAbove(perBuyer, perBuyerBefore, 1) : null}
-            vs={vs}
-            upIsGood={false}
-          />
-          <KpiCard
-            label={tt("cdx.kpi.buyers")}
-            info={tt(details ? "cdo.buyersInfo" : "cdx.info.buyers")}
-            value={tt(people === 1 ? "cdc.people1" : "cdc.people", { n: n0(people) })}
-            sub={counts ? tt(counts.purchases === 1 ? "cdc.purchases1" : "cdc.purchases", { n: n0(counts.purchases) }) : null}
-            change={change(people, peopleBefore)}
-            vs={vs}
-            spark={buyerDays}
-            href={hrefWith({ tab: "buyers" })}
-          />
+          {pays ? (
+            <KpiCard
+              label={tt("cdo.perFirst")}
+              info={tt("cdo.perFirstInfo")}
+              value={perFirst === null ? "–" : fmtUsdCents(perFirst)}
+              change={perFirstBefore !== null ? changeAbove(perFirst, perFirstBefore, 1) : null}
+              vs={vs}
+              upIsGood={false}
+            />
+          ) : (
+            <KpiCard
+              label={tt("cdo.perBuyer")}
+              info={tt("cdo.perBuyerInfo")}
+              value={perBuyer === null ? "–" : fmtUsdCents(perBuyer)}
+              sub={tt(adBuyersNow === 1 ? "cdo.adBuyers1" : "cdo.adBuyers", { n: n0(adBuyersNow) })}
+              change={adBuyersBefore && adBuyersBefore >= 3 ? changeAbove(perBuyer, perBuyerBefore, 1) : null}
+              vs={vs}
+              upIsGood={false}
+            />
+          )}
+          {pays && newPayers !== null ? (
+            <KpiCard
+              label={tt("cdo.firstPayers")}
+              info={tt("cdo.firstPayersInfo")}
+              value={tt(newPayers === 1 ? "cdc.people1" : "cdc.people", { n: n0(newPayers) })}
+              change={change(newPayers, newPayersBefore)}
+              vs={vs}
+              spark={firstDays ?? undefined}
+              href={hrefWith({ tab: "money" })}
+            />
+          ) : (
+            <KpiCard
+              label={tt("cdx.kpi.buyers")}
+              info={tt(details ? "cdo.buyersInfo" : "cdx.info.buyers")}
+              value={tt(people === 1 ? "cdc.people1" : "cdc.people", { n: n0(people) })}
+              sub={counts ? tt(counts.purchases === 1 ? "cdc.purchases1" : "cdc.purchases", { n: n0(counts.purchases) }) : null}
+              change={change(people, peopleBefore)}
+              vs={vs}
+              spark={buyerDays}
+              href={hrefWith({ tab: "money" })}
+            />
+          )}
         </div>
         <section className="rs-panel cdx-card">
           <SpendRevenueChart
@@ -366,46 +438,209 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
     );
   }
 
-  function BuyersTab() {
-    if (!paid) return <p className="rs-empty">{tt("cdb.none")}</p>;
-    const counts = buyerCounts(paid);
-    const countsBefore = paidBefore ? buyerCounts(paidBefore) : null;
-    const chart = chartSpan(report, range);
-    const byDay = new Map<string, CdStatsPurchase[]>();
-    for (const p of purchasesIn(report, chart, filter)) {
-      const d = dayIn(p.at, report.timezone);
-      byDay.set(d, [...(byDay.get(d) ?? []), p]);
-    }
-    const days: string[] = [];
-    for (let d = chart.from; d <= chart.to; d = nextDay(d)) days.push(d);
-    const spark = (f: (list: CdStatsPurchase[]) => number) => days.map((d) => f(byDay.get(d) ?? []));
-    const firsts = paid.filter((p) => !p.renewal && p.paid_after_s !== null).map((p) => p.paid_after_s!).sort((a, b) => a - b);
-    const median = firsts.length ? firsts[Math.floor((firsts.length - 1) / 2)] : null;
+  function MoneyTab() {
     const person = searchParams.person ? personOf(report, searchParams.person) : null;
-    return (
+    const buyersList = paid ? (
       <>
-        <div className="cdx-kpis cdx-kpis-4">
-          <KpiCard label={tt("cdb.kpi.people")} info={tt("cdb.kpi.peopleInfo")} value={n0(counts.people)} change={change(counts.people, countsBefore?.people ?? null)} vs={vs} spark={spark((l) => new Set(l.map((p) => p.person)).size)} />
-          <KpiCard
-            label={tt("cdb.kpi.purchases")}
-            info={tt("cdb.kpi.purchasesInfo")}
-            value={n0(counts.purchases)}
-            sub={counts.renewals ? tt("cdb.kpi.renewals", { n: counts.renewals }) : null}
-            change={change(counts.purchases, countsBefore?.purchases ?? null)}
-            vs={vs}
-            spark={spark((l) => l.length)}
-          />
-          <KpiCard label={tt("cdx.kpi.revenue")} info={tt("cdo.revenueInfo")} value={fmtUsdCents(counts.revenue_cents)} change={changeAbove(counts.revenue_cents, countsBefore?.revenue_cents ?? null, 1000)} vs={vs} spark={spark((l) => l.reduce((a, p) => a + p.amount_cents, 0))} />
-          <KpiCard label={tt("cdb.kpi.toPay")} info={tt("cdb.kpi.toPayInfo")} value={fmtDuration(median)} />
-        </div>
         {searchParams.person && !person && <p className="note">{tt("cdb.person.notFound", { code: searchParams.person })}</p>}
         {person && <PersonPanel person={person} names={names} closeHref={hrefWith({})} locale={locale} />}
         <section className="rs-panel cdx-card">
           <div className="cdx-card-head">
             <h2>{tt("cdb.list")}</h2>
-            <span className="cdx-muted">{tt("cdb.listSub", { people: n0(counts.people), purchases: n0(counts.purchases) })}</span>
+            <span className="cdx-muted">{tt("cdb.listSub", { people: n0(buyerCounts(paid).people), purchases: n0(buyerCounts(paid).purchases) })}</span>
           </div>
           <BuyersTable list={paid} browsers={browsersOf(report.purchases ?? [])} names={names} personHref={personHref} current={person?.person ?? null} locale={locale} />
+        </section>
+      </>
+    ) : null;
+    if (!pays) return buyersList ?? <p className="rs-empty">{tt("cdb.none")}</p>;
+    const t = moneyTotals(pays);
+    const tb = paysBefore ? moneyTotals(paysBefore) : null;
+    const chart = chartSpan(report, range);
+    const chartDays = daysOf(chart);
+    const stack = moneyByDay(paymentsIn(report, chart, filter), chartDays);
+    const spark = (f: (d: (typeof stack)[number]) => number) => stack.map(f);
+    const kinds: PaymentKind[] = ["coins", "vip_intro", "vip", "vip_renewal", "series"];
+    const colour: Record<PaymentKind, StackSeries["colour"]> = { coins: 1, vip_intro: 5, vip: 3, vip_renewal: 4, series: 2 };
+    const series: StackSeries[] = [...kinds.map((k) => ({ key: k, label: tt(`cdm.kind.${k}`), colour: colour[k] })), { key: "refunds", label: tt("cdm.kind.refunds"), colour: "neg" as const, below: true }];
+    const newViewers = filter.series ? totals.opened : newWatchers(span);
+    const newViewersBefore = prev ? (filter.series ? (before?.opened ?? 0) : newWatchers(prev)) : 0;
+    const rate = newViewers ? t.first_payers / newViewers : null;
+    const rateBefore = tb && newViewersBefore ? tb.first_payers / newViewersBefore : null;
+    const productName = (product: string, kind: PaymentKind) => {
+      const pack = /^coins:c(\d+)(first)?$/.exec(product);
+      if (pack) return pack[2] ? tt("cdm.product.first", { coins: n0(Number(pack[1])), bonus: "75" }) : tt("cdm.product.coins", { coins: n0(Number(pack[1])) });
+      if (kind === "vip_intro") return tt("cdm.product.firstWeek");
+      if (["all_access_weekly", "vip_monthly", "vip_yearly"].includes(product)) return tt(`cdm.product.${product}`);
+      return kind === "series" ? tt("cdm.product.series") : product;
+    };
+    const mix = productMix(pays).map((m) => ({ ...m, product: m.kind === "vip_intro" ? "vip_intro" : m.product }));
+    return (
+      <>
+        {(filter.device || filter.country) && <p className="note">{tt("cdm.scopeNote")}</p>}
+        <div className="cdx-kpis cdx-kpis-5">
+          <KpiCard label={tt("cdm.cash")} info={tt("cdm.cashInfo")} value={fmtUsdCents(t.cash_cents)} change={tb ? changeAbove(t.cash_cents, tb.cash_cents, 1000) : null} vs={vs} spark={spark((d) => kinds.reduce((a, k) => a + d[k], 0) + d.refunds)} />
+          <KpiCard label={tt("cdm.refunds")} info={tt("cdm.refundsInfo")} value={fmtUsdCents(t.refund_cents)} sub={tt("cdm.refundsSub", { n: n0(t.refunds) })} change={tb ? changeAbove(t.refund_cents, tb.refund_cents, 1000) : null} vs={vs} upIsGood={false} />
+          <KpiCard label={tt("cdm.payers")} info={tt("cdm.payersInfo")} value={n0(t.payers)} sub={tt("cdm.firstPayersSub", { n: n0(t.first_payers) })} change={change(t.payers, tb?.payers ?? null)} vs={vs} />
+          <KpiCard label={tt("cdm.payerRate")} info={tt("cdm.payerRateInfo")} value={fmtShare(rate)} change={rate !== null && rateBefore ? (rate - rateBefore) / rateBefore : null} vs={vs} />
+          <KpiCard label={tt("cdm.perPayer")} info={tt("cdm.perPayerInfo")} value={perPayer(t) === null ? "–" : fmtUsdCents(perPayer(t)!)} sub={tt("cdm.toPay") + ": " + fmtDuration(medianToFirstPay(pays))} change={tb ? changeAbove(perPayer(t), perPayer(tb), 1) : null} vs={vs} />
+        </div>
+        <section className="rs-panel cdx-card">
+          <StackedDaysChart id="cdm-money-kinds" title={tt("cdm.chart")} days={stack.map(({ day, ...values }) => ({ day, values }))} series={series} fmt={(v) => fmtUsdCents(v).replace(/\.00$/, "")} tableLabel={tt("cdx.numbers")} />
+        </section>
+        <section className="rs-panel cdx-card">
+          <div className="cdx-card-head">
+            <h2>{tt("cdm.mix")}</h2>
+          </div>
+          <div className="an-scroll" tabIndex={0} role="region" aria-label={tt("cdm.mix")}>
+            <table className="an-table cds-table cdx-table">
+              <thead>
+                <tr>
+                  <th scope="col">{tt("cdm.col.product")}</th>
+                  <th scope="col" className="gt-num">{tt("cdm.col.payments")}</th>
+                  <th scope="col" className="gt-num">{tt("cdm.col.cash")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {mix.map((m) => (
+                  <tr key={m.product}>
+                    <th scope="row" className="cds-title">{productName(m.product, m.kind)}</th>
+                    <td className="gt-num">{n0(m.payments)}</td>
+                    <td className="gt-num">{fmtUsdCents(m.cents)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+        {buyersList}
+      </>
+    );
+  }
+
+  function PaywallTab() {
+    if (!pays) return <p className="rs-empty">{tt("cdm.none")}</p>;
+    const pw = paywallIn(report, span);
+    const pwBefore = prev ? paywallIn(report, prev) : null;
+    const rows = placementRows(pw, pays);
+    const rowsBefore = pwBefore && paysBefore ? placementRows(pwBefore, paysBefore) : null;
+    const sheetRate = pw.views ? rows[0].paid / pw.views : null;
+    const sheetRateBefore = rowsBefore && pwBefore?.views ? rowsBefore[0].paid / pwBefore.views : null;
+    const taken = firstOffersTaken(pays);
+    const takenBefore = paysBefore ? firstOffersTaken(paysBefore) : null;
+    const top = Math.max(1, ...rows.map((r) => r.paid));
+    return (
+      <>
+        <div className="cdx-kpis cdx-kpis-5">
+          <KpiCard label={tt("cdw.views")} info={tt("cdw.viewsInfo")} value={n0(pw.views)} change={change(pw.views, pwBefore?.views ?? null)} vs={vs} />
+          <KpiCard label={tt("cdw.conv")} info={tt("cdw.convInfo")} value={fmtShare(sheetRate)} sub={tt("cdvip.ofSub", { a: n0(rows[0].paid), b: n0(pw.views) })} change={sheetRate !== null && sheetRateBefore ? (sheetRate - sheetRateBefore) / sheetRateBefore : null} vs={vs} />
+          <KpiCard label={tt("cdw.unlocks")} info={tt("cdw.unlocksInfo")} value={n0(pw.unlocks)} change={change(pw.unlocks, pwBefore?.unlocks ?? null)} vs={vs} />
+          <KpiCard label={tt("cdw.firstWeek")} info={tt("cdw.firstWeekInfo")} value={n0(taken.first_week)} sub={`${tt("cdw.firstPack")}: ${n0(taken.first_pack)}`} change={change(taken.first_week, takenBefore?.first_week ?? null)} vs={vs} />
+          <KpiCard label={tt("cdw.notCompleted")} info={tt("cdw.notCompletedInfo")} value={n0(pw.not_completed)} change={change(pw.not_completed, pwBefore?.not_completed ?? null)} vs={vs} upIsGood={false} />
+        </div>
+        <section className="rs-panel cdx-card">
+          <div className="cdx-card-head">
+            <h2>
+              {tt("cdw.table")} <Info text={tt("cdw.tableInfo")} label={tt("cdx.about", { what: tt("cdw.table") })} />
+            </h2>
+          </div>
+          <div className="an-scroll" tabIndex={0} role="region" aria-label={tt("cdw.table")}>
+            <table className="an-table cds-table cdx-table">
+              <thead>
+                <tr>
+                  <th scope="col" />
+                  <th scope="col" className="gt-num">{tt("cdw.col.shown")}</th>
+                  <th scope="col" className="gt-num">{tt("cdw.col.checkouts")}</th>
+                  <th scope="col" className="gt-num">{tt("cdw.col.paid")}</th>
+                  <th scope="col" className="gt-num">{tt("cdw.col.rate")}</th>
+                  <th scope="col" className="gt-num">{tt("cdm.col.cash")}</th>
+                  <th scope="col" className="cdm-bar-cell" />
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.placement}>
+                    <th scope="row" className="cds-title">{tt(`cdw.pl.${r.placement}`)}</th>
+                    <td className="gt-num">{r.shown === null ? "–" : n0(r.shown)}</td>
+                    <td className="gt-num">{n0(r.checkouts)}</td>
+                    <td className="gt-num">{n0(r.paid)}</td>
+                    <td className="gt-num">{r.shown ? fmtShare(share(r.paid, r.shown)) : "–"}</td>
+                    <td className="gt-num">{fmtUsdCents(r.cents)}</td>
+                    <td className="cdm-bar-cell">
+                      <span className="cdm-bar" style={{ width: `${Math.round((r.paid / top) * 100)}%` }} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <WhyTheyStop totals={totals} />
+      </>
+    );
+  }
+
+  function VipTab() {
+    if (!pays) return <p className="rs-empty">{tt("cdm.none")}</p>;
+    const now = vipNow(report);
+    const per = vipPeriod(report, span);
+    const perBefore = prev ? vipPeriod(report, prev) : null;
+    const ended = vipEnded(report, span);
+    const endedBefore = prev ? vipEnded(report, prev) : null;
+    const introRate = per.intros_due ? per.intros_renewed / per.intros_due : null;
+    const introRateBefore = perBefore?.intros_due ? perBefore.intros_renewed / perBefore.intros_due : null;
+    const weeks = vipWeeks(report, chartSpan(report, range === "today" || range === "7d" ? "30d" : range));
+    const series: StackSeries[] = [
+      { key: "new_intro", label: tt("cdvip.s.intro"), colour: 5 },
+      { key: "new_full", label: tt("cdvip.s.full"), colour: 3 },
+      { key: "renewals", label: tt("cdvip.s.renewals"), colour: 4 },
+      { key: "ended", label: tt("cdvip.s.ended"), colour: "neg", below: true },
+    ];
+    return (
+      <>
+        <div className="cdx-kpis cdx-kpis-5">
+          <KpiCard label={tt("cdvip.active")} info={tt("cdvip.activeInfo")} value={n0(now.active)} sub={tt("cdvip.activeSub", { w: n0(now.by_plan.weekly), m: n0(now.by_plan.monthly), y: n0(now.by_plan.yearly) })} />
+          <KpiCard label={tt("cdvip.mrr")} info={tt("cdvip.mrrInfo")} value={fmtUsdCents(now.mrr_cents)} sub={`${tt("cdvip.intros")}: ${n0(now.intros)}`} />
+          <KpiCard label={tt("cdvip.new")} info={tt("cdvip.newInfo")} value={n0(per.new_intro + per.new_full)} sub={tt("cdvip.newSub", { i: n0(per.new_intro), f: n0(per.new_full) })} change={perBefore ? change(per.new_intro + per.new_full, perBefore.new_intro + perBefore.new_full) : null} vs={vs} />
+          <KpiCard label={tt("cdvip.introRate")} info={tt("cdvip.introRateInfo")} value={fmtShare(introRate)} sub={tt("cdvip.ofSub", { a: n0(per.intros_renewed), b: n0(per.intros_due) })} change={introRate !== null && introRateBefore ? (introRate - introRateBefore) / introRateBefore : null} vs={vs} />
+          <KpiCard label={tt("cdvip.ended")} info={tt("cdvip.endedInfo")} value={n0(ended)} change={change(ended, endedBefore)} vs={vs} upIsGood={false} />
+        </div>
+        <section className="rs-panel cdx-card">
+          <StackedDaysChart id="cdm-vip-weeks" title={tt("cdvip.chart")} days={weeks.map((w) => ({ day: w.week, values: { new_intro: w.new_intro, new_full: w.new_full, renewals: w.renewals, ended: w.ended } }))} series={series} fmt={(v) => n0(v)} tableLabel={tt("cdx.numbers")} firstCol={tt("cdvip.weekOf")} />
+          <p className="cdm-note">{tt("cdvip.renewalLine", { n: n0(per.renewals), cash: fmtUsdCents(per.renewal_cents) })}</p>
+        </section>
+      </>
+    );
+  }
+
+  function CoinsTab() {
+    if (!pays) return <p className="rs-empty">{tt("cdm.none")}</p>;
+    const c = coinsIn(report, span);
+    const cb = prev ? coinsIn(report, prev) : null;
+    const repeat = repeatCoinBuyers(report, pays);
+    const repeatRate = repeat.buyers ? repeat.repeat / repeat.buyers : null;
+    const chartDays = daysOf(chartSpan(report, range));
+    const stack = coinsByDay(report, chartDays);
+    const series: StackSeries[] = [
+      { key: "bought", label: tt("cdcoin.s.bought"), colour: 1 },
+      { key: "bonus", label: tt("cdcoin.s.bonus"), colour: 4 },
+      { key: "reward", label: tt("cdcoin.s.reward"), colour: 3 },
+      { key: "spent_paid", label: tt("cdcoin.s.spent_paid"), colour: "neg", below: true },
+      { key: "spent_bonus", label: tt("cdcoin.s.spent_bonus"), colour: 5, below: true },
+      { key: "expired", label: tt("cdcoin.s.expired"), colour: 2, below: true },
+    ];
+    const unspent = report.coins;
+    return (
+      <>
+        <div className="cdx-kpis cdx-kpis-5">
+          <KpiCard label={tt("cdcoin.bought")} info={tt("cdcoin.boughtInfo")} value={n0(c.bought)} sub={tt("cdcoin.bonusSub", { n: n0(c.bonus) })} change={change(c.bought, cb?.bought ?? null)} vs={vs} spark={stack.map((d) => d.bought)} />
+          <KpiCard label={tt("cdcoin.spent")} info={tt("cdcoin.spentInfo")} value={n0(c.spent_paid + c.spent_bonus)} sub={tt("cdcoin.spentSub", { paid: n0(c.spent_paid), bonus: n0(c.spent_bonus) })} change={cb ? change(c.spent_paid + c.spent_bonus, cb.spent_paid + cb.spent_bonus) : null} vs={vs} spark={stack.map((d) => d.spent_paid + d.spent_bonus)} />
+          <KpiCard label={tt("cdcoin.reward")} info={tt("cdcoin.rewardInfo")} value={n0(c.reward)} change={change(c.reward, cb?.reward ?? null)} vs={vs} />
+          <KpiCard label={tt("cdcoin.unspent")} info={tt("cdcoin.unspentInfo")} value={fmtUsdCents(unspent?.unspent_paid_cents ?? 0)} sub={tt("cdcoin.coinsSub", { n: n0(unspent?.unspent_paid ?? 0) })} />
+          <KpiCard label={tt("cdcoin.repeat")} info={tt("cdcoin.repeatInfo")} value={fmtShare(repeatRate)} sub={`${tt("cdvip.ofSub", { a: n0(repeat.repeat), b: n0(repeat.buyers) })} · ${tt("cdcoin.expired")}: ${n0(c.expired)}`} />
+        </div>
+        <section className="rs-panel cdx-card">
+          <StackedDaysChart id="cdm-coins-flow" title={tt("cdcoin.chart")} days={stack.map(({ day, ...values }) => ({ day, values }))} series={series} fmt={(v) => n0(v)} tableLabel={tt("cdx.numbers")} />
         </section>
       </>
     );
@@ -436,6 +671,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
     const shown = bySlug(searchParams.curve) ?? (filter.series ? titleOf.get(filter.series) : undefined) ?? (top ? titleOf.get(top.key) : undefined);
     const curve = shown ? episodeCurve(shown, span, report.journeys) : null;
     const fun = shown ? seriesFunnel(sumRows(dashRows(report, span, { ...filter, series: shown.drama_id }))) : null;
+    const coinSpend = report.coins ? coinsBySeries(report, span) : null;
     return (
       <>
         {shown && curve && fun ? (
@@ -474,6 +710,11 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
                   <th scope="col" className="gt-num">{tt("cdx.col.paywall")}</th>
                   <th scope="col" className="gt-num">{tt("cdx.kpi.buyers")}</th>
                   <th scope="col" className="gt-num">{tt("cdx.kpi.revenue")}</th>
+                  {coinSpend && (
+                    <th scope="col" className="gt-num">
+                      {tt("cdx.col.coins")} <Info text={tt("cdx.col.coinsInfo")} label={tt("cdx.about", { what: tt("cdx.col.coins") })} />
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -496,6 +737,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
                       {rate(x.paywall)}
                       <td className="gt-num">{n0(x.buyers)}</td>
                       <td className="gt-num">{fmtUsdCents(x.revenue_cents)}</td>
+                      {coinSpend && <td className="gt-num">{fmtUsdCents(coinSpend.get(g.key)?.cents ?? 0)}</td>}
                     </tr>
                   );
                 })}

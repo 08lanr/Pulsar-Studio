@@ -307,5 +307,5 @@ test("the series funnel: page to paying, paywall to paid, revenue per buyer; old
   assert.equal(parseDashTab("funnel"), "overview");
   assert.equal(parseDashTab("ads"), "campaigns");
   assert.equal(parseDashTab("audience"), "overview");
-  assert.equal(parseDashTab("buyers"), "buyers");
+  assert.equal(parseDashTab("buyers"), "money", "Buyers became Money (2026-09-28)");
 });

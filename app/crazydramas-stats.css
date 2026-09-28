@@ -311,3 +311,13 @@ tr.cdc-this > th, tr.cdc-this > td { background: var(--surface-2); }
   .cds-path li { grid-template-columns: minmax(0, 1fr) 52px 48px; }
   .cds-path-track { grid-column: 1 / -1; order: 4; }
 }
+/* Stats for coins and VIP (2026-09-28): stacked daily charts in the five data colours (a legend and the numbers
+   table under each), money or coins going out drawn below zero in the muted grey; the placements table's bars. */
+.cdm-k1 { fill: var(--data-1); } .cdm-k2 { fill: var(--data-2); } .cdm-k3 { fill: var(--data-3); } .cdm-k4 { fill: var(--data-4); } .cdm-k5 { fill: var(--data-5); }
+.cdm-kneg { fill: var(--text-muted); opacity: .55; }
+.cdm-d1 { background: var(--data-1); } .cdm-d2 { background: var(--data-2); } .cdm-d3 { background: var(--data-3); } .cdm-d4 { background: var(--data-4); } .cdm-d5 { background: var(--data-5); }
+.cdm-dneg { background: var(--text-muted); opacity: .55; }
+.cdm-legend { flex-wrap: wrap; }
+.cdm-note { font-size: 12.5px; color: var(--text-muted); margin: 6px 0 0; }
+.cdm-bar-cell { min-width: 140px; }
+.cdm-bar { display: block; height: 8px; border-radius: 4px; background: var(--data-1); min-width: 2px; }

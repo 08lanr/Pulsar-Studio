@@ -11,9 +11,15 @@ import { fmtUsdCents } from "@/lib/crazydramas/stats-summary";
 // are TikTok's; "TikTok says" is TikTok's own purchases (complete_payment); "We saw" is crazydramas' buyers whose
 // landing carried the campaign or ad; a short chip says why the two differ. Every ad names the clip it played
 // (Ruobin: "I need to see which clip it is so I can recreate more"): its ad type, its words and a still of the
-// video, the TikTok id in grey, and a link to the ad's own panel.
+// video, the TikTok id in grey, and a link to the ad's own panel. Day-0 / day-7 return (2026-09-28): what the
+// campaign's viewers paid by the end of their first day, and within 7 days (coins where spent), over its spend.
 
 const n0 = (v: number) => v.toLocaleString("en-US");
+/** Money back over spend, "0.42×", as the server-side stats-ads module writes it (not imported: it is server-side). */
+const ratio = (cents: number, spend: number | null) => {
+  const v = spend && spend > 0 ? cents / spend : null;
+  return v === null ? "–" : `${v < 10 ? v.toFixed(2) : Math.round(v)}×`;
+};
 type Tt = (k: string, v?: Record<string, string | number>) => string;
 
 export type CampaignsViewAd = CompareAd & { href: string; media_url: string | null };
@@ -36,6 +42,8 @@ function Numbers({ r, tt }: { r: CampaignsViewRow | CampaignsViewAd; tt: Tt }) {
       <td className="gt-num">{r.clicks != null ? n0(r.clicks) : "–"}</td>
       <td className="gt-num">{n0(r.opened)}</td>
       <td className="gt-num">{n0(r.finished_ep1)}</td>
+      <td className="gt-num" title={fmtUsdCents(r.revenue_d0_cents)}>{ratio(r.revenue_d0_cents, r.spend_cents)}</td>
+      <td className="gt-num" title={fmtUsdCents(r.revenue_d7_cents)}>{ratio(r.revenue_d7_cents, r.spend_cents)}</td>
       <td className="gt-num">{r.tiktok != null ? n0(r.tiktok) : "–"}</td>
       <Seen r={r} tt={tt} />
       <td className="cdc-why-cell">
@@ -77,6 +85,12 @@ export default function CampaignsView({ rows, caption, launchedLabel }: { rows: 
               <th scope="col" className="gt-num">{tt("cds.ads.col.clicks")}</th>
               <th scope="col" className="gt-num">{tt("cdx.kpi.visitors")}</th>
               <th scope="col" className="gt-num">{tt("cdx.kpi.finished")}</th>
+              <th scope="col" className="gt-num">
+                {tt("cdc.col.d0")} <Info text={tt("cdc.col.d0Info")} label={tt("cdx.about", { what: tt("cdc.col.d0") })} />
+              </th>
+              <th scope="col" className="gt-num">
+                {tt("cdc.col.d7")} <Info text={tt("cdc.col.d7Info")} label={tt("cdx.about", { what: tt("cdc.col.d7") })} />
+              </th>
               <th scope="col" className="gt-num">
                 {tt("cdc.col.tiktok")} <Info text={tt("cdc.col.tiktokInfo")} label={tt("cdx.about", { what: tt("cdc.col.tiktok") })} />
               </th>

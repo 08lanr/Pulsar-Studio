@@ -350,10 +350,10 @@ export function adSpendsFromRuns(runs: LaunchRun[]): AdSpend[] {
 
 type PathCounts = Pick<
   CdStatsSource,
-  "opened" | "no_events" | "never_started" | "started_ep1" | "finished_ep1" | "watched_ep2" | "watched_ep3" | "paywall" | "checkouts" | "buyers" | "revenue_cents" | "robots"
+  "opened" | "no_events" | "never_started" | "started_ep1" | "finished_ep1" | "watched_ep2" | "watched_ep3" | "paywall" | "checkouts" | "buyers" | "revenue_cents" | "revenue_d0_cents" | "revenue_d7_cents" | "robots"
 >;
-const PATH_KEYS = ["opened", "no_events", "never_started", "started_ep1", "finished_ep1", "watched_ep2", "watched_ep3", "paywall", "checkouts", "buyers", "revenue_cents", "robots"] as const;
-const emptyPath = (): PathCounts => ({ opened: 0, no_events: 0, never_started: 0, started_ep1: 0, finished_ep1: 0, watched_ep2: 0, watched_ep3: 0, paywall: 0, checkouts: 0, buyers: 0, revenue_cents: 0, robots: 0 });
+const PATH_KEYS = ["opened", "no_events", "never_started", "started_ep1", "finished_ep1", "watched_ep2", "watched_ep3", "paywall", "checkouts", "buyers", "revenue_cents", "revenue_d0_cents", "revenue_d7_cents", "robots"] as const;
+const emptyPath = (): PathCounts => ({ opened: 0, no_events: 0, never_started: 0, started_ep1: 0, finished_ep1: 0, watched_ep2: 0, watched_ep3: 0, paywall: 0, checkouts: 0, buyers: 0, revenue_cents: 0, revenue_d0_cents: 0, revenue_d7_cents: 0, robots: 0 });
 function addPath(into: PathCounts, row: PathCounts) {
   for (const k of PATH_KEYS) into[k] += row[k];
 }
@@ -661,7 +661,7 @@ export function dashRows(report: Pick<CdStatsReport, "sources">, r: { from: stri
 const DASH_SCALARS = [
   "opened", "unseen", "no_events", "never_started", "left_waiting", "left_waiting_seconds", "started_ep1", "ep1_25", "ep1_50", "ep1_75",
   "finished_ep1", "watched_ep2", "watched_ep3", "ep1_sound_known", "ep1_sound_on", "paywall", "paywall_watched", "paywall_skipped",
-  "checkouts", "buyers", "revenue_cents", "returned", "errors", "restarted", "restarted_muted", "blocked", "survey_ep1_shown",
+  "checkouts", "buyers", "revenue_cents", "revenue_d0_cents", "revenue_d7_cents", "returned", "errors", "restarted", "restarted_muted", "blocked", "survey_ep1_shown",
   "survey_paywall_shown", "robots",
 ] as const satisfies readonly (keyof CdStatsSource)[];
 
@@ -848,9 +848,10 @@ export function notCounted(report: CdStatsReport, r: { from: string; to: string 
 
 // Since 2026-09-26 ("Stats: campaigns, buyers and the full episode curve"): Overview · Campaigns · Buyers ·
 // Series · Playback. The Funnel, Ads and Audience tabs are retired; an old address lands on their successor.
-export const DASH_TABS = ["overview", "campaigns", "buyers", "series", "playback"] as const;
+export const DASH_TABS = ["overview", "money", "paywall", "vip", "coins", "campaigns", "series", "playback"] as const;
 export type DashTab = (typeof DASH_TABS)[number];
-const RETIRED_TABS: Record<string, DashTab> = { funnel: "overview", ads: "campaigns", audience: "overview" };
+/** Tabs that were renamed or folded into another (Buyers became Money on 2026-09-28: the payments list lives there). */
+const RETIRED_TABS: Record<string, DashTab> = { funnel: "overview", ads: "campaigns", audience: "overview", buyers: "money" };
 export function parseDashTab(raw: unknown): DashTab {
   const v = Array.isArray(raw) ? raw[0] : raw;
   if (typeof v === "string" && RETIRED_TABS[v]) return RETIRED_TABS[v];

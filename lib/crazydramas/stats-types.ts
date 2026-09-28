@@ -180,6 +180,9 @@ export const CdStatsSourceSchema = z.object({
   checkouts: count,
   buyers: count,
   revenue_cents: count,
+  /** Of revenue_cents, what came in by the end of the people's first day, and within 7 days (since 2026-09-28). */
+  revenue_d0_cents: later,
+  revenue_d7_cents: later,
   returned: later,
   errors: later,
   restarted: later,
@@ -245,6 +248,74 @@ export const CdStatsJourneyStepSchema = z.object({
   amount_cents: count.optional(),
 });
 
+/** What a payment bought (since 2026-09-28): a series, a coin pack, the $1.99 VIP first week, a new VIP, a VIP renewal. */
+export const PAYMENT_KINDS = ["series", "coins", "vip_intro", "vip", "vip_renewal"] as const;
+
+/**
+ * Every live payment in the report's days (since 2026-09-28, docs/COINS.md; no cap): cash the day it was paid,
+ * before Stripe's fees. `first`: the person's first payment of all. `refunded`: refunded or disputed since,
+ * still on the day it was paid. `placement`: the screen that sold it (sheet, store, gift, retention).
+ */
+export const CdStatsPaymentSchema = z.object({
+  day,
+  person: z.string().max(32),
+  kind: z.enum(PAYMENT_KINDS).catch("series"),
+  product: z.string().max(64).nullable().default(null),
+  cents: count,
+  first: z.boolean().default(false),
+  refunded: z.boolean().default(false),
+  offer: z.string().max(40).nullable().default(null),
+  placement: z.string().max(20).nullable().default(null),
+  drama_id: z.string().nullable().default(null),
+  platform: z.string().max(40).nullable().default(null),
+  campaign: z.string().max(64).nullable().default(null),
+  paid_after_s: z.number().nonnegative().nullable().default(null),
+});
+
+/** Coins in and out of every wallet on a day (sign-in moves left out: they only change hands). */
+export const CdStatsCoinDaySchema = z.object({
+  day,
+  bought: later,
+  bonus: later,
+  reward: later,
+  spent_paid: later,
+  spent_bonus: later,
+  expired: later,
+  clawed_back: later,
+  unlocks: later,
+});
+
+export const CdStatsCoinsSchema = z.object({
+  days: z.array(CdStatsCoinDaySchema).default([]),
+  /** Now: paid coins not yet spent and what viewers paid for them; bonus coins not yet spent or expired. */
+  unspent_paid: later,
+  unspent_paid_cents: later,
+  unspent_bonus: later,
+  /** Coins spent per series and day, and what they credited it (1¢ a paid coin; bonus and reward coins nothing). */
+  series_days: z.array(z.object({ day, drama_id: z.string(), spent_paid: later, spent_bonus: later, cents: later, unlocks: later })).default([]),
+});
+
+/** Every viewer's VIP as it stands: its plan, whether its current period is the $1.99 first week, whether it is on. */
+export const CdStatsVipSchema = z.object({
+  plan: z.string().max(40).nullable().default(null),
+  intro: z.boolean().default(false),
+  active: z.boolean(),
+  expires_day: day.nullable().default(null),
+});
+
+/** The unlock sheet, coin unlocks, checkouts by the screen that opened them and the pop-ups shown, per day. */
+export const CdStatsPaywallDaySchema = z.object({
+  day,
+  views: later,
+  viewers: later,
+  unlocks: later,
+  unlockers: later,
+  checkouts: answers,
+  gift_shown: later,
+  retention_shown: later,
+  not_completed: later,
+});
+
 export const CdStatsReportSchema = z.object({
   version: z.literal(1),
   generated_at: z.string(),
@@ -270,6 +341,15 @@ export const CdStatsReportSchema = z.object({
   purchases: z.array(CdStatsPurchaseSchema).optional(),
   journeys: z.record(z.array(CdStatsJourneyStepSchema)).optional(),
   people: z.object({ buyers: count, purchases: count, revenue_cents: count }).optional(),
+  /**
+   * Coins, VIP and offers (since 2026-09-28, docs/COINS.md): every payment, the coin wallets, every VIP, the
+   * unlock sheet and pop-ups per day. Absent (not empty) in an older report: those tabs say they arrive with the
+   * next crazydramas release.
+   */
+  payments: z.array(CdStatsPaymentSchema).optional(),
+  coins: CdStatsCoinsSchema.optional(),
+  vip: z.array(CdStatsVipSchema).optional(),
+  paywall_days: z.array(CdStatsPaywallDaySchema).optional(),
 });
 
 export type CdStatsDay = z.infer<typeof CdStatsDaySchema>;
@@ -283,3 +363,8 @@ export type CdStatsTouch = z.infer<typeof CdStatsTouchSchema>;
 export type CdStatsPurchase = z.infer<typeof CdStatsPurchaseSchema>;
 export type CdStatsJourneyStep = z.infer<typeof CdStatsJourneyStepSchema>;
 export type JourneyKind = (typeof JOURNEY_KINDS)[number];
+export type CdStatsPayment = z.infer<typeof CdStatsPaymentSchema>;
+export type CdStatsCoins = z.infer<typeof CdStatsCoinsSchema>;
+export type CdStatsVip = z.infer<typeof CdStatsVipSchema>;
+export type CdStatsPaywallDay = z.infer<typeof CdStatsPaywallDaySchema>;
+export type PaymentKind = (typeof PAYMENT_KINDS)[number];

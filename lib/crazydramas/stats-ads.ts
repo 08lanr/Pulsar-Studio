@@ -214,6 +214,9 @@ export type CompareAd = {
   finished_ep1: number;
   watched_ep2: number;
   cost_per_finisher_cents: number | null;
+  /** What the ad's people paid by the end of their first day, and within 7 days (series and coin money where it was spent). */
+  revenue_d0_cents: number;
+  revenue_d7_cents: number;
   /** The series the ad's people opened, most first. */
   titles: string[];
   tiktok: number | null;
@@ -234,6 +237,8 @@ export type CompareCampaign = {
   clicks: number | null;
   opened: number;
   finished_ep1: number;
+  revenue_d0_cents: number;
+  revenue_d7_cents: number;
   tiktok: number | null;
   ours: Seen;
   reasons: GapReason[];
@@ -274,6 +279,8 @@ export function compareCampaigns(
         finished_ep1: a.finished_ep1,
         watched_ep2: a.watched_ep2,
         cost_per_finisher_cents: a.cost_per_finisher_cents,
+        revenue_d0_cents: a.revenue_d0_cents,
+        revenue_d7_cents: a.revenue_d7_cents,
         titles: a.titles.map((t) => t.title),
         tiktok: adTikTok,
         ours: adOurs,
@@ -293,6 +300,8 @@ export function compareCampaigns(
       clicks: r.clicks,
       opened: r.opened,
       finished_ep1: r.finished_ep1,
+      revenue_d0_cents: r.revenue_d0_cents,
+      revenue_d7_cents: r.revenue_d7_cents,
       tiktok,
       ours,
       reasons: r.kind === "campaign" ? gapReasons({ spend_cents: r.spend_cents, goal: f?.goal ?? null, tiktok, ours: ours.people, untagged, in_period: inPeriod }) : [],
