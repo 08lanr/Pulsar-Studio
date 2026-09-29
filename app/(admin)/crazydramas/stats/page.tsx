@@ -2,7 +2,7 @@ import "@/app/crazydramas-stats.css";
 import { adminLocale, staffSession } from "@/components/admin/server";
 import { AdDetail, AdTypeTable, type AdRun } from "@/components/admin/cd-stats/AdDetail";
 import AdsTab from "@/components/admin/cd-stats/AdsTab";
-import { RangeTabs, ReadFailure } from "@/components/admin/cd-stats/Bits";
+import { CoinValueNotice, RangeTabs, ReadFailure } from "@/components/admin/cd-stats/Bits";
 import { BuyersTable, PersonPanel, type Names } from "@/components/admin/cd-stats/Buyers";
 import CampaignsView, { type CampaignsViewRow } from "@/components/admin/cd-stats/Campaigns";
 import { FunnelChart } from "@/components/admin/cd-stats/Dash";
@@ -26,6 +26,7 @@ import {
   hasMoneyDetails,
   medianToFirstPay,
   moneyByDay,
+  moneyDayCash,
   moneyTotals,
   paymentsHaveOrigin,
   paymentsIn,
@@ -281,6 +282,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
         </span>
       </div>
       {tabs}
+      <CoinValueNotice report={report} locale={locale} />
 
       {tab === "overview" && <OverviewTab />}
       {tab === "money" && <MoneyTab />}
@@ -534,7 +536,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
         {(filter.device || filter.country) && !paymentsHaveOrigin(report) && <p className="note">{tt("cdm.scopeNote")}</p>}
         {filter.series && <p className="note">{tt("cdm.seriesNote", { cash: fmtUsdCents(seriesCoins) })}</p>}
         <div className="cdx-kpis cdx-kpis-5">
-          <KpiCard label={tt("cdm.cash")} info={tt("cdm.cashInfo")} value={fmtUsdCents(t.cash_cents)} change={tb ? changeAbove(t.cash_cents, tb.cash_cents, 1000) : null} vs={vs} spark={spark((d) => kinds.reduce((a, k) => a + d[k], 0) + d.refunds)} />
+          <KpiCard label={tt("cdm.cash")} info={tt("cdm.cashInfo")} value={fmtUsdCents(t.cash_cents)} change={tb ? changeAbove(t.cash_cents, tb.cash_cents, 1000) : null} vs={vs} spark={spark(moneyDayCash)} />
           <KpiCard label={tt("cdm.refunds")} info={tt("cdm.refundsInfo")} value={fmtUsdCents(t.refund_cents)} sub={tt("cdm.refundsSub", { n: n0(t.refunds) })} change={tb ? changeAbove(t.refund_cents, tb.refund_cents, 1000) : null} vs={vs} upIsGood={false} />
           <KpiCard label={tt("cdm.payers")} info={tt("cdm.payersInfo")} value={n0(t.payers)} sub={tt("cdm.firstPayersSub", { n: n0(t.first_payers) })} change={change(t.payers, tb?.payers ?? null)} vs={vs} />
           <KpiCard label={tt("cdm.payerRate")} info={tt("cdm.payerRateInfo")} value={fmtShare(rate)} change={rate !== null && rateBefore ? (rate - rateBefore) / rateBefore : null} vs={vs} />

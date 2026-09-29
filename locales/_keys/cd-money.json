@@ -48,7 +48,7 @@
   "cdw.firstWeek": {"en": "$1.99 weeks taken", "zh": "$1.99 首周"},
   "cdw.firstWeekInfo": {"en": "New viewers who took Weekly VIP's $1.99 first week.", "zh": "选择周 VIP $1.99 首周的新观众。"},
   "cdw.firstPack": {"en": "500 + 75 packs", "zh": "500 + 75 金币包"},
-  "cdw.firstPackInfo": {"en": "New viewers who bought the first-time $4.99 pack (500 + 75 coins).", "zh": "购买首次 $4.99 金币包（500 + 75 金币）的新观众。"},
+  "cdw.firstPackInfo": {"en": "New viewers who bought the first-time pack (500 + 75 coins), at the price charged when they bought it.", "zh": "购买首次金币包（500 + 75 金币）的新观众，金额按购买时的实际价格计。"},
   "cdw.notCompleted": {"en": "Payment not completed", "zh": "付款未完成"},
   "cdw.notCompletedInfo": {"en": "Times a viewer came back from Stripe's page without paying and saw the “Payment not completed” pop-up.", "zh": "观众从 Stripe 页面返回但未付款、看到“付款未完成”弹窗的次数。"},
   "cdw.table": {"en": "Where people pay", "zh": "在哪里付费"},
@@ -120,8 +120,10 @@
   "cdc.col.d7Info": {"en": "What the campaign's viewers paid within 7 days of the day they first came (coins counted where they were spent), divided by spend. Viewers who came less than 7 days ago are still adding to it.", "zh": "该广告系列的观众在首次到来后 7 天内的付费（金币按实际消费计），除以花费。7 天内新来的观众仍在累计中。"},
 
   "cdx.col.coins": {"en": "Coins spent", "zh": "金币消费"},
-  "cdx.col.coinsInfo": {"en": "Paid coins spent on the series' episodes in the period, at 1¢ a coin (already inside Revenue). Bonus and reward coins count nothing.", "zh": "该时段用于解锁本剧的付费金币，按每枚 1 美分计（已计入收入）。赠送和奖励金币不计。"},
+  "cdx.col.coinsInfo": {"en": "Original purchase cost allocated to paid coins spent on this series in the period (already inside Revenue). Old and new packs retain their actual prices. Bonus and reward coins contribute no money.", "zh": "按原购买金额分摊至该时段在本剧消费的付费金币的金额（已计入收入）。新旧金币包均保留实际购买价格。赠送和奖励金币不计金额。"},
   "cdm.wholeSite": {"en": "These numbers are for all of CrazyDramas: the series, phone, source and country filters don't apply to them.", "zh": "这些数字涵盖整个 CrazyDramas：剧集、手机、来源和国家筛选对其不适用。"},
   "cdm.seriesNote": {"en": "Coin packs belong to no series, so they are not here. Coins spent on this series in the period: {cash} (in its revenue on the Series tab).", "zh": "金币包不属于任何剧集，因此不在此处。该时段在本剧消费的金币：{cash}（计入剧集页的收入）。"},
-  "cdo.creditInfo": {"en": "With a filter picked: what those viewers brought in: series unlocks, the VIP they took and the paid coins they spent on episodes (1¢ a coin), before Stripe's fees, refunds left out. The same money as the Series and Campaigns tabs, counted on the day each viewer first opened the series.", "zh": "选择筛选时：这些观众带来的收入：剧集解锁、开通的 VIP，以及在剧集上消费的付费金币（每枚 1 美分），未扣 Stripe 手续费，不含退款。与剧集和广告系列页相同，按观众首次打开剧集的日期计。"}
+  "cdo.creditInfo": {"en": "With a filter picked: series unlocks, VIP and the original purchase cost allocated to paid coins spent on episodes, before Stripe's fees, refunds left out. This is the same revenue as Series and Campaigns, grouped by the day each viewer first opened the series; it is not additional cash collected.", "zh": "选择筛选时：整剧解锁、VIP 和按原购买金额分摊至已消费付费金币的金额，未扣 Stripe 手续费，不含退款。与剧集和广告系列页相同，按观众首次打开剧集的日期计，并非额外收到的现金。"},
+  "cdcoin.value.legacy": {"en": "This report uses the old coin valuation. Coin-attributed revenue, return on ad spend and unspent coin value may not reflect what viewers paid. Refresh after CrazyDramas updates its report. Cash totals in Money still use actual payments.", "zh": "此报表使用旧版金币估值。金币归因收入、广告回报率和未消费金币金额可能不等于观众实际支付的金额。CrazyDramas 更新报表后请刷新。资金页的现金总额仍按实际支付统计。"},
+  "cdcoin.value.incomplete": {"en": "Some paid coins have no recoverable purchase cost. Their dollars are excluded, so coin-attributed revenue, return on ad spend and unspent value are incomplete. This warning covers the whole report, including historical activity. Cash totals in Money still use actual payments.", "zh": "部分付费金币无法追溯购买金额，其金额未计入，因此金币归因收入、广告回报率和未消费金币金额不完整。此提示适用于整个报表，包括历史记录。资金页的现金总额仍按实际支付统计。"}
 }

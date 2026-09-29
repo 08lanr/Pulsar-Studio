@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { fakeStatsReport } from "@/lib/crazydramas/fake-stats";
 import {
+  coinValueCoverage,
   coinsByDay,
   coinsBySeries,
   coinsIn,
@@ -12,6 +13,7 @@ import {
   hasMoneyDetails,
   medianToFirstPay,
   moneyByDay,
+  moneyDayCash,
   moneyTotals,
   paymentsIn,
   paywallIn,
@@ -94,7 +96,56 @@ test("money: cash with refunds apart, payers and first payers, per kind, per pay
   assert.deepEqual(productMix(list).map((m) => [m.product, m.payments, m.cents]), [["coins:c1000", 1, 999], ["all_access_weekly", 2, 898], ["coins:c500first", 1, 499]]);
   const days = moneyByDay(list, ["2026-09-27", "2026-09-28"]);
   assert.deepEqual(days[0], { day: "2026-09-27", refunds: 0, series: 0, coins: 0, vip_intro: 0, vip: 0, vip_renewal: 0 });
-  assert.deepEqual([days[1].coins, days[1].refunds, days[1].vip_intro], [1498, 499, 199]);
+  assert.deepEqual([days[1].coins, days[1].refunds, days[1].vip_intro], [1997, 499, 199]);
+  assert.equal(days.reduce((sum, day) => sum + moneyDayCash(day), 0), t.cash_cents, "cash KPI spark includes each refunded receipt once, matching its headline");
+  const chartNet = days.reduce((sum, d) => sum + d.coins + d.vip_intro + d.vip + d.vip_renewal + d.series - d.refunds, 0);
+  assert.equal(chartNet, t.net_cents, "gross cash minus the refund stack must match the headline");
+});
+
+test("purchase-cost reports preserve mixed old/new pack values without counting spend as additional cash", () => {
+  const r = report({
+    payments: [
+      pay({ person: "a", kind: "coins", cents: 499, product: "coins:c500", first: true }),
+      pay({ person: "a", kind: "coins", cents: 299, product: "coins:c500" }),
+      pay({ person: "b", kind: "coins", cents: 299, product: "coins:c500", refunded: true }),
+      pay({ person: "c", kind: "vip_intro", cents: 199, first: true }),
+      pay({ person: "c", kind: "vip_renewal", cents: 699 }),
+    ],
+    coins: {
+      value_basis: "purchase_cost", unpriced_spent_paid: 0, unpriced_unspent_paid: 0,
+      days: [], unspent_paid: 450, unspent_paid_cents: 349, unspent_bonus: 25,
+      series_days: [
+        { day: "2026-09-28", drama_id: "d1", spent_paid: 300, spent_bonus: 60, cents: 299, unlocks: 6 },
+        { day: "2026-09-28", drama_id: "d1", spent_paid: 250, spent_bonus: 50, cents: 150, unlocks: 5 },
+        { day: "2026-09-28", drama_id: "d2", spent_paid: 200, spent_bonus: 40, cents: 0, unlocks: 4 },
+      ],
+    },
+  });
+  assert.equal(coinValueCoverage(r), "complete");
+  const span = { from: "2026-09-28", to: "2026-09-28" };
+  const credited = coinsBySeries(r, span);
+  assert.equal(credited.get("d1")?.cents, 449, "source allocation survives parsing; never 550 cents from coin count");
+  assert.equal(credited.get("d2")?.cents, 0, "refunded purchase spending contributes no dollars");
+  assert.equal(449 + r.coins!.unspent_paid_cents, 798, "old and new surviving purchases conserve their actual cash");
+  const cash = moneyTotals(paymentsIn(r, span, NO_FILTER));
+  assert.deepEqual([cash.cash_cents, cash.refund_cents, cash.net_cents, cash.payers, cash.first_payers], [1995, 299, 1696, 2, 2]);
+  assert.deepEqual(repeatCoinBuyers(r, r.payments!), { buyers: 1, repeat: 1 });
+  assert.equal(cash.by_kind.coins, 798, "449 spent cents are already in pack cash, never added again");
+  const day = moneyByDay(r.payments!, [span.from])[0];
+  assert.equal(moneyDayCash(day), 1995, "cash spark retains actual old/new receipts including the refunded pack once");
+  assert.equal(day.coins + day.vip_intro + day.vip_renewal - day.refunds, cash.net_cents);
+});
+
+test("coin valuation coverage distinguishes old reports, known costs and incomplete history", () => {
+  const legacy = report({ coins: { days: [], unspent_paid: 1, unspent_paid_cents: 1, unspent_bonus: 0, series_days: [] } });
+  assert.equal(coinValueCoverage(report({})), null);
+  assert.equal(coinValueCoverage(legacy), "legacy");
+  assert.equal(legacy.coins?.value_basis, undefined, "an old report must never silently acquire the new basis");
+  const coins = { ...legacy.coins!, value_basis: "purchase_cost" as const, unpriced_spent_paid: 0, unpriced_unspent_paid: 0 };
+  assert.equal(coinValueCoverage(report({ coins })), "complete");
+  assert.equal(coinValueCoverage(report({ coins: { ...coins, unpriced_spent_paid: 60 } })), "incomplete");
+  assert.equal(coinValueCoverage(report({ coins: { ...coins, unpriced_unspent_paid: 500 } })), "incomplete");
+  assert.equal(coinValueCoverage(report({ coins: { ...coins, unpriced_spent_paid: undefined } })), "incomplete", "missing coverage is unknown, not zero");
 });
 
 test("money: the period, the series a payment is credited to, and where the payer came from", () => {

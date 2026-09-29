@@ -17,6 +17,16 @@ type Span = { from: string; to: string };
 /** The report carries coins and VIP details (crazydramas since 2026-09-28): without them those tabs say so. */
 export const hasMoneyDetails = (report: Pick<CdStatsReport, "payments">): boolean => Array.isArray(report.payments);
 
+/** Whole-report coverage: the source cannot scope missing historical purchase costs to a dashboard filter. */
+export function coinValueCoverage(report: Pick<CdStatsReport, "coins">): "legacy" | "incomplete" | "complete" | null {
+  const coins = report.coins;
+  if (!coins) return null;
+  if (coins.value_basis !== "purchase_cost") return "legacy";
+  if (coins.unpriced_spent_paid === undefined || coins.unpriced_unspent_paid === undefined ||
+      coins.unpriced_spent_paid > 0 || coins.unpriced_unspent_paid > 0) return "incomplete";
+  return "complete";
+}
+
 /** The report's payments carry the payer's whole origin (ad, stored copy, phone, country), so every filter applies. */
 export const paymentsHaveOrigin = (report: Pick<CdStatsReport, "payments">): boolean => (report.payments ?? []).some((p) => p.stored_copy !== undefined);
 
@@ -88,15 +98,18 @@ export function moneyTotals(list: readonly CdStatsPayment[]): MoneyTotals {
 /** Cents per payer: net cash over the different people who paid (null with nobody). */
 export const perPayer = (t: Pick<MoneyTotals, "net_cents" | "payers">): number | null => (t.payers ? Math.round(t.net_cents / t.payers) : null);
 
-/** The money chart's stacks: net cash per kind of product each day, refunds as their own (drawn below zero). */
+/** Gross cash per product each day, with refunds separately drawn below zero: their net matches moneyTotals. */
 export type MoneyDayStack = { day: string } & Record<PaymentKind | "refunds", number>;
+/** Product stacks already contain refunded receipts; adding the refund stack again would overstate cash. */
+export const moneyDayCash = (day: MoneyDayStack): number => PAYMENT_KINDS.reduce((sum, kind) => sum + day[kind], 0);
+
 export function moneyByDay(list: readonly CdStatsPayment[], days: readonly string[]): MoneyDayStack[] {
   const at = new Map(days.map((d) => [d, { day: d, refunds: 0, ...noKinds() } as MoneyDayStack]));
   for (const p of list) {
     const row = at.get(p.day);
     if (!row) continue;
     if (p.refunded) row.refunds += p.cents;
-    else row[p.kind] += p.cents;
+    row[p.kind] += p.cents;
   }
   return days.map((d) => at.get(d)!);
 }
@@ -174,7 +187,7 @@ export function placementRows(pw: PaywallTotals, list: readonly CdStatsPayment[]
   });
 }
 
-/** The first-time prices taken in a period: the $1.99 VIP week and the first-time $4.99 pack. */
+/** The first-time offers taken in a period: the $1.99 VIP week and the 500 + 75 coin pack. */
 export function firstOffersTaken(list: readonly CdStatsPayment[]): { first_week: number; first_pack: number } {
   const live = list.filter((p) => !p.refunded);
   // Only the $1.99 week itself: its renewals carry the subscription's `offer: first_week` too.

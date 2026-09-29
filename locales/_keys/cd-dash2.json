@@ -16,7 +16,7 @@
   "cdx.info.finished": {"en": "Watched episode 1 to the end.", "zh": "看完了第 1 集。"},
   "cdx.info.ep2": {"en": "Watched at least a quarter of episode 2.", "zh": "第 2 集至少看了四分之一。"},
   "cdx.info.buyers": {"en": "Paid for the series, subscribed to VIP from it, or spent paid coins on its episodes.", "zh": "为这部剧付费、从这部剧开通 VIP，或在这部剧上消费了付费金币。"},
-  "cdx.info.revenue": {"en": "What these people paid: the series, the VIP it sold, and paid coins spent on its episodes (1¢ a coin).", "zh": "这些人支付的金额：整剧、从这部剧售出的 VIP，以及在本剧消费的付费金币（每枚 1 美分）。"},
+  "cdx.info.revenue": {"en": "Revenue credited to these viewers: series purchases, VIP sold by the series, and the original purchase cost allocated to paid coins spent on its episodes. Coin packs are not counted again.", "zh": "归属于这些观众的收入：整剧购买、从本剧开通的 VIP，以及按原购买金额分摊至本剧所消费付费金币的金额。金币包不重复计入。"},
   "cdx.ofVisitors": {"en": "{share} of visitors", "zh": "占访客 {share}"},
   "cdx.vs.today": {"en": "vs yesterday", "zh": "对比昨天"},
   "cdx.vs.7d": {"en": "vs the 7 days before", "zh": "对比前 7 天"},

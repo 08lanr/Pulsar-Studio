@@ -293,12 +293,17 @@ export const CdStatsCoinDaySchema = z.object({
 });
 
 export const CdStatsCoinsSchema = z.object({
+  /** Absent on reports that valued each paid coin at a nominal cent. Never infer this from the prices. */
+  value_basis: z.literal("purchase_cost").optional(),
+  /** Paid coins whose original purchase cost cannot be recovered; excluded from dollar attribution. */
+  unpriced_spent_paid: count.optional(),
+  unpriced_unspent_paid: count.optional(),
   days: z.array(CdStatsCoinDaySchema).default([]),
   /** Now: paid coins not yet spent and what viewers paid for them; bonus coins not yet spent or expired. */
   unspent_paid: later,
   unspent_paid_cents: later,
   unspent_bonus: later,
-  /** Coins spent per series and day, and what they credited it (1¢ a paid coin; bonus and reward coins nothing). */
+  /** Coins spent per series and day and their allocated purchase cost; bonus and reward coins credit nothing. */
   series_days: z.array(z.object({ day, drama_id: z.string(), spent_paid: later, spent_bonus: later, cents: later, unlocks: later })).default([]),
 });
 

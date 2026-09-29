@@ -8,6 +8,16 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-09-29 · Coin price cuts retain actual purchase cost in stats
+
+Ruobin asked for coin packs to drop by roughly 30–50% and for Studio's payment attribution to remain correct. VIP prices are unchanged. CrazyDramas owns the wallet and allocates each paid lot's actual charged cents as coins are spent; Studio consumes those integer cents unchanged. A historical $4.99 pack keeps its original cost after the equivalent new pack drops to $2.99. Bonus and reward coins allocate no cash, and spending does not create a second cash payment. Full refunds and disputes contribute no retained attributed revenue.
+
+The optional `coins.value_basis: "purchase_cost"`, `unpriced_spent_paid` and `unpriced_unspent_paid` fields identify that contract. Reports without the basis still parse, but both stats pages visibly warn that coin value and return on spend use the old valuation. Missing cost coverage or positive unpriced counts show a whole-report warning that dollar attribution is incomplete; unknown historical costs are never reconstructed from today's pack prices. Money's cash continues to use recorded payment amounts independently. The old fixture intentionally exercises the legacy warning.
+
+The Money chart now stacks gross cash by product and shows refunds below zero, so chart net agrees with the headline. Previously refunded payments appeared only below zero, double subtracting refunds relative to net sales. Payer/product summaries still exclude refunded payments. English and Chinese tooltips describe original purchase cost instead of 1¢ per coin, and first-pack copy no longer hardcodes a historical price.
+
+Verification: `tests/crazydramas-money.test.ts` covers mixed $4.99/$2.99 packs, actual allocated cents, refunds, VIP renewals, repeat payers, cash conservation, and old/incomplete/new report compatibility. This change does not deploy CrazyDramas' allocation migration or either app.
+
 ## 2026-09-28 · Ad video stats
 
 Ruobin, 2026-09-28, shown a table of lifetime TikTok numbers per ad creative from the ad-review collector (drama-remix `scripts/ad-review/collect_launches.py`: spend, impressions, CTR, still watching at 2 s and 6 s, watched 25% and to the end, average play, checkouts, checkouts per 1,000): "lets build those tiktok stats into pulsar studio, this seems super useful".
