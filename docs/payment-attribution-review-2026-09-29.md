@@ -2,6 +2,8 @@
 
 Reviewed latest fetched Studio `origin/main` at `e8de22d`, in isolated worktree `Pulsar-Studio-payment-review`, branch `codex/payment-attribution`. The original Studio checkout and its unrelated edits were not changed. This is the Studio side of the CrazyDramas payments review and coin-pack price reduction.
 
+Publication follow-up (2026-09-29 Pacific): rebased onto latest `origin/main` **340262c**, preserving its new ad-video statistics, Ads tab and translations. The small overlap in the dashboard imports and the decisions/locales files was resolved by retaining both features.
+
 ## Changes
 
 1. **Fixed an incorrect refund chart.** `moneyByDay` previously excluded refunded sales from the positive product stacks and also showed the refund below zero. Its displayed net was lower than the headline by the refund amount. It now includes gross receipts above zero and refunds below zero; gross less refunds equals `moneyTotals.net_cents`. The cash KPI sparkline sums gross receipts once. Product mix and payer counts still exclude refunded purchases.
@@ -21,7 +23,7 @@ Reviewed latest fetched Studio `origin/main` at `e8de22d`, in isolated worktree 
 
 - Targeted payment/stat tests: **11 passed**. They cover mixed old/new pack prices, cash conservation, refund-chart equality, repeat buyers, VIP renewals and legacy/incomplete report compatibility.
 - `npm run typecheck`: **passed**.
-- Full suite: **1,018 passed, 18 skipped, 1 environment failure** on the original run. The unchanged Git Bash runner test in `tests/python-runner.test.ts:133` could not find `basename` or `dirname` in the inherited PATH. A targeted rerun reproduced that failure; adding `C:\Program Files\Git\usr\bin` to that command's PATH made it **pass**. No runner source or global environment was changed, and the full suite was not rerun after that environment correction.
+- Final full suite after integrating `340262c`: **1,030 passed, 18 skipped, zero failures**, run serially. The original run's Git Bash PATH failure is resolved by including `C:\Program Files\Git\usr\bin` in the check command's PATH, so `basename` and `dirname` are available. No runner source or global environment was changed.
 - Production build: **passed**, including Next's lint/type validation. After the user's performance request, final payment tests, TypeScript and build ran sequentially at Idle priority on one CPU core. The build used one worker (`CIRCLE_NODE_TOTAL=2`, which Next 14 converts to one worker); no persistent configuration was changed. Existing tracing-configuration/cache warnings remained nonfatal.
-- No live provider calls, database changes, push or deployment were performed by this Studio task. CrazyDramas must deploy its purchase-cost allocation/report changes before the dashboard can show complete actual-cost attribution. Missing historical allocations remain explicitly incomplete rather than receiving invented dollars.
+- No live provider calls, database changes or production deployment were performed by this Studio task. Publication uses the review branch `codex/payment-attribution`. CrazyDramas must deploy its purchase-cost allocation/report changes before the dashboard can show complete actual-cost attribution. Missing historical allocations remain explicitly incomplete rather than receiving invented dollars.
 - Existing data limits remain: first-payer classification is bounded by the source read window; historical payments lacking origin fields cannot satisfy every demographic filter. This work does not claim to recover information the source never recorded.
