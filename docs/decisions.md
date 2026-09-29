@@ -33,6 +33,13 @@ Ruobin, 2026-09-28, shown a table of lifetime TikTok numbers per ad creative fro
 
 Fixture mode: the fake TikTok answers the video metrics, the `ad_ids` filter, `query_lifetime` and pages; the stats page adds an invented earlier launch (`fakeStatsArchive`: four more clips, one of each ad type, a weak hook and one too new to judge) and invented video numbers for all the invented ads (`fakeAdVideo`), never stored. Live check 2026-09-28 against the collector: the four clips compared (Dragon hook v2 `228d5a2c`, `f0f98b15`, `6e290cbd`, Flirt v4 `509149a1`) match within rounding. Checks: `tests/ad-video-stats.test.ts`, `tests/e2e/ad-video-stats.spec.ts`.
 
+## 2026-09-29 · VIP: subscribers set to cancel
+
+Ruobin, 2026-09-29, after the first $0.99 VIP week sold: "in studio do we have any way to see if they cancel?" … "just record it when it cancels in the VIP tab". A cancel in Stripe leaves the VIP on until its paid time ends, so the VIP tab's "Ended" only saw it a week later. crazydramas now records it when Stripe says so (`customer.subscription.updated` → `raw.cancelling` on the subscription's ledger rows, cleared if they resume) and the report's `vip[]` rows carry `cancelling`.
+
+- The VIP tab's **Ended** card says "N set to cancel" under its number: subscribers still on who won't renew. They move into Ended when their paid time runs out. A report from before this says nothing, and the line is hidden (unknown, not zero).
+- `vipNow().cancelling` (lib/crazydramas/stats-money.ts). Fixture: about a quarter of running weekly and 15% of monthly/yearly are set to cancel. Check: tests/crazydramas-money.test.ts.
+
 ## 2026-09-29 · VIP prices cut: Studio reads them from one place
 
 crazydramas.com cut its VIP prices by about 43% (weekly $6.99 → $3.99, monthly $13.99 → $7.99, yearly $69.99 → $39.99, the new viewer's first week $1.99 → $0.99; Ruobin, 2026-09-29: "slash the subscription prices 30-50%… make sure the different tiers make sense… highlight CANCEL ANYTIME"). Studio had the old prices and "$1.99" written into the stats: the monthly-recurring-revenue sum (`PLAN_MONTHLY_CENTS`), eleven labels, the fixture money and a test.

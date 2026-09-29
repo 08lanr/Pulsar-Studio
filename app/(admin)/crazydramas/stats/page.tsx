@@ -664,7 +664,15 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
           <KpiCard label={tt("cdvip.mrr")} info={tt("cdvip.mrrInfo", { price })} value={fmtUsdCents(now.mrr_cents)} sub={`${tt("cdvip.intros", { price })}: ${n0(now.intros)}`} />
           <KpiCard label={tt("cdvip.new")} info={tt("cdvip.newInfo", { price })} value={n0(per.new_intro + per.new_full)} sub={tt("cdvip.newSub", { price, i: n0(per.new_intro), f: n0(per.new_full) })} change={perBefore ? change(per.new_intro + per.new_full, perBefore.new_intro + perBefore.new_full) : null} vs={vs} />
           <KpiCard label={tt("cdvip.introRate")} info={tt("cdvip.introRateInfo", { price })} value={fmtShare(introRate)} sub={tt("cdvip.ofSub", { a: n0(per.intros_renewed), b: n0(per.intros_due) })} change={introRate !== null && introRateBefore ? (introRate - introRateBefore) / introRateBefore : null} vs={vs} />
-          <KpiCard label={tt("cdvip.ended")} info={tt("cdvip.endedInfo")} value={n0(ended)} change={change(ended, endedBefore)} vs={vs} upIsGood={false} />
+          <KpiCard
+            label={tt("cdvip.ended")}
+            info={tt("cdvip.endedInfo")}
+            value={n0(ended)}
+            sub={now.cancelling === null ? null : tt("cdvip.cancellingSub", { n: n0(now.cancelling) })}
+            change={change(ended, endedBefore)}
+            vs={vs}
+            upIsGood={false}
+          />
         </div>
         <section className="rs-panel cdx-card">
           <StackedDaysChart id="cdm-vip-weeks" title={tt("cdvip.chart")} days={weeks.map((w) => ({ day: w.week, values: { new_intro: w.new_intro, new_full: w.new_full, renewals: w.renewals, ended: w.ended } }))} series={series} fmt={(v) => n0(v)} tableLabel={tt("cdx.numbers")} firstCol={tt("cdvip.weekOf")} />

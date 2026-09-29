@@ -387,13 +387,13 @@ function fakeMoney(live: FakeSeriesIn[], from: string, to: string, watchersOn: (
         const renewDay = addDays(day, 7);
         if (renews && renewDay <= to) payments.push({ ...base, day: renewDay, first: false, refunded: false, kind: "vip_renewal", product: "all_access_weekly", cents: VIP_PRICE_CENTS.all_access_weekly, offer: null, placement: null });
         const end = renews ? addDays(day, 14) : renewDay;
-        vip.push({ plan: "all_access_weekly", intro: !renews && renewDay > to, active: end >= to, expires_day: end, cents: VIP_PRICE_CENTS.all_access_weekly, interval: "week" });
+        vip.push({ plan: "all_access_weekly", intro: !renews && renewDay > to, active: end >= to, expires_day: end, cents: VIP_PRICE_CENTS.all_access_weekly, interval: "week", cancelling: end >= to && r(`cw${i}`) < 0.25 });
       } else {
         const monthly = x < 0.95;
         payments.push({ ...base, kind: "vip", product: monthly ? "vip_monthly" : "vip_yearly", cents: monthly ? VIP_PRICE_CENTS.vip_monthly : VIP_PRICE_CENTS.vip_yearly, offer: null });
         const end = addDays(day, monthly ? 30 : 365);
         if (monthly && end <= to) payments.push({ ...base, day: end, first: false, refunded: false, kind: "vip_renewal", product: "vip_monthly", cents: VIP_PRICE_CENTS.vip_monthly, offer: null, placement: null });
-        vip.push({ plan: monthly ? "vip_monthly" : "vip_yearly", intro: false, active: true, expires_day: monthly && end <= to ? addDays(end, 30) : end, cents: monthly ? VIP_PRICE_CENTS.vip_monthly : VIP_PRICE_CENTS.vip_yearly, interval: monthly ? "month" : "year" });
+        vip.push({ plan: monthly ? "vip_monthly" : "vip_yearly", intro: false, active: true, expires_day: monthly && end <= to ? addDays(end, 30) : end, cents: monthly ? VIP_PRICE_CENTS.vip_monthly : VIP_PRICE_CENTS.vip_yearly, interval: monthly ? "month" : "year", cancelling: r(`cx${i}`) < 0.15 });
       }
     }
     // Coins spent on episodes: most of what was bought and given, bonus first.

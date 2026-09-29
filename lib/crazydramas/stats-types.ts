@@ -319,6 +319,8 @@ export const CdStatsVipSchema = z.object({
   expires_day: day.nullable().default(null),
   cents: later.optional().catch(undefined),
   interval: z.enum(["week", "month", "year"]).optional().catch(undefined),
+  /** Cancelled in Stripe: still on, but stops instead of renewing when its paid time ends (crazydramas since 2026-09-29). */
+  cancelling: z.boolean().optional().catch(undefined),
 });
 
 /** The unlock sheet, coin unlocks, checkouts by the screen that opened them and the pop-ups shown, per day. */

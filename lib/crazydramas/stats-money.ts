@@ -216,16 +216,19 @@ export type VipNow = {
   active: number;
   by_plan: Record<"weekly" | "monthly" | "yearly", number>;
   intros: number;
+  /** Of them, the ones set to cancel: still VIP, won't renew. Null on a report from before crazydramas said so. */
+  cancelling: number | null;
   /** Monthly recurring revenue of the paying ones (first weeks left out until they renew, as Stripe leaves trials out). */
   mrr_cents: number;
 };
 
 export function vipNow(report: Pick<CdStatsReport, "vip" | "to">): VipNow {
-  const out: VipNow = { active: 0, by_plan: { weekly: 0, monthly: 0, yearly: 0 }, intros: 0, mrr_cents: 0 };
+  const out: VipNow = { active: 0, by_plan: { weekly: 0, monthly: 0, yearly: 0 }, intros: 0, cancelling: null, mrr_cents: 0 };
   for (const v of report.vip ?? []) {
     if (!v.active || (v.expires_day !== null && v.expires_day < report.to)) continue;
     out.active++;
     out.by_plan[planOf(v.plan)]++;
+    if (v.cancelling !== undefined) out.cancelling = (out.cancelling ?? 0) + (v.cancelling ? 1 : 0);
     if (v.intro) out.intros++;
     // What this subscription pays (crazydramas since 2026-09-29), else the plan's price today.
     else if (v.cents !== undefined && v.interval) out.mrr_cents += monthlyOf(v.cents, v.interval);

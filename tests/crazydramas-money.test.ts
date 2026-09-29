@@ -244,6 +244,14 @@ test("VIP: active by plan, monthly value without the $1.99 weeks, ended; new, re
     { plan: "vip_monthly", intro: false, active: true, expires_day: "2026-10-20" },
   ] });
   assert.equal(vipNow(paying).mrr_cents, Math.round((699 * 52) / 12 + 6999 / 12 + PLAN_MONTHLY_CENTS.vip_monthly));
+  assert.equal(vipNow(paying).cancelling, null, "a report that doesn't say: unknown, not zero");
+  // Cancelled in Stripe: still VIP until the paid time ends, counted as set to cancel; one already over is not.
+  const leaving = report({ to: "2026-09-28", vip: [
+    { plan: "all_access_weekly", intro: true, active: true, expires_day: "2026-10-05", cancelling: true },
+    { plan: "vip_monthly", intro: false, active: true, expires_day: "2026-10-20", cancelling: false },
+    { plan: "all_access_weekly", intro: false, active: true, expires_day: "2026-09-20", cancelling: true },
+  ] });
+  assert.deepEqual([vipNow(leaving).active, vipNow(leaving).cancelling], [2, 1]);
   assert.equal(vipEnded(r, { from: "2026-09-22", to: "2026-09-28" }), 1);
   const per = vipPeriod(r, { from: "2026-09-01", to: "2026-09-28" });
   assert.deepEqual([per.new_intro, per.new_full, per.renewals, per.renewal_cents], [3, 1, 1, 699]);

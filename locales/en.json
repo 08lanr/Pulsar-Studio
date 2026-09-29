@@ -5324,7 +5324,7 @@
   "cdvip.newInfo": "Subscriptions begun in the period: at the {price} first week and at full price.",
   "cdvip.newSub": "{i} at {price} · {f} full price",
   "cdvip.ended": "Ended",
-  "cdvip.endedInfo": "Subscriptions that ended in the period: their paid time ran out without a renewal (cancelled or unpaid), or they were stopped early (refund or dispute).",
+  "cdvip.endedInfo": "Subscriptions that ended in the period: their paid time ran out without a renewal (cancelled or unpaid), or they were stopped early (refund or dispute). Under it: subscribers who cancelled in Stripe and are still VIP until their paid time ends; they end here when it does.",
   "cdvip.chart": "VIP per week",
   "cdvip.weekOf": "Week of",
   "cdvip.s.intro": "New at {price}",
@@ -5434,5 +5434,6 @@
   "mad.avgPlay": "Avg play",
   "mad.videoHint": "At 2 s / At 6 s: of the plays, the share still watching after 2 and 6 seconds. Avg play: seconds per play. Read with the ad's numbers; — until the Monitor reads them again.",
   "cdcoin.value.legacy": "This report uses the old coin valuation. Coin-attributed revenue, return on ad spend and unspent coin value may not reflect what viewers paid. Refresh after CrazyDramas updates its report. Cash totals in Money still use actual payments.",
-  "cdcoin.value.incomplete": "Some paid coins have no recoverable purchase cost. Their dollars are excluded, so coin-attributed revenue, return on ad spend and unspent value are incomplete. This warning covers the whole report, including historical activity. Cash totals in Money still use actual payments."
+  "cdcoin.value.incomplete": "Some paid coins have no recoverable purchase cost. Their dollars are excluded, so coin-attributed revenue, return on ad spend and unspent value are incomplete. This warning covers the whole report, including historical activity. Cash totals in Money still use actual payments.",
+  "cdvip.cancellingSub": "{n} set to cancel"
 }
