@@ -260,15 +260,22 @@ export const CdStatsPaymentSchema = z.object({
   day,
   person: z.string().max(32),
   kind: z.enum(PAYMENT_KINDS).catch("series"),
-  product: z.string().max(64).nullable().default(null),
+  // Text a payment names is read leniently (`.catch(null)`): a long series id must not refuse the whole report.
+  product: z.string().max(200).nullable().default(null).catch(null),
   cents: count,
   first: z.boolean().default(false),
   refunded: z.boolean().default(false),
-  offer: z.string().max(40).nullable().default(null),
-  placement: z.string().max(20).nullable().default(null),
-  drama_id: z.string().nullable().default(null),
-  platform: z.string().max(40).nullable().default(null),
-  campaign: z.string().max(64).nullable().default(null),
+  offer: z.string().max(40).nullable().default(null).catch(null),
+  placement: z.string().max(20).nullable().default(null).catch(null),
+  drama_id: z.string().max(64).nullable().default(null).catch(null),
+  platform: z.string().max(40).nullable().default(null).catch(null),
+  campaign: z.string().max(64).nullable().default(null).catch(null),
+  // The rest of the paying browser's origin, as its source row has it (crazydramas after 2026-09-28; absent before,
+  // and then payments are filtered by platform and campaign only).
+  ad: z.string().max(64).nullable().optional().catch(null),
+  stored_copy: z.boolean().optional().catch(undefined),
+  device: z.string().max(40).nullable().optional().catch(null),
+  country: z.string().max(8).nullable().optional().catch(null),
   paid_after_s: z.number().nonnegative().nullable().default(null),
 });
 

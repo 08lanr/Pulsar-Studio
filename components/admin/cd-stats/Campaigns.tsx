@@ -35,15 +35,15 @@ function Seen({ r, tt }: { r: { ours: CompareAd["ours"] }; tt: Tt }) {
   );
 }
 
-function Numbers({ r, tt }: { r: CampaignsViewRow | CampaignsViewAd; tt: Tt }) {
+function Numbers({ r, tt, returns }: { r: CampaignsViewRow | CampaignsViewAd; tt: Tt; returns: boolean }) {
   return (
     <>
       <td className="gt-num">{r.spend_cents != null ? fmtUsdCents(r.spend_cents) : "–"}</td>
       <td className="gt-num">{r.clicks != null ? n0(r.clicks) : "–"}</td>
       <td className="gt-num">{n0(r.opened)}</td>
       <td className="gt-num">{n0(r.finished_ep1)}</td>
-      <td className="gt-num" title={fmtUsdCents(r.revenue_d0_cents)}>{ratio(r.revenue_d0_cents, r.spend_cents)}</td>
-      <td className="gt-num" title={fmtUsdCents(r.revenue_d7_cents)}>{ratio(r.revenue_d7_cents, r.spend_cents)}</td>
+      <td className="gt-num" title={returns ? fmtUsdCents(r.revenue_d0_cents) : undefined}>{returns ? ratio(r.revenue_d0_cents, r.spend_cents) : "–"}</td>
+      <td className="gt-num" title={returns ? fmtUsdCents(r.revenue_d7_cents) : undefined}>{returns ? ratio(r.revenue_d7_cents, r.spend_cents) : "–"}</td>
       <td className="gt-num">{r.tiktok != null ? n0(r.tiktok) : "–"}</td>
       <Seen r={r} tt={tt} />
       <td className="cdc-why-cell">
@@ -53,7 +53,8 @@ function Numbers({ r, tt }: { r: CampaignsViewRow | CampaignsViewAd; tt: Tt }) {
   );
 }
 
-export default function CampaignsView({ rows, caption, launchedLabel }: { rows: CampaignsViewRow[]; caption: string; launchedLabel: Record<string, string> }) {
+/** `returns`: the report carries day-0 / day-7 money (crazydramas since 2026-09-28); an older one shows "–", not 0×. */
+export default function CampaignsView({ rows, caption, launchedLabel, returns = true }: { rows: CampaignsViewRow[]; caption: string; launchedLabel: Record<string, string>; returns?: boolean }) {
   const { tt } = useT();
   const campaigns = rows.filter((r) => r.kind === "campaign");
   const [open, setOpen] = useState<Set<string>>(() => new Set(campaigns.map((c) => c.key)));
@@ -124,7 +125,7 @@ export default function CampaignsView({ rows, caption, launchedLabel }: { rows: 
                         </>
                       )}
                     </th>
-                    <Numbers r={c} tt={tt} />
+                    <Numbers r={c} tt={tt} returns={returns} />
                   </tr>
                   {c.kind === "campaign" &&
                     isOpen &&
@@ -133,7 +134,7 @@ export default function CampaignsView({ rows, caption, launchedLabel }: { rows: 
                         <th scope="row" className="cds-title cds-ad-name">
                           <CreativeLabel ad={a} media={a.media_url} href={a.href} tt={tt} />
                         </th>
-                        <Numbers r={a} tt={tt} />
+                        <Numbers r={a} tt={tt} returns={returns} />
                       </tr>
                     ))}
                 </Fragment>

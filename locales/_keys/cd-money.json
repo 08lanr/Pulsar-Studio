@@ -14,7 +14,7 @@
   "cdm.payers": {"en": "Payers", "zh": "付费人数"},
   "cdm.payersInfo": {"en": "Different people who paid in the period (all browsers that paid with one email count as one person). Refunded payments left out.", "zh": "该时段内付费的不同人数（用同一邮箱付款的所有浏览器算一人）。已退款的付款不计。"},
   "cdm.payerRate": {"en": "New viewers who pay", "zh": "新观众付费率"},
-  "cdm.payerRateInfo": {"en": "People whose first payment of all was in the period, as a share of the people who watched for the first time in the period. With a series picked: of the people who opened that series.", "zh": "首次付款发生在该时段的人数，占该时段首次观看人数的比例。选择某部剧时：占打开该剧的人数。"},
+  "cdm.payerRateInfo": {"en": "People whose first payment of all was in the period, as a share of the people who watched for the first time in the period. With a filter picked: of the people who opened a series in it.", "zh": "首次付款发生在该时段的人数，占该时段首次观看人数的比例。选择筛选时：占其中打开剧集的人数。"},
   "cdm.firstPayersSub": {"en": "{n} first payers", "zh": "{n} 位首次付费"},
   "cdm.perPayer": {"en": "Revenue per payer", "zh": "每位付费用户收入"},
   "cdm.perPayerInfo": {"en": "Cash taken less refunds, divided by the people who paid.", "zh": "收款减去退款，除以付费人数。"},
@@ -70,13 +70,13 @@
   "cdvip.intros": {"en": "In $1.99 first week", "zh": "处于 $1.99 首周"},
   "cdvip.introsInfo": {"en": "Subscriptions still in their $1.99 first week today.", "zh": "今天仍处于 $1.99 首周的订阅。"},
   "cdvip.introRate": {"en": "First week → renewal", "zh": "首周 → 续费"},
-  "cdvip.introRateInfo": {"en": "Of the $1.99 first weeks that ran out in the period, the share that renewed at the full price.", "zh": "该时段内到期的 $1.99 首周中，以原价续费的比例。"},
+  "cdvip.introRateInfo": {"en": "Of the $1.99 first weeks that ran out in the period (by yesterday), the share that renewed at the full price.", "zh": "该时段内（截至昨天）到期的 $1.99 首周中，以原价续费的比例。"},
   "cdvip.ofSub": {"en": "{a} of {b}", "zh": "{b} 中的 {a}"},
   "cdvip.new": {"en": "New subscriptions", "zh": "新订阅"},
   "cdvip.newInfo": {"en": "Subscriptions begun in the period: at the $1.99 first week and at full price.", "zh": "该时段内开始的订阅：$1.99 首周和原价。"},
   "cdvip.newSub": {"en": "{i} at $1.99 · {f} full price", "zh": "{i} 个 $1.99 · {f} 个原价"},
   "cdvip.ended": {"en": "Ended", "zh": "已结束"},
-  "cdvip.endedInfo": {"en": "Subscriptions whose paid time ran out in the period without a renewal (cancelled, refunded or unpaid).", "zh": "该时段内付费期结束且未续费的订阅（取消、退款或未付款）。"},
+  "cdvip.endedInfo": {"en": "Subscriptions that ended in the period: their paid time ran out without a renewal (cancelled or unpaid), or they were stopped early (refund or dispute).", "zh": "该时段结束的订阅：付费期结束且未续费（取消或未付款），或被提前终止（退款或争议）。"},
   "cdvip.chart": {"en": "VIP per week", "zh": "每周 VIP"},
   "cdvip.weekOf": {"en": "Week of", "zh": "周起始"},
   "cdvip.s.intro": {"en": "New at $1.99", "zh": "新 · $1.99"},
@@ -117,8 +117,11 @@
   "cdc.col.d0": {"en": "Day-0 return", "zh": "当日回报"},
   "cdc.col.d0Info": {"en": "What the campaign's viewers paid by the end of the day they first came (coins counted where they were spent), divided by spend.", "zh": "该广告系列的观众在首次到来当天结束前的付费（金币按实际消费计），除以花费。"},
   "cdc.col.d7": {"en": "Day-7 return", "zh": "7 日回报"},
-  "cdc.col.d7Info": {"en": "What the campaign's viewers paid within 7 days of the day they first came (coins counted where they were spent), divided by spend.", "zh": "该广告系列的观众在首次到来后 7 天内的付费（金币按实际消费计），除以花费。"},
+  "cdc.col.d7Info": {"en": "What the campaign's viewers paid within 7 days of the day they first came (coins counted where they were spent), divided by spend. Viewers who came less than 7 days ago are still adding to it.", "zh": "该广告系列的观众在首次到来后 7 天内的付费（金币按实际消费计），除以花费。7 天内新来的观众仍在累计中。"},
 
   "cdx.col.coins": {"en": "Coins spent", "zh": "金币消费"},
-  "cdx.col.coinsInfo": {"en": "Paid coins spent on the series' episodes in the period, at 1¢ a coin (already inside Revenue). Bonus and reward coins count nothing.", "zh": "该时段用于解锁本剧的付费金币，按每枚 1 美分计（已计入收入）。赠送和奖励金币不计。"}
+  "cdx.col.coinsInfo": {"en": "Paid coins spent on the series' episodes in the period, at 1¢ a coin (already inside Revenue). Bonus and reward coins count nothing.", "zh": "该时段用于解锁本剧的付费金币，按每枚 1 美分计（已计入收入）。赠送和奖励金币不计。"},
+  "cdm.wholeSite": {"en": "These numbers are for all of CrazyDramas: the series, phone, source and country filters don't apply to them.", "zh": "这些数字涵盖整个 CrazyDramas：剧集、手机、来源和国家筛选对其不适用。"},
+  "cdm.seriesNote": {"en": "Coin packs belong to no series, so they are not here. Coins spent on this series in the period: {cash} (in its revenue on the Series tab).", "zh": "金币包不属于任何剧集，因此不在此处。该时段在本剧消费的金币：{cash}（计入剧集页的收入）。"},
+  "cdo.creditInfo": {"en": "With a filter picked: what those viewers brought in: series unlocks, the VIP they took and the paid coins they spent on episodes (1¢ a coin), before Stripe's fees, refunds left out. The same money as the Series and Campaigns tabs, counted on the day each viewer first opened the series.", "zh": "选择筛选时：这些观众带来的收入：剧集解锁、开通的 VIP，以及在剧集上消费的付费金币（每枚 1 美分），未扣 Stripe 手续费，不含退款。与剧集和广告系列页相同，按观众首次打开剧集的日期计。"}
 }

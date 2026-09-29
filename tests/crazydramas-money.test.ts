@@ -113,6 +113,27 @@ test("money: the period, the series a payment is credited to, and where the paye
   assert.deepEqual(paymentsIn(r, { from: "2026-09-01", to: "2026-09-28" }, { series: null, source: "campaign:c1" }).map((p) => p.person), ["a", "b"]);
 });
 
+test("money: a picked series leaves coin packs out, even one bought on its sheet; the payer's whole origin filters like the rows", () => {
+  const r = report({
+    payments: [
+      pay({ person: "a", kind: "coins", cents: 499, drama_id: "d1", placement: "sheet" }),
+      pay({ person: "b", kind: "series", cents: 99, drama_id: "d1" }),
+      // Landed with TikTok's click id only: no ad, the same as its source row.
+      pay({ person: "c", kind: "vip", cents: 1399, drama_id: "d2", platform: "tiktok", campaign: null, ad: null, stored_copy: false, device: "tiktok_ios", country: "US" }),
+      pay({ person: "d", kind: "vip", cents: 1399, drama_id: "d2", platform: "tiktok", campaign: null, ad: null, stored_copy: true, device: "tiktok_android", country: "PH" }),
+      pay({ person: "e", kind: "vip", cents: 1399, drama_id: "d2", platform: "tiktok", campaign: null, ad: "ad9", stored_copy: false, device: "tiktok_ios", country: null }),
+    ],
+  });
+  const day = { from: "2026-09-28", to: "2026-09-28" };
+  assert.deepEqual(paymentsIn(r, day, { series: "d1" }).map((p) => p.person), ["b"], "the pack's coins are credited where spent, not here");
+  assert.deepEqual(paymentsIn(r, day, { source: "no_ad" }).map((p) => p.person), ["c"]);
+  assert.deepEqual(paymentsIn(r, day, { source: "stored_copy" }).map((p) => p.person), ["d"]);
+  assert.deepEqual(paymentsIn(r, day, { source: "campaign:unknown" }).map((p) => p.person), ["e"], "an ad without its campaign, as sourceKey names it");
+  assert.deepEqual(paymentsIn(r, day, { source: "ads" }).map((p) => p.person), ["a", "b", "e"], "a and b: older payments with their campaign");
+  assert.deepEqual(paymentsIn(r, day, { device: "tiktok_ios" }).map((p) => p.person), ["a", "b", "c", "e"], "an older payment without the origin is kept");
+  assert.deepEqual(paymentsIn(r, day, { country: "none" }).map((p) => p.person), ["a", "b", "e"]);
+});
+
 test("paywall: sheet views, unlocks and checkouts by screen; paid and cash per screen; the first-time offers taken", () => {
   const r = report({
     paywall_days: [
@@ -138,6 +159,8 @@ test("paywall: sheet views, unlocks and checkouts by screen; paid and cash per s
     ["store", null, 1, 0, 0],
   ]);
   assert.deepEqual(firstOffersTaken(list), { first_week: 1, first_pack: 1 });
+  // A renewal carries the subscription's `offer: first_week`: it is not another $1.99 week taken.
+  assert.deepEqual(firstOffersTaken([...list, pay({ person: "c", kind: "vip_renewal", cents: 699, offer: "first_week" })]), { first_week: 1, first_pack: 1 });
 });
 
 test("VIP: active by plan, monthly value without the $1.99 weeks, ended; new, renewals and first week → renewal", () => {
@@ -166,11 +189,14 @@ test("VIP: active by plan, monthly value without the $1.99 weeks, ended; new, re
   const per = vipPeriod(r, { from: "2026-09-01", to: "2026-09-28" });
   assert.deepEqual([per.new_intro, per.new_full, per.renewals, per.renewal_cents], [3, 1, 1, 699]);
   assert.deepEqual([per.intros_due, per.intros_renewed], [2, 1], "c's week is not over yet");
+  const dueToday = report({ to: "2026-09-28", payments: [pay({ person: "t", kind: "vip_intro", cents: 199, day: "2026-09-21" })] });
+  assert.equal(vipPeriod(dueToday, { from: "2026-09-22", to: "2026-09-28" }).intros_due, 0, "due today: it may still renew later today");
   const lastWeek = vipPeriod(r, { from: "2026-09-18", to: "2026-09-28" });
   assert.deepEqual([lastWeek.intros_due, lastWeek.intros_renewed], [1, 0], "a first week counts in the period it runs out in, whenever it began");
   const weeks = vipWeeks(r, { from: "2026-09-08", to: "2026-09-28" });
   assert.deepEqual(weeks.map((w) => w.week), ["2026-09-07", "2026-09-14", "2026-09-21", "2026-09-28"]);
-  assert.deepEqual(weeks.map((w) => [w.new_intro, w.new_full, w.renewals, w.ended]), [[2, 0, 0, 0], [0, 0, 1, 0], [1, 1, 0, 1], [0, 0, 0, 0]]);
+  assert.deepEqual(weeks.map((w) => [w.new_intro, w.new_full, w.renewals, w.ended]), [[2, 0, 0, 0], [0, 0, 1, 1], [1, 1, 0, 1], [0, 0, 0, 0]], "the monthly still flagged active ran out Sep 20: ended");
+  assert.equal(vipEnded(r, { from: "2026-09-14", to: "2026-09-20" }), 1, "a VIP left to run out ended, whatever its flag");
   assert.equal(weekOf("2026-09-28"), "2026-09-28", "a Monday is its own week");
 });
 

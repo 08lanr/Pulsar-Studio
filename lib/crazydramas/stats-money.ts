@@ -9,7 +9,7 @@
 //           rows); a coin pack itself credits no series.
 //   first   a person's first payment of all: a second coin pack is a repeat, not a new payer.
 
-import type { DashFilter } from "./stats-summary";
+import { NO_PLACE, sourceKey, type DashFilter } from "./stats-summary";
 import { PAYMENT_KINDS, type CdStatsPayment, type CdStatsReport, type PaymentKind } from "./stats-types";
 
 type Span = { from: string; to: string };
@@ -17,22 +17,33 @@ type Span = { from: string; to: string };
 /** The report carries coins and VIP details (crazydramas since 2026-09-28): without them those tabs say so. */
 export const hasMoneyDetails = (report: Pick<CdStatsReport, "payments">): boolean => Array.isArray(report.payments);
 
+/** The report's payments carry the payer's whole origin (ad, stored copy, phone, country), so every filter applies. */
+export const paymentsHaveOrigin = (report: Pick<CdStatsReport, "payments">): boolean => (report.payments ?? []).some((p) => p.stored_copy !== undefined);
+
 /**
- * The payments of a period, scoped like the rest of the page where a payment can be: the series is the one it is
- * credited to (a pack bought on the store page has none, so a picked series leaves it out); the source is where
- * the paying browser first came from. Phone and country do not apply to payments (the page says so).
+ * The payments of a period, scoped like the rest of the page. Series: the one the payment is tied to, coin packs
+ * never (a pack credits no series, even one bought on its unlock sheet: its coins do, where they are spent, in the
+ * Series tab and the source rows). Source, phone and country: the paying browser's origin, by the rows' own rule
+ * (`sourceKey`). A report from before crazydramas sent the whole origin has platform and campaign only: the source
+ * is then read from those, and phone and country do not apply (the Money tab says so).
  */
-export function paymentsIn(report: Pick<CdStatsReport, "payments">, span: Span, filter: Pick<DashFilter, "series" | "source">): CdStatsPayment[] {
+export function paymentsIn(report: Pick<CdStatsReport, "payments">, span: Span, filter: Partial<DashFilter>): CdStatsPayment[] {
   return (report.payments ?? []).filter((p) => {
     if (p.day < span.from || p.day > span.to) return false;
-    if (filter.series && p.drama_id !== filter.series) return false;
+    if (filter.series && (p.kind === "coins" || p.drama_id !== filter.series)) return false;
+    const whole = p.stored_copy !== undefined;
+    if (whole && filter.device && p.device !== filter.device) return false;
+    if (whole && filter.country && (p.country ?? NO_PLACE) !== filter.country) return false;
     const src = filter.source;
     if (!src) return true;
-    if (src === "ads") return p.platform === "tiktok" || !!p.campaign;
-    if (src.startsWith("campaign:")) return p.campaign === src.slice(9);
-    if (src === "stored_copy") return p.platform === "tiktok" && !p.campaign;
-    if (src === "no_ad") return p.platform !== "tiktok" && !p.campaign;
-    return true;
+    const key = whole
+      ? sourceKey({ stored_copy: !!p.stored_copy, ad: p.ad ?? null, campaign: p.campaign })
+      : p.campaign
+        ? `campaign:${p.campaign}`
+        : p.platform === "tiktok"
+          ? "stored_copy"
+          : "no_ad";
+    return src === "ads" ? key.startsWith("campaign:") : key === src;
   });
 }
 
@@ -166,7 +177,8 @@ export function placementRows(pw: PaywallTotals, list: readonly CdStatsPayment[]
 /** The first-time prices taken in a period: the $1.99 VIP week and the first-time $4.99 pack. */
 export function firstOffersTaken(list: readonly CdStatsPayment[]): { first_week: number; first_pack: number } {
   const live = list.filter((p) => !p.refunded);
-  return { first_week: live.filter((p) => p.kind === "vip_intro" || p.offer === "first_week").length, first_pack: live.filter((p) => p.product === "coins:c500first").length };
+  // Only the $1.99 week itself: its renewals carry the subscription's `offer: first_week` too.
+  return { first_week: live.filter((p) => p.kind === "vip_intro").length, first_pack: live.filter((p) => p.product === "coins:c500first").length };
 }
 
 // ---- VIP -------------------------------------------------------------------------------------------------------
@@ -197,9 +209,16 @@ export function vipNow(report: Pick<CdStatsReport, "vip" | "to">): VipNow {
   return out;
 }
 
-/** Subscriptions whose paid time ran out in the period without a renewal (ended: cancelled, refunded or unpaid). */
+/**
+ * A VIP that ended: its paid time ran out before today with no renewal (cancelled, unpaid: crazydramas leaves these
+ * `active`, their end date past), or it was stopped early (refund, dispute: `active` false, ended the day it stopped).
+ */
+const vipHasEnded = (v: { active: boolean; expires_day: string | null }, today: string): v is { active: boolean; expires_day: string } =>
+  v.expires_day !== null && (!v.active || v.expires_day < today);
+
+/** VIPs that ended in the period (see vipHasEnded). */
 export function vipEnded(report: Pick<CdStatsReport, "vip" | "to">, span: Span): number {
-  return (report.vip ?? []).filter((v) => v.expires_day !== null && v.expires_day >= span.from && v.expires_day <= span.to && v.expires_day < report.to && !v.active).length;
+  return (report.vip ?? []).filter((v) => vipHasEnded(v, report.to) && v.expires_day >= span.from && v.expires_day <= span.to).length;
 }
 
 export type VipPeriod = {
@@ -208,7 +227,7 @@ export type VipPeriod = {
   new_full: number;
   renewals: number;
   renewal_cents: number;
-  /** $1.99 first weeks whose week ran out in the period (by today), and of them the ones renewed at full price. */
+  /** $1.99 first weeks whose week ran out in the period (by yesterday), and of them the ones renewed at full price. */
   intros_due: number;
   intros_renewed: number;
 };
@@ -226,7 +245,9 @@ export function vipPeriod(report: Pick<CdStatsReport, "payments" | "to">, span: 
       out.renewal_cents += p.cents;
     }
   }
-  const lastDue = span.to < report.to ? span.to : report.to;
+  // Due by yesterday: a week due today may still renew later today.
+  const yesterday = addDays(report.to, -1);
+  const lastDue = span.to < yesterday ? span.to : yesterday;
   for (const p of all) {
     const due = addDays(p.day, 7);
     if (p.kind !== "vip_intro" || due < span.from || due > lastDue) continue;
@@ -250,7 +271,7 @@ export function vipWeeks(report: Pick<CdStatsReport, "payments" | "vip" | "to">,
     else if (p.kind === "vip_renewal") w.renewals++;
   }
   for (const v of report.vip ?? []) {
-    if (v.active || v.expires_day === null || v.expires_day < span.from || v.expires_day > span.to || v.expires_day >= report.to) continue;
+    if (!vipHasEnded(v, report.to) || v.expires_day < span.from || v.expires_day > span.to) continue;
     const w = weeks.get(weekOf(v.expires_day));
     if (w) w.ended++;
   }

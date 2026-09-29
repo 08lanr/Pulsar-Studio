@@ -26,6 +26,7 @@ import {
   medianToFirstPay,
   moneyByDay,
   moneyTotals,
+  paymentsHaveOrigin,
   paymentsIn,
   paywallIn,
   perPayer,
@@ -176,6 +177,11 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
   const money = hasMoneyDetails(report);
   const pays = money ? paymentsIn(report, span, filter) : null;
   const paysBefore = money && prev ? paymentsIn(report, prev, filter) : null;
+  // The Paywall, VIP and Coins tabs are the whole site: crazydramas does not split those numbers by series or source.
+  const allPays = money ? paymentsIn(report, span, NO_FILTER) : null;
+  const allPaysBefore = money && prev ? paymentsIn(report, prev, NO_FILTER) : null;
+  const filtered = !!(filter.series || filter.source || filter.device || filter.country);
+  const wholeSiteNote = filtered ? <p className="note">{tt("cdm.wholeSite")}</p> : null;
   const daysOf = (r: { from: string; to: string }) => {
     const out: string[] = [];
     for (let d = r.from; d <= r.to; d = nextDay(d)) out.push(d);
@@ -255,10 +261,13 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
     const spendDays = dailySpend(adSpends, adDays, chart);
     const paidDays = details ? purchasesIn(report, chart, filter) : null;
     const onDay = (list: CdStatsPurchase[], day: string) => list.filter((p) => dayIn(p.at, report.timezone) === day);
-    const chartPays = money ? paymentsIn(report, chart, filter) : null;
+    // Cash from the payments for the whole site; with a filter, the source rows' money, which crazydramas credits
+    // where it belongs (coins where spent, split by source, phone and country), as the Series and Campaigns tabs.
+    const cash = money && !filtered;
+    const chartPays = cash ? paymentsIn(report, chart, filter) : null;
     const revenueDays = chartPays
       ? spendDays.map((d) => chartPays.filter((p) => p.day === d.day && !p.refunded).reduce((a, p) => a + p.cents, 0))
-      : paidDays
+      : paidDays && !money
         ? spendDays.map((d) => onDay(paidDays, d.day).reduce((a, p) => a + p.amount_cents, 0))
         : dailyTotals(report, chart, filter).map((d) => d.totals.revenue_cents);
     const buyerDays = paidDays ? spendDays.map((d) => new Set(onDay(paidDays, d.day).map((p) => p.person)).size) : dailyTotals(report, chart, filter).map((d) => d.totals.buyers);
@@ -268,8 +277,8 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
     const spend = adSpends.length ? spendIn(adSpends, adPeriod) : { cents: null, partial: false };
     const spendBefore = prev && adSpends.length ? known(dailySpend(adSpends, adDays, prev)) : null;
     const net = (list: CdStatsPayment[]) => moneyTotals(list).net_cents;
-    const revenue = pays ? net(pays) : paid ? paid.reduce((a, p) => a + p.amount_cents, 0) : totals.revenue_cents;
-    const revenueBefore = prev ? (paysBefore ? net(paysBefore) : paidBefore ? paidBefore.reduce((a, p) => a + p.amount_cents, 0) : (before?.revenue_cents ?? null)) : null;
+    const revenue = cash && pays ? net(pays) : paid && !money ? paid.reduce((a, p) => a + p.amount_cents, 0) : totals.revenue_cents;
+    const revenueBefore = prev ? (cash && paysBefore ? net(paysBefore) : paidBefore && !money ? paidBefore.reduce((a, p) => a + p.amount_cents, 0) : (before?.revenue_cents ?? null)) : null;
     const roas = returnOnSpend(revenue, spend.cents);
     const roasBefore = spendBefore && revenueBefore !== null && spendBefore >= 1000 ? revenueBefore / spendBefore : null;
     const counts = paid ? buyerCounts(paid) : null;
@@ -284,7 +293,10 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
     const peopleBefore = countsBefore ? countsBefore.people : (before?.buyers ?? null);
     // With coins and VIP: new payers (a person's first payment of all), and what each one from ads cost.
     const firstsOf = (list: CdStatsPayment[]) => moneyTotals(list).first_payers;
-    const firstFromAds = (list: CdStatsPayment[]) => new Set(list.filter((p) => p.first && !p.refunded && (p.platform === "tiktok" || !!p.campaign)).map((p) => p.person)).size;
+    const firstFromAds = (list: CdStatsPayment[]) => {
+      const ads = new Set(paymentsIn({ payments: list }, { from: "0000-00-00", to: "9999-99-99" }, { source: "ads" }));
+      return new Set(list.filter((p) => p.first && !p.refunded && ads.has(p)).map((p) => p.person)).size;
+    };
     const newPayers = pays ? firstsOf(pays) : null;
     const newPayersBefore = paysBefore ? firstsOf(paysBefore) : null;
     const perFirst = pays && spend.cents !== null && firstFromAds(pays) > 0 ? Math.round(spend.cents / firstFromAds(pays)) : null;
@@ -307,7 +319,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
             upIsGood={false}
             spark={spendKnown ? spendDays.map((d) => d.cents ?? 0) : undefined}
           />
-          <KpiCard label={tt("cdx.kpi.revenue")} info={tt(money ? "cdo.cashInfo" : details ? "cdo.revenueInfo" : "cdx.info.revenue")} value={fmtUsdCents(revenue)} change={changeAbove(revenue, revenueBefore, 1000)} vs={vs} spark={revenueDays} href={money ? hrefWith({ tab: "money" }) : undefined} />
+          <KpiCard label={tt("cdx.kpi.revenue")} info={tt(cash ? "cdo.cashInfo" : money ? "cdo.creditInfo" : details ? "cdo.revenueInfo" : "cdx.info.revenue")} value={fmtUsdCents(revenue)} change={changeAbove(revenue, revenueBefore, 1000)} vs={vs} spark={revenueDays} href={money ? hrefWith({ tab: "money" }) : undefined} />
           <KpiCard
             label={tt("cdo.roas")}
             info={tt("cdo.roasInfo")}
@@ -423,7 +435,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
           </div>
           {!adDays.ok && <p className="note note-warn">{tt("cds.ads.daysFailed", { error: adDays.error })}</p>}
           {(filter.device || filter.country) && <p className="note">{tt("cdd.ads.byPhoneNote")}</p>}
-          <CampaignsView rows={viewRows} caption={tt("cdx.ads.campaigns")} launchedLabel={launchedLabel} />
+          <CampaignsView rows={viewRows} caption={tt("cdx.ads.campaigns")} launchedLabel={launchedLabel} returns={money} />
           {untaggedN > 0 && <p className="cdx-note">{tt(untaggedN === 1 ? "cdc.untaggedLine1" : "cdc.untaggedLine", { n: untaggedN })}</p>}
         </section>
         <section className="rs-panel cdx-card">
@@ -463,8 +475,10 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
     const kinds: PaymentKind[] = ["coins", "vip_intro", "vip", "vip_renewal", "series"];
     const colour: Record<PaymentKind, StackSeries["colour"]> = { coins: 1, vip_intro: 5, vip: 3, vip_renewal: 4, series: 2 };
     const series: StackSeries[] = [...kinds.map((k) => ({ key: k, label: tt(`cdm.kind.${k}`), colour: colour[k] })), { key: "refunds", label: tt("cdm.kind.refunds"), colour: "neg" as const, below: true }];
-    const newViewers = filter.series ? totals.opened : newWatchers(span);
-    const newViewersBefore = prev ? (filter.series ? (before?.opened ?? 0) : newWatchers(prev)) : 0;
+    // Over the same people as the payers: everyone new on the site, or with a filter the rows' people who opened.
+    const newViewers = filtered ? totals.opened : newWatchers(span);
+    const newViewersBefore = prev ? (filtered ? (before?.opened ?? 0) : newWatchers(prev)) : 0;
+    const seriesCoins = filter.series ? (coinsBySeries(report, span).get(filter.series)?.cents ?? 0) : 0;
     const rate = newViewers ? t.first_payers / newViewers : null;
     const rateBefore = tb && newViewersBefore ? tb.first_payers / newViewersBefore : null;
     const productName = (product: string, kind: PaymentKind) => {
@@ -477,7 +491,8 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
     const mix = productMix(pays).map((m) => ({ ...m, product: m.kind === "vip_intro" ? "vip_intro" : m.product }));
     return (
       <>
-        {(filter.device || filter.country) && <p className="note">{tt("cdm.scopeNote")}</p>}
+        {(filter.device || filter.country) && !paymentsHaveOrigin(report) && <p className="note">{tt("cdm.scopeNote")}</p>}
+        {filter.series && <p className="note">{tt("cdm.seriesNote", { cash: fmtUsdCents(seriesCoins) })}</p>}
         <div className="cdx-kpis cdx-kpis-5">
           <KpiCard label={tt("cdm.cash")} info={tt("cdm.cashInfo")} value={fmtUsdCents(t.cash_cents)} change={tb ? changeAbove(t.cash_cents, tb.cash_cents, 1000) : null} vs={vs} spark={spark((d) => kinds.reduce((a, k) => a + d[k], 0) + d.refunds)} />
           <KpiCard label={tt("cdm.refunds")} info={tt("cdm.refundsInfo")} value={fmtUsdCents(t.refund_cents)} sub={tt("cdm.refundsSub", { n: n0(t.refunds) })} change={tb ? changeAbove(t.refund_cents, tb.refund_cents, 1000) : null} vs={vs} upIsGood={false} />
@@ -522,15 +537,16 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
     if (!pays) return <p className="rs-empty">{tt("cdm.none")}</p>;
     const pw = paywallIn(report, span);
     const pwBefore = prev ? paywallIn(report, prev) : null;
-    const rows = placementRows(pw, pays);
-    const rowsBefore = pwBefore && paysBefore ? placementRows(pwBefore, paysBefore) : null;
+    const rows = placementRows(pw, allPays ?? []);
+    const rowsBefore = pwBefore && allPaysBefore ? placementRows(pwBefore, allPaysBefore) : null;
     const sheetRate = pw.views ? rows[0].paid / pw.views : null;
     const sheetRateBefore = rowsBefore && pwBefore?.views ? rowsBefore[0].paid / pwBefore.views : null;
-    const taken = firstOffersTaken(pays);
-    const takenBefore = paysBefore ? firstOffersTaken(paysBefore) : null;
+    const taken = firstOffersTaken(allPays ?? []);
+    const takenBefore = allPaysBefore ? firstOffersTaken(allPaysBefore) : null;
     const top = Math.max(1, ...rows.map((r) => r.paid));
     return (
       <>
+        {wholeSiteNote}
         <div className="cdx-kpis cdx-kpis-5">
           <KpiCard label={tt("cdw.views")} info={tt("cdw.viewsInfo")} value={n0(pw.views)} change={change(pw.views, pwBefore?.views ?? null)} vs={vs} />
           <KpiCard label={tt("cdw.conv")} info={tt("cdw.convInfo")} value={fmtShare(sheetRate)} sub={tt("cdvip.ofSub", { a: n0(rows[0].paid), b: n0(pw.views) })} change={sheetRate !== null && sheetRateBefore ? (sheetRate - sheetRateBefore) / sheetRateBefore : null} vs={vs} />
@@ -598,6 +614,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
     ];
     return (
       <>
+        {wholeSiteNote}
         <div className="cdx-kpis cdx-kpis-5">
           <KpiCard label={tt("cdvip.active")} info={tt("cdvip.activeInfo")} value={n0(now.active)} sub={tt("cdvip.activeSub", { w: n0(now.by_plan.weekly), m: n0(now.by_plan.monthly), y: n0(now.by_plan.yearly) })} />
           <KpiCard label={tt("cdvip.mrr")} info={tt("cdvip.mrrInfo")} value={fmtUsdCents(now.mrr_cents)} sub={`${tt("cdvip.intros")}: ${n0(now.intros)}`} />
@@ -617,7 +634,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
     if (!pays) return <p className="rs-empty">{tt("cdm.none")}</p>;
     const c = coinsIn(report, span);
     const cb = prev ? coinsIn(report, prev) : null;
-    const repeat = repeatCoinBuyers(report, pays);
+    const repeat = repeatCoinBuyers(report, allPays ?? []);
     const repeatRate = repeat.buyers ? repeat.repeat / repeat.buyers : null;
     const chartDays = daysOf(chartSpan(report, range));
     const stack = coinsByDay(report, chartDays);
@@ -632,6 +649,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
     const unspent = report.coins;
     return (
       <>
+        {wholeSiteNote}
         <div className="cdx-kpis cdx-kpis-5">
           <KpiCard label={tt("cdcoin.bought")} info={tt("cdcoin.boughtInfo")} value={n0(c.bought)} sub={tt("cdcoin.bonusSub", { n: n0(c.bonus) })} change={change(c.bought, cb?.bought ?? null)} vs={vs} spark={stack.map((d) => d.bought)} />
           <KpiCard label={tt("cdcoin.spent")} info={tt("cdcoin.spentInfo")} value={n0(c.spent_paid + c.spent_bonus)} sub={tt("cdcoin.spentSub", { paid: n0(c.spent_paid), bonus: n0(c.spent_bonus) })} change={cb ? change(c.spent_paid + c.spent_bonus, cb.spent_paid + cb.spent_bonus) : null} vs={vs} spark={stack.map((d) => d.spent_paid + d.spent_bonus)} />
