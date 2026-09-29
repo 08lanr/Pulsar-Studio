@@ -15,6 +15,7 @@ import {
   moneyByDay,
   moneyDayCash,
   moneyTotals,
+  PLAN_MONTHLY_CENTS,
   paymentsIn,
   paywallIn,
   perPayer,
@@ -235,7 +236,14 @@ test("VIP: active by plan, monthly value without the $1.99 weeks, ended; new, re
   });
   const now = vipNow(r);
   assert.deepEqual([now.active, now.by_plan.weekly, now.by_plan.monthly, now.by_plan.yearly, now.intros], [4, 2, 1, 1, 1], "an expired one is not active, whatever its flag");
-  assert.equal(now.mrr_cents, Math.round((699 * 52) / 12 + 1399 + 6999 / 12));
+  assert.equal(now.mrr_cents, Math.round(PLAN_MONTHLY_CENTS.all_access_weekly + PLAN_MONTHLY_CENTS.vip_monthly + PLAN_MONTHLY_CENTS.vip_yearly), "no amounts on the rows: the plans' prices today");
+  // A subscriber keeps the price they signed up at: a row that says what it pays counts that, at its own period.
+  const paying = report({ to: "2026-09-28", vip: [
+    { plan: "all_access_weekly", intro: false, active: true, expires_day: "2026-10-05", cents: 699, interval: "week" },
+    { plan: "vip_yearly", intro: false, active: true, expires_day: "2027-09-01", cents: 6999, interval: "year" },
+    { plan: "vip_monthly", intro: false, active: true, expires_day: "2026-10-20" },
+  ] });
+  assert.equal(vipNow(paying).mrr_cents, Math.round((699 * 52) / 12 + 6999 / 12 + PLAN_MONTHLY_CENTS.vip_monthly));
   assert.equal(vipEnded(r, { from: "2026-09-22", to: "2026-09-28" }), 1);
   const per = vipPeriod(r, { from: "2026-09-01", to: "2026-09-28" });
   assert.deepEqual([per.new_intro, per.new_full, per.renewals, per.renewal_cents], [3, 1, 1, 699]);

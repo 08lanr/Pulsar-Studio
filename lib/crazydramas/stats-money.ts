@@ -10,6 +10,7 @@
 //   first   a person's first payment of all: a second coin pack is a repeat, not a new payer.
 
 import { NO_PLACE, sourceKey, type DashFilter } from "./stats-summary";
+import { VIP_PRICE_CENTS } from "./vip-prices";
 import { PAYMENT_KINDS, type CdStatsPayment, type CdStatsReport, type PaymentKind } from "./stats-types";
 
 type Span = { from: string; to: string };
@@ -187,21 +188,31 @@ export function placementRows(pw: PaywallTotals, list: readonly CdStatsPayment[]
   });
 }
 
-/** The first-time offers taken in a period: the $1.99 VIP week and the 500 + 75 coin pack. */
+/** The first-time offers taken in a period: the first-week VIP deal and the 500 + 75 coin pack. */
 export function firstOffersTaken(list: readonly CdStatsPayment[]): { first_week: number; first_pack: number } {
   const live = list.filter((p) => !p.refunded);
-  // Only the $1.99 week itself: its renewals carry the subscription's `offer: first_week` too.
+  // Only the first week itself: its renewals carry the subscription's `offer: first_week` too.
   return { first_week: live.filter((p) => p.kind === "vip_intro").length, first_pack: live.filter((p) => p.product === "coins:c500first").length };
 }
 
 // ---- VIP -------------------------------------------------------------------------------------------------------
 
-/** A plan's price over a month (a week is 52/12 of one): what monthly recurring revenue adds up. Unknown plans (the app stores' All-Access) count as weekly. */
-export const PLAN_MONTHLY_CENTS: Record<string, number> = { all_access_weekly: (699 * 52) / 12, vip_monthly: 1399, vip_yearly: 6999 / 12 };
+/** A period's price over a month: a week is 52/12 of one, a year a twelfth. */
+export const monthlyOf = (cents: number, interval: "week" | "month" | "year"): number => (interval === "week" ? (cents * 52) / 12 : interval === "year" ? cents / 12 : cents);
+/**
+ * A plan's price over a month at crazydramas' prices today (lib/crazydramas/vip-prices.ts): what monthly recurring
+ * revenue adds up for a subscription whose report row does not say what it pays. Unknown plans (the app stores'
+ * All-Access) count as weekly.
+ */
+export const PLAN_MONTHLY_CENTS: Record<string, number> = {
+  all_access_weekly: monthlyOf(VIP_PRICE_CENTS.all_access_weekly, "week"),
+  vip_monthly: monthlyOf(VIP_PRICE_CENTS.vip_monthly, "month"),
+  vip_yearly: monthlyOf(VIP_PRICE_CENTS.vip_yearly, "year"),
+};
 export const planOf = (plan: string | null): "weekly" | "monthly" | "yearly" => (plan === "vip_monthly" ? "monthly" : plan === "vip_yearly" ? "yearly" : "weekly");
 
 export type VipNow = {
-  /** Subscriptions on today, by plan; of them, the ones still in their $1.99 first week. */
+  /** Subscriptions on today, by plan; of them, the ones still in their first week. */
   active: number;
   by_plan: Record<"weekly" | "monthly" | "yearly", number>;
   intros: number;
@@ -216,6 +227,8 @@ export function vipNow(report: Pick<CdStatsReport, "vip" | "to">): VipNow {
     out.active++;
     out.by_plan[planOf(v.plan)]++;
     if (v.intro) out.intros++;
+    // What this subscription pays (crazydramas since 2026-09-29), else the plan's price today.
+    else if (v.cents !== undefined && v.interval) out.mrr_cents += monthlyOf(v.cents, v.interval);
     else out.mrr_cents += PLAN_MONTHLY_CENTS[v.plan ?? "all_access_weekly"] ?? PLAN_MONTHLY_CENTS.all_access_weekly;
   }
   out.mrr_cents = Math.round(out.mrr_cents);
@@ -235,17 +248,17 @@ export function vipEnded(report: Pick<CdStatsReport, "vip" | "to">, span: Span):
 }
 
 export type VipPeriod = {
-  /** New subscriptions: at the $1.99 first week, and at full price. */
+  /** New subscriptions: at the first week, and at full price. */
   new_intro: number;
   new_full: number;
   renewals: number;
   renewal_cents: number;
-  /** $1.99 first weeks whose week ran out in the period (by yesterday), and of them the ones renewed at full price. */
+  /** first weeks whose week ran out in the period (by yesterday), and of them the ones renewed at full price. */
   intros_due: number;
   intros_renewed: number;
 };
 
-/** VIP in a period, from the payments: new subscriptions, renewals, and how many $1.99 weeks turned into paid ones. */
+/** VIP in a period, from the payments: new subscriptions, renewals, and how many first weeks turned into paid ones. */
 export function vipPeriod(report: Pick<CdStatsReport, "payments" | "to">, span: Span): VipPeriod {
   const all = (report.payments ?? []).filter((p) => !p.refunded);
   const inSpan = all.filter((p) => p.day >= span.from && p.day <= span.to);

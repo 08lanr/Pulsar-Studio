@@ -33,6 +33,14 @@ Ruobin, 2026-09-28, shown a table of lifetime TikTok numbers per ad creative fro
 
 Fixture mode: the fake TikTok answers the video metrics, the `ad_ids` filter, `query_lifetime` and pages; the stats page adds an invented earlier launch (`fakeStatsArchive`: four more clips, one of each ad type, a weak hook and one too new to judge) and invented video numbers for all the invented ads (`fakeAdVideo`), never stored. Live check 2026-09-28 against the collector: the four clips compared (Dragon hook v2 `228d5a2c`, `f0f98b15`, `6e290cbd`, Flirt v4 `509149a1`) match within rounding. Checks: `tests/ad-video-stats.test.ts`, `tests/e2e/ad-video-stats.spec.ts`.
 
+## 2026-09-29 · VIP prices cut: Studio reads them from one place
+
+crazydramas.com cut its VIP prices by about 43% (weekly $6.99 → $3.99, monthly $13.99 → $7.99, yearly $69.99 → $39.99, the new viewer's first week $1.99 → $0.99; Ruobin, 2026-09-29: "slash the subscription prices 30-50%… make sure the different tiers make sense… highlight CANCEL ANYTIME"). Studio had the old prices and "$1.99" written into the stats: the monthly-recurring-revenue sum (`PLAN_MONTHLY_CENTS`), eleven labels, the fixture money and a test.
+
+- `lib/crazydramas/vip-prices.ts` is now the one place Studio knows crazydramas' VIP prices; `PLAN_MONTHLY_CENTS` and every label (`{price}` in `locales/_keys/cd-money.json`) read it. A future price change is that file and nothing else.
+- crazydramas' report says what each subscription pays since the same day (`vip[].cents`, `vip[].interval`): a subscriber keeps the price they signed up at when the prices change, so monthly recurring revenue counts each row's own amount at its own period, and falls back to the plan's price today only for a row without one (an older report, the app stores' All-Access).
+- The fixture invents its VIP at the new prices. Checks: `tests/crazydramas-money.test.ts` ("VIP: active by plan…").
+
 ## 2026-09-28 · Stats for coins and VIP
 
 crazydramas.com moved to coins and VIP (crazydramas `docs/COINS.md`, branch `pricing/coins-vip`, not live yet): coin packs, 60 coins an episode, bonus and free reward coins, Weekly / Monthly / Yearly VIP with a $1.99 first week, first-time prices and ReelShort's pop-ups. Ruobin, 2026-09-28: "we need to revamp the stats section in pulsar studio to correlate to these new payments (e.g., subscriptions, coins, first time users, etc.). do some research on how to best display this". The research (RevenueCat, Stripe Billing, ChartMogul, GameAnalytics, Roblox's Robux accounting, Superwall, short-drama benchmarks) and the proposal were approved with three calls: **coin money is credited to a series where the coins are spent**, the headline revenue is **cash taken** the day it is paid, and **before Stripe's fees**.

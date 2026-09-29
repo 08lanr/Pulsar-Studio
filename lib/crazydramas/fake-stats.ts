@@ -5,6 +5,7 @@
 // same figures. Invented numbers for a demo; nothing here is measured.
 
 import type { LaunchRun } from "@/lib/launch/types";
+import { FIRST_WEEK_CENTS, VIP_PRICE_CENTS } from "./vip-prices";
 import { CdStatsPlaybackSchema, type CdStatsCohort, type CdStatsDay, type CdStatsDrop, type CdStatsPlayback, type CdStatsReport, type CdStatsSeries, type CdStatsSource } from "./stats-types";
 
 /**
@@ -173,7 +174,7 @@ export function fakeStatsReport(series: FakeSeriesIn[], episodes: FakeEpisodeIn[
       const checkouts = Math.round(paywall * 0.3);
       const buyers = Math.round(checkouts * 0.5);
       const renewals = r("w") > 0.7 ? 1 : 0;
-      const cents = buyers * 199 + renewals * 699;
+      const cents = buyers * FIRST_WEEK_CENTS + renewals * VIP_PRICE_CENTS.all_access_weekly;
       const robots = Math.round(opened * (0.1 + 0.3 * r("r")));
       const seconds = reached.reduce((a, v) => a + v * STEP, 0);
       const noEvents = Math.round((opened - started) * 0.3);
@@ -330,9 +331,9 @@ export function fakeStatsReport(series: FakeSeriesIn[], episodes: FakeEpisodeIn[
 }
 
 /**
- * Invented coins and VIP (crazydramas since 2026-09-28): every payment of the last 60 days (coin packs, the $1.99
- * VIP first week, new VIP, renewals, a few refunds), the wallets' coins per day, every VIP, and the unlock sheet and
- * pop-ups per day. About one in 25 new watchers pays; a third of the $1.99 weeks renew.
+ * Invented coins and VIP (crazydramas since 2026-09-28): every payment of the last 60 days (coin packs, the first-week
+ * VIP deal, new VIP, renewals, a few refunds), the wallets' coins per day, every VIP, and the unlock sheet and
+ * pop-ups per day. About one in 25 new watchers pays; a third of the first weeks renew. Prices: lib/crazydramas/vip-prices.ts.
  */
 function fakeMoney(live: FakeSeriesIn[], from: string, to: string, watchersOn: (day: string) => number): Pick<CdStatsReport, "payments" | "coins" | "vip" | "paywall_days"> {
   if (!live.length) return { payments: [], coins: { days: [], unspent_paid: 0, unspent_paid_cents: 0, unspent_bonus: 0, series_days: [] }, vip: [], paywall_days: [] };
@@ -380,19 +381,19 @@ function fakeMoney(live: FakeSeriesIn[], from: string, to: string, watchersOn: (
           coin.bonus += b2;
         }
       } else if (x < 0.85) {
-        // The $1.99 VIP first week; a third renew at $6.99 a week later.
-        payments.push({ ...base, kind: "vip_intro", product: "all_access_weekly", cents: 199, offer: "first_week" });
+        // The first-week VIP deal; a third renew at the weekly price a week later.
+        payments.push({ ...base, kind: "vip_intro", product: "all_access_weekly", cents: FIRST_WEEK_CENTS, offer: "first_week" });
         const renews = r(`rn${i}`) < 0.34;
         const renewDay = addDays(day, 7);
-        if (renews && renewDay <= to) payments.push({ ...base, day: renewDay, first: false, refunded: false, kind: "vip_renewal", product: "all_access_weekly", cents: 699, offer: null, placement: null });
+        if (renews && renewDay <= to) payments.push({ ...base, day: renewDay, first: false, refunded: false, kind: "vip_renewal", product: "all_access_weekly", cents: VIP_PRICE_CENTS.all_access_weekly, offer: null, placement: null });
         const end = renews ? addDays(day, 14) : renewDay;
-        vip.push({ plan: "all_access_weekly", intro: !renews && renewDay > to, active: end >= to, expires_day: end });
+        vip.push({ plan: "all_access_weekly", intro: !renews && renewDay > to, active: end >= to, expires_day: end, cents: VIP_PRICE_CENTS.all_access_weekly, interval: "week" });
       } else {
         const monthly = x < 0.95;
-        payments.push({ ...base, kind: "vip", product: monthly ? "vip_monthly" : "vip_yearly", cents: monthly ? 1399 : 6999, offer: null });
+        payments.push({ ...base, kind: "vip", product: monthly ? "vip_monthly" : "vip_yearly", cents: monthly ? VIP_PRICE_CENTS.vip_monthly : VIP_PRICE_CENTS.vip_yearly, offer: null });
         const end = addDays(day, monthly ? 30 : 365);
-        if (monthly && end <= to) payments.push({ ...base, day: end, first: false, refunded: false, kind: "vip_renewal", product: "vip_monthly", cents: 1399, offer: null, placement: null });
-        vip.push({ plan: monthly ? "vip_monthly" : "vip_yearly", intro: false, active: true, expires_day: monthly && end <= to ? addDays(end, 30) : end });
+        if (monthly && end <= to) payments.push({ ...base, day: end, first: false, refunded: false, kind: "vip_renewal", product: "vip_monthly", cents: VIP_PRICE_CENTS.vip_monthly, offer: null, placement: null });
+        vip.push({ plan: monthly ? "vip_monthly" : "vip_yearly", intro: false, active: true, expires_day: monthly && end <= to ? addDays(end, 30) : end, cents: monthly ? VIP_PRICE_CENTS.vip_monthly : VIP_PRICE_CENTS.vip_yearly, interval: monthly ? "month" : "year" });
       }
     }
     // Coins spent on episodes: most of what was bought and given, bonus first.

@@ -248,7 +248,7 @@ export const CdStatsJourneyStepSchema = z.object({
   amount_cents: count.optional(),
 });
 
-/** What a payment bought (since 2026-09-28): a series, a coin pack, the $1.99 VIP first week, a new VIP, a VIP renewal. */
+/** What a payment bought (since 2026-09-28): a series, a coin pack, the first-week VIP deal, a new VIP, a VIP renewal. */
 export const PAYMENT_KINDS = ["series", "coins", "vip_intro", "vip", "vip_renewal"] as const;
 
 /**
@@ -307,12 +307,18 @@ export const CdStatsCoinsSchema = z.object({
   series_days: z.array(z.object({ day, drama_id: z.string(), spent_paid: later, spent_bonus: later, cents: later, unlocks: later })).default([]),
 });
 
-/** Every viewer's VIP as it stands: its plan, whether its current period is the $1.99 first week, whether it is on. */
+/**
+ * Every viewer's VIP as it stands: its plan, whether its current period is the first-week deal, whether it is on, and
+ * (crazydramas since 2026-09-29) what its current period paid and how long a period is: a subscriber keeps the price
+ * they signed up at when crazydramas changes its prices.
+ */
 export const CdStatsVipSchema = z.object({
   plan: z.string().max(40).nullable().default(null),
   intro: z.boolean().default(false),
   active: z.boolean(),
   expires_day: day.nullable().default(null),
+  cents: later.optional().catch(undefined),
+  interval: z.enum(["week", "month", "year"]).optional().catch(undefined),
 });
 
 /** The unlock sheet, coin unlocks, checkouts by the screen that opened them and the pop-ups shown, per day. */

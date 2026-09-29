@@ -40,6 +40,7 @@ import {
   vipPeriod,
   vipWeeks,
 } from "@/lib/crazydramas/stats-money";
+import { firstWeekPrice } from "@/lib/crazydramas/vip-prices";
 import { episodeCurve, seriesFunnel } from "@/lib/crazydramas/stats-series";
 import { readTeamList } from "@/lib/crazydramas/stats-team";
 import {
@@ -225,6 +226,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
   const paidBefore = details && prev ? purchasesIn(report, prev, filter) : null;
   // Coins and VIP (crazydramas since 2026-09-28): every payment, cash the day it was paid.
   const money = hasMoneyDetails(report);
+  const price = firstWeekPrice();
   const pays = money ? paymentsIn(report, span, filter) : null;
   const paysBefore = money && prev ? paymentsIn(report, prev, filter) : null;
   // The Paywall, VIP and Coins tabs are the whole site: crazydramas does not split those numbers by series or source.
@@ -516,7 +518,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
     const spark = (f: (d: (typeof stack)[number]) => number) => stack.map(f);
     const kinds: PaymentKind[] = ["coins", "vip_intro", "vip", "vip_renewal", "series"];
     const colour: Record<PaymentKind, StackSeries["colour"]> = { coins: 1, vip_intro: 5, vip: 3, vip_renewal: 4, series: 2 };
-    const series: StackSeries[] = [...kinds.map((k) => ({ key: k, label: tt(`cdm.kind.${k}`), colour: colour[k] })), { key: "refunds", label: tt("cdm.kind.refunds"), colour: "neg" as const, below: true }];
+    const series: StackSeries[] = [...kinds.map((k) => ({ key: k, label: tt(`cdm.kind.${k}`, { price }), colour: colour[k] })), { key: "refunds", label: tt("cdm.kind.refunds"), colour: "neg" as const, below: true }];
     // Over the same people as the payers: everyone new on the site, or with a filter the rows' people who opened.
     const newViewers = filtered ? totals.opened : newWatchers(span);
     const newViewersBefore = prev ? (filtered ? (before?.opened ?? 0) : newWatchers(prev)) : 0;
@@ -526,7 +528,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
     const productName = (product: string, kind: PaymentKind) => {
       const pack = /^coins:c(\d+)(first)?$/.exec(product);
       if (pack) return pack[2] ? tt("cdm.product.first", { coins: n0(Number(pack[1])), bonus: "75" }) : tt("cdm.product.coins", { coins: n0(Number(pack[1])) });
-      if (kind === "vip_intro") return tt("cdm.product.firstWeek");
+      if (kind === "vip_intro") return tt("cdm.product.firstWeek", { price });
       if (["all_access_weekly", "vip_monthly", "vip_yearly"].includes(product)) return tt(`cdm.product.${product}`);
       return kind === "series" ? tt("cdm.product.series") : product;
     };
@@ -593,7 +595,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
           <KpiCard label={tt("cdw.views")} info={tt("cdw.viewsInfo")} value={n0(pw.views)} change={change(pw.views, pwBefore?.views ?? null)} vs={vs} />
           <KpiCard label={tt("cdw.conv")} info={tt("cdw.convInfo")} value={fmtShare(sheetRate)} sub={tt("cdvip.ofSub", { a: n0(rows[0].paid), b: n0(pw.views) })} change={sheetRate !== null && sheetRateBefore ? (sheetRate - sheetRateBefore) / sheetRateBefore : null} vs={vs} />
           <KpiCard label={tt("cdw.unlocks")} info={tt("cdw.unlocksInfo")} value={n0(pw.unlocks)} change={change(pw.unlocks, pwBefore?.unlocks ?? null)} vs={vs} />
-          <KpiCard label={tt("cdw.firstWeek")} info={tt("cdw.firstWeekInfo")} value={n0(taken.first_week)} sub={`${tt("cdw.firstPack")}: ${n0(taken.first_pack)}`} change={change(taken.first_week, takenBefore?.first_week ?? null)} vs={vs} />
+          <KpiCard label={tt("cdw.firstWeek", { price })} info={tt("cdw.firstWeekInfo", { price })} value={n0(taken.first_week)} sub={`${tt("cdw.firstPack")}: ${n0(taken.first_pack)}`} change={change(taken.first_week, takenBefore?.first_week ?? null)} vs={vs} />
           <KpiCard label={tt("cdw.notCompleted")} info={tt("cdw.notCompletedInfo")} value={n0(pw.not_completed)} change={change(pw.not_completed, pwBefore?.not_completed ?? null)} vs={vs} upIsGood={false} />
         </div>
         <section className="rs-panel cdx-card">
@@ -649,7 +651,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
     const introRateBefore = perBefore?.intros_due ? perBefore.intros_renewed / perBefore.intros_due : null;
     const weeks = vipWeeks(report, chartSpan(report, range === "today" || range === "7d" ? "30d" : range));
     const series: StackSeries[] = [
-      { key: "new_intro", label: tt("cdvip.s.intro"), colour: 5 },
+      { key: "new_intro", label: tt("cdvip.s.intro", { price }), colour: 5 },
       { key: "new_full", label: tt("cdvip.s.full"), colour: 3 },
       { key: "renewals", label: tt("cdvip.s.renewals"), colour: 4 },
       { key: "ended", label: tt("cdvip.s.ended"), colour: "neg", below: true },
@@ -659,9 +661,9 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
         {wholeSiteNote}
         <div className="cdx-kpis cdx-kpis-5">
           <KpiCard label={tt("cdvip.active")} info={tt("cdvip.activeInfo")} value={n0(now.active)} sub={tt("cdvip.activeSub", { w: n0(now.by_plan.weekly), m: n0(now.by_plan.monthly), y: n0(now.by_plan.yearly) })} />
-          <KpiCard label={tt("cdvip.mrr")} info={tt("cdvip.mrrInfo")} value={fmtUsdCents(now.mrr_cents)} sub={`${tt("cdvip.intros")}: ${n0(now.intros)}`} />
-          <KpiCard label={tt("cdvip.new")} info={tt("cdvip.newInfo")} value={n0(per.new_intro + per.new_full)} sub={tt("cdvip.newSub", { i: n0(per.new_intro), f: n0(per.new_full) })} change={perBefore ? change(per.new_intro + per.new_full, perBefore.new_intro + perBefore.new_full) : null} vs={vs} />
-          <KpiCard label={tt("cdvip.introRate")} info={tt("cdvip.introRateInfo")} value={fmtShare(introRate)} sub={tt("cdvip.ofSub", { a: n0(per.intros_renewed), b: n0(per.intros_due) })} change={introRate !== null && introRateBefore ? (introRate - introRateBefore) / introRateBefore : null} vs={vs} />
+          <KpiCard label={tt("cdvip.mrr")} info={tt("cdvip.mrrInfo", { price })} value={fmtUsdCents(now.mrr_cents)} sub={`${tt("cdvip.intros", { price })}: ${n0(now.intros)}`} />
+          <KpiCard label={tt("cdvip.new")} info={tt("cdvip.newInfo", { price })} value={n0(per.new_intro + per.new_full)} sub={tt("cdvip.newSub", { price, i: n0(per.new_intro), f: n0(per.new_full) })} change={perBefore ? change(per.new_intro + per.new_full, perBefore.new_intro + perBefore.new_full) : null} vs={vs} />
+          <KpiCard label={tt("cdvip.introRate")} info={tt("cdvip.introRateInfo", { price })} value={fmtShare(introRate)} sub={tt("cdvip.ofSub", { a: n0(per.intros_renewed), b: n0(per.intros_due) })} change={introRate !== null && introRateBefore ? (introRate - introRateBefore) / introRateBefore : null} vs={vs} />
           <KpiCard label={tt("cdvip.ended")} info={tt("cdvip.endedInfo")} value={n0(ended)} change={change(ended, endedBefore)} vs={vs} upIsGood={false} />
         </div>
         <section className="rs-panel cdx-card">
