@@ -321,3 +321,18 @@ tr.cdc-this > th, tr.cdc-this > td { background: var(--surface-2); }
 .cdm-note { font-size: 12.5px; color: var(--text-muted); margin: 6px 0 0; }
 .cdm-bar-cell { min-width: 140px; }
 .cdm-bar { display: block; height: 8px; border-radius: 4px; background: var(--data-1); min-width: 2px; }
+
+/* Ad video stats (2026-09-28): the Ads tab's table. Sortable headers are plain text buttons; the median row sits on
+   top in the muted surface; a cell clearly above the median is green, clearly below is red; early ads are faded. */
+.cda-table th.gt-num { white-space: nowrap; }
+.cda-sort { font: inherit; font-weight: var(--w-strong); color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+.cda-sort:hover, .cda-sort.on { color: var(--brand); }
+.cda-sort:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 3px; }
+.cda-table tr.cda-bench > * { background: var(--surface-2); font-weight: var(--w-strong); }
+.cda-bench-name { display: inline-flex; align-items: center; gap: 4px; }
+.cda-table td.cda-above { color: var(--success); background: var(--success-bg); }
+.cda-table td.cda-below { color: var(--error); background: var(--error-bg); }
+.cda-table tr.cda-early-row td { color: var(--text-muted); }
+.cda-early { color: var(--text-muted); }
+.cda-table td.cda-title { white-space: normal; min-width: 120px; max-width: 170px; }
+.cda-table .cdc-words { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

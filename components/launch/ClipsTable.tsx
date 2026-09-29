@@ -21,6 +21,7 @@ import type { ClipLibraryRow, ClipPost, ClipPostPlatform } from "@/lib/launch/cl
 import type { MontageStatus } from "@/lib/clips/montage-run";
 import type { LaunchConnection, LaunchTitleOption, LaunchWorkspace } from "@/lib/launch/types";
 import { AD_FORMATS, isAdFormat, type AdFormat } from "@/lib/ad-formats";
+import { fmtPct, type ClipSummary } from "@/lib/crazydramas/stats-creatives";
 
 /** On one title's page: its 60-second ad panel (components/launch/AdMontage.tsx) above the table, which reloads when an ad lands. */
 type MontagePanel = { canBuild: boolean; initial: MontageStatus | null };
@@ -68,6 +69,8 @@ export default function ClipsTable({ staff = false, titleId, montage }: Props) {
   const [zipping, setZipping] = useState(false);
   const [producers, setProducers] = useState<{ id: string; name_zh: string; name_en: string | null }[]>([]);
   const [accounts, setAccounts] = useState<Record<string, LaunchConnection[]>>({});
+  // Staff: each launched clip's TikTok numbers over its life (decision 2026-09-28, "Ad video stats").
+  const [tiktok, setTiktok] = useState<{ clips: Record<string, ClipSummary>; failed: { advertiser_id: string; error: string }[] } | null>(null);
   const request = useRef(0);
   const options = useRef({ producer: "", titles: new Map<string, string>(), episodes: new Map<string, { titleId: string; title: string; number: string }>() });
 
@@ -112,6 +115,15 @@ export default function ClipsTable({ staff = false, titleId, montage }: Props) {
     }
   }, [listUrl]);
   useEffect(() => { setLoading(true); void load(); }, [load]);
+
+  useEffect(() => {
+    if (!staff) return;
+    let active = true;
+    void call<{ clips: Record<string, ClipSummary>; failed: { advertiser_id: string; error: string }[] }>("/api/admin/crazydramas/ad-video")
+      .then((answer) => { if (active) setTiktok(answer); })
+      .catch((e) => { if (active) setTiktok({ clips: {}, failed: [{ advertiser_id: "", error: errorText(e) }] }); });
+    return () => { active = false; };
+  }, [staff]);
 
   // Capabilities and the producers list come from the launch workspace, which
   // already answers "may this person launch" — the same rule as posting.
@@ -260,9 +272,23 @@ export default function ClipsTable({ staff = false, titleId, montage }: Props) {
   // Staff previewing the producer portal see every company's clips, so the
   // producer column appears whenever the rows span more than one.
   const showProducer = staff || new Set(visible.map((row) => row.producer_id)).size > 1;
+  // Staff see one compact TikTok cell per clip (all time), between the made date and the posting cells.
+  const ttCol = staff ? " minmax(112px,0.8fr)" : "";
   const columns = showProducer
-    ? "64px minmax(96px,0.9fr) minmax(104px,1.1fr) 62px minmax(140px,1.6fr) 56px 74px minmax(124px,1fr) minmax(124px,1fr) 236px"
-    : "88px minmax(110px,1.2fr) 66px minmax(150px,1.6fr) 56px 74px minmax(130px,1fr) minmax(130px,1fr) 236px";
+    ? `64px minmax(96px,0.9fr) minmax(104px,1.1fr) 62px minmax(140px,1.6fr) 56px 74px${ttCol} minmax(124px,1fr) minmax(124px,1fr) 236px`
+    : `88px minmax(110px,1.2fr) 66px minmax(150px,1.6fr) 56px 74px${ttCol} minmax(130px,1fr) minmax(130px,1fr) 236px`;
+  function tiktokCell(row: ClipLibraryRow) {
+    if (!tiktok) return <span className="gt-muted">…</span>;
+    const n = tiktok.clips[row.id];
+    if (!n) return <span className="gt-muted">—</span>;
+    const num = (v: number | null) => (v === null ? "–" : v.toLocaleString("en-US"));
+    return <span className="clips-tt" data-testid="clip-tiktok">
+      <strong>{tt("clipsPosting.tiktok.impressions", { n: num(n.impressions) })}{n.early ? ` · ${tt("cda.early")}` : ""}</strong>
+      <span>{tt("clipsPosting.tiktok.ctr", { v: fmtPct(n.ctr) })}</span>
+      <span>{tt("clipsPosting.tiktok.hold6", { v: fmtPct(n.hold_6s) })}</span>
+      <span>{tt("clipsPosting.tiktok.checkouts", { n: num(n.checkouts) })}</span>
+    </span>;
+  }
 
   return <div className="launch-flow clips-desk">
     <div className="page-head">
@@ -310,6 +336,7 @@ export default function ClipsTable({ staff = false, titleId, montage }: Props) {
     {!staff && !loading && visible.length > 30 && <p className="note">{tt("clipsAcceptance.downloadLimit")}</p>}
 
     {error && <p className="note note-warn" role="alert">{error}</p>}
+    {tiktok?.failed.map((f) => <p key={f.advertiser_id || "all"} className="note note-warn">{tt("clipsPosting.tiktok.failed", { error: f.advertiser_id ? `${f.advertiser_id}: ${f.error}` : f.error })}</p>)}
     {loading && <p role="status">{tt("clipsAcceptance.loading")}</p>}
     {!loading && !error && !visible.length && <div className="empty"><p>{tt(filtered ? "clipsPosting.noMatches" : "lv2.clips.empty")}</p>{!filtered && <Link href={staff ? "/titles" : "/producer/titles"} className="btn btn-outline">{tt("lv2.clips.openTitles")}</Link>}</div>}
 
@@ -322,6 +349,7 @@ export default function ClipsTable({ staff = false, titleId, montage }: Props) {
         <span>{tt("clipsPosting.col.hook")}</span>
         <span>{tt("clipsPosting.col.duration")}</span>
         <span>{tt("clipsPosting.col.rendered")}</span>
+        {staff && <span className="clips-tt-head" title={tt("clipsPosting.tiktok.info")}>{tt("clipsPosting.col.tiktok")}</span>}
         <span>Facebook</span>
         <span>Instagram</span>
         <span><span className="sr-only">{tt("clipsPosting.col.actions")}</span></span>
@@ -343,6 +371,7 @@ export default function ClipsTable({ staff = false, titleId, montage }: Props) {
           </select>}</span>
         <span className="gt-num">{duration(row.duration_ms)}</span>
         <span className="clips-made"><time dateTime={row.rendered_at ?? undefined}>{madeAt(row.rendered_at, locale)}</time></span>
+        {staff && <span>{tiktokCell(row)}</span>}
         <span data-platform="facebook">{platformCell(row, "facebook")}</span>
         <span data-platform="instagram">{platformCell(row, "instagram")}</span>
         <span className="clips-actions">

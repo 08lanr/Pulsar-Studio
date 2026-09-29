@@ -848,10 +848,11 @@ export function notCounted(report: CdStatsReport, r: { from: string; to: string 
 
 // Since 2026-09-26 ("Stats: campaigns, buyers and the full episode curve"): Overview · Campaigns · Buyers ·
 // Series · Playback. The Funnel, Ads and Audience tabs are retired; an old address lands on their successor.
-export const DASH_TABS = ["overview", "money", "paywall", "vip", "coins", "campaigns", "series", "playback"] as const;
+// Since 2026-09-28 ("Ad video stats") Ads is a tab again: TikTok's numbers per ad creative, how far people watched.
+export const DASH_TABS = ["overview", "money", "paywall", "vip", "coins", "campaigns", "ads", "series", "playback"] as const;
 export type DashTab = (typeof DASH_TABS)[number];
 /** Tabs that were renamed or folded into another (Buyers became Money on 2026-09-28: the payments list lives there). */
-const RETIRED_TABS: Record<string, DashTab> = { funnel: "overview", ads: "campaigns", audience: "overview", buyers: "money" };
+const RETIRED_TABS: Record<string, DashTab> = { funnel: "overview", audience: "overview", buyers: "money" };
 export function parseDashTab(raw: unknown): DashTab {
   const v = Array.isArray(raw) ? raw[0] : raw;
   if (typeof v === "string" && RETIRED_TABS[v]) return RETIRED_TABS[v];

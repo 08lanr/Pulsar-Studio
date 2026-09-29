@@ -221,3 +221,11 @@ export function changeOf(now: number | null, before: number | null, min = 0): nu
 export function fmtPct(v: number | null): string {
   return v === null ? "–" : `${(v * 100).toFixed(1)}%`;
 }
+
+/** The Clips page's compact cell: each launched clip's lifetime numbers, by clip id (Spark codes and posts left out). */
+export type ClipSummary = { impressions: number | null; ctr: number | null; hold_6s: number | null; checkouts: number | null; early: boolean };
+export function clipSummaries(rows: readonly CreativeRow[]): Record<string, ClipSummary> {
+  const out: Record<string, ClipSummary> = {};
+  for (const r of rows) if (r.clip_id) out[r.clip_id] = { impressions: r.sums.impressions, ctr: r.rates.ctr, hold_6s: r.rates.hold_6s, checkouts: r.sums.conversions, early: r.early };
+  return out;
+}

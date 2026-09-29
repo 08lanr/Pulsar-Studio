@@ -32,15 +32,20 @@ export type Numbers = {
   purchases: number | null; value_cents: number | null; checkouts: number | null;
   /** The spend of the campaigns (or ads) that read purchases: ROAS and cost per purchase divide by this. */
   web_spend_cents: number | null;
+  /** How far people watched (ads read since 2026-09-28): plays, still watching at 2 s / 6 s, seconds played in all. */
+  plays: number | null; watched_2s: number | null; watched_6s: number | null; play_seconds: number | null;
 };
 export type Totals = Numbers & {
   ctr: number | null; cpc_cents: number | null; roas: number | null; cost_per_purchase_cents: number | null;
   /** Spend that read purchases ÷ checkouts started: what an InitiateCheckout-optimised ad pays per checkout. */
   cost_per_checkout_cents: number | null;
+  /** Of the plays, still watching at 2 s and 6 s; seconds per play (weighted by plays). */
+  hold_2s: number | null; hold_6s: number | null; avg_play_s: number | null;
 };
 type AdStatus = NonNullable<DeliverySnapshot["ads"]>[number];
 
-const EMPTY: Numbers = { spend_cents: null, impressions: null, clicks: null, conversions: null, purchases: null, value_cents: null, checkouts: null, web_spend_cents: null };
+const NO_VIDEO = { plays: null, watched_2s: null, watched_6s: null, play_seconds: null };
+const EMPTY: Numbers = { spend_cents: null, impressions: null, clicks: null, conversions: null, purchases: null, value_cents: null, checkouts: null, web_spend_cents: null, ...NO_VIDEO };
 const add = (a: number | null, b: number | null) => (a === null ? b : b === null ? a : a + b);
 
 /** Sums of known values; a metric no part knows stays null. */
@@ -50,6 +55,7 @@ export function sumNumbers(parts: readonly Numbers[]): Numbers {
     clicks: add(sum.clicks, n.clicks), conversions: add(sum.conversions, n.conversions),
     purchases: add(sum.purchases, n.purchases), value_cents: add(sum.value_cents, n.value_cents),
     checkouts: add(sum.checkouts, n.checkouts), web_spend_cents: add(sum.web_spend_cents, n.web_spend_cents),
+    plays: add(sum.plays, n.plays), watched_2s: add(sum.watched_2s, n.watched_2s), watched_6s: add(sum.watched_6s, n.watched_6s), play_seconds: add(sum.play_seconds, n.play_seconds),
   }), { ...EMPTY });
 }
 
@@ -62,6 +68,9 @@ export function totalsOf(n: Numbers): Totals {
     roas: n.web_spend_cents && n.value_cents !== null ? Math.round((n.value_cents / n.web_spend_cents) * 100) / 100 : null,
     cost_per_purchase_cents: n.web_spend_cents !== null && n.purchases ? Math.round(n.web_spend_cents / n.purchases) : null,
     cost_per_checkout_cents: n.web_spend_cents !== null && n.checkouts ? Math.round(n.web_spend_cents / n.checkouts) : null,
+    hold_2s: n.plays && n.watched_2s !== null ? n.watched_2s / n.plays : null,
+    hold_6s: n.plays && n.watched_6s !== null ? n.watched_6s / n.plays : null,
+    avg_play_s: n.plays && n.play_seconds !== null ? n.play_seconds / n.plays : null,
   };
 }
 
@@ -74,14 +83,16 @@ function webNumbers(web: WebConversions | null | undefined, spend: number | null
 export function campaignNumbers(snapshot: DeliverySnapshot | null | undefined): Numbers {
   if (!snapshot) return { ...EMPTY };
   return { spend_cents: snapshot.spend_cents, impressions: snapshot.impressions, clicks: snapshot.clicks, conversions: snapshot.conversions,
-    ...webNumbers(snapshot.web, snapshot.spend_cents) };
+    ...webNumbers(snapshot.web, snapshot.spend_cents), ...NO_VIDEO };
 }
 
 /** One ad's reading as numbers. */
 export function adNumbers(stats: AdStats | null | undefined): Numbers {
   if (!stats) return { ...EMPTY };
+  const v = stats.video;
   return { spend_cents: stats.spend_cents, impressions: stats.impressions, clicks: stats.clicks, conversions: stats.conversions,
-    ...webNumbers(stats.web, stats.spend_cents) };
+    ...webNumbers(stats.web, stats.spend_cents),
+    ...(v ? { plays: v.plays, watched_2s: v.watched_2s, watched_6s: v.watched_6s, play_seconds: v.play_seconds } : NO_VIDEO) };
 }
 
 /** The title an ad promotes: its own, else (TikTok) the launch's. */
@@ -129,7 +140,8 @@ function adsReportRead(campaign: Pick<LaunchCampaign, "snapshot">): boolean {
 /** Observed zero delivery; the purchase fields are zero only on a campaign that reads purchases. */
 function observedZero(snapshot: DeliverySnapshot | null | undefined): Numbers {
   const web = !!snapshot?.web;
-  return { spend_cents: 0, impressions: 0, clicks: 0, conversions: 0, purchases: web ? 0 : null, value_cents: web ? 0 : null, checkouts: web ? 0 : null, web_spend_cents: web ? 0 : null };
+  return { spend_cents: 0, impressions: 0, clicks: 0, conversions: 0, purchases: web ? 0 : null, value_cents: web ? 0 : null, checkouts: web ? 0 : null, web_spend_cents: web ? 0 : null,
+    plays: 0, watched_2s: 0, watched_6s: 0, play_seconds: 0 };
 }
 
 /**

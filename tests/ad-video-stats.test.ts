@@ -22,6 +22,7 @@ import {
   versusMedian,
 } from "@/lib/crazydramas/stats-creatives";
 import { FAKE_ARCHIVE_ADS, FAKE_STATS_ADS, fakeAdVideo, fakeStatsArchive, fakeVideoDays } from "@/lib/crazydramas/fake-stats";
+import { adNumbers, sumNumbers, totalsOf as titleTotals } from "@/lib/launch/title-stats";
 import type { LaunchRun } from "@/lib/launch/types";
 import { adStatsByAd, adVideoFromRows, adVideoNumbers, VIDEO_METRICS } from "@/lib/tiktok/ad-stats";
 import { clearAdVideoCache, daySpans, readTikTokAdVideo, tiktokAdsByAdvertiser } from "@/lib/tiktok/ad-video";
@@ -266,4 +267,15 @@ test("fixture mode's invented numbers add up: days to the life, the archive's sp
   const rows = creativeRows(adCreatives(archive.runs, new Map(archive.clips.map((c) => [c.id, { ...c }]))), life.ads);
   assert.equal(rows.find((r) => r.key === "fake-clip-bus-clip")?.early, true);
   assert.deepEqual([...tiktokAdsByAdvertiser(archive.runs, "fake").values()][0], FAKE_ARCHIVE_ADS);
+});
+
+test("the Monitor's title page: still watching at 2 s / 6 s and average play from the ads' own video counts", () => {
+  const a = adStatsByAd(["a"], [row("a", full(10, 1000, 20, 1, 400, 200, 100, 80, 10, 5))], null, true).get("a")!;
+  const b = adStatsByAd(["b"], [row("b", full(10, 1000, 20, 1, 100, 20, 10, 8, 1, 10))], null, true).get("b")!;
+  const t = titleTotals(sumNumbers([adNumbers(a), adNumbers(b)]));
+  assert.equal(t.hold_2s, 220 / 500);
+  assert.equal(t.hold_6s, 110 / 500);
+  assert.equal(t.avg_play_s, (400 * 5 + 100 * 10) / 500);
+  const old = titleTotals(adNumbers({ spend_cents: 1, impressions: 1, clicks: 0, ctr: 0, cpc_cents: null, conversions: 0 }));
+  assert.deepEqual([old.hold_2s, old.hold_6s, old.avg_play_s], [null, null, null], "a reading from before the video metrics: unknown");
 });

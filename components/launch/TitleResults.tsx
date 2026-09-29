@@ -32,8 +32,12 @@ function filledLink(template: string, ids: { campaign?: string | null; adgroup?:
   return url;
 }
 
-function Numbers({ totals }: { totals: Totals | null }) {
-  if (!totals) return <><td className="lm-number" colSpan={9}>—</td></>;
+const seconds = (v: number | null) => (v === null ? "—" : `${v.toFixed(1)} s`);
+const share = (v: number | null) => (v === null ? "—" : `${(v * 100).toFixed(1)}%`);
+
+/** `video`: the per-ad table also shows how far people watched (decision 2026-09-28, "Ad video stats"). */
+function Numbers({ totals, video = false }: { totals: Totals | null; video?: boolean }) {
+  if (!totals) return <><td className="lm-number" colSpan={video ? 12 : 9}>—</td></>;
   return <>
     <td className="lm-number">{money(totals.spend_cents)}</td>
     <td className="lm-number">{int(totals.clicks)}</td>
@@ -44,6 +48,11 @@ function Numbers({ totals }: { totals: Totals | null }) {
     <td className="lm-number">{totals.roas ?? "—"}</td>
     <td className="lm-number">{money(totals.cost_per_purchase_cents)}</td>
     <td className="lm-number">{int(totals.checkouts)}</td>
+    {video && <>
+      <td className="lm-number">{share(totals.hold_2s)}</td>
+      <td className="lm-number">{share(totals.hold_6s)}</td>
+      <td className="lm-number">{seconds(totals.avg_play_s)}</td>
+    </>}
   </>;
 }
 
@@ -111,8 +120,8 @@ export default function TitleResults({ staff = false, titleId, titleName, crazyd
         </table></div>
         <h2 className="tr-head">{tt("mad.ads")}</h2>
         <div className="lm-table-scroll"><table className="lm-table tr-table" data-testid="title-ads">
-          <colgroup><col className="lm-col-title" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /></colgroup>
-          <thead><tr><th scope="col">{tt("mad.ad")}</th><th scope="col">{tt("lv2.spent")}</th><th scope="col">{tt("lv2.clicks")}</th><th scope="col">CTR</th><th scope="col">{tt("lv2.cpc")}</th><th scope="col">{tt("lpx.purchases")}</th><th scope="col">{tt("lpx.value")}</th><th scope="col">{tt("lpx.roas")}</th><th scope="col">{tt("lpx.costPerPurchase")}</th><th scope="col">{tt("lpx.checkouts")}</th></tr></thead>
+          <colgroup><col className="lm-col-title" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /><col className="lm-col-metric" /></colgroup>
+          <thead><tr><th scope="col">{tt("mad.ad")}</th><th scope="col">{tt("lv2.spent")}</th><th scope="col">{tt("lv2.clicks")}</th><th scope="col">CTR</th><th scope="col">{tt("lv2.cpc")}</th><th scope="col">{tt("lpx.purchases")}</th><th scope="col">{tt("lpx.value")}</th><th scope="col">{tt("lpx.roas")}</th><th scope="col">{tt("lpx.costPerPurchase")}</th><th scope="col">{tt("lpx.checkouts")}</th><th scope="col" title={tt("mad.videoHint")}>{tt("mad.hold2")}</th><th scope="col" title={tt("mad.videoHint")}>{tt("mad.hold6")}</th><th scope="col" title={tt("mad.videoHint")}>{tt("mad.avgPlay")}</th></tr></thead>
           <tbody>{results.campaigns.flatMap(({ ads }) => ads).map(({ run, campaign, item, position, ads, totals }) => {
             const ad = ads[0];
             const groups = campaign.snapshot?.groups ?? [];
@@ -122,11 +131,12 @@ export default function TitleResults({ staff = false, titleId, titleName, crazyd
               <td><strong>{item.label || tt("lr3.adNumber", { n: position })}</strong>
                 <small className="lm-title-note">{run.draft.name} · {campaign.index}{ad ? ` · ${tt("mad.adId")} ${ad.id}` : ""}{ad ? ` · ${ad.status.replaceAll("_", " ").toLowerCase()}` : ""}</small>
                 {link && <a className="lm-row-button lm-ad-link" href={link} target="_blank" rel="noreferrer" title={link}>{tt("mr4.landing")}</a>}</td>
-              <Numbers totals={totals} />
+              <Numbers totals={totals} video />
             </tr>;
           })}</tbody>
         </table></div>
         <p className="hint">{tt("mad.adsHint")}</p>
+        <p className="hint">{tt("mad.videoHint")}</p>
       </>}
     </>}
   </div>;

@@ -1,6 +1,7 @@
 import "@/app/crazydramas-stats.css";
 import { adminLocale, staffSession } from "@/components/admin/server";
 import { AdDetail, AdTypeTable, type AdRun } from "@/components/admin/cd-stats/AdDetail";
+import AdsTab from "@/components/admin/cd-stats/AdsTab";
 import { RangeTabs, ReadFailure } from "@/components/admin/cd-stats/Bits";
 import { BuyersTable, PersonPanel, type Names } from "@/components/admin/cd-stats/Buyers";
 import CampaignsView, { type CampaignsViewRow } from "@/components/admin/cd-stats/Campaigns";
@@ -13,9 +14,9 @@ import { PlaybackSection } from "@/components/admin/cd-stats/Sections";
 import { EpisodeCurveChart, SeriesFunnelList } from "@/components/admin/cd-stats/SeriesCurve";
 import { SurveyView } from "@/components/admin/cd-stats/Tables";
 import TeamEditor from "@/components/admin/cd-stats/TeamEditor";
-import { fakeStatsLaunches, FAKE_STATS_CLIPS } from "@/lib/crazydramas/fake-stats";
+import { fakeStatsArchive, fakeStatsLaunches, FAKE_STATS_CLIPS } from "@/lib/crazydramas/fake-stats";
 import { readCrazydramasStats, readLaunchClips } from "@/lib/crazydramas/stats";
-import { adCreatives, byAdType, campaignFacts, changeAbove, compareCampaigns, dailySpend, fmtRatio, returnOnSpend, spendIn, type AdCreative } from "@/lib/crazydramas/stats-ads";
+import { adCreatives, byAdType, campaignFacts, changeAbove, compareCampaigns, dailySpend, fmtRatio, returnOnSpend, spendIn, type AdCreative, type CreativeClip } from "@/lib/crazydramas/stats-ads";
 import { adBuyers, browsersOf, buyerCounts, buyersByAd, fmtDuration, hasBuyerDetails, personOf, purchasesIn, untaggedBuyers } from "@/lib/crazydramas/stats-buyers";
 import {
   coinsByDay,
@@ -78,6 +79,7 @@ import type { CdStatsPayment, CdStatsPurchase, PaymentKind } from "@/lib/crazydr
 import { getData } from "@/lib/data";
 import { mediaUrl } from "@/lib/data/storage";
 import { t } from "@/lib/i18n";
+import type { LaunchRun } from "@/lib/launch/types";
 import { readTikTokAdDays, type AdDaysRead } from "@/lib/tiktok/ad-days";
 
 // /crazydramas/stats — viewing and money on crazydramas.com, staff only. Decisions 2026-09-24 "CrazyDramas
@@ -97,7 +99,7 @@ export const dynamic = "force-dynamic";
 
 const n0 = (v: number) => v.toLocaleString("en-US");
 
-type Search = { range?: string; fresh?: string; series?: string; device?: string; source?: string; country?: string; tab?: string; eps?: string; ad?: string; person?: string; curve?: string };
+type Search = { range?: string; fresh?: string; series?: string; device?: string; source?: string; country?: string; tab?: string; eps?: string; ad?: string; person?: string; curve?: string; ad_title?: string; ad_type?: string };
 
 /** TikTok's days of spend, with the fixture's invented launches' days laid over them. */
 function withDays(read: AdDaysRead, extra: AdDaysRead | null): AdDaysRead {
@@ -105,6 +107,9 @@ function withDays(read: AdDaysRead, extra: AdDaysRead | null): AdDaysRead {
   if (!read.ok) return extra;
   return { ...read, campaigns: [...read.campaigns, ...extra.campaigns], days: { ...read.days, ...extra.days } };
 }
+
+/** Today on crazydramas' clock (the Pacific day), for the Ads tab when crazydramas does not answer. */
+const pacificToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 
 const nextDay = (d: string) => new Date(Date.parse(`${d}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
 
@@ -120,8 +125,10 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
   // Every link keeps the filters and the period; `patch` changes some of it. The ad, person and curve belong to their tab.
   const hrefWith = (patch: Partial<Search>) => {
     const q = new URLSearchParams();
-    const next: Partial<Search> = { range, tab, eps, series: searchParams.series, device: searchParams.device, source: searchParams.source, country: searchParams.country, ...patch };
+    const next: Partial<Search> = { range, tab, eps, series: searchParams.series, device: searchParams.device, source: searchParams.source, country: searchParams.country, ad_title: searchParams.ad_title, ad_type: searchParams.ad_type, ...patch };
     for (const [k, v] of Object.entries(next)) {
+      // The Ads tab's own filters stay on the Ads tab.
+      if ((k === "ad_title" || k === "ad_type") && next.tab !== "ads") continue;
       if (v && !(k === "tab" && v === "overview") && !(k === "eps" && v === "1")) q.set(k, v);
     }
     return `/crazydramas/stats?${q.toString()}`;
@@ -134,22 +141,64 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
       <RangeTabs range={range} hrefFor={(r) => hrefWith({ range: r, ...here })} locale={locale} />
     </div>
   );
+  const tabs = (
+    <nav className="tabs cdx-tabs" aria-label={tt("cds.title")}>
+      {DASH_TABS.map((x) => (
+        <a key={x} className={`tab${x === tab ? " on" : ""}`} aria-current={x === tab ? "page" : undefined} href={hrefWith({ tab: x })}>
+          {tt(`cdx.tab.${x}`)}
+        </a>
+      ))}
+    </nav>
+  );
+  // The Ads tab is TikTok's numbers only: it still shows when crazydramas does not answer.
+  const adsTab = async (today: string, invented: LaunchRun[] | null, extraClips: CreativeClip[]) => {
+    const [clipMap, titles] = await Promise.all([readLaunchClips(session, launched), getData().listTitles(session).catch(() => [])]);
+    for (const c of extraClips) clipMap.set(c.id, { ...c });
+    const titleNames = new Map(titles.map((x) => [x.id, x.name_en || x.name_zh]));
+    if (invented) titleNames.set("fake-title", tt("cda.fakeTitle"));
+    return (
+      <AdsTab
+        session={session}
+        locale={locale}
+        range={range}
+        today={today}
+        fresh={fresh}
+        launched={launched}
+        invented={invented}
+        clips={clipMap}
+        titleNames={titleNames}
+        filter={{ title: searchParams.ad_title || null, type: searchParams.ad_type || null }}
+        vs={range === "all" ? null : tt(`cdx.vs.${range}`)}
+      />
+    );
+  };
   if (!read.ok) {
     return (
       <>
         {head}
-        <ReadFailure read={read} locale={locale} />
+        {tab === "ads" ? (
+          <>
+            {tabs}
+            {await adsTab(pacificToday(), null, [])}
+          </>
+        ) : (
+          <ReadFailure read={read} locale={locale} />
+        )}
       </>
     );
   }
 
   const report = read.report;
   // Fixture mode: the fake report's ads get invented launch records (never stored), so Campaigns has spend to show.
+  // Fixture mode also gets an earlier invented launch (four more clips) so the Ads tab has a spread.
   const fake = read.mode === "fake" ? fakeStatsLaunches() : null;
-  const runs = fake ? [...launched, ...fake.runs] : launched;
+  const archive = read.mode === "fake" ? fakeStatsArchive() : null;
+  const invented = fake && archive ? [...fake.runs, ...archive.runs] : null;
+  const inventedClips: CreativeClip[] = fake && archive ? [...FAKE_STATS_CLIPS, ...archive.clips].map((c) => ({ ...c })) : [];
+  const runs = invented ? [...launched, ...invented] : launched;
   const [realDays, clips] = await Promise.all([readTikTokAdDays(launched, { to: report.to, fresh }), readLaunchClips(session, launched)]);
-  if (fake) for (const c of FAKE_STATS_CLIPS) clips.set(c.id, { ...c });
-  const adDays = withDays(realDays, fake?.days ?? null);
+  for (const c of inventedClips) clips.set(c.id, { ...c });
+  const adDays = withDays(withDays(realDays, fake?.days ?? null), archive?.days ?? null);
 
   const span = rangeDays(report, range);
   const prev = prevSpan(report, range);
@@ -217,26 +266,16 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
   };
   const personHref = (p: string) => hrefWith({ tab: "buyers", person: p });
 
-  const tabs = (
-    <nav className="tabs cdx-tabs" aria-label={tt("cds.title")}>
-      {DASH_TABS.map((x) => (
-        <a key={x} className={`tab${x === tab ? " on" : ""}`} aria-current={x === tab ? "page" : undefined} href={hrefWith({ tab: x })}>
-          {tt(`cdx.tab.${x}`)}
-        </a>
-      ))}
-    </nav>
-  );
-
   return (
     <>
       {head}
       <div className="cdx-bar">
-        <FilterBar
+        {tab !== "ads" && <FilterBar
           range={range}
           keep={Object.fromEntries(Object.entries({ tab: tab === "overview" ? "" : tab, eps: eps === "1" ? "" : eps, ...here }).filter((e): e is [string, string] => !!e[1]))}
           value={{ series: seriesSlug, device: filter.device, source: filter.source, country: filter.country ?? null }}
           options={options}
-        />
+        />}
         <span className="cdx-updated">
           {read.mode === "fake" ? tt("cdx.testData") : tt("cdx.updated", { time })} · <a href={`${hrefWith(here)}&fresh=1`}>{tt("cdx.refresh")}</a>
         </span>
@@ -249,6 +288,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
       {tab === "vip" && <VipTab />}
       {tab === "coins" && <CoinsTab />}
       {tab === "campaigns" && <CampaignsTab />}
+      {tab === "ads" && (await adsTab(report.to, invented, inventedClips))}
       {tab === "series" && <SeriesTab />}
       {tab === "playback" && <PlaybackTab />}
     </>

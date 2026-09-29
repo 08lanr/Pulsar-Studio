@@ -260,3 +260,7 @@
 .launch-preview-ad, .launch-confirm-ad { display:grid; gap:4px; min-width:0; }
 .launch-confirm-adlink { margin:0; display:grid; gap:2px; font-size:var(--t-small); }
 @media (max-width: 767.98px) { .launch-ad-cell-label { display:block; } }
+/* The Clips page's compact TikTok cell. */
+.clips-tt { display: grid; gap: 1px; font-size: 12px; line-height: 1.35; font-variant-numeric: tabular-nums; }
+.clips-tt strong { font-weight: var(--w-strong); }
+.clips-tt-head { display: inline-flex; align-items: center; gap: 4px; }
