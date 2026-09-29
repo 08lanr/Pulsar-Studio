@@ -636,3 +636,143 @@ export function fakeStatsLaunches(now: Date = new Date()): {
   }) as unknown as LaunchRun[];
   return { runs, days: { ok: true, from, to, campaigns: [...FAKE_STATS_CAMPAIGNS], days } };
 }
+
+// ---- invented video numbers for the Ads tab (fixture mode only) ----------------------------------------------------
+
+/** An earlier invented launch (fixture mode only): four more clips, one of each ad type, so the Ads tab has a spread. */
+export const FAKE_ARCHIVE_CLIPS = [
+  { id: "fake-clip-dragon-hook-v2", title_id: "fake-title", ad_format: "hook_ad", hook_en: "The Dragon King picked the maid. The palace went silent.", render_path: "fake-title/ep1/upload-1111222233334444-dragon-hook-v2.mp4" },
+  { id: "fake-clip-mafia-trailer", title_id: "fake-title", ad_format: "narration_trailer", hook_en: "I married a stranger for the money. He was the mafia king.", render_path: "fake-title/ep1/upload-5555666677778888-mafia-trailer-v1.mp4" },
+  { id: "fake-clip-ceo-cuts", title_id: "fake-title", ad_format: "direct_cuts_trailer", hook_en: "Her cold CEO had a secret, and it had his eyes.", render_path: "fake-title/ep1/upload-9999aaaabbbbcccc-ceo-cuts-v2.mp4" },
+  { id: "fake-clip-bus-clip", title_id: "fake-title", ad_format: "clip", hook_en: "The night bus leaves at 11 sharp. Nobody gets off.", render_path: "fake-title/ep1/upload-ddddeeeeffff0000-night-bus.mp4" },
+] as const;
+export const FAKE_ARCHIVE_ADS = ["1877000000000005", "1877000000000006", "1877000000000007", "1877000000000008"];
+export const FAKE_ARCHIVE_CAMPAIGN = "1877000000000300";
+
+/** Each invented ad's life: TikTok's delivery numbers and how far people watched (shares of plays). */
+const FAKE_VIDEO = [
+  // The fake's own four ads (FAKE_LAUNCH_ADS): delivery as there.
+  { ad: FAKE_STATS_ADS[0], spend: 1040, impressions: 21400, clicks: 412, conv: 6, play: 0.62, h2: 0.41, h6: 0.19, p25: 0.15, p100: 0.03, avg: 5.1 },
+  { ad: FAKE_STATS_ADS[1], spend: 778, impressions: 16800, clicks: 305, conv: 9, play: 0.6, h2: 0.36, h6: 0.24, p25: 0.21, p100: 0.06, avg: 7.9 },
+  { ad: FAKE_STATS_ADS[2], spend: 621, impressions: 19100, clicks: 520, conv: 0, play: 0.58, h2: 0.35, h6: 0.23, p25: 0.2, p100: 0.05, avg: 7.6 },
+  { ad: FAKE_STATS_ADS[3], spend: 512, impressions: 15300, clicks: 388, conv: 0, play: 0.6, h2: 0.4, h6: 0.18, p25: 0.14, p100: 0.03, avg: 4.9 },
+  // The archive: a weak hook, a strong trailer, a middling cut, and one too new to judge.
+  { ad: FAKE_ARCHIVE_ADS[0], spend: 150, impressions: 1956, clicks: 14, conv: 0, play: 0.55, h2: 0.23, h6: 0.08, p25: 0.06, p100: 0.01, avg: 2.4 },
+  { ad: FAKE_ARCHIVE_ADS[1], spend: 1420, impressions: 31200, clicks: 1030, conv: 22, play: 0.6, h2: 0.33, h6: 0.21, p25: 0.18, p100: 0.05, avg: 7.2 },
+  { ad: FAKE_ARCHIVE_ADS[2], spend: 980, impressions: 18800, clicks: 470, conv: 9, play: 0.57, h2: 0.3, h6: 0.16, p25: 0.13, p100: 0.03, avg: 5.5 },
+  { ad: FAKE_ARCHIVE_ADS[3], spend: 90, impressions: 410, clicks: 5, conv: 0, play: 0.5, h2: 0.28, h6: 0.12, p25: 0.1, p100: 0.02, avg: 3.8 },
+] as const;
+
+const FAKE_WEIGHTS = [1, 2, 3, 3, 4, 5];
+/** The archive ran five days, ending 15 days before today. */
+const ARCHIVE_END_AGO = 15;
+
+type FakeVideoNumbers = {
+  spend_cents: number; impressions: number; clicks: number; conversions: number; plays: number; watched_2s: number; watched_6s: number;
+  views_p25: number; views_p50: number; views_p75: number; views_p100: number; play_seconds: number;
+};
+
+/** An invented ad's whole life as counts. */
+function fakeVideoLife(v: (typeof FAKE_VIDEO)[number]): FakeVideoNumbers {
+  const plays = Math.round(v.impressions * v.play);
+  const p25 = Math.round(plays * v.p25);
+  const p100 = Math.round(plays * v.p100);
+  return {
+    spend_cents: v.spend, impressions: v.impressions, clicks: v.clicks, conversions: v.conv, plays,
+    watched_2s: Math.round(plays * v.h2), watched_6s: Math.round(plays * v.h6),
+    views_p25: p25, views_p50: Math.round((p25 + p100) / 2), views_p75: Math.round((p25 + 3 * p100) / 4), views_p100: p100,
+    play_seconds: Math.round(plays * v.avg * 100) / 100,
+  };
+}
+
+/** Each invented ad's days, oldest first: the fake's own over the last six days, the archive's over its five. Adds up to the life. */
+export function fakeVideoDays(now: Date = new Date()): Record<string, (FakeVideoNumbers & { day: string })[]> {
+  const to = pacificDay(now);
+  const out: Record<string, (FakeVideoNumbers & { day: string })[]> = {};
+  for (const v of FAKE_VIDEO) {
+    const archive = FAKE_ARCHIVE_ADS.includes(v.ad);
+    const weights = archive ? FAKE_WEIGHTS.slice(1) : FAKE_WEIGHTS;
+    const last = archive ? addDays(to, -ARCHIVE_END_AGO) : to;
+    const total = weights.reduce((x, y) => x + y, 0);
+    const life = fakeVideoLife(v);
+    const left = { ...life };
+    out[v.ad] = weights.map((w, i) => {
+      const day = { day: addDays(last, i - weights.length + 1) } as FakeVideoNumbers & { day: string };
+      for (const k of Object.keys(life) as (keyof FakeVideoNumbers)[]) {
+        const raw = i === weights.length - 1 ? left[k] : (life[k] * w) / total;
+        const part = k === "play_seconds" ? Math.round(raw * 100) / 100 : Math.round(raw);
+        left[k] -= part;
+        day[k] = part;
+      }
+      return day;
+    });
+  }
+  return out;
+}
+
+/** The invented earlier launch: its record, its clips and TikTok's days of spend (as `fakeStatsLaunches`). */
+export function fakeStatsArchive(now: Date = new Date()): {
+  runs: LaunchRun[];
+  clips: (typeof FAKE_ARCHIVE_CLIPS)[number][];
+  days: { ok: true; from: string; to: string; campaigns: string[]; days: Record<string, { day: string; spend_cents: number | null; impressions: number | null; clicks: number | null }[]> };
+} {
+  const to = pacificDay(now);
+  const launched = new Date(now.getTime() - (ARCHIVE_END_AGO + 5) * 86_400_000).toISOString();
+  const adDays = fakeVideoDays(now);
+  const days: Record<string, { day: string; spend_cents: number | null; impressions: number | null; clicks: number | null }[]> = {};
+  for (const id of FAKE_ARCHIVE_ADS) days[id] = adDays[id].map((d) => ({ day: d.day, spend_cents: d.spend_cents, impressions: d.impressions, clicks: d.clicks }));
+  const spec = (id: string) => FAKE_VIDEO.find((v) => v.ad === id)!;
+  const content = FAKE_ARCHIVE_CLIPS.map((clip) => ({ kind: "video" as const, value: clip.id, clip_id: clip.id, title_id: clip.title_id, text: clip.hook_en, file_path: clip.render_path }));
+  const settings = { objective_type: "WEB_CONVERSIONS", sales_destination: "website", optimization_goal: "CONVERT", optimization_event: "INITIATE_ORDER" };
+  const sum = (k: "spend" | "impressions" | "clicks") => FAKE_ARCHIVE_ADS.reduce((x, id) => x + spec(id)[k], 0);
+  const run = {
+    id: "fake-stats-run-3",
+    external_id: "lr_fakestats3",
+    producer_id: "fake-stats",
+    draft: { provider: "tiktok", name: "Invented launch · earlier", content, tiktok_settings: settings },
+    round: 1, parent_run_id: null, status: "done", revision: 1, snapshot_hash: null, approved_by: null, approved_at: launched, approval_note: null,
+    created_by: "fake-stats", created_at: launched, updated_at: launched, mode: "fake", error: null, lease_owner: null, lease_until: null,
+    campaigns: [
+      {
+        id: "fake-stats-campaign-3", run_id: "fake-stats-run-3", index: 0, connection_id: "fake-stats", advertiser_id: "7000000000000000001", name: "a7c2",
+        content, budget_cents: 5000, daily_budget_cents: null, status: "done", error: null,
+        state: { campaign_id: FAKE_ARCHIVE_CAMPAIGN, settings, groups: [{ ads: Object.fromEntries(FAKE_ARCHIVE_CLIPS.map((c, i) => [c.id, FAKE_ARCHIVE_ADS[i]])) }] },
+        snapshot: {
+          delivery: "ended", note: null, checked_at: now.toISOString(),
+          spend_cents: sum("spend"), impressions: sum("impressions"), clicks: sum("clicks"), conversions: 31, cpc_cents: Math.round(sum("spend") / sum("clicks")), web: null,
+          ads: FAKE_ARCHIVE_CLIPS.map((c, i) => {
+            const v = spec(FAKE_ARCHIVE_ADS[i]);
+            return { id: FAKE_ARCHIVE_ADS[i], status: "ended", content_value: c.id, stats: { spend_cents: v.spend, impressions: v.impressions, clicks: v.clicks, ctr: v.clicks / v.impressions, cpc_cents: Math.round(v.spend / v.clicks), conversions: v.conv } };
+          }),
+        },
+      },
+    ],
+  } as unknown as LaunchRun;
+  return { runs: [run], clips: [...FAKE_ARCHIVE_CLIPS], days: { ok: true, from: addDays(to, -29), to, campaigns: [FAKE_ARCHIVE_CAMPAIGN], days } };
+}
+
+/**
+ * What lib/tiktok/ad-video.ts would read for the invented ads (fixture mode only): over their life, or per day
+ * over a span. The same shape as `readTikTokAdVideo`'s answer.
+ */
+export function fakeAdVideo(span: "lifetime" | { from: string; to: string }, now: Date = new Date()): {
+  covered: string[];
+  failed: { advertiser_id: string; error: string }[];
+  ads: Record<string, FakeVideoNumbers>;
+  days?: Record<string, (FakeVideoNumbers & { day: string })[]>;
+  from?: string;
+  to?: string;
+} {
+  const covered = FAKE_VIDEO.map((v) => v.ad as string);
+  if (span === "lifetime") return { covered, failed: [], ads: Object.fromEntries(FAKE_VIDEO.map((v) => [v.ad, fakeVideoLife(v)])) };
+  const all = fakeVideoDays(now);
+  const days = Object.fromEntries(Object.entries(all).map(([id, list]) => [id, list.filter((d) => d.day >= span.from && d.day <= span.to)]));
+  const ads = Object.fromEntries(
+    Object.entries(days).map(([id, list]) => {
+      const z: FakeVideoNumbers = { spend_cents: 0, impressions: 0, clicks: 0, conversions: 0, plays: 0, watched_2s: 0, watched_6s: 0, views_p25: 0, views_p50: 0, views_p75: 0, views_p100: 0, play_seconds: 0 };
+      for (const d of list) for (const k of Object.keys(z) as (keyof FakeVideoNumbers)[]) z[k] += d[k];
+      return [id, z];
+    }),
+  );
+  return { covered, failed: [], ads, days, from: span.from, to: span.to };
+}

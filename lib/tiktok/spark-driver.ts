@@ -22,7 +22,7 @@ import { adGroupBody, attributionLabel, attributionOf, launchSettingsSchema, lau
 import { isCrazydramasAdUrl } from "./ad-url";
 import { resolvePixel, tiktokPixelCode } from "./pixel";
 import { WEB_METRICS, webConversionsFromReport } from "./web-metrics";
-import { AD_METRICS, adStatsByAd } from "./ad-stats";
+import { AD_METRICS, adStatsByAd, VIDEO_METRICS } from "./ad-stats";
 import { assertCampaignBudget } from "@/lib/launch/budget";
 import { createInstantPageDraft, InstantPageCreateNotSentError, InstantPageCreateRejectedError, loadSalesMasterSnapshot, publishInstantPage } from "./instant-page";
 import { SALES_MASTER_SHA256, SALES_MASTER_VERSION } from "./instant-page-master";
@@ -751,13 +751,13 @@ async function monitor(ctx: DriverContext): Promise<DeliverySnapshot> {
       filtering: JSON.stringify([{ field_name: "campaign_ids", filter_type: "IN", filter_value: JSON.stringify([state(ctx).campaign_id]) }]),
     };
     try {
-      const rows = await list(c, "/report/integrated/get/", { report_type: "BASIC", data_level: "AUCTION_AD", dimensions: JSON.stringify(["ad_id"]), metrics: JSON.stringify(AD_METRICS), ...window });
+      const rows = await list(c, "/report/integrated/get/", { report_type: "BASIC", data_level: "AUCTION_AD", dimensions: JSON.stringify(["ad_id"]), metrics: JSON.stringify([...AD_METRICS, ...VIDEO_METRICS]), ...window });
       let webRows: Row[] | null = null;
       if (settings && launchShape(settings) === "website_purchases") {
         try { webRows = await list(c, "/report/integrated/get/", { report_type: "BASIC", data_level: "AUCTION_AD", dimensions: JSON.stringify(["ad_id"]), metrics: JSON.stringify(WEB_METRICS), ...window }); }
         catch (e) { out.ad_web_error = (e as Error).message; }
       }
-      adStats = adStatsByAd(codeById.keys(), rows, webRows);
+      adStats = adStatsByAd(codeById.keys(), rows, webRows, true);
     } catch (e) { out.ad_stats_error = (e as Error).message; }
   }
   out.configured_status = str(campaign?.operation_status) || undefined;

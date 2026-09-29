@@ -2,6 +2,7 @@ import type { Session } from "@/lib/auth";
 import type { ClipLibraryFilter, ClipLibraryRow, ClipPost, PublishClipInput } from "@/lib/launch/clip-posts";
 import type { LaunchSettings } from "@/lib/tiktok/settings";
 import type { WebConversions } from "@/lib/tiktok/web-metrics";
+import type { AdVideoCounts } from "@/lib/tiktok/ad-stats";
 import type { MetaConversionEvent } from "@/lib/meta/events";
 
 export type LaunchProvider = "tiktok" | "meta";
@@ -174,6 +175,8 @@ export type AdStats = {
   /** clicks ÷ impressions (0.0123 = 1.23%), recomputed from the sums. */
   ctr: number | null; cpc_cents: number | null; conversions: number | null;
   web?: WebConversions | null;
+  /** How far people watched (TikTok's video metrics, read with the ad's numbers since 2026-09-28); absent on older readings. */
+  video?: AdVideoCounts | null;
 };
 export type LaunchCampaign = LaunchPlanRow & {
   id: string; run_id: string; status: "pending" | "running" | "done" | "failed";

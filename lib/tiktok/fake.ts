@@ -262,10 +262,11 @@ function day(d: Date): string {
  * lifetime row of a pixel campaign's ad, or of the campaign, also carries
  * the TikTok-attributed website conversions.
  */
-function reportRows(campaignIds: string[], adgroupIds: string[], start: string, end: string, level: "AUCTION_AD" | "AUCTION_ADGROUP" | "AUCTION_CAMPAIGN", byDay: boolean) {
+function reportRows(campaignIds: string[], adgroupIds: string[], start: string, end: string, level: "AUCTION_AD" | "AUCTION_ADGROUP" | "AUCTION_CAMPAIGN", byDay: boolean, adIds: string[] = []) {
   const rows: Array<{ dimensions: Record<string, string>; metrics: Record<string, number> }> = [];
   const s = state();
-  const cids = campaignIds.length ? campaignIds : [...new Set(adgroupIds.map((g) => s.adgroups.get(g)?.campaignId).filter((c): c is string => !!c))];
+  const fromAds = adIds.map((id) => s.ads.get(id)?.campaignId).filter((c): c is string => !!c);
+  const cids = campaignIds.length ? campaignIds : adgroupIds.length ? [...new Set(adgroupIds.map((g) => s.adgroups.get(g)?.campaignId).filter((c): c is string => !!c))] : [...new Set(fromAds)];
   const byGroup = new Map<string, number>();
   for (const cid of cids) {
     const campaign = s.campaigns.get(cid);
@@ -282,41 +283,57 @@ function reportRows(campaignIds: string[], adgroupIds: string[], start: string, 
     const adsPerGroup = new Map<string, number>();
     for (const a of s.ads.values()) if (a.campaignId === cid) adsPerGroup.set(a.adgroupId, (adsPerGroup.get(a.adgroupId) ?? 0) + 1);
     const perAdDayOf = (ad: FakeAd) => (s.adgroups.get(ad.adgroupId)?.budget ?? 0) / Math.max(1, adsPerGroup.get(ad.adgroupId) ?? 1) / 5;
-    const total = { spend: 0, impressions: 0, clicks: 0, conversion: 0, video_play_actions: 0, video_watched_2s: 0, video_watched_6s: 0 };
-    const perAd = new Map<string, { spend: number; impressions: number; clicks: number }>();
+    // One ad's day: the first ad of a launch holds its viewers better. The video counts fall off as a real
+    // audience does (2 s, 6 s, then a quarter, half, three quarters and the end of a 25-second clip).
+    const adDay = (ad: FakeAd, i: number, dayKey: string) => {
+      const seed = hash(`${ad.adId}:${dayKey}`);
+      const spend = Math.round(perAdDayOf(ad) * (0.85 + seed * 0.3) * 100) / 100;
+      const impressions = Math.round(spend * (900 + seed * 300));
+      const plays = Math.round(impressions * (0.5 + seed * 0.1));
+      const hold2 = Math.round(plays * (0.3 + (i === 0 ? 0.14 : 0.02) + seed * 0.05));
+      const hold6 = Math.round(hold2 * (0.4 + seed * 0.1));
+      const p25 = Math.round(hold6 * (0.9 + seed * 0.05));
+      const p50 = Math.round(p25 * 0.55);
+      const p75 = Math.round(p50 * 0.6);
+      const p100 = Math.round(p75 * 0.5);
+      const clicks = Math.round(impressions * (0.009 + (i === 0 ? 0.007 : 0.001) + seed * 0.003));
+      const average = plays ? Math.round((1.4 + (hold6 / plays) * 9) * 100) / 100 : 0;
+      return { spend, impressions, clicks, conversion: 0, video_play_actions: plays, video_watched_2s: hold2, video_watched_6s: hold6, video_views_p25: p25, video_views_p50: p50, video_views_p75: p75, video_views_p100: p100, average_video_play: average };
+    };
+    type DayNumbers = ReturnType<typeof adDay>;
+    const ADDITIVE = ["spend", "impressions", "clicks", "conversion", "video_play_actions", "video_watched_2s", "video_watched_6s", "video_views_p25", "video_views_p50", "video_views_p75", "video_views_p100"] as const;
+    const blank = () => ({ spend: 0, impressions: 0, clicks: 0, conversion: 0, video_play_actions: 0, video_watched_2s: 0, video_watched_6s: 0, video_views_p25: 0, video_views_p50: 0, video_views_p75: 0, video_views_p100: 0, play_seconds: 0 });
+    type Sums = ReturnType<typeof blank>;
+    const addDay = (into: Sums, m: DayNumbers) => {
+      for (const k of ADDITIVE) into[k] += m[k];
+      into.play_seconds += m.average_video_play * m.video_play_actions;
+    };
+    /** A span as one row: the counts summed, the average play weighted by plays. */
+    const lifeOf = (sums: Sums) => {
+      const { play_seconds, ...counts } = sums;
+      return { ...counts, spend: Math.round(sums.spend * 100) / 100, average_video_play: sums.video_play_actions ? Math.round((play_seconds / sums.video_play_actions) * 100) / 100 : 0 };
+    };
+    const total = blank();
+    const perAd = new Map<string, Sums>();
     for (let d = new Date(from); d <= to; d.setUTCDate(d.getUTCDate() + 1)) {
       // A lifetime budget is a ceiling: once the five days have spent it, the campaign reports nothing more.
       if (campaign.budgetMode !== "BUDGET_MODE_DAY" && total.spend >= groupBudget) break;
       const dayKey = day(d);
-      const byCampaign = { spend: 0, impressions: 0, clicks: 0, conversion: 0, video_play_actions: 0, video_watched_2s: 0, video_watched_6s: 0 };
-      ads.forEach((ad, i) => {
-        const seed = hash(`${ad.adId}:${dayKey}`);
-        const spend = Math.round(perAdDayOf(ad) * (0.85 + seed * 0.3) * 100) / 100;
-        const impressions = Math.round(spend * (900 + seed * 300));
-        const plays = Math.round(impressions * (0.5 + seed * 0.1));
-        const hold2 = Math.round(plays * (0.3 + (i === 0 ? 0.14 : 0.02) + seed * 0.05));
-        const hold6 = Math.round(hold2 * (0.4 + seed * 0.1));
-        const clicks = Math.round(impressions * (0.009 + (i === 0 ? 0.007 : 0.001) + seed * 0.003));
-        const m = { spend, impressions, clicks, conversion: 0, video_play_actions: plays, video_watched_2s: hold2, video_watched_6s: hold6 };
-        for (const k of Object.keys(byCampaign) as Array<keyof typeof byCampaign>) byCampaign[k] += m[k];
-      });
+      const byCampaign = blank();
+      const days = ads.map((ad, i) => adDay(ad, i, dayKey));
+      for (const m of days) addDay(byCampaign, m);
       // The day that would cross the lifetime ceiling is not spent: TikTok stops delivery at the budget.
       if (campaign.budgetMode !== "BUDGET_MODE_DAY" && total.spend + byCampaign.spend > groupBudget + 0.005) break;
       ads.forEach((ad, i) => {
-        const seed = hash(`${ad.adId}:${dayKey}`);
-        const spend = Math.round(perAdDayOf(ad) * (0.85 + seed * 0.3) * 100) / 100;
-        const impressions = Math.round(spend * (900 + seed * 300));
-        const plays = Math.round(impressions * (0.5 + seed * 0.1));
-        const hold2 = Math.round(plays * (0.3 + (i === 0 ? 0.14 : 0.02) + seed * 0.05));
-        const hold6 = Math.round(hold2 * (0.4 + seed * 0.1));
-        const clicks = Math.round(impressions * (0.009 + (i === 0 ? 0.007 : 0.001) + seed * 0.003));
-        if (level === "AUCTION_AD" && byDay) rows.push({ dimensions: { ad_id: ad.adId, stat_time_day: `${dayKey} 00:00:00` }, metrics: { spend, impressions, clicks, conversion: 0, video_play_actions: plays, video_watched_2s: hold2, video_watched_6s: hold6 } });
-        const sofar = perAd.get(ad.adId) ?? { spend: 0, impressions: 0, clicks: 0 };
-        perAd.set(ad.adId, { spend: sofar.spend + spend, impressions: sofar.impressions + impressions, clicks: sofar.clicks + clicks });
-        byGroup.set(ad.adgroupId, (byGroup.get(ad.adgroupId) ?? 0) + spend);
+        const m = days[i];
+        if (level === "AUCTION_AD" && byDay && (!adIds.length || adIds.includes(ad.adId))) rows.push({ dimensions: { ad_id: ad.adId, stat_time_day: `${dayKey} 00:00:00` }, metrics: { ...m } });
+        const sofar = perAd.get(ad.adId) ?? blank();
+        addDay(sofar, m);
+        perAd.set(ad.adId, sofar);
+        byGroup.set(ad.adgroupId, (byGroup.get(ad.adgroupId) ?? 0) + m.spend);
       });
-      if (level === "AUCTION_CAMPAIGN" && byDay) rows.push({ dimensions: { campaign_id: cid, stat_time_day: `${dayKey} 00:00:00` }, metrics: byCampaign });
-      for (const k of Object.keys(total) as Array<keyof typeof total>) total[k] += byCampaign[k];
+      if (level === "AUCTION_CAMPAIGN" && byDay) rows.push({ dimensions: { campaign_id: cid, stat_time_day: `${dayKey} 00:00:00` }, metrics: lifeOf(byCampaign) });
+      for (const k of Object.keys(total) as Array<keyof Sums>) total[k] += byCampaign[k];
     }
     // The pixel's numbers, the campaign's rule applied per ad: about one purchase in fifty clicks at $9.99, three checkouts per purchase.
     const pixelGroupOf = (adgroupId: string) => { const g = s.adgroups.get(adgroupId); return g?.body.pixel_id ? g : null; };
@@ -334,10 +351,10 @@ function reportRows(campaignIds: string[], adgroupIds: string[], start: string, 
     };
     if (level === "AUCTION_AD" && !byDay) for (const ad of ads) {
       const sums = perAd.get(ad.adId);
-      if (!sums) continue;
-      const spend = Math.round(sums.spend * 100) / 100;
+      if (!sums || (adIds.length && !adIds.includes(ad.adId))) continue;
+      const life = lifeOf(sums);
       const group = pixelGroupOf(ad.adgroupId);
-      rows.push({ dimensions: { ad_id: ad.adId }, metrics: { spend, impressions: sums.impressions, clicks: sums.clicks, conversion: 0, ...(group ? webOf(spend, sums.clicks, group.body.optimization_event) : {}) } });
+      rows.push({ dimensions: { ad_id: ad.adId }, metrics: { ...life, conversion: 0, ...(group ? webOf(life.spend, sums.clicks, group.body.optimization_event) : {}) } });
     }
     if (level === "AUCTION_CAMPAIGN" && !byDay) {
       // A pixel campaign also reports TikTok-attributed website conversions:
@@ -357,7 +374,7 @@ function reportRows(campaignIds: string[], adgroupIds: string[], start: string, 
         complete_payment_roas: spend ? Math.round((value / spend) * 100) / 100 : 0,
         cost_per_initiate_checkout: checkouts ? Math.round((spend / checkouts) * 100) / 100 : 0,
       } : {};
-      rows.push({ dimensions: { campaign_id: cid }, metrics: { ...total, spend, ...web } });
+      rows.push({ dimensions: { campaign_id: cid }, metrics: { ...lifeOf(total), spend, ...web } });
     }
   }
   if (level === "AUCTION_ADGROUP") for (const [gid, spend] of byGroup) if (!adgroupIds.length || adgroupIds.includes(gid)) rows.push({ dimensions: { adgroup_id: gid }, metrics: { spend: Math.round(spend * 100) / 100 } });
@@ -497,12 +514,21 @@ export const fakeTransport: TikTokTransport = {
       case "/report/integrated/get/": {
         const cids = filterIds(params.filtering, "campaign_ids");
         const gids = filterIds(params.filtering, "adgroup_ids");
+        const adIds = filterIds(params.filtering, "ad_ids");
         const level = params.data_level === "AUCTION_AD" ? "AUCTION_AD" : params.data_level === "AUCTION_ADGROUP" ? "AUCTION_ADGROUP" : "AUCTION_CAMPAIGN";
         const dims = String(params.dimensions ?? "");
         const byDay = dims.includes("stat_time_day");
-        const end = params.end_date ? String(params.end_date) : day(new Date());
-        const start = params.start_date ? String(params.start_date) : day(new Date(Date.now() - 30 * 86_400_000));
-        return ok({ list: reportRows(cids, gids, start, end, level, byDay) });
+        // query_lifetime: every day since the campaign began (TikTok refuses a day breakdown with it).
+        const lifetime = String(params.query_lifetime) === "true";
+        if (lifetime && byDay) return refuse("query_lifetime cannot be used with stat_time_day");
+        const end = lifetime ? day(new Date()) : params.end_date ? String(params.end_date) : day(new Date());
+        const start = lifetime ? "2000-01-01" : params.start_date ? String(params.start_date) : day(new Date(Date.now() - 30 * 86_400_000));
+        const list = reportRows(cids, gids, start, end, level, byDay, adIds);
+        if (params.page_size === undefined) return ok({ list });
+        // Paged as TikTok pages when the caller asks for pages.
+        const size = Math.max(1, Math.min(1000, Number(params.page_size) || 10));
+        const page = Math.max(1, Number(params.page ?? 1) || 1);
+        return ok({ list: list.slice((page - 1) * size, page * size), page_info: { page, page_size: size, total_number: list.length, total_page: Math.max(1, Math.ceil(list.length / size)) } });
       }
       case "/tool/region/":
         return ok({ region_info: FAKE_REGIONS });
