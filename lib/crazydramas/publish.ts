@@ -480,7 +480,7 @@ export async function getPublishState(session: Session, titleId: string, opts: {
     genre: series ? [...(series.genre ?? [])] : genresOf(title.genre),
     language: series?.language ?? languageOf(title.source_locale),
     free_episode_count: series?.free_episode_count ?? 5,
-    series_price_cents: series?.series_price_cents ?? 999,
+    series_price_cents: series?.series_price_cents ?? 99,
     iap_product_id: series ? series.iap_product_id ?? null : slug ? suggestIapProductId(slug) : null,
     poster_url: posterNow,
     slug_editable: !lockReason && !foreign && !held,

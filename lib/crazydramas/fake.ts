@@ -689,7 +689,7 @@ export class FakeCrazydramasTransport implements CrazydramasTransport, Crazydram
         language: body.language ?? "en",
         status: "draft",
         free_episode_count: body.free_episode_count ?? 5,
-        series_price_cents: body.series_price_cents === undefined ? 999 : body.series_price_cents,
+        series_price_cents: body.series_price_cents === undefined ? 99 : body.series_price_cents,
         iap_product_id: iap,
         cta_mode: body.cta_mode ?? "app",
         poster_url: posterUrl,

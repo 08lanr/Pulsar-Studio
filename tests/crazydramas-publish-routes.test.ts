@@ -130,7 +130,7 @@ test("the state the section polls, in every series state: not_linked, not_upload
       genre: [],
       language: "en",
       free_episode_count: 5,
-      series_price_cents: 999,
+      series_price_cents: 99,
       iap_product_id: "cd.series.a_brand_new_studio_series_with",
       // No poster suggestion on crazydramas.com any more (decision 2026-09-23 "Upload automation"): the series has none
       // yet, and the title has no cover, so the poster field starts at "none".
