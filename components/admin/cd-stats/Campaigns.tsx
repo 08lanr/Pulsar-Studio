@@ -5,7 +5,7 @@ import { CreativeLabel, Reasons } from "@/components/admin/cd-stats/Creative";
 import Info from "@/components/admin/cd-stats/Info";
 import { useT } from "@/components/locale";
 import type { CompareAd, CompareCampaign } from "@/lib/crazydramas/stats-ads";
-import { fmtUsdCents } from "@/lib/crazydramas/stats-summary";
+import { checkoutOutcome, fmtUsdCents } from "@/lib/crazydramas/stats-summary";
 
 // The Campaigns tab (decision 2026-09-26): one row per launched campaign, its ads under it. Spend and clicks
 // are TikTok's; "TikTok says" is TikTok's own purchases (complete_payment); "We saw" is crazydramas' buyers whose
@@ -42,6 +42,9 @@ function Numbers({ r, tt, returns }: { r: CampaignsViewRow | CampaignsViewAd; tt
       <td className="gt-num">{r.clicks != null ? n0(r.clicks) : "–"}</td>
       <td className="gt-num">{n0(r.opened)}</td>
       <td className="gt-num">{n0(r.finished_ep1)}</td>
+      <td className="gt-num" title={r.checkouts ? tt("cdx.checkout.outcome", { n: n0(r.checkouts), paid: n0(r.buyers), back: n0(r.checkout_cancelled), gone: n0(checkoutOutcome(r).gone) }) : undefined}>
+        {n0(r.checkouts)}
+      </td>
       <td className="gt-num" title={returns ? fmtUsdCents(r.revenue_d0_cents) : undefined}>{returns ? ratio(r.revenue_d0_cents, r.spend_cents) : "–"}</td>
       <td className="gt-num" title={returns ? fmtUsdCents(r.revenue_d7_cents) : undefined}>{returns ? ratio(r.revenue_d7_cents, r.spend_cents) : "–"}</td>
       <td className="gt-num">{r.tiktok != null ? n0(r.tiktok) : "–"}</td>
@@ -86,6 +89,9 @@ export default function CampaignsView({ rows, caption, launchedLabel, returns = 
               <th scope="col" className="gt-num">{tt("cds.ads.col.clicks")}</th>
               <th scope="col" className="gt-num">{tt("cdx.kpi.visitors")}</th>
               <th scope="col" className="gt-num">{tt("cdx.kpi.finished")}</th>
+              <th scope="col" className="gt-num">
+                {tt("cdc.col.checkouts")} <Info text={tt("cdc.col.checkoutsInfo")} label={tt("cdx.about", { what: tt("cdc.col.checkouts") })} />
+              </th>
               <th scope="col" className="gt-num">
                 {tt("cdc.col.d0")} <Info text={tt("cdc.col.d0Info")} label={tt("cdx.about", { what: tt("cdc.col.d0") })} />
               </th>

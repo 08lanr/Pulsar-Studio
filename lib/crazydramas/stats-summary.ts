@@ -110,6 +110,7 @@ export type SeriesTotals = {
   paywall_watched: number;
   paywall_skipped: number;
   checkouts: number;
+  checkout_cancelled: number;
   buyers: number;
   revenue_cents: number;
   returned: number;
@@ -159,6 +160,7 @@ export function seriesTotals(series: CdStatsSeries, r: { from: string; to: strin
     paywall_watched: 0,
     paywall_skipped: 0,
     checkouts: 0,
+    checkout_cancelled: 0,
     buyers: 0,
     revenue_cents: 0,
     returned: 0,
@@ -193,6 +195,7 @@ export function seriesTotals(series: CdStatsSeries, r: { from: string; to: strin
     "paywall_watched",
     "paywall_skipped",
     "checkouts",
+    "checkout_cancelled",
     "buyers",
     "revenue_cents",
     "returned",
@@ -350,10 +353,10 @@ export function adSpendsFromRuns(runs: LaunchRun[]): AdSpend[] {
 
 type PathCounts = Pick<
   CdStatsSource,
-  "opened" | "no_events" | "never_started" | "started_ep1" | "finished_ep1" | "watched_ep2" | "watched_ep3" | "paywall" | "checkouts" | "buyers" | "revenue_cents" | "revenue_d0_cents" | "revenue_d7_cents" | "robots"
+  "opened" | "no_events" | "never_started" | "started_ep1" | "finished_ep1" | "watched_ep2" | "watched_ep3" | "paywall" | "checkouts" | "checkout_cancelled" | "buyers" | "revenue_cents" | "revenue_d0_cents" | "revenue_d7_cents" | "robots"
 >;
-const PATH_KEYS = ["opened", "no_events", "never_started", "started_ep1", "finished_ep1", "watched_ep2", "watched_ep3", "paywall", "checkouts", "buyers", "revenue_cents", "revenue_d0_cents", "revenue_d7_cents", "robots"] as const;
-const emptyPath = (): PathCounts => ({ opened: 0, no_events: 0, never_started: 0, started_ep1: 0, finished_ep1: 0, watched_ep2: 0, watched_ep3: 0, paywall: 0, checkouts: 0, buyers: 0, revenue_cents: 0, revenue_d0_cents: 0, revenue_d7_cents: 0, robots: 0 });
+const PATH_KEYS = ["opened", "no_events", "never_started", "started_ep1", "finished_ep1", "watched_ep2", "watched_ep3", "paywall", "checkouts", "checkout_cancelled", "buyers", "revenue_cents", "revenue_d0_cents", "revenue_d7_cents", "robots"] as const;
+const emptyPath = (): PathCounts => ({ opened: 0, no_events: 0, never_started: 0, started_ep1: 0, finished_ep1: 0, watched_ep2: 0, watched_ep3: 0, paywall: 0, checkouts: 0, checkout_cancelled: 0, buyers: 0, revenue_cents: 0, revenue_d0_cents: 0, revenue_d7_cents: 0, robots: 0 });
 function addPath(into: PathCounts, row: PathCounts) {
   for (const k of PATH_KEYS) into[k] += row[k];
 }
@@ -661,7 +664,7 @@ export function dashRows(report: Pick<CdStatsReport, "sources">, r: { from: stri
 const DASH_SCALARS = [
   "opened", "unseen", "no_events", "never_started", "left_waiting", "left_waiting_seconds", "started_ep1", "ep1_25", "ep1_50", "ep1_75",
   "finished_ep1", "watched_ep2", "watched_ep3", "ep1_sound_known", "ep1_sound_on", "paywall", "paywall_watched", "paywall_skipped",
-  "checkouts", "buyers", "revenue_cents", "revenue_d0_cents", "revenue_d7_cents", "returned", "errors", "restarted", "restarted_muted", "blocked", "survey_ep1_shown",
+  "checkouts", "checkout_cancelled", "buyers", "revenue_cents", "revenue_d0_cents", "revenue_d7_cents", "returned", "errors", "restarted", "restarted_muted", "blocked", "survey_ep1_shown",
   "survey_paywall_shown", "robots",
 ] as const satisfies readonly (keyof CdStatsSource)[];
 
@@ -697,6 +700,15 @@ export function sumRows(rows: readonly CdStatsSource[]): DashTotals {
     addInto(t.wait_hist, x.wait_hist);
   }
   return t;
+}
+
+/**
+ * What happened after people tapped a pay button: paid (the buyers), came back from Stripe unpaid, and the rest,
+ * who never came back (left on Stripe's page, or were sent back before it). A buyer whose tap was not recorded
+ * counts as paid, so "never came back" never goes below zero.
+ */
+export function checkoutOutcome(t: { checkouts: number; checkout_cancelled: number; buyers: number }): { tapped: number; paid: number; came_back: number; gone: number } {
+  return { tapped: t.checkouts, paid: t.buyers, came_back: t.checkout_cancelled, gone: Math.max(0, t.checkouts - t.buyers - t.checkout_cancelled) };
 }
 
 export const PATH_STEPS = ["landed", "seen", "played", "ep1_25", "ep1_50", "ep1_75", "finished", "ep2", "ep3", "paywall", "checkout", "paid"] as const;

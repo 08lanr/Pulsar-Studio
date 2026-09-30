@@ -173,6 +173,7 @@ export function fakeStatsReport(series: FakeSeriesIn[], episodes: FakeEpisodeIn[
       const watchedBefore = Math.round(paywall * 0.25);
       const checkouts = Math.round(paywall * 0.3);
       const buyers = Math.round(checkouts * 0.5);
+      const checkoutCancelled = Math.ceil((checkouts - buyers) * 0.4);
       const renewals = r("w") > 0.7 ? 1 : 0;
       const cents = buyers * FIRST_WEEK_CENTS + renewals * VIP_PRICE_CENTS.all_access_weekly;
       const robots = Math.round(opened * (0.1 + 0.3 * r("r")));
@@ -208,6 +209,7 @@ export function fakeStatsReport(series: FakeSeriesIn[], episodes: FakeEpisodeIn[
         paywall_watched: watchedBefore,
         paywall_skipped: paywall - watchedBefore,
         checkouts,
+        checkout_cancelled: checkoutCancelled,
         buyers,
         revenue_cents: cents,
         returned: Math.round(started * 0.12),
@@ -256,7 +258,7 @@ export function fakeStatsReport(series: FakeSeriesIn[], episodes: FakeEpisodeIn[
           watched_ep2: q(epsWatched[1] ?? 0), watched_ep3: q(epsWatched[2] ?? 0),
           ep1_sound_known: q(soundKnown), ep1_sound_on: q(Math.round(soundKnown * 0.8)),
           paywall: q(paywall), paywall_watched: q(watchedBefore), paywall_skipped: q(paywall - watchedBefore),
-          checkouts: q(checkouts), buyers: q(buyers), revenue_cents: q(cents),
+          checkouts: q(checkouts), checkout_cancelled: q(checkoutCancelled), buyers: q(buyers), revenue_cents: q(cents),
           revenue_d0_cents: q(Math.round(cents * 0.55)), revenue_d7_cents: q(Math.round(cents * 0.85)),
           returned: q(Math.round(started * 0.12)), errors: q(Math.round(opened * 0.01)),
           restarted: recent ? ep1(0.1) : 0, restarted_muted: recent ? ep1(0.08) : 0, blocked: recent ? ep1(0.05) : 0,

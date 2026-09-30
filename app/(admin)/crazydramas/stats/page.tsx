@@ -54,6 +54,7 @@ import {
   DASH_TABS,
   dailyTotals,
   dashBy,
+  checkoutOutcome,
   dashPath,
   dashRows,
   dayIn,
@@ -347,7 +348,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
     const perFirstBefore = paysBefore && spendBefore !== null && firstFromAds(paysBefore) > 0 ? Math.round(spendBefore / firstFromAds(paysBefore)) : null;
     const firstDays = chartPays ? spendDays.map((d) => new Set(chartPays.filter((p) => p.day === d.day && p.first && !p.refunded).map((p) => p.person)).size) : null;
 
-    const steps = dashPath(totals).filter((s) => ["seen", "played", "finished", "ep2", "paywall", "paid"].includes(s.key));
+    const steps = dashPath(totals).filter((s) => ["seen", "played", "finished", "ep2", "paywall", "checkout", "paid"].includes(s.key));
     const out = notCounted(report, span);
     const noSpend = !!(filter.device || filter.country);
     return (
@@ -430,6 +431,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
             <a href={hrefWith({ tab: "series" })}>{tt("cdo.bySeries")} →</a>
           </div>
           <FunnelChart steps={steps} drop={biggestDrop(steps)} locale={locale} />
+          <CheckoutLine totals={totals} />
         </section>
         <WhyTheyStop totals={totals} />
 
@@ -718,6 +720,18 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
 
   // The player's two one-tap questions (pausing episode 1; closing the unlock screen), scoped like
   // every other number by the filter row: the answer to "why did they leave" beside where they left.
+  /** What happened after tapping pay: paid, came back unpaid, never came back. Nothing when nobody tapped. */
+  function CheckoutLine({ totals: x }: { totals: typeof totals }) {
+    const o = checkoutOutcome(x);
+    if (!o.tapped) return null;
+    return (
+      <p className="cdx-note">
+        {tt("cdx.checkout.outcome", { n: n0(o.tapped), paid: n0(o.paid), back: n0(o.came_back), gone: n0(o.gone) })}{" "}
+        <Info text={tt("cdx.checkout.outcomeInfo")} label={tt("cdx.about", { what: tt("cdx.checkout.outcomeName") })} />
+      </p>
+    );
+  }
+
   function WhyTheyStop({ totals: x, title }: { totals: typeof totals; title?: string }) {
     return (
       <section className="rs-panel cdx-card">
@@ -760,6 +774,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
                 <h2>{tt("cdv.funnel")}</h2>
               </div>
               <SeriesFunnelList steps={fun.steps} paywallToPaid={fun.paywall_to_paid} revenuePerBuyer={fun.revenue_per_buyer_cents} locale={locale} />
+              <CheckoutLine totals={sumRows(dashRows(report, span, { ...filter, series: shown.drama_id }))} />
             </section>
           </div>
         ) : null}
@@ -778,6 +793,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
                   <th scope="col" className="gt-num">{tt("cdx.kpi.started")}</th>
                   <th scope="col" className="gt-num">{tt("cdx.kpi.finished")}</th>
                   <th scope="col" className="gt-num">{tt("cdx.col.paywall")}</th>
+                  <th scope="col" className="gt-num">{tt("cdx.col.checkout")}</th>
                   <th scope="col" className="gt-num">{tt("cdx.kpi.buyers")}</th>
                   <th scope="col" className="gt-num">{tt("cdx.kpi.revenue")}</th>
                   {coinSpend && (
@@ -805,6 +821,9 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
                       {rate(x.started_ep1)}
                       {rate(x.finished_ep1)}
                       {rate(x.paywall)}
+                      <td className="gt-num" title={tt("cdx.checkout.outcome", { n: n0(x.checkouts), paid: n0(x.buyers), back: n0(x.checkout_cancelled), gone: n0(checkoutOutcome(x).gone) })}>
+                        {n0(x.checkouts)}
+                      </td>
                       <td className="gt-num">{n0(x.buyers)}</td>
                       <td className="gt-num">{fmtUsdCents(x.revenue_cents)}</td>
                       {coinSpend && <td className="gt-num">{fmtUsdCents(coinSpend.get(g.key)?.cents ?? 0)}</td>}

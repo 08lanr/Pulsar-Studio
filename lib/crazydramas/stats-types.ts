@@ -57,6 +57,8 @@ export const CdStatsCohortSchema = z.object({
   paywall_watched: count,
   paywall_skipped: count,
   checkouts: count,
+  /** Of checkouts, came back from Stripe unpaid (crazydramas since 2026-09-30; 0 in an older report). */
+  checkout_cancelled: later,
   buyers: count,
   revenue_cents: count,
   returned: later,
@@ -178,6 +180,8 @@ export const CdStatsSourceSchema = z.object({
   paywall_watched: later,
   paywall_skipped: later,
   checkouts: count,
+  /** Of checkouts, came back from Stripe unpaid (crazydramas since 2026-09-30; 0 in an older report). */
+  checkout_cancelled: later,
   buyers: count,
   revenue_cents: count,
   /** Of revenue_cents, what came in by the end of the people's first day, and within 7 days (since 2026-09-28). */

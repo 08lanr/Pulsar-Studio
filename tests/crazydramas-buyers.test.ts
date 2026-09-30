@@ -243,6 +243,8 @@ test("the fixture's two campaigns: TikTok says and we saw, reasons, clips reused
   assert.equal(a.spend_cents, 1818);
   assert.equal(a.tiktok, 5);
   assert.deepEqual([a.ours.people, a.ours.purchases], [3, 4]);
+  // Our own checkout counts ride along, campaign and ads alike: the ads add up to the campaign.
+  for (const k of ["checkouts", "checkout_cancelled", "buyers"] as const) assert.equal(a.ads.reduce((n, x) => n + x[k], 0), a[k], k);
   assert.deepEqual(a.reasons.map((r) => r.code), ["tiktok_higher", "untagged"]);
   assert.equal(b.spend_cents, 1133);
   assert.equal(b.tiktok, null);
