@@ -4890,7 +4890,7 @@
   "cdx.col.sound": "开着声音",
   "cdx.col.restarts": "重新播放",
   "cdx.leftOut": "不计入：{robots} 个机器人 · {unseen} 个从未显示的页面 · {browsed} 个只在推荐流看到",
-  "cdx.leftOutInfo": "机器人：爬虫和 TikTok 检查广告链接。从未显示：TikTok 在后台加载页面，或页面一秒内消失。只在推荐流：在推荐流看到剧集但从未打开。",
+  "cdx.leftOutInfo": "机器人：爬虫、TikTok 检查广告链接，以及新剧上线几小时内通过直链打开每一集的抓取程序（每集一个浏览器，从不播放）。从未显示：TikTok 在后台加载页面，或页面一秒内消失。只在推荐流：在推荐流看到剧集但从未打开。",
   "cdx.team": "团队账号（{n}）",
   "cdx.updated": "更新于 {time}",
   "cdx.testData": "测试数据",

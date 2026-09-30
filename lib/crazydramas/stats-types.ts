@@ -343,7 +343,12 @@ export const CdStatsReportSchema = z.object({
   from: day,
   to: day,
   ep1_step_s: z.number().int().positive(),
-  robots: z.object({ people: count, crawler_ua: count, burst: count, end_jump: count, link_check: later }),
+  /**
+   * Robot browsers over the rows read, by the first rule that names each (crazydramas' docs/STUDIO_API.md "Robot").
+   * return_link (2026-09-29) and link_scan (2026-09-30: a scraper opening every episode of a new series by direct
+   * link, one browser each) read as zero in a report from before them.
+   */
+  robots: z.object({ people: count, crawler_ua: count, burst: count, end_jump: count, link_check: later, return_link: later, link_scan: later }),
   /** Upper edges (seconds) of every timing histogram; the last bin is open. */
   timing_edges_s: z.array(z.number().positive()).default([1, 2, 3, 5, 8, 13, 20, 30, 60]),
   /** The team's own browsers and live payments, left out of everything else. */

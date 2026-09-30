@@ -4890,7 +4890,7 @@
   "cdx.col.sound": "Sound on",
   "cdx.col.restarts": "Restarts",
   "cdx.leftOut": "Left out: {robots} robots · {unseen} pages never seen · {browsed} feed only",
-  "cdx.leftOutInfo": "Robots: crawlers and TikTok checking the ad link. Never seen: TikTok loaded the page out of sight, or it vanished within a second. Feed only: saw a series in the feed but never opened it.",
+  "cdx.leftOutInfo": "Robots: crawlers, TikTok checking the ad link, and a scraper that opens every episode of a new series by direct link within hours of it going live (one browser per episode, never plays). Never seen: TikTok loaded the page out of sight, or it vanished within a second. Feed only: saw a series in the feed but never opened it.",
   "cdx.team": "Team accounts ({n})",
   "cdx.updated": "Updated {time}",
   "cdx.testData": "Test data",
