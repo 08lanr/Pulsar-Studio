@@ -143,7 +143,7 @@ test("an imported film not on crazydramas offers Upload to CrazyDramas on its Im
   await expect(f.locator('input[name="title"]')).toHaveValue(film.title);
   await expect(f.locator('select[name="language"]')).toHaveValue("en");
   await expect(f.locator('input[name="free_episode_count"]')).toHaveValue("5");
-  await expect(f.locator('input[name="series_price"]')).toHaveValue("9.99");
+  await expect(f.locator('input[name="series_price"]')).toHaveValue("0.99");
   await expect(f.locator('input[name="iap_product_id"]')).toHaveValue(film.iap);
   // The tagline, description and genres are drafted from the transcript as the form opens (fixture mode: the canned draft).
   await expect(f.locator("[data-series-text]")).toContainText("Demo mode: a sample draft");
