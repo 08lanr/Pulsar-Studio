@@ -11,8 +11,9 @@
 //                    selected ad account.
 //   Paste an id    — the box that used to be the only way in.
 //
-// Nothing in here shows a raw id first: every entry carries `label`
-// (title · hook) with the id beneath it in small text.
+// Clip rows lead with the hook, with series and metadata beneath it. Search
+// and series filters only change the visible rows, never the selection.
+// Post selections retain their reference beneath the label.
 //
 // A TikTok launch (decision 2026-09-25) has two tabs instead:
 //
@@ -81,6 +82,22 @@ export default function ContentPicker({ clipsBase, pagePostsUrl, producerId, pro
   }, [tiktokPostsUrl, producerId, onTikTokPosts]);
   useEffect(() => { if (tiktok && ttAccount && !ttPosts && !ttBusy && !ttError) void loadTikTokPosts(ttAccount); }, [tiktok, ttAccount, ttPosts, ttBusy, ttError, loadTikTokPosts]);
   const [clips, setClips] = useState<PickerClip[]>(library);
+  const [search, setSearch] = useState("");
+  const [series, setSeries] = useState("");
+  const [sort, setSort] = useState("newest");
+  const seriesOptions = useMemo(() => Array.from(new Map(clips.map((clip) => [clip.title_id ?? clip.title_name, clip.title_name])))
+    .sort((a, b) => a[1].localeCompare(b[1], locale)), [clips, locale]);
+  const visibleClips = useMemo(() => {
+    const words = search.trim().toLocaleLowerCase(locale).split(/\s+/).filter(Boolean);
+    return clips.filter((clip) => {
+      const text = [clip.title_name, clip.label, clip.text, clip.headline, clip.external_id, clip.episode_label].filter(Boolean).join(" ").toLocaleLowerCase(locale);
+      return (!series || (clip.title_id ?? clip.title_name) === series) && words.every((word) => text.includes(word));
+    }).sort((a, b) => {
+      if (sort === "series") return a.title_name.localeCompare(b.title_name, locale);
+      const time = (clip: PickerClip) => clip.rendered_at ? Date.parse(clip.rendered_at) || 0 : 0;
+      return sort === "oldest" ? time(a) - time(b) : time(b) - time(a);
+    });
+  }, [clips, search, series, sort, locale]);
   const [pageAccount, setPageAccount] = useState(accountIds[0] ?? connections[0]?.id ?? "");
   const [pagePosts, setPagePosts] = useState<MetaPagePostList | null>(null);
   const [pageBusy, setPageBusy] = useState(false);
@@ -187,15 +204,48 @@ export default function ContentPicker({ clipsBase, pagePostsUrl, producerId, pro
   const postable = (clip: PickerClip, platform: ClipPostPlatform) =>
     metaConnections.filter((c) => c.page_id && (platform === "facebook" || c.instagram_id));
 
+  function clipName(clip: PickerClip) {
+    return <span className="content-pick-name">
+      <strong>{clip.label ?? clip.text ?? clip.value}</strong>
+      <small>{clip.title_name}</small>
+      <span className="content-pick-meta">
+        {clip.ad_format && <span className="pill pill-neutral">{tt(`adFormat.${clip.ad_format}`)}</span>}
+        {clip.montage ? <span>{tt("montage.pill")}</span> : !clip.uploaded && clip.episode_label ? <span>{tt("lpt.episode", { n: clip.episode_label })}</span> : null}
+        {clip.duration_ms != null && <span>{Math.floor(clip.duration_ms / 60000)}:{String(Math.floor(clip.duration_ms / 1000) % 60).padStart(2, "0")}</span>}
+        <time dateTime={clip.rendered_at ?? undefined}>{madeAt(clip.rendered_at, locale)}</time>
+      </span>
+    </span>;
+  }
+
   return createPortal(<div className="launch-dialog-backdrop launch-confirm-backdrop content-picker-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <div className="launch-dialog launch-confirm-dialog content-picker" style={{ width: "min(980px, 100%)", maxWidth: 980 }} role="dialog" aria-modal="true" aria-labelledby="content-picker-title">
-      <h2 id="content-picker-title">{tt("contentPicker.title")}</h2>
+      <div className="content-picker-header"><h2 id="content-picker-title">{tt("contentPicker.title")}</h2>
+        <button type="button" className="btn btn-ghost btn-sm" aria-label={tt("contentPicker.close")} onClick={onClose}>×</button>
+      </div>
       <div className="seg content-picker-tabs" role="tablist">
         {((tiktok ? ["clips", "account"] : ["clips", "page", "paste"]) as Tab[]).map((value) => <button type="button" role="tab" aria-selected={tab === value} key={value}
           className={`seg-btn${tab === value ? " on" : ""}`} onClick={() => setTab(value)}>{value === "account"
             ? (ttPosts?.account ? tt("ltc.tabAccount", { handle: ttPosts.account.handle }) : tt("ltc.tabAccountUnknown"))
             : tt(`contentPicker.tab.${value}`)}</button>)}
       </div>
+
+      {tab === "clips" && <div className="content-picker-tools">
+        <div className="content-picker-filters">
+          <label className="content-picker-search">{tt("contentPicker.search")}
+            <input className="input" type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={tt("contentPicker.searchPlaceholder")} />
+          </label>
+          <label>{tt("contentPicker.series")}<select className="select" value={series} onChange={(event) => setSeries(event.target.value)}>
+            <option value="">{tt("contentPicker.allSeries")}</option>
+            {seriesOptions.map(([id, name]) => <option value={id} key={id}>{name}</option>)}
+          </select></label>
+          <label>{tt("contentPicker.sort")}<select className="select" value={sort} onChange={(event) => setSort(event.target.value)}>
+            {["newest", "oldest", "series"].map((value) => <option key={value} value={value}>{tt(`contentPicker.sort.${value}`)}</option>)}
+          </select></label>
+        </div>
+        <div className="content-picker-results"><span role="status">{tt("contentPicker.results", { n: visibleClips.length, total: clips.length })}</span>
+          {(search || series) && <button className="btn btn-ghost btn-sm" type="button" onClick={() => { setSearch(""); setSeries(""); }}>{tt("contentPicker.clearFilters")}</button>}
+        </div>
+      </div>}
 
       {tiktok && tab === "clips" && <div className="content-picker-body">
         {/* What happens to a clip, before anyone adds one: it is uploaded and
@@ -205,14 +255,15 @@ export default function ContentPicker({ clipsBase, pagePostsUrl, producerId, pro
           : tt("ltc.clipsRunAsLinked")}</p>
         {ttPosts && !ttPosts.account && ttPosts.notes.length > 0 && <p className="note note-warn" role="alert">{ttPosts.notes.join(" · ")}</p>}
         {!clips.length && <p className="hint">{tt("contentPicker.clipsEmpty")}</p>}
-        {clips.map((clip) => {
+        {!!clips.length && !visibleClips.length && <p className="hint">{tt("contentPicker.noMatches")}</p>}
+        {visibleClips.map((clip) => {
           const entry = tiktokClipEntry(clip);
           const chosen = has(entry);
-          return <div className="content-pick-row" key={clip.id} data-clip-id={clip.id}>
+          return <div className={`content-pick-row${chosen ? " is-chosen" : ""}`} key={clip.id} data-clip-id={clip.id}>
             <span className="clips-poster">{clip.media_url ? <video src={clip.media_url} poster={clip.thumbnail_url ?? undefined} preload="metadata" playsInline muted /> : <span className="gt-muted">—</span>}</span>
-            <span className="content-pick-name"><strong>{clip.title_name}</strong><small>{clip.montage ? `${tt("montage.pill")} · ` : clip.episode_label ? `${tt("lpt.episode", { n: clip.episode_label })} · ` : ""}{clip.label ?? clip.value}</small><small className="content-pick-made"><time dateTime={clip.rendered_at ?? undefined}>{madeAt(clip.rendered_at, locale)}</time></small></span>
+            {clipName(clip)}
             <span className="content-pick-actions">
-              <button type="button" className={`btn btn-sm ${chosen ? "btn-primary" : "btn-outline"}`} onClick={() => (chosen ? remove(entry) : add([entry]))}>{chosen ? `✓ ${tt("contentPicker.added")}` : tt("ltc.useClip")}</button>
+              <button type="button" aria-pressed={chosen} className={`btn btn-sm ${chosen ? "btn-primary" : "btn-outline"}`} onClick={() => (chosen ? remove(entry) : add([entry]))}>{chosen ? `✓ ${tt("contentPicker.added")}` : tt("ltc.useClip")}</button>
             </span>
           </div>;
         })}
@@ -243,12 +294,13 @@ export default function ContentPicker({ clipsBase, pagePostsUrl, producerId, pro
 
       {!tiktok && tab === "clips" && <div className="content-picker-body">
         {!clips.length && <p className="hint">{tt("contentPicker.clipsEmpty")}</p>}
-        {clips.map((clip) => {
+        {!!clips.length && !visibleClips.length && <p className="hint">{tt("contentPicker.noMatches")}</p>}
+        {visibleClips.map((clip) => {
           const entries = entriesFor(clip);
           const chosen = entries.length > 0 && entries.every(has);
-          return <div className="content-pick-row" key={clip.id} data-clip-id={clip.id}>
+          return <div className={`content-pick-row${chosen || has(fileEntry(clip)) ? " is-chosen" : ""}`} key={clip.id} data-clip-id={clip.id}>
             <span className="clips-poster">{clip.media_url ? <video src={clip.media_url} poster={clip.thumbnail_url ?? undefined} preload="metadata" playsInline muted /> : <span className="gt-muted">—</span>}</span>
-            <span className="content-pick-name"><strong>{clip.title_name}</strong><small>{clip.montage ? `${tt("montage.pill")} · ` : ""}{clip.label ?? clip.value}</small><small className="content-pick-made"><time dateTime={clip.rendered_at ?? undefined}>{madeAt(clip.rendered_at, locale)}</time></small></span>
+            {clipName(clip)}
             {PLATFORMS.map((platform) => <span className="content-pick-state" key={platform}>
               <small>{platformWord(platform)}</small>{clipState(clip, platform)}
             </span>)}
@@ -317,16 +369,20 @@ export default function ContentPicker({ clipsBase, pagePostsUrl, producerId, pro
         </div>
       </div>}
 
-      <section className="content-picker-chosen">
-        <h3>{tt("contentPicker.selected")} <span className="pd-count">{chosenHere.length}</span></h3>
-        {!chosenHere.length && <p className="hint">{tt("contentPicker.chosen", { n: 0 })}</p>}
+      <footer className="content-picker-footer">
+        <div className="content-picker-summary"><strong>{tt("contentPicker.chosen", { n: chosenHere.length })}</strong>
+          <button type="button" className="btn btn-primary" onClick={onClose}>{tt("contentPicker.done")}</button>
+        </div>
+      {!!chosenHere.length && <section className="content-picker-chosen" aria-label={tt("contentPicker.selected")}>
         {chosenHere.map((item) => <div className="content-chosen-row" key={`${item.kind}:${item.value}`} data-content-id={item.value}>
-          <span className="content-pick-name"><strong>{contentLabel(item)}</strong><small>{item.value}</small></span>
+          <span className="content-pick-name" title={contentLabel(item)}>
+            <strong>{item.kind === "video" ? clips.find((clip) => clip.value === item.value)?.label ?? contentLabel(item) : contentLabel(item)}</strong>
+            {item.kind !== "video" && <small>{item.value}</small>}
+          </span>
           <button type="button" className="btn btn-outline btn-sm" onClick={() => remove(item)}>{tt("contentPicker.remove")}</button>
         </div>)}
-      </section>
-
-      <div className="rs-tool-row"><button type="button" className="btn btn-primary" onClick={onClose}>{tt("contentPicker.done")}</button></div>
+      </section>}
+      </footer>
     </div>
 
     {opening && <PostClipDialog base={clipsBase} clip={{ id: opening.clip.id, label: opening.clip.label, title_name: opening.clip.title_name, episode_label: opening.clip.episode_label }}

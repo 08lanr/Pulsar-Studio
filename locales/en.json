@@ -5435,5 +5435,17 @@
   "mad.videoHint": "At 2 s / At 6 s: of the plays, the share still watching after 2 and 6 seconds. Avg play: seconds per play. Read with the ad's numbers; — until the Monitor reads them again.",
   "cdcoin.value.legacy": "This report uses the old coin valuation. Coin-attributed revenue, return on ad spend and unspent coin value may not reflect what viewers paid. Refresh after CrazyDramas updates its report. Cash totals in Money still use actual payments.",
   "cdcoin.value.incomplete": "Some paid coins have no recoverable purchase cost. Their dollars are excluded, so coin-attributed revenue, return on ad spend and unspent value are incomplete. This warning covers the whole report, including historical activity. Cash totals in Money still use actual payments.",
-  "cdvip.cancellingSub": "{n} set to cancel"
+  "cdvip.cancellingSub": "{n} set to cancel",
+  "contentPicker.close": "Close",
+  "contentPicker.search": "Search clips",
+  "contentPicker.searchPlaceholder": "Search by series or hook…",
+  "contentPicker.series": "Series",
+  "contentPicker.allSeries": "All series",
+  "contentPicker.sort": "Sort by",
+  "contentPicker.sort.newest": "Newest first",
+  "contentPicker.sort.oldest": "Oldest first",
+  "contentPicker.sort.series": "Series name",
+  "contentPicker.results": "{n} of {total} clips",
+  "contentPicker.clearFilters": "Clear filters",
+  "contentPicker.noMatches": "No clips match. Try another search or clear the filters."
 }

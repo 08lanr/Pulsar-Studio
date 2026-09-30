@@ -5435,5 +5435,17 @@
   "mad.videoHint": "2 秒 / 6 秒：播放中 2 秒和 6 秒后仍在观看的比例。平均播放：每次播放的秒数。与广告数据一同读取；Monitor 再次读取前显示 —。",
   "cdcoin.value.legacy": "此报表使用旧版金币估值。金币归因收入、广告回报率和未消费金币金额可能不等于观众实际支付的金额。CrazyDramas 更新报表后请刷新。资金页的现金总额仍按实际支付统计。",
   "cdcoin.value.incomplete": "部分付费金币无法追溯购买金额，其金额未计入，因此金币归因收入、广告回报率和未消费金币金额不完整。此提示适用于整个报表，包括历史记录。资金页的现金总额仍按实际支付统计。",
-  "cdvip.cancellingSub": "{n} 个已设为取消"
+  "cdvip.cancellingSub": "{n} 个已设为取消",
+  "contentPicker.close": "关闭",
+  "contentPicker.search": "搜索片段",
+  "contentPicker.searchPlaceholder": "搜索剧集或钩子文案…",
+  "contentPicker.series": "剧集",
+  "contentPicker.allSeries": "全部剧集",
+  "contentPicker.sort": "排序",
+  "contentPicker.sort.newest": "最新在前",
+  "contentPicker.sort.oldest": "最早在前",
+  "contentPicker.sort.series": "剧集名称",
+  "contentPicker.results": "显示 {n} / {total} 个片段",
+  "contentPicker.clearFilters": "清除筛选",
+  "contentPicker.noMatches": "没有匹配的片段。试试其他关键词，或清除筛选。"
 }
