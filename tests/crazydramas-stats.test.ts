@@ -621,6 +621,10 @@ test("pages nobody saw, robots and browsing over a period, and a report from bef
   assert.deepEqual(notCounted(r, rangeDays(r, "today")), { unseen: 7, robots: 4, browsed: 0 });
   const old = report();
   assert.equal(old.robots.link_check, 0);
+  assert.equal(old.robots.return_link, 0);
+  assert.equal(old.robots.link_scan, 0);
+  const now = CdStatsReportSchema.parse({ ...JSON.parse(JSON.stringify(report())), robots: { people: 250, crawler_ua: 0, burst: 0, end_jump: 3, link_check: 0, return_link: 2, link_scan: 245 } });
+  assert.deepEqual([now.robots.return_link, now.robots.link_scan], [2, 245], "kept, not dropped");
   assert.deepEqual(old.timing_edges_s, [1, 2, 3, 5, 8, 13, 20, 30, 60]);
   assert.deepEqual(old.sources[0].load_hist, []);
   assert.equal(old.sources[0].unseen, 0);
@@ -632,6 +636,8 @@ test("the fake report carries every newer number, so fixture mode shows the whol
   assert.ok(t.unseen > 0 && t.ep1_25 > 0 && t.restarted > 0);
   assert.ok(t.load_hist.reduce((a, b) => a + b, 0) > 0 && t.start_hist.length === 10);
   assert.ok(f.robots.link_check >= 0 && f.days.some((d) => d.unseen > 0));
+  const { people, ...byRule } = f.robots;
+  assert.equal(Object.values(byRule).reduce((a, b) => a + b, 0), people, "every robot under one rule");
 });
 
 // ---- the dashboard, second cut (2026-09-25): tabs, numbers against the period before -----------------------------

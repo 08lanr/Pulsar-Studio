@@ -318,7 +318,7 @@ export function fakeStatsReport(series: FakeSeriesIn[], episodes: FakeEpisodeIn[
     from,
     to,
     ep1_step_s: STEP,
-    robots: { people: robots, crawler_ua: Math.round(robots * 0.06), burst: Math.round(robots * 0.72), end_jump: Math.round(robots * 0.1), link_check: robots - Math.round(robots * 0.06) - Math.round(robots * 0.72) - Math.round(robots * 0.1) },
+    robots: { people: robots, crawler_ua: Math.round(robots * 0.04), burst: Math.round(robots * 0.12), end_jump: Math.round(robots * 0.1), link_check: Math.round(robots * 0.06), return_link: Math.round(robots * 0.02), link_scan: robots - Math.round(robots * 0.04) - Math.round(robots * 0.12) - Math.round(robots * 0.1) - Math.round(robots * 0.06) - Math.round(robots * 0.02) },
     timing_edges_s: [1, 2, 3, 5, 8, 13, 20, 30, 60],
     team: { people: teamEmails * 2, payments: teamEmails, revenue_cents: teamEmails * 99 },
     days,
