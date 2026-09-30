@@ -54,8 +54,9 @@ export function defaultLaunchDraft(provider: LaunchProvider = "tiktok"): LaunchD
   const daily = tiktok && tiktok.budget_mode === "BUDGET_MODE_DAY" ? Math.round((tiktok.daily_budget_usd ?? 20) * 100) : null;
   return { provider, name: "Launch", account_ids: [], campaigns_per_account: 1, content_per_campaign: provider === "tiktok" ? 5 : 1,
     allocation: "unique", content: [], destination_url: "", total_budget_cents: tiktok ? 5000 : 50000,
-    daily_budget_cents: daily, start_paused: true, campid_start: null, title_id: null,
-    tiktok_settings: { ...(tiktok ?? defaultLaunchSettings()), start_paused: true },
+    // Live on launch, not paused (Ruobin, 2026-09-29); the checkbox and the settings still set a paused start.
+    daily_budget_cents: daily, start_paused: false, campid_start: null, title_id: null,
+    tiktok_settings: { ...(tiktok ?? defaultLaunchSettings()), start_paused: false },
     meta_settings: { countries: ["US"], placements: ["facebook"], objective: "OUTCOME_TRAFFIC", optimization_goal: "LINK_CLICKS",
       conversion_event: null, pixel_id: null,
       bid_strategy: "LOWEST_COST_WITHOUT_CAP", bid_cents: null, call_to_action: "LEARN_MORE",

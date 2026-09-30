@@ -33,6 +33,10 @@ Ruobin, 2026-09-28, shown a table of lifetime TikTok numbers per ad creative fro
 
 Fixture mode: the fake TikTok answers the video metrics, the `ad_ids` filter, `query_lifetime` and pages; the stats page adds an invented earlier launch (`fakeStatsArchive`: four more clips, one of each ad type, a weak hook and one too new to judge) and invented video numbers for all the invented ads (`fakeAdVideo`), never stored. Live check 2026-09-28 against the collector: the four clips compared (Dragon hook v2 `228d5a2c`, `f0f98b15`, `6e290cbd`, Flirt v4 `509149a1`) match within rounding. Checks: `tests/ad-video-stats.test.ts`, `tests/e2e/ad-video-stats.spec.ts`.
 
+## 2026-09-29 · TikTok launches: live and comments on by default; ages stay 18+
+
+Ruobin, 2026-09-29: "can we change the default to live, all ages (including 13-17) and enabling organic comments / comments? … in the launch". A new launch draft (`lib/launch/plan.ts` defaultLaunchDraft) now starts **live** (`start_paused: false`; the "Start paused" checkbox and the settings' launch state still pause it), and both TikTok shapes (Website purchases and the Instant Page) default to **comments on** (`comments_disabled: false`, so no `comment_disabled` is sent). **Ages stay 18+**: crazydramas' Terms say "You must be at least 18 years old to use the Service" and its privacy policy that it is not directed to anyone under 18, the site sells auto-renewing subscriptions, and TikTok restricts ads aimed at 13-17; told so, pending his call. A saved preset still applies its own settings. Checks: tests/tiktok-pixel-launch.test.ts, tests/tiktok-spark-provider.test.ts.
+
 ## 2026-09-29 · VIP: subscribers set to cancel
 
 Ruobin, 2026-09-29, after the first $0.99 VIP week sold: "in studio do we have any way to see if they cancel?" … "just record it when it cancels in the VIP tab". A cancel in Stripe leaves the VIP on until its paid time ends, so the VIP tab's "Ended" only saw it a week later. crazydramas now records it when Stripe says so (`customer.subscription.updated` → `raw.cancelling` on the subscription's ledger rows, cleared if they resume) and the report's `vip[]` rows carry `cancelling`.

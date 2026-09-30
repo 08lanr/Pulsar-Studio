@@ -156,7 +156,7 @@ export function webEventLabel(event: string | null | undefined): string {
  * InitiateCheckout event, counted once per person (far more frequent than a
  * purchase, so the group learns on a small budget; Purchase stays selectable),
  * a lifetime budget (the amount stays on the launch draft, $50 by default),
- * ages 18+ (only adults can pay), every device.
+ * ages 18+ (only adults can pay; crazydramas' Terms require 18), every device, comments on (Ruobin, 2026-09-29).
  */
 export function defaultWebsitePurchaseSettings(): LaunchSettings {
   return {
@@ -173,7 +173,7 @@ export function defaultWebsitePurchaseSettings(): LaunchSettings {
     bid_strategy: "LOWEST_COST",
     bid_usd: null,
     pacing: "PACING_MODE_SMOOTH",
-    comments_disabled: true,
+    comments_disabled: false,
     budget_mode: "BUDGET_MODE_TOTAL",
     daily_budget_usd: null,
   };
@@ -196,7 +196,7 @@ export function defaultSalesLaunchSettings(): LaunchSettings {
     bid_strategy: "COST_CAP",
     bid_usd: 0.20,
     pacing: "PACING_MODE_SMOOTH",
-    comments_disabled: true,
+    comments_disabled: false,
     budget_mode: "BUDGET_MODE_DAY",
     daily_budget_usd: 20,
     instant_page_template: {

@@ -104,7 +104,7 @@ test("Sales saves and publishes one Instant Page before creating ads, then reuse
   assert.equal(groupWrite.budget, 20);
   assert.deepEqual(groupWrite.location_ids, ["6252001"]);
   assert.deepEqual(groupWrite.placements, ["PLACEMENT_TIKTOK"]);
-  assert.equal(groupWrite.comment_disabled, true);
+  assert.equal(groupWrite.comment_disabled, undefined, "comments on by default (2026-09-29): nothing sent, TikTok's default is on");
   assert.equal(first.ads.length, 1);
   assert.equal(first.ads[0].body.page_id, page.id);
   assert.equal(first.ads[0].body.landing_page_url, undefined);

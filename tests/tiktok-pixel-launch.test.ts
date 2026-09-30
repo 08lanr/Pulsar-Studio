@@ -175,7 +175,10 @@ test("validation keeps the shapes apart: a website launch takes no Instant Page,
 test("a new TikTok draft is Website purchases on InitiateCheckout, $50 lifetime, with no title chosen yet", () => {
   const draft = defaultLaunchDraft("tiktok");
   assert.equal(launchShape(draft.tiktok_settings), "website_purchases");
-  assert.deepEqual(draft.tiktok_settings, { ...defaultTikTokLaunchSettings(), start_paused: true });
+  assert.deepEqual(draft.tiktok_settings, { ...defaultTikTokLaunchSettings(), start_paused: false }, "live, comments on, 18+ (2026-09-29)");
+  assert.equal(draft.start_paused, false);
+  assert.equal(draft.tiktok_settings.comments_disabled, false);
+  assert.ok(!draft.tiktok_settings.age_groups.includes("AGE_13_17"), "18+: crazydramas' Terms require 18");
   assert.equal(draft.total_budget_cents, 5000);
   assert.equal(draft.daily_budget_cents, null);
   assert.equal(draft.title_id, null);
