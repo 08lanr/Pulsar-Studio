@@ -213,6 +213,10 @@ export type CompareAd = {
   started_ep1: number;
   finished_ep1: number;
   watched_ep2: number;
+  /** The ad's people who tapped pay, of them who came back from Stripe unpaid, and who paid (the source rows' own counts). */
+  checkouts: number;
+  checkout_cancelled: number;
+  buyers: number;
   cost_per_finisher_cents: number | null;
   /** What the ad's people paid by the end of their first day, and within 7 days (series and coin money where it was spent). */
   revenue_d0_cents: number;
@@ -237,6 +241,10 @@ export type CompareCampaign = {
   clicks: number | null;
   opened: number;
   finished_ep1: number;
+  /** As the ads': tapped pay, came back unpaid, paid. */
+  checkouts: number;
+  checkout_cancelled: number;
+  buyers: number;
   revenue_d0_cents: number;
   revenue_d7_cents: number;
   tiktok: number | null;
@@ -278,6 +286,9 @@ export function compareCampaigns(
         started_ep1: a.started_ep1,
         finished_ep1: a.finished_ep1,
         watched_ep2: a.watched_ep2,
+        checkouts: a.checkouts,
+        checkout_cancelled: a.checkout_cancelled,
+        buyers: a.buyers,
         cost_per_finisher_cents: a.cost_per_finisher_cents,
         revenue_d0_cents: a.revenue_d0_cents,
         revenue_d7_cents: a.revenue_d7_cents,
@@ -300,6 +311,9 @@ export function compareCampaigns(
       clicks: r.clicks,
       opened: r.opened,
       finished_ep1: r.finished_ep1,
+      checkouts: r.checkouts,
+      checkout_cancelled: r.checkout_cancelled,
+      buyers: r.buyers,
       revenue_d0_cents: r.revenue_d0_cents,
       revenue_d7_cents: r.revenue_d7_cents,
       tiktok,

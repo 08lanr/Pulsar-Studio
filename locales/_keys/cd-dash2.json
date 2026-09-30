@@ -104,7 +104,7 @@
   "cdx.pay.saw": {"en": "Saw it", "zh": "看到"},
   "cdx.pay.watched": {"en": "after watching the episode before", "zh": "看完前一集后"},
   "cdx.pay.skipped": {"en": "after swiping past free episodes", "zh": "划过免费集后"},
-  "cdx.pay.tapped": {"en": "Tapped Unlock", "zh": "点了解锁"},
+  "cdx.pay.tapped": {"en": "Tapped pay", "zh": "点击支付"},
   "cdx.pay.paid": {"en": "Paid", "zh": "付费"},
   "cdx.robots": {"en": "{n} robot visits left out.", "zh": "已剔除 {n} 次机器人访问。"}
 }

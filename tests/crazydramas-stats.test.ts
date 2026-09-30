@@ -14,7 +14,7 @@ import { STATS_CACHE_MS, clearCdStatsCache, readCrazydramasStats } from "@/lib/c
 import { rm } from "node:fs/promises";
 import path from "node:path";
 import {
-  adOutcomes, adSpendsFromRuns, adTable, audience, binLabels, byDevice, byPlace, CAMPAIGN_SORTS, countryName, regionName, campaignTable, dashBy, dashPath, dashRows, dayIn, deliveryIn,
+  adOutcomes, adSpendsFromRuns, checkoutOutcome, adTable, audience, binLabels, byDevice, byPlace, CAMPAIGN_SORTS, countryName, regionName, campaignTable, dashBy, dashPath, dashRows, dayIn, deliveryIn,
   sortCampaigns, ep1Curve, episodeBars, fmtClock, fmtShare, histSummary, NO_FILTER, notCounted, parseDashFilter, parseStatsRange, PATH_STEPS, rangeDays,
   seriesTotals, sourceKey, sourceOptions, sumRows, type AdPeriod,
   biggestDrop, change, chartSpan, dailyTotals, kpiValue, MIN_COMPARE, parseDashTab, parseKpiMetric, prevSpan,
@@ -777,3 +777,28 @@ test("a report from before the playback report reads as empty, and the fake carr
   assert.ok(f.drops.length > 0 && f.drops.every((d) => d.code.length === 6));
 });
 
+
+// ---- after tapping pay (2026-09-30): came back unpaid, never came back -------------------------------------------
+
+test("after tapping pay: paid, came back unpaid, and the rest never came back, never below zero", () => {
+  assert.deepEqual(checkoutOutcome({ checkouts: 26, buyers: 2, checkout_cancelled: 9 }), { tapped: 26, paid: 2, came_back: 9, gone: 15 });
+  assert.deepEqual(checkoutOutcome({ checkouts: 1, buyers: 2, checkout_cancelled: 0 }), { tapped: 1, paid: 2, came_back: 0, gone: 0 }, "a buyer whose tap was lost");
+});
+
+test("checkouts and who came back unpaid add up across source rows and reach the funnel; an older report reads them as zero", () => {
+  const f = fakeStatsReport([{ id: "d1", slug: "one", title: "One", status: "published", free_episode_count: 5 }], [], new Date("2026-09-25T20:00:00Z"));
+  const span = rangeDays(f, "7d");
+  const rows = dashRows(f, span, NO_FILTER);
+  const t = sumRows(rows);
+  assert.equal(t.checkout_cancelled, rows.reduce((a, r) => a + r.checkout_cancelled, 0));
+  assert.ok(t.checkout_cancelled <= t.checkouts);
+  // The fixture fills it, so fixture mode shows the line (its cohorts are not split by source, so not rounded away).
+  assert.ok(f.series[0].cohorts.some((c) => c.checkout_cancelled > 0 && c.checkout_cancelled <= c.checkouts - c.buyers));
+  assert.equal(dashPath(t).find((s) => s.key === "checkout")?.people, t.checkouts);
+  const old = JSON.parse(JSON.stringify(f));
+  for (const r of old.sources) delete r.checkout_cancelled;
+  for (const s of old.series) for (const c of s.cohorts) delete c.checkout_cancelled;
+  const parsed = CdStatsReportSchema.parse(old);
+  assert.equal(sumRows(dashRows(parsed, span, NO_FILTER)).checkout_cancelled, 0);
+  assert.equal(parsed.series[0].cohorts[0].checkout_cancelled, 0);
+});

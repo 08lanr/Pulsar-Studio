@@ -21,7 +21,7 @@
   "cdd.path.ep2": {"en": "Watched episode 2", "zh": "看了第 2 集"},
   "cdd.path.ep3": {"en": "Watched episode 3", "zh": "看了第 3 集"},
   "cdd.path.paywall": {"en": "Saw the unlock screen", "zh": "看到解锁页"},
-  "cdd.path.checkout": {"en": "Tapped Unlock", "zh": "点了解锁"},
+  "cdd.path.checkout": {"en": "Tapped pay", "zh": "点击支付"},
   "cdd.path.paid": {"en": "Paid", "zh": "付费"},
   "cdd.path.colShare": {"en": "of seen", "zh": "占看到者"},
   "cdd.path.colPrev": {"en": "went on", "zh": "继续"},

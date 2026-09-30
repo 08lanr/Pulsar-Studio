@@ -1,0 +1,10 @@
+{
+  "cdx.checkout.outcome": {"en": "Of {n} who tapped pay: {paid} paid · {back} came back unpaid · {gone} never came back", "zh": "点击支付的 {n} 人中：{paid} 人已付款 · {back} 人未付款返回 · {gone} 人没有返回"},
+  "cdx.checkout.outcomeInfo": {"en": "Tapped pay: pressed a pay button (unlock sheet, store or a pop-up). Came back unpaid: returned from Stripe's page without paying. Never came back: left on Stripe's page, or were sent back before reaching it. Came back unpaid is recorded since Sep 30.", "zh": "点击支付：按下了支付按钮（解锁弹窗、商店或弹出窗口）。未付款返回：从 Stripe 页面返回但没有付款。没有返回：在 Stripe 页面离开，或在到达前被退回。未付款返回自 9 月 30 日起记录。"},
+  "cdx.checkout.outcomeName": {"en": "after tapping pay", "zh": "点击支付之后"},
+  "cdx.pay.back": {"en": "came back unpaid", "zh": "未付款返回"},
+  "cdx.pay.gone": {"en": "never came back", "zh": "没有返回"},
+  "cdx.col.checkout": {"en": "Tapped pay", "zh": "点击支付"},
+  "cdc.col.checkouts": {"en": "Tapped pay", "zh": "点击支付"},
+  "cdc.col.checkoutsInfo": {"en": "People from this campaign or ad who pressed a pay button on crazydramas (our count, not TikTok's).", "zh": "来自该广告系列或广告、在 crazydramas 上按下支付按钮的人数（我们的统计，不是 TikTok 的）。"}
+}

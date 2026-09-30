@@ -19,6 +19,7 @@ import {
   campaignTable,
   chartSpan,
   dailyTotals,
+  checkoutOutcome,
   dashPath,
   dashRows,
   ep1Curve,
@@ -177,6 +178,8 @@ export default async function CrazydramasSeriesStatsPage({ params, searchParams 
       { key: "watched", n: totals.paywall_watched },
       { key: "skipped", n: totals.paywall_skipped },
       { key: "tapped", n: totals.checkouts },
+      { key: "back", n: totals.checkout_cancelled },
+      { key: "gone", n: checkoutOutcome(totals).gone },
       { key: "paid", n: totals.buyers },
     ];
     return (
@@ -197,7 +200,7 @@ export default async function CrazydramasSeriesStatsPage({ params, searchParams 
               </div>
               <ul className="cdx-list">
                 {rows.map((r) => (
-                  <li key={r.key} className={r.key === "watched" || r.key === "skipped" ? "cdx-list-sub" : undefined}>
+                  <li key={r.key} className={["watched", "skipped", "back", "gone"].includes(r.key) ? "cdx-list-sub" : undefined}>
                     <span>{t(locale, `cdx.pay.${r.key}`)}</span>
                     <strong>{n0(r.n)}</strong>
                   </li>

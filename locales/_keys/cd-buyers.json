@@ -131,7 +131,7 @@
   "cdv.step.started": {"en": "Started ep 1", "zh": "开始第 1 集"},
   "cdv.step.finished": {"en": "Finished ep 1", "zh": "看完第 1 集"},
   "cdv.step.paywall": {"en": "Reached the paywall", "zh": "到达付费墙"},
-  "cdv.step.checkout": {"en": "Went to checkout", "zh": "进入结账"},
+  "cdv.step.checkout": {"en": "Tapped pay", "zh": "点击支付"},
   "cdv.step.paid": {"en": "Paid", "zh": "付费"},
   "cdv.paywallToPaid": {"en": "Paywall → paid", "zh": "付费墙 → 付费"},
   "cdv.perBuyer": {"en": "Revenue per buyer", "zh": "每位付费用户收入"},
