@@ -19,6 +19,7 @@
   "cdx.info.revenue": {"en": "Revenue credited to these viewers: series purchases, VIP sold by the series, and the original purchase cost allocated to paid coins spent on its episodes. Coin packs are not counted again.", "zh": "归属于这些观众的收入：整剧购买、从本剧开通的 VIP，以及按原购买金额分摊至本剧所消费付费金币的金额。金币包不重复计入。"},
   "cdx.ofVisitors": {"en": "{share} of visitors", "zh": "占访客 {share}"},
   "cdx.vs.today": {"en": "vs yesterday", "zh": "对比昨天"},
+  "cdx.vs.yesterday": {"en": "vs the day before", "zh": "对比前一天"},
   "cdx.vs.7d": {"en": "vs the 7 days before", "zh": "对比前 7 天"},
   "cdx.vs.30d": {"en": "vs the 30 days before", "zh": "对比前 30 天"},
   "cdx.chart": {"en": "{metric} per day", "zh": "每天{metric}"},

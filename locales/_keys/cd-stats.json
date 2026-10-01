@@ -3,6 +3,7 @@
   "cds.title": {"en": "CrazyDramas stats", "zh": "CrazyDramas 数据"},
   "cds.range.label": {"en": "Period", "zh": "时间范围"},
   "cds.range.today": {"en": "Today", "zh": "今天"},
+  "cds.range.yesterday": {"en": "Yesterday", "zh": "昨天"},
   "cds.range.7d": {"en": "7 days", "zh": "7 天"},
   "cds.range.30d": {"en": "30 days", "zh": "30 天"},
   "cds.range.all": {"en": "All", "zh": "全部"},

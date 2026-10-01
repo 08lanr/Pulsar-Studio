@@ -175,6 +175,14 @@ test("a period ends today and never starts before the report", () => {
   assert.equal(parseStatsRange("forever"), "7d");
 });
 
+test("yesterday is the whole day before today, compared with the day before it, charted over 14 days", () => {
+  const r = report();
+  assert.equal(parseStatsRange("yesterday"), "yesterday");
+  assert.deepEqual(rangeDays(r, "yesterday"), { from: "2026-09-23", to: "2026-09-23" });
+  assert.deepEqual(prevSpan(r, "yesterday"), { from: "2026-09-22", to: "2026-09-22" });
+  assert.deepEqual(chartSpan(r, "yesterday"), { from: "2026-09-10", to: "2026-09-23" });
+});
+
 test("the audience never adds people across days: the week and month are crazydramas' own counts", () => {
   const a = audience(report(), "7d");
   assert.equal(a.today?.watchers, 20);
@@ -402,13 +410,18 @@ const tiktokDays = (over: Partial<{ from: string; campaigns: string[] }> = {}) =
 
 test("a period: the people who first opened a series in it, and what TikTok charged on those days", () => {
   const r = report();
-  const at = (range: "today" | "7d" | "30d", days: AdPeriod["days"] = tiktokDays()) =>
+  const at = (range: "today" | "yesterday" | "7d" | "30d", days: AdPeriod["days"] = tiktokDays()) =>
     campaignTable(r, adSpendsFromRuns(launchRuns()), undefined, { ...rangeDays(r, range), timezone: r.timezone, days });
   const today = at("today");
   assert.deepEqual(today.map((g) => g.key), ["campaign:c1", "stored_copy", "no_ad"]);
   assert.deepEqual(today[0].ads.map((a) => [a.ad, a.opened, a.spend_cents, a.clicks]), [["111", 80, 300, 40]], "an ad that neither spent nor brought anybody today is not a row");
   assert.equal(today[0].cost_per_finisher_cents, 19, "300¢ over 16 finishers");
   assert.equal(today[1].opened, 12);
+  // Yesterday: TikTok's 23rd only (500¢), and only the people who first came that day.
+  const yesterday = at("yesterday");
+  assert.deepEqual(yesterday[0].ads.map((a) => [a.ad, a.spend_cents, a.clicks]), [["111", 500, 60]]);
+  assert.equal(yesterday[0].spend_cents, 500);
+  assert.equal(yesterday[0].opened, r.sources.filter((x) => x.day === "2026-09-23" && x.ad === "111").reduce((n, x) => n + x.opened, 0));
   const week = at("7d");
   assert.deepEqual(week[0].ads.map((a) => [a.ad, a.opened, a.spend_cents]), [["111", 80, 800]]);
   const month = at("30d");

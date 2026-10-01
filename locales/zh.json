@@ -5472,5 +5472,7 @@
   "tka.byId": "受众 ID",
   "tka.addTarget": "加入只投放",
   "tka.addExclude": "加入排除",
-  "tka.idHint": "受众管理中 ID 一列的数字。"
+  "tka.idHint": "受众管理中 ID 一列的数字。",
+  "cdx.vs.yesterday": "对比前一天",
+  "cds.range.yesterday": "昨天"
 }

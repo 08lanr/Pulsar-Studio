@@ -8,6 +8,10 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-10-01 · Stats: a Yesterday period
+
+Ruobin, 2026-10-01: "the campaigns page is not showing stats from today, make sure thats not broken. can you also add a tab for yesterday?" Checked live the same afternoon: Campaigns on Today showed each campaign's spend and clicks for the day, matching Ads Manager. One known gap stays: TikTok's days are the ad account's UTC−8, an hour behind Pacific summer time, so from midnight to 1 am Pacific Today shows no spend yet. The period row is now Today · **Yesterday** · 7 days · 30 days · All on both stats pages (`STATS_RANGES`): Yesterday is the one day before crazydramas' today (`rangeDays`), compared with the day before it (`prevSpan`, "vs the day before"), charted over the 14 days ending on it (`chartSpan`, `adSpans`), and every tab reads it the way it reads Today. Tests: `tests/crazydramas-stats.test.ts`, `tests/ad-video-stats.test.ts`.
+
 ## 2026-10-01 · TikTok launches target custom audiences
 
 Ruobin, 2026-10-01, building TikTok retargeting for crazydramas: "allow me to target them in pulsar studio so i can launch myself". The audiences are made in Ads Manager (Tools → Audience Manager → Custom audience → Website traffic, on the crazydramas pixel): `RT Buyers 180d` (Purchase), `RT Viewers 7d no buy` (ViewContent, excluding Purchase and Subscribe 180d), `RT Checkout 14d no buy` (InitiateCheckout until crazydramas' new AddToCart has data). Studio reads them and puts them on the ad groups; it never creates or changes an audience.

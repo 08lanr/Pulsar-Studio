@@ -14,7 +14,8 @@ import type { LaunchProvider, LaunchRun } from "@/lib/launch/types";
 import type { AdDay } from "@/lib/tiktok/ad-stats";
 import { CdStatsPlaybackSchema, type CdStatsCohort, type CdStatsDay, type CdStatsDrop, type CdStatsPlayback, type CdStatsReport, type CdStatsSeries, type CdStatsSource } from "./stats-types";
 
-export const STATS_RANGES = ["today", "7d", "30d", "all"] as const;
+/** Yesterday (2026-10-01, Ruobin): the whole day before today, the one finished day to judge a campaign by. */
+export const STATS_RANGES = ["today", "yesterday", "7d", "30d", "all"] as const;
 export type StatsRange = (typeof STATS_RANGES)[number];
 
 export function parseStatsRange(raw: unknown): StatsRange {
@@ -39,11 +40,19 @@ export function firstActiveDay(report: Pick<CdStatsReport, "days" | "series">): 
   return first;
 }
 
+/** A range of one day: today, or yesterday. */
+export const oneDay = (range: StatsRange) => range === "today" || range === "yesterday";
+
 /**
- * The inclusive days a range covers, ending on the report's last day (today, in the report's time zone).
- * "All" starts on the first day anything happened, not on the report's first (empty) day.
+ * The inclusive days a range covers, ending on the report's last day (today, in the report's time zone);
+ * yesterday is the one day before it. "All" starts on the first day anything happened, not on the report's
+ * first (empty) day.
  */
 export function rangeDays(report: Pick<CdStatsReport, "from" | "to"> & Partial<Pick<CdStatsReport, "days" | "series">>, range: StatsRange): { from: string; to: string } {
+  if (range === "yesterday") {
+    const day = addDays(report.to, -1);
+    return { from: day, to: day };
+  }
   const span = range === "today" ? 1 : range === "7d" ? 7 : range === "30d" ? 30 : null;
   const active = span === null && report.days && report.series ? firstActiveDay({ days: report.days, series: report.series }) : null;
   const from = span === null ? (active ?? report.from) : addDays(report.to, -(span - 1));
@@ -914,10 +923,10 @@ export function change(now: number, before: number | null): number | null {
   return before === null || before < MIN_COMPARE ? null : (now - before) / before;
 }
 
-/** The days a per-day chart shows: the range, or the last 14 days when the range is one day. */
+/** The days a per-day chart shows: the range, or the last 14 days (ending on that day) when the range is one day. */
 export function chartSpan(report: Pick<CdStatsReport, "from" | "to"> & Partial<Pick<CdStatsReport, "days" | "series">>, range: StatsRange): { from: string; to: string } {
   const r = rangeDays(report, range);
-  if (range !== "today") return r;
+  if (!oneDay(range)) return r;
   const from = addDays(r.to, -13);
   return { from: from < report.from ? report.from : from, to: r.to };
 }

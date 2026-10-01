@@ -19,7 +19,7 @@ import type { AdFormat } from "@/lib/ad-formats";
 import type { ContentKind } from "@/lib/launch/types";
 import type { AdVideoNumbers } from "@/lib/tiktok/ad-stats";
 import type { AdCreative } from "./stats-ads";
-import type { StatsRange } from "./stats-summary";
+import { oneDay, type StatsRange } from "./stats-summary";
 
 /** Under this many impressions a creative is early: shown, never benchmarked or marked. */
 export const EARLY_IMPRESSIONS = 500;
@@ -194,9 +194,9 @@ export function addDays(day: string, n: number): string {
 }
 
 /**
- * The Ads tab's days for a range ending `today`: the period (none for "all": each ad's life), the period before
- * of the same length (for the change), and the days the small lines show (the last 14 for today, the last 30 for
- * all). `read` is the one span of days to ask TikTok for, covering all three.
+ * The Ads tab's days for a range ending `today` (yesterday: the day before it): the period (none for "all": each
+ * ad's life), the period before of the same length (for the change), and the days the small lines show (the last
+ * 14 for one day, the last 30 for all). `read` is the one span of days to ask TikTok for, covering all three.
  */
 export function adSpans(range: StatsRange, today: string): {
   span: { from: string; to: string } | null;
@@ -204,10 +204,11 @@ export function adSpans(range: StatsRange, today: string): {
   chart: { from: string; to: string };
   read: { from: string; to: string };
 } {
-  const len = range === "today" ? 1 : range === "7d" ? 7 : range === "30d" ? 30 : null;
-  const span = len === null ? null : { from: addDays(today, -(len - 1)), to: today };
+  const len = oneDay(range) ? 1 : range === "7d" ? 7 : range === "30d" ? 30 : null;
+  const end = range === "yesterday" ? addDays(today, -1) : today;
+  const span = len === null ? null : { from: addDays(end, -(len - 1)), to: end };
   const prev = len === null || !span ? null : { from: addDays(span.from, -len), to: addDays(span.from, -1) };
-  const chart = range === "today" ? { from: addDays(today, -13), to: today } : span ?? { from: addDays(today, -29), to: today };
+  const chart = oneDay(range) ? { from: addDays(end, -13), to: end } : span ?? { from: addDays(today, -29), to: today };
   const from = [chart.from, span?.from, prev?.from].filter((x): x is string => !!x).sort()[0];
   return { span, prev, chart, read: { from, to: today } };
 }

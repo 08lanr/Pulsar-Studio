@@ -5472,5 +5472,7 @@
   "tka.byId": "Audience ID",
   "tka.addTarget": "Reach only",
   "tka.addExclude": "Leave out",
-  "tka.idHint": "The number in Audience Manager's ID column."
+  "tka.idHint": "The number in Audience Manager's ID column.",
+  "cdx.vs.yesterday": "vs the day before",
+  "cds.range.yesterday": "Yesterday"
 }

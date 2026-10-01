@@ -651,7 +651,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
     const endedBefore = prev ? vipEnded(report, prev) : null;
     const introRate = per.intros_due ? per.intros_renewed / per.intros_due : null;
     const introRateBefore = perBefore?.intros_due ? perBefore.intros_renewed / perBefore.intros_due : null;
-    const weeks = vipWeeks(report, chartSpan(report, range === "today" || range === "7d" ? "30d" : range));
+    const weeks = vipWeeks(report, chartSpan(report, range === "today" || range === "yesterday" || range === "7d" ? "30d" : range));
     const series: StackSeries[] = [
       { key: "new_intro", label: tt("cdvip.s.intro", { price }), colour: 5 },
       { key: "new_full", label: tt("cdvip.s.full"), colour: 3 },

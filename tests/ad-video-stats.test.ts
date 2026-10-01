@@ -240,6 +240,7 @@ test("the benchmark is the median of creatives with 500+ impressions; only clear
 test("the Ads tab's days: the period, the one before, the small line's days, and one span to read", () => {
   assert.deepEqual(adSpans("7d", "2026-09-28"), { span: { from: "2026-09-22", to: "2026-09-28" }, prev: { from: "2026-09-15", to: "2026-09-21" }, chart: { from: "2026-09-22", to: "2026-09-28" }, read: { from: "2026-09-15", to: "2026-09-28" } });
   assert.deepEqual(adSpans("today", "2026-09-28"), { span: { from: "2026-09-28", to: "2026-09-28" }, prev: { from: "2026-09-27", to: "2026-09-27" }, chart: { from: "2026-09-15", to: "2026-09-28" }, read: { from: "2026-09-15", to: "2026-09-28" } });
+  assert.deepEqual(adSpans("yesterday", "2026-09-28"), { span: { from: "2026-09-27", to: "2026-09-27" }, prev: { from: "2026-09-26", to: "2026-09-26" }, chart: { from: "2026-09-14", to: "2026-09-27" }, read: { from: "2026-09-14", to: "2026-09-28" } });
   assert.equal(adSpans("30d", "2026-09-28").read.from, "2026-07-31", "60 days: two requests");
   assert.deepEqual(adSpans("all", "2026-09-28"), { span: null, prev: null, chart: { from: "2026-08-30", to: "2026-09-28" }, read: { from: "2026-08-30", to: "2026-09-28" } });
   const days = { a: [{ day: "2026-09-27", ...numbers(100, 1, 0, 50, 20, 10, 5, 1, 100) }], b: [{ day: "2026-09-27", ...numbers(300, 9, 1, 150, 30, 20, 10, 2, 600) }] };
