@@ -55,6 +55,13 @@ const attributionSchema = z.object({
 });
 export type Attribution = z.infer<typeof attributionSchema>;
 
+/** A TikTok custom audience (Ads Manager → Audience Manager), named as TikTok names it, so the approver reads which. */
+export const audienceRefSchema = z.object({
+  id: z.string().regex(/^\d{6,24}$/, "A TikTok audience id is the number in Audience Manager's ID column"),
+  name: z.string().trim().max(128).nullable(),
+});
+export type AudienceRef = z.infer<typeof audienceRefSchema>;
+
 export const launchSettingsSchema = z.object({
   /** Absent on old saved rows: preserve their Traffic/Clicks behavior. */
   objective_type: z.enum(["TRAFFIC", "WEB_CONVERSIONS"]).optional(),
@@ -88,6 +95,15 @@ export const launchSettingsSchema = z.object({
   gender: z.enum(values(GENDER_OPTIONS)),
   languages: z.array(z.string().trim().regex(/^[a-z]{2,3}(-[A-Za-z]{2,4})?$/, "language code")).max(20),
   operating_systems: z.array(z.enum(values(OS_OPTIONS))).max(1, "Pick one operating system, or none for all"),
+  /**
+   * Custom audiences (2026-10-01, retargeting): `include` narrows every ad group to people in any of them,
+   * `exclude` keeps people in any of them out (buyers). Absent on old rows and when neither is used, so their
+   * snapshots read as before.
+   */
+  audiences: z.object({
+    include: z.array(audienceRefSchema).max(50),
+    exclude: z.array(audienceRefSchema).max(50),
+  }).optional(),
   placement: z.enum(["tiktok", "automatic"]),
   // budget shape and schedule
   budget_mode: z.enum(values(BUDGET_MODE_OPTIONS)),
@@ -243,7 +259,7 @@ export function normalizeLaunchSettings(raw: unknown): LaunchSettings {
     if (v !== undefined) merged[key] = v;
   }
   const source = raw as Record<string, unknown>;
-  for (const key of ["objective_type", "instant_page_template", "sales_destination", "optimization_event", "attribution", "pixel_code"] as const) {
+  for (const key of ["objective_type", "instant_page_template", "sales_destination", "optimization_event", "attribution", "pixel_code", "audiences"] as const) {
     if (source[key] !== undefined) merged[key] = source[key];
   }
   const parsed = launchSettingsSchema.safeParse(merged);
@@ -278,6 +294,12 @@ export function validateLaunchSettings(input: LaunchSettings, budgetUsd: number)
       delete s.sales_destination;
       if (s.optimization_goal === "CONVERT" || s.instant_page_template) throw new LaunchSettingsError("Instant Page conversion settings require the Sales objective.");
     }
+  }
+  if (s.audiences) {
+    const included = new Set(s.audiences.include.map((a) => a.id));
+    const both = s.audiences.exclude.find((a) => included.has(a.id));
+    if (both) throw new LaunchSettingsError(`The audience ${both.name ?? both.id} is both targeted and excluded; keep it on one side.`);
+    if (!s.audiences.include.length && !s.audiences.exclude.length) delete s.audiences;
   }
   const groups = s.duplicate_copies + 1;
   if (s.budget_mode === "BUDGET_MODE_TOTAL") {
@@ -373,6 +395,10 @@ export function targetingFields(s: LaunchSettings): Record<string, unknown> {
     ...(s.gender !== "GENDER_UNLIMITED" ? { gender: s.gender } : {}),
     ...(s.languages.length ? { languages: s.languages } : {}),
     ...(s.operating_systems.length ? { operating_systems: s.operating_systems } : {}),
+    // Custom audiences: TikTok's own audience_ids / excluded_audience_ids (lists of id strings). Smart audience
+    // (smart_audience_enabled) is not sent, so it stays off and the ad groups reach only the audiences named.
+    ...(s.audiences?.include.length ? { audience_ids: s.audiences.include.map((a) => a.id) } : {}),
+    ...(s.audiences?.exclude.length ? { excluded_audience_ids: s.audiences.exclude.map((a) => a.id) } : {}),
   };
 }
 
@@ -439,6 +465,8 @@ export function summarizeLaunchSettings(s: LaunchSettings, locationNames: Record
     // Shown always (2026-09-26): the Sep 26 launch went out iPhone-only while this line said nothing about devices.
     !s.operating_systems.length ? "all devices" : s.operating_systems[0] === "IOS" ? "iPhone only" : "Android only",
     s.placement === "tiktok" ? "TikTok only" : "automatic placement",
+    s.audiences?.include.length ? `audiences: ${audienceNames(s.audiences.include)}` : null,
+    s.audiences?.exclude.length ? `excluding ${audienceNames(s.audiences.exclude)}` : null,
     s.budget_mode === "BUDGET_MODE_TOTAL" ? "lifetime budget" : `$${s.daily_budget_usd ?? "?"}/day per ad group`,
     shape === "website_purchases" ? `optimizes for ${webEventLabel(s.optimization_event)} (pixel)` : shape === "instant_page" ? "Instant Page button taps (oCPM)" : goalOption(s.optimization_goal).label,
     shape === "website_purchases" ? attributionLabel(attributionOf(s)) : null,
@@ -448,6 +476,11 @@ export function summarizeLaunchSettings(s: LaunchSettings, locationNames: Record
     s.start_paused ? "starts paused" : "live on approval",
   ];
   return parts.filter((p): p is string => !!p);
+}
+
+/** "Paywall 14d, no buy, Viewers 7d" — an audience without a known name reads as its id. */
+export function audienceNames(list: readonly AudienceRef[]): string {
+  return list.map((a) => a.name || `audience ${a.id}`).join(", ");
 }
 
 const WINDOW_WORDS: Record<string, string> = { OFF: "off", ONE_DAY: "1-day", SEVEN_DAYS: "7-day", FOURTEEN_DAYS: "14-day", TWENTY_EIGHT_DAYS: "28-day" };

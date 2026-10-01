@@ -10,6 +10,11 @@
 //   the link     the draft carries exactly crazydramasAdUrl(slug), and each ad
 //                its own title's (a launch may promote several titles; a
 //                Sales Instant Page, with one button, promotes one)
+//   audiences    custom audiences (2026-10-01) belong to one ad account, so a
+//                launch that names any runs on one account, and every id it
+//                names is on that account's list when TikTok lets Studio read
+//                it (lib/tiktok/audiences.ts); a refused read is not a block:
+//                TikTok refuses an unknown id when the ad group is created
 //   the pixel    Website purchases only: the signed pixel code is the current
 //                TIKTOK_PIXEL_CODE and resolves, read-only, on every chosen
 //                ad account (lib/tiktok/pixel.ts); while TikTok refuses the
@@ -26,9 +31,10 @@ import { checkCrazydramasTitle, loadCrazydramasStatus, loadCrazydramasStatuses, 
 import { crazydramasAdUrl, crazydramasAdUrlFor, crazydramasSlugProblem } from "@/lib/tiktok/ad-url";
 import { accessTokenFor, tiktokTransport } from "@/lib/tiktok";
 import { findLinkedPost, linkedAccountHandle, linkedAccountMissing, linkedNeeds, listLinkedAccounts, pickLinkedAccount, type LinkedAccount } from "@/lib/tiktok/linked-account";
+import { listCustomAudiences } from "@/lib/tiktok/audiences";
 import { tiktokPixelCode } from "@/lib/tiktok/pixel";
 import { probePixel } from "@/lib/tiktok/preflight";
-import { attributionLabel, attributionOf, launchShape, webEventLabel } from "@/lib/tiktok/settings";
+import { attributionLabel, attributionOf, audienceNames, launchShape, webEventLabel } from "@/lib/tiktok/settings";
 import type { Title } from "@/lib/types";
 import type { LaunchConnection, LaunchDraft, LaunchPlan, LaunchPlanRow, LaunchTitleOption } from "./types";
 
@@ -148,6 +154,7 @@ export async function tiktokLaunchGate(s: Session, draft: LaunchDraft, producerI
     if (instantPage && launchTitle && titleId !== launchTitleId) throw invalid(`${ad} promotes ${adTitle.name}, but a Sales Instant Page has one button link, so every ad in this launch must promote ${launchTitle.name}. Set the ad to ${launchTitle.name}, or use Website purchases or Traffic to promote several titles in one launch.`);
   }
   const settings = draft.tiktok_settings;
+  await audienceGate(settings.audiences, own.filter((c) => draft.account_ids.includes(c.id)));
   if (launchShape(settings) !== "website_purchases") return undefined;
   const code = tiktokPixelCode();
   if (settings.pixel_code && settings.pixel_code !== code) throw conflict("The TikTok pixel setting changed since this draft was saved. Save the draft and preview again.");
@@ -161,6 +168,21 @@ export async function tiktokLaunchGate(s: Session, draft: LaunchDraft, producerI
       : { connection_id: connection.id, pixel_id: pixel.pixel_id });
   }
   return { code, event: webEventLabel(settings.optimization_event), attribution: attributionLabel(attributionOf(settings)), accounts };
+}
+
+/** Custom audiences: one ad account, and every named id on its list (when TikTok lets Studio read it). Reads only. */
+export async function audienceGate(audiences: LaunchDraft["tiktok_settings"]["audiences"], accounts: readonly LaunchConnection[]): Promise<void> {
+  const named = [...(audiences?.include ?? []), ...(audiences?.exclude ?? [])];
+  if (!named.length) return;
+  if (accounts.length > 1) throw invalid(`Custom audiences belong to one ad account, and this launch runs on ${accounts.length}. Choose one ad account, or clear the audiences (${audienceNames(named)}).`);
+  const connection = accounts[0];
+  if (!connection) return;
+  const token = accessTokenFor(connection.advertiser_id);
+  if (!token) return;
+  const list = await listCustomAudiences(tiktokTransport(), token, connection.advertiser_id);
+  if (!list.ok) return;
+  const missing = named.filter((a) => !list.audiences.some((x) => x.id === a.id));
+  if (missing.length) throw invalid(`Ad account ${connection.name} has no audience ${audienceNames(missing)} (TikTok lists ${list.audiences.length ? list.audiences.map((a) => a.name).join(", ") : "none"}). Choose the audiences again in Ad group settings.`);
 }
 
 /**

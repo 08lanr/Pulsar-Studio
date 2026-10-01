@@ -16,7 +16,8 @@ export default function LaunchPresetPicker({ onSelect, value }: { onSelect: (set
   const [refreshing, setRefreshing] = useState(false);
   const requestId = useRef(0);
   const [chosen, setChosen] = useState<{ id: string; applied: LaunchSettings } | null>(null);
-  const activePreset = chosen && JSON.stringify(value) === JSON.stringify(chosen.applied) ? chosen.id : builtInPresetOf(value);
+  // A launch's own audiences are not part of a preset (the launch keeps them when a preset is picked).
+  const activePreset = chosen && JSON.stringify({ ...value, audiences: undefined }) === JSON.stringify({ ...chosen.applied, audiences: undefined }) ? chosen.id : builtInPresetOf(value);
   const refresh = useCallback(async () => {
     const id = ++requestId.current;
     setRefreshing(true);

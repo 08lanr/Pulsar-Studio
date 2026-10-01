@@ -7,7 +7,8 @@ export type BuiltInPreset = "__default_website__" | "__default_sales__" | "";
  * purchases default (the TikTok default since 2026-09-23) or the 1 Geo Sales Instant Page default, recognised by the
  * fields each default sets, read from the default itself. Start paused is the launch's own switch and not part of a
  * preset. 2026-10-01: both defaults turned comments on (8746737) while this still asked for comments off, so choosing
- * either one snapped the menu back to "Custom".
+ * either one snapped the menu back to "Custom". Custom audiences (2026-10-01) are the launch's own, like start
+ * paused: never in a preset, and not read here.
  */
 export function builtInPresetOf(value: LaunchSettings): BuiltInPreset {
   const websiteDefault = defaultWebsitePurchaseSettings();
