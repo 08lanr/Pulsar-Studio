@@ -4,7 +4,8 @@ import { useT } from "@/components/locale";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { call } from "@/components/tiktok/api";
-import { attributionOf, defaultSalesLaunchSettings, defaultWebsitePurchaseSettings, launchShape, normalizeLaunchSettings, type LaunchSettings } from "@/lib/tiktok/settings";
+import { defaultSalesLaunchSettings, defaultWebsitePurchaseSettings, normalizeLaunchSettings, type LaunchSettings } from "@/lib/tiktok/settings";
+import { builtInPresetOf } from "@/lib/tiktok/preset-match";
 import type { LaunchPreset } from "@/lib/types";
 
 export default function LaunchPresetPicker({ onSelect, value }: { onSelect: (settings: LaunchSettings) => void; value: LaunchSettings }) {
@@ -15,13 +16,7 @@ export default function LaunchPresetPicker({ onSelect, value }: { onSelect: (set
   const [refreshing, setRefreshing] = useState(false);
   const requestId = useRef(0);
   const [chosen, setChosen] = useState<{ id: string; applied: LaunchSettings } | null>(null);
-  const salesDefault = defaultSalesLaunchSettings();
-  const isBuiltInDefault = launchShape(value) === "instant_page" && value.location_ids.join(",") === salesDefault.location_ids.join(",") && !value.age_groups.length && value.gender === salesDefault.gender && !value.languages.length && !value.operating_systems.length && value.placement === "tiktok" && value.budget_mode === "BUDGET_MODE_DAY" && value.schedule_start === null && value.schedule_end === null && value.duration_days === null && value.duplicate_copies === 0 && value.optimization_goal === "CONVERT" && value.bid_strategy === "COST_CAP" && value.bid_usd === 0.20 && value.pacing === salesDefault.pacing && value.comments_disabled && value.call_to_action === salesDefault.call_to_action;
-  // The Website purchases built-in (the TikTok default since 2026-09-23), recognised by the same fields, each read
-  // from the default itself (2026-09-26: hardcoded ages, budget and event had left the new default reading "Custom").
-  const websiteDefault = defaultWebsitePurchaseSettings();
-  const isWebsiteDefault = launchShape(value) === "website_purchases" && value.location_ids.join(",") === websiteDefault.location_ids.join(",") && value.age_groups.join(",") === websiteDefault.age_groups.join(",") && value.gender === websiteDefault.gender && !value.languages.length && value.operating_systems.join(",") === websiteDefault.operating_systems.join(",") && value.placement === websiteDefault.placement && value.budget_mode === websiteDefault.budget_mode && value.daily_budget_usd === websiteDefault.daily_budget_usd && value.schedule_start === null && value.schedule_end === null && value.duration_days === null && value.duplicate_copies === 0 && value.optimization_event === websiteDefault.optimization_event && value.bid_strategy === websiteDefault.bid_strategy && value.pacing === websiteDefault.pacing && value.comments_disabled && value.call_to_action === websiteDefault.call_to_action && JSON.stringify(attributionOf(value)) === JSON.stringify(attributionOf(websiteDefault));
-  const activePreset = chosen && JSON.stringify(value) === JSON.stringify(chosen.applied) ? chosen.id : isWebsiteDefault ? "__default_website__" : isBuiltInDefault ? "__default_sales__" : "";
+  const activePreset = chosen && JSON.stringify(value) === JSON.stringify(chosen.applied) ? chosen.id : builtInPresetOf(value);
   const refresh = useCallback(async () => {
     const id = ++requestId.current;
     setRefreshing(true);
