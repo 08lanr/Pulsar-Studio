@@ -179,7 +179,10 @@ export type JobKind =
   | "draft_series_text"
   // The 60-second ad (decision 2026-09-24 "The 60-second ad"; migration 0021): one row per build of a title's
   // montage, keyed by the pieces it joins; cost 0 (ffmpeg only, no model call).
-  | "build_montage";
+  | "build_montage"
+  // Quick hook ads (decision 2026-10-01 "Quick hook ads"; migration 0024): one row per build of a title's variants
+  // (a bait × a body × an on-screen text each), cost 0 (ffmpeg only).
+  | "build_quick_hooks";
 export type JobStatus = "queued" | "running" | "done" | "failed" | "cancelled";
 
 /** studio.film_assets.kind: the pipeline files that come with an imported film (migration 0015). */

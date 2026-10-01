@@ -29,6 +29,7 @@ import { ffmpegAvailable } from "@/lib/promote/render";
 import type { Clip, Job, Json, MontagePiece } from "@/lib/types";
 import { montageEpisodesLabel, montageWhy, planMontage, type MontageEpisode, type MontageInput, type MontageOptions, type MontagePlan, type MontageRefusal } from "./montage";
 import { MONTAGE_LUFS, MontageCheckError, renderMontage } from "./montage-render";
+import { isQuickHook } from "./quick-hook";
 import { jobIsRunning } from "./state";
 
 export const MONTAGE_JOB = "build_montage" as const;
@@ -38,18 +39,22 @@ export const MONTAGE_RENDER_FAILED = "The ad could not be joined from its clips.
 export const MONTAGE_STOPPED = "The build stopped before it finished. Press Build again.";
 const HEARTBEAT_MS = 30_000;
 
-/** One check-and-record per title at a time on this server, so two presses at once start one build. */
+/**
+ * One check-and-record per title (and kind of build: `scope`) at a time on this server, so two presses at once start
+ * one build. The quick hook build (lib/clips/quick-hook-run.ts) uses it with its own scope.
+ */
 const locks = globalThis as unknown as { __studioMontageStarts?: Map<string, Promise<unknown>> };
-async function oneStartPerTitle<T>(titleId: string, fn: () => Promise<T>): Promise<T> {
+export async function oneStartPerTitle<T>(titleId: string, fn: () => Promise<T>, scope = "montage"): Promise<T> {
   const starts = (locks.__studioMontageStarts ??= new Map());
-  const before = starts.get(titleId) ?? Promise.resolve();
+  const lock = `${scope}:${titleId}`;
+  const before = starts.get(lock) ?? Promise.resolve();
   const mine = before.then(fn);
   const tail = mine.catch(() => undefined);
-  starts.set(titleId, tail);
+  starts.set(lock, tail);
   try {
     return await mine;
   } finally {
-    if (starts.get(titleId) === tail) starts.delete(titleId);
+    if (starts.get(lock) === tail) starts.delete(lock);
   }
 }
 
@@ -205,7 +210,8 @@ export async function montageStatus(session: Session, titleId: string): Promise<
   const data = getData();
   const clips = await data.listEpisodeClips(session, titleId); // scoping: a foreign title is not found
   const montages = clips
-    .filter((c) => c.moment === "montage" && c.status !== "dismissed" && c.render_status === "rendered")
+    // A quick hook ad is a joined ad too (moment montage) but has its own panel (lib/clips/quick-hook-run.ts).
+    .filter((c) => c.moment === "montage" && !isQuickHook(c) && c.status !== "dismissed" && c.render_status === "rendered")
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
     .map(rowOf);
   const job = await data.latestJobByTarget(systemSession(), "title", titleId, MONTAGE_JOB);

@@ -611,7 +611,7 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
                       {current && <small className="gt-muted">{[titleId === draft.title_id ? tt("lpt.launchTitle") : null, titleStateWord(current.state)].filter(Boolean).join(" · ")}</small>}</label>}
                   {item.kind === "video"
                     ? <label className="launch-ad-cell"><span className="launch-ad-cell-label">{tt("ltc.adText")}</span>
-                      <small className="gt-muted">{studioClip?.montage ? `${tt("montage.pill")} · ` : studioClip?.episode_label ? `${tt("lpt.episode", { n: studioClip.episode_label })} · ` : ""}{studioClip?.label ?? item.label?.split(" · ").pop() ?? ""}</small>
+                      <small className="gt-muted">{studioClip?.montage ? `${studioClip.montage.variant ? tt("quickHook.pillCode", { code: studioClip.montage.variant }) : tt("montage.pill")} · ` : studioClip?.episode_label ? `${tt("lpt.episode", { n: studioClip.episode_label })} · ` : ""}{studioClip?.label ?? item.label?.split(" · ").pop() ?? ""}</small>
                       <input className="input" maxLength={TIKTOK_AD_TEXT_MAX} aria-label={tt("ltc.adTextFor", { n: i + 1 })} value={item.text ?? ""} placeholder={item.headline ?? ""} onChange={(e) => setContentField(item, "text", e.target.value)} />
                       <small className="gt-muted" data-testid="ad-text-count">{tt("ltc.adTextCount", { n: tiktokAdText(item).length, max: TIKTOK_AD_TEXT_MAX })}</small></label>
                     : item.kind === "tiktok_post"
@@ -619,7 +619,7 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
                       : <label className="launch-ad-cell"><span className="launch-ad-cell-label">{tt("lpt.clip")}</span>
                         <select className="select" aria-label={tt("lpt.clipFor", { n: i + 1 })} value={clip ? clip.id : ""} onChange={(e) => setAdClip(item.value, e.target.value)}>
                           <option value="">{tt("lpt.noClip")}</option>
-                          {liveTitles.map((t) => { const own = adClips.filter((c) => c.title_id === t.id); return own.length ? <optgroup key={t.id} label={t.name}>{own.map((c) => <option key={c.id} value={c.id}>{c.montage ? `${tt("montage.pill")} · ` : c.episode_label ? `${tt("lpt.episode", { n: c.episode_label })} · ` : ""}{c.label}</option>)}</optgroup> : null; })}
+                          {liveTitles.map((t) => { const own = adClips.filter((c) => c.title_id === t.id); return own.length ? <optgroup key={t.id} label={t.name}>{own.map((c) => <option key={c.id} value={c.id}>{c.montage ? `${c.montage.variant ? tt("quickHook.pillCode", { code: c.montage.variant }) : tt("montage.pill")} · ` : c.episode_label ? `${tt("lpt.episode", { n: c.episode_label })} · ` : ""}{c.label}</option>)}</optgroup> : null; })}
                         </select>
                         {mismatch && <small className="launch-ad-mismatch" role="alert">{tt("lpt.mismatch", { clip: clip!.title_name, title: current?.name ?? "—" })}</small>}</label>}
                   <span className="launch-ad-cell"><span className="launch-ad-cell-label">{tt("lpt.link")}</span>

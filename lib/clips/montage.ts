@@ -108,8 +108,8 @@ type Window = { clip: MontageClip; episode: MontageEpisode; start: number; end: 
 const STORY = 1e9; // episode number × this + ms: story order across episodes
 const storyOf = (w: { episode: MontageEpisode }, ms: number) => w.episode.number * STORY + ms;
 
-/** The part of a clip an ad may use, or why none: `held` = past the spoiler line or inside an exclusion. */
-function usableWindow(clip: MontageClip, episode: MontageEpisode, rules: AdRules | null, lastEpisode: number, o: MontageOptions): { start: number; end: number } | "held" | null {
+/** The part of a clip an ad may use, or why none: `held` = past the spoiler line or inside an exclusion (the quick hook pick, lib/clips/quick-hook.ts, asks the same). */
+export function usableWindow(clip: MontageClip, episode: MontageEpisode, rules: AdRules | null, lastEpisode: number, o: MontageOptions): { start: number; end: number } | "held" | null {
   let start = Math.max(0, clip.start_ms);
   let end = clip.end_ms;
   if (episode.duration_ms && episode.duration_ms > 0) end = Math.min(end, episode.duration_ms);

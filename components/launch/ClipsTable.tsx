@@ -19,13 +19,17 @@ import UploadAds from "@/components/launch/UploadAds";
 import { madeAt, postOn, publishedOn, shortDate } from "@/components/launch/clip-state";
 import type { ClipLibraryRow, ClipPost, ClipPostPlatform } from "@/lib/launch/clip-posts";
 import type { MontageStatus } from "@/lib/clips/montage-run";
+import type { QuickHookStatus } from "@/lib/clips/quick-hook-run";
+import QuickHooks from "@/components/launch/QuickHooks";
 import type { LaunchConnection, LaunchTitleOption, LaunchWorkspace } from "@/lib/launch/types";
-import { AD_FORMATS, isAdFormat, type AdFormat } from "@/lib/ad-formats";
+import { AD_FORMAT_CHOICES, AD_FORMATS, isAdFormat, type AdFormat } from "@/lib/ad-formats";
 import { fmtPct, type ClipSummary } from "@/lib/crazydramas/stats-creatives";
 
 /** On one title's page: its 60-second ad panel (components/launch/AdMontage.tsx) above the table, which reloads when an ad lands. */
 type MontagePanel = { canBuild: boolean; initial: MontageStatus | null };
-type Props = { staff?: boolean; titleId?: string; montage?: MontagePanel };
+/** And its quick hook ads (components/launch/QuickHooks.tsx, decision 2026-10-01). */
+type QuickHookPanel = { canBuild: boolean; initial: QuickHookStatus | null };
+type Props = { staff?: boolean; titleId?: string; montage?: MontagePanel; quickHooks?: QuickHookPanel };
 type PostedFilter = "any" | "not_posted" | "posted" | "failed";
 type Opening = { clip: ClipLibraryRow; platform: ClipPostPlatform };
 
@@ -41,7 +45,7 @@ const duration = (ms: number | null) => {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 };
 
-export default function ClipsTable({ staff = false, titleId, montage }: Props) {
+export default function ClipsTable({ staff = false, titleId, montage, quickHooks }: Props) {
   const { tt, locale } = useT();
   const router = useRouter();
   const pathname = usePathname() ?? (staff ? "/clips" : "/producer/clips");
@@ -296,6 +300,7 @@ export default function ClipsTable({ staff = false, titleId, montage }: Props) {
       <div className="rs-tool-row"><Link className="btn btn-primary" href={staff ? "/promote/launches" : "/producer/launch"}>{tt("lv2.launch.title")}</Link></div>
     </div>
     <div className="note"><p>{tt("lv2.clips.steps")}</p></div>
+    {titleId && quickHooks && <div className="card pd-panel ad-montage-card"><QuickHooks titleId={titleId} initial={quickHooks.initial} canBuild={quickHooks.canBuild} staff={staff} onBuilt={() => void load()} /></div>}
     {titleId && montage && <div className="card pd-panel ad-montage-card"><AdMontage titleId={titleId} initial={montage.initial} canBuild={montage.canBuild} staff={staff} onBuilt={() => void load()} /></div>}
     {canPost && (titleId || titles.length > 0) && <div className="card pd-panel upload-ads-card">
       <h2 className="section-title">{tt("uc.cta")}</h2>
@@ -364,10 +369,10 @@ export default function ClipsTable({ staff = false, titleId, montage }: Props) {
         {showProducer && <span>{row.producer_name}</span>}
         <span><strong>{row.title_name}</strong></span>
         <span>{row.montage ? row.montage.episodes : row.episode_label ?? "—"}</span>
-        <span className="clips-hook">{row.montage && <span className="pill pill-accent clips-montage-pill">{tt("montage.pill")}</span>}{row.uploaded && <span className="pill pill-accent clips-montage-pill">{tt("uc.pill")}</span>}{row.ad_format && <span className="pill pill-neutral clips-montage-pill" title={tt(`adFormat.${row.ad_format}.desc`)}>{tt(`adFormat.${row.ad_format}`)}</span>}{row.text?.trim() ? row.label : <span className="gt-muted" title={row.external_id}>{tt("clipsPosting.noHook")}</span>}
+        <span className="clips-hook">{row.montage && <span className="pill pill-accent clips-montage-pill">{row.montage.variant ? tt("quickHook.pillCode", { code: row.montage.variant }) : tt("montage.pill")}</span>}{row.uploaded && <span className="pill pill-accent clips-montage-pill">{tt("uc.pill")}</span>}{row.ad_format && <span className="pill pill-neutral clips-montage-pill" title={tt(`adFormat.${row.ad_format}.desc`)}>{tt(`adFormat.${row.ad_format}`)}</span>}{row.text?.trim() ? row.label : <span className="gt-muted" title={row.external_id}>{tt("clipsPosting.noHook")}</span>}
           {canDownload && <select className="select clips-format-select" value={row.ad_format ?? ""} disabled={!!busy} aria-label={tt("adFormat.change")} title={tt("adFormat.change")} onChange={(e) => void setFormat(row, e.target.value)}>
             <option value="">{tt("adFormat.none")}</option>
-            {AD_FORMATS.map((f) => <option key={f} value={f}>{tt(`adFormat.${f}`)}</option>)}
+            {AD_FORMATS.filter((f) => f === row.ad_format || AD_FORMAT_CHOICES.includes(f)).map((f) => <option key={f} value={f}>{tt(`adFormat.${f}`)}</option>)}
           </select>}</span>
         <span className="gt-num">{duration(row.duration_ms)}</span>
         <span className="clips-made"><time dateTime={row.rendered_at ?? undefined}>{madeAt(row.rendered_at, locale)}</time></span>

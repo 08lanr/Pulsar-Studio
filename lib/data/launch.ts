@@ -16,6 +16,7 @@ import type { ClipPostPatch, LaunchConnection, LaunchDataLayer, LaunchDraft, Lau
 import type { DataLayer } from "./index";
 import type { Clip } from "@/lib/types";
 import { montageEpisodesLabel } from "@/lib/clips/montage";
+import { isQuickHook, quickHookCode } from "@/lib/clips/quick-hook";
 import { conflict, forbidden, invalid, isDataError, notFound } from "./errors";
 import { mediaUrl } from "./storage";
 
@@ -389,7 +390,7 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
       const name = title.name_en || title.name_zh;
       for (const clip of clips) {
         const saved = dataSource() === "fixture" ? store().sparks[clip.id] : undefined;
-        const montage = clip.moment === "montage" ? { episodes: montageEpisodesLabel(clip.pieces), pieces: clip.pieces?.length ?? 0 } : null;
+        const montage = clip.moment === "montage" ? { episodes: montageEpisodesLabel(clip.pieces), pieces: clip.pieces?.length ?? 0, ...(isQuickHook(clip) ? { variant: quickHookCode(clip.render_path) } : {}) } : null;
         // An uploaded ad carries its own finished file; the episode it is filed
         // under is storage, not meaning, so it is not shown as one.
         const uploaded = clip.source === "upload";

@@ -457,6 +457,10 @@ export type NewMontageClip = {
   width: number;
   height: number;
   render_note?: string | null;
+  /** A quick hook ad (decision 2026-10-01) says so (`quick_hook`); a 60-second ad leaves it unset. */
+  ad_format?: AdFormat | null;
+  /** The text drawn on a quick hook ad's picture. */
+  opening_text_en?: string | null;
 };
 
 /**

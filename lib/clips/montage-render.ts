@@ -9,7 +9,12 @@
 // mobile-feed target the narrated pipeline's gate checks) runs over the
 // joined sound, which fades out over the last half second. Each piece's
 // sound gets a 15 ms fade at both edges so a hard cut does not click.
-// Nothing is drawn on the picture: no text, no poster, no end card.
+// Nothing is drawn on the picture of a 60-second ad: no text, no poster, no
+// end card. A quick hook ad (decision 2026-10-01, lib/clips/quick-hook.ts)
+// is the one exception Ruobin made: its line of text is drawn at the top,
+// one drawtext per line (centred, white with a black edge), from the first
+// frame for `overlay.untilMs`; the words are read from files so nothing a
+// person wrote is ever parsed as filter syntax.
 //
 // The file is checked before it is kept: the frame count must be the plan's
 // (ffprobe counts the packets, as the import does), the size 1080×1920, the
@@ -19,6 +24,7 @@
 // loudness is recorded.
 
 import { createHash, randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -69,8 +75,52 @@ export const seekOf = (frame: number, fps: number) => Math.max(0, (frame - 0.3) 
 
 export type ArgsPiece = Pick<FramedPiece, "start_frame" | "frames"> & { src: string; facts: SourceFacts };
 
+/** The drawn text's size and place on the 1080×1920 picture: below TikTok's top bar, clear of burned subtitles. */
+export const OVERLAY_FONT_SIZE = 68;
+export const OVERLAY_LINE_STEP = 84;
+export const OVERLAY_TOP = 300;
+
+/** Bold fonts tried in order when AD_FONT_PATH is not set (macOS, then Linux); none = fontconfig's bold sans. */
+const FONT_CANDIDATES = [
+  "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+  "/Library/Fonts/Arial Bold.ttf",
+  "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+  "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
+  "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+];
+
+/** drawtext's font option: AD_FONT_PATH, else the first bold font this machine has, else fontconfig. */
+export function overlayFont(exists: (file: string) => boolean = existsSync): string {
+  const file = process.env.AD_FONT_PATH?.trim() || FONT_CANDIDATES.find((f) => exists(f));
+  return file ? `fontfile='${filterPath(file)}'` : "font='Sans\\:bold'";
+}
+
+/**
+ * A path inside a single-quoted filter option. The graph keeps everything inside the quotes but a quote (closed,
+ * escaped and reopened); drawtext's own option parser then still splits on a colon, so a colon is escaped for it.
+ */
+const filterPath = (file: string) => file.replace(/'/g, "'\\''").replace(/:/g, "\\:");
+
+export type OverlayArgs = { files: readonly string[]; untilS: number; font: string };
+
+/** The drawtext chain for the text's lines (pure): each centred, white on a black edge, shown while t < untilS. */
+export function overlayFilter(o: OverlayArgs): string {
+  return o.files.map((f, i) => [
+    `drawtext=${o.font}`,
+    `textfile='${filterPath(f)}'`,
+    "expansion=none",
+    `fontsize=${OVERLAY_FONT_SIZE}`,
+    "fontcolor=white",
+    "borderw=7",
+    "bordercolor=black",
+    "x=(w-text_w)/2",
+    `y=${OVERLAY_TOP + i * OVERLAY_LINE_STEP}`,
+    `enable='lt(t,${o.untilS.toFixed(3)})'`,
+  ].join(":")).join(",");
+}
+
 /** The whole ffmpeg command line (pure; the tests read it). */
-export function montageArgs(pieces: readonly ArgsPiece[], rate: { expr: string; value: number }, out: string): string[] {
+export function montageArgs(pieces: readonly ArgsPiece[], rate: { expr: string; value: number }, out: string, overlay?: OverlayArgs): string[] {
   const args = ["-hide_banner", "-y"];
   for (const p of pieces) args.push("-ss", seekOf(p.start_frame, rate.value), "-i", p.src);
   const graph: string[] = [];
@@ -86,7 +136,9 @@ export function montageArgs(pieces: readonly ArgsPiece[], rate: { expr: string; 
       : `anullsrc=r=48000:cl=stereo,atrim=end=${d},asetpts=PTS-STARTPTS,aformat=sample_fmts=fltp:channel_layouts=stereo[a${i}]`);
   });
   const seconds = total / rate.value;
-  graph.push(`${pieces.map((_, i) => `[v${i}][a${i}]`).join("")}concat=n=${pieces.length}:v=1:a=1[vout][joined]`);
+  const drawn = overlay && overlay.files.length > 0;
+  graph.push(`${pieces.map((_, i) => `[v${i}][a${i}]`).join("")}concat=n=${pieces.length}:v=1:a=1[${drawn ? "joinedv" : "vout"}][joined]`);
+  if (drawn) graph.push(`[joinedv]${overlayFilter(overlay)}[vout]`);
   const fade = Math.min(END_FADE_S, seconds / 4);
   graph.push(`[joined]${LOUDNORM},aresample=48000,afade=t=out:st=${Math.max(0, seconds - fade).toFixed(6)}:d=${fade.toFixed(6)},atrim=end=${seconds.toFixed(6)}[aout]`);
   args.push(
@@ -137,6 +189,8 @@ export type MontageRenderInput = {
   maxMs?: number;
   /** Called between the steps, so the build's heartbeat keeps going. */
   onStep?: (step: "probing" | "rendering" | "checking" | "storing") => void | Promise<void>;
+  /** A quick hook ad's text: its lines (already wrapped) and how long it stays, from the first frame. */
+  overlay?: { lines: readonly string[]; untilMs: number };
 };
 
 /** Materialize every stored source once (a local-tier file is read in place); the temp dir goes when `fn` settles. */
@@ -175,8 +229,18 @@ export async function renderMontage(input: MontageRenderInput): Promise<Rendered
     const framed = framePieces(input.pieces, rate.value, input.maxMs ?? MONTAGE_MAX_MS);
     const total = framed.reduce((n, p) => n + p.frames, 0);
     const out = path.join(work, `ad60-${randomUUID().slice(0, 8)}.mp4`);
+    let overlay: OverlayArgs | undefined;
+    if (input.overlay?.lines.length) {
+      const files: string[] = [];
+      for (const [i, line] of input.overlay.lines.entries()) {
+        const file = path.join(work, `text-${i}.txt`);
+        await writeFile(file, line, "utf8");
+        files.push(file);
+      }
+      overlay = { files, untilS: input.overlay.untilMs / 1000, font: overlayFont() };
+    }
     await input.onStep?.("rendering");
-    const log = await runFfmpeg(montageArgs(framed.map((p, i) => ({ ...p, src: abs.get(stored[i])!, facts: facts.get(stored[i])! })), rate, out), { timeoutMs: RENDER_TIMEOUT_MS });
+    const log = await runFfmpeg(montageArgs(framed.map((p, i) => ({ ...p, src: abs.get(stored[i])!, facts: facts.get(stored[i])! })), rate, out, overlay), { timeoutMs: RENDER_TIMEOUT_MS });
 
     // The checks: the frames the plan holds, the ad's size, at most 60.0 s, and the loudness it came out at.
     await input.onStep?.("checking");

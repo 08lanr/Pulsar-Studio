@@ -56,7 +56,7 @@ export type ClipLibraryRow = LaunchContent & {
   episode_label: string | null;       // the bare number; null on a 60-second ad (see `montage`)
   label: string;                      // hook_en, falling back to external_id
   /** A 60-second ad (lib/clips/montage.ts): shown as "Ad · 60 s", its episodes in place of one. Null on a clip. */
-  montage?: { episodes: string; pieces: number } | null;
+  montage?: { episodes: string; pieces: number; /** A quick hook ad's code ("H2-B1-X3", lib/clips/quick-hook.ts); absent on a 60-second ad. */ variant?: string | null } | null;
   /** A finished ad supplied by the partner (source 'upload'). It is filed under an
    *  episode because studio.clips.episode_id is NOT NULL, but it is not a window of
    *  that episode, so no episode is shown for it. */

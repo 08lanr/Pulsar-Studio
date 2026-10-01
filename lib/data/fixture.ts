@@ -2514,7 +2514,7 @@ export const fixtureData: DataLayer = {
       hook_en: input.hook_en,
       why_en: input.why_en,
       why_zh: input.why_zh,
-      opening_text_en: null,
+      opening_text_en: input.opening_text_en ?? null,
       cut_length_s: Math.max(1, Math.round(input.duration_ms / 1000)),
       angle: null,
       status: "shortlisted",
@@ -2531,6 +2531,7 @@ export const fixtureData: DataLayer = {
       width: input.width,
       height: input.height,
       pieces: clone(input.pieces),
+      ...(input.ad_format ? { ad_format: input.ad_format } : {}),
       created_at: now(),
     };
     db.clips.push(row);

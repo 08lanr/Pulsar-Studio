@@ -69,7 +69,7 @@ import type { CatalogRow } from "@/lib/research/engine";
 import { examplesFromApprovedVersions } from "@/lib/translation-memory";
 import { isSystemSession } from "@/lib/auth";
 import { budgetCheck, overBudgetMessage } from "@/lib/angles";
-import { AD_FORMAT_MIGRATION_MESSAGE, adFormatColumnMissing, isAdFormat } from "@/lib/ad-formats";
+import { AD_FORMAT_MIGRATION_MESSAGE, QUICK_HOOK_MIGRATION_MESSAGE, adFormatColumnMissing, isAdFormat, quickHookFormatRefused } from "@/lib/ad-formats";
 import { AD_TEXT_MAX, clipIdOf, creativesFromClips, NO_CLIPS_MESSAGE, pickClipsForRound } from "@/lib/clips/creatives";
 import { MONTAGE_RANK_BASE, montageClipProblem } from "@/lib/clips/montage";
 import { blockerMessage, isAssignedBusinessCenter, isReadyLaunchAccount, launchReadiness } from "@/lib/promote/launch-gate";
@@ -1454,11 +1454,14 @@ export const supabaseData: DataLayer = {
           hook_en: input.hook_en,
           why_en: input.why_en,
           why_zh: input.why_zh,
+          opening_text_en: input.opening_text_en ?? null,
           cut_length_s: Math.max(1, Math.round(input.duration_ms / 1000)),
           status: "shortlisted",
           job_id: input.job_id,
           source: input.source,
           moment: "montage",
+          // Named only when set, so a 60-second ad still saves on a database without 0023.
+          ...(input.ad_format ? { ad_format: input.ad_format } : {}),
           pieces: input.pieces,
           render_path: input.render_path,
           render_sha256: input.render_sha256,
@@ -1471,6 +1474,8 @@ export const supabaseData: DataLayer = {
         .select("*")
         .maybeSingle();
       if (error?.code === "23505" && attempt === 0) continue;
+      if (error && adFormatColumnMissing(error)) throw new DataError("conflict", AD_FORMAT_MIGRATION_MESSAGE);
+      if (error && quickHookFormatRefused(error)) throw new DataError("conflict", QUICK_HOOK_MIGRATION_MESSAGE);
       if (error) throw mapError(error);
       if (!data) throw notFound("clip");
       return data as Clip;

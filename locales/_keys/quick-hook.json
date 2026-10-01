@@ -1,0 +1,110 @@
+{
+  "quickHook.title": {
+    "en": "Quick hook ads",
+    "zh": "快速钩子广告"
+  },
+  "quickHook.pill": {
+    "en": "Quick hook",
+    "zh": "快速钩子"
+  },
+  "quickHook.pillCode": {
+    "en": "Quick hook · {code}",
+    "zh": "快速钩子 · {code}"
+  },
+  "quickHook.intro": {
+    "en": "Each ad opens on the most gripping 2-3 seconds of the story, then plays the scene that leads up to it and stops before the payoff, with your line of text at the top of the picture. One press makes every bait × scene × text (up to 24 files); the code on each one (H2-B1-X3: bait 2, scene 1, text 3) shows in Clips and on the Ads tab, so you can see which part wins. Nothing after the spoiler line is used.",
+    "zh": "每条广告先放剧情里最抓人的 2-3 秒，再接引出这一刻的那场戏，在揭晓前停住，画面顶部显示你写的一行字。点一次会把每个钩子 × 场景 × 文字都做出来（最多 24 个文件）；每条都有编号（H2-B1-X3：钩子 2、场景 1、文字 3），在“切片”和“广告”页里都能看到，方便判断哪一部分效果最好。剧透线之后的内容不会用到。"
+  },
+  "quickHook.cannotBuild": {
+    "en": "Only the title's reviewer or approver (or a Pulsar administrator) can make these ads.",
+    "zh": "只有这部剧集的审核人或审批人（或 Pulsar 管理员）可以生成这类广告。"
+  },
+  "quickHook.textLabel": {
+    "en": "Text on screen {n}",
+    "zh": "画面文字 {n}"
+  },
+  "quickHook.textPlaceholder": {
+    "en": "e.g. She was the maid. He didn't know she owned the company.",
+    "zh": "例如：She was the maid. He didn't know she owned the company."
+  },
+  "quickHook.textOptional": {
+    "en": "Another text to test (optional)",
+    "zh": "再写一条用来对比（可选）"
+  },
+  "quickHook.textIssue": {
+    "en": "Keep it to {max} characters, about three short lines.",
+    "zh": "请控制在 {max} 个字符以内，大约三行。"
+  },
+  "quickHook.build": {
+    "en": "Make the ads",
+    "zh": "生成广告"
+  },
+  "quickHook.buildHint": {
+    "en": "Up to {max} files, made from this title's ad clips; nothing is spent.",
+    "zh": "最多 {max} 个文件，用这部剧集已有的广告切片生成，不产生费用。"
+  },
+  "quickHook.refused.no_clips": {
+    "en": "This title has no ad clips yet. Cut clips on its episodes first, then make the quick hook ads.",
+    "zh": "这部剧集还没有广告切片。请先在分集里切出切片，再生成快速钩子广告。"
+  },
+  "quickHook.refused.too_few": {
+    "en": "These clips cannot make a quick hook ad yet ({n} usable before the spoiler line). Cut clips on more early episodes, then try again.",
+    "zh": "这些切片还不够做快速钩子广告（剧透线之前可用 {n} 条）。请在更多前面的分集里切出切片，再试一次。"
+  },
+  "quickHook.refused.no_text": {
+    "en": "Write at least one line of text for the ads to show.",
+    "zh": "请至少写一行要显示在画面上的文字。"
+  },
+  "quickHook.exists": {
+    "en": "All {n} of these ads were made already; change or add a text to make new ones.",
+    "zh": "这 {n} 条广告都已经生成过了；修改或新增文字可以生成新的。"
+  },
+  "quickHook.state.none": {
+    "en": "None made yet",
+    "zh": "还没有生成"
+  },
+  "quickHook.state.building": {
+    "en": "Making",
+    "zh": "正在生成"
+  },
+  "quickHook.state.ready": {
+    "en": "{n} ready",
+    "zh": "{n} 条可用"
+  },
+  "quickHook.state.failed": {
+    "en": "Failed",
+    "zh": "生成失败"
+  },
+  "quickHook.failed.render_failed": {
+    "en": "The ads could not be made from the clips. Press the button again; if it fails twice, tell Pulsar staff.",
+    "zh": "没能用这些切片生成广告。请再点一次；连续两次失败请告诉 Pulsar 团队。"
+  },
+  "quickHook.failed.stopped": {
+    "en": "The build stopped before it finished. Press the button again.",
+    "zh": "生成在完成前中断了，请再点一次。"
+  },
+  "quickHook.building.hint": {
+    "en": "{done} of {total} made. Each one takes about half a minute; this part of the page refreshes on its own.",
+    "zh": "已完成 {done} / {total}。每条大约需要半分钟，这里会自动刷新。"
+  },
+  "quickHook.onScreen": {
+    "en": "On screen",
+    "zh": "画面文字"
+  },
+  "quickHook.adText": {
+    "en": "Ad text",
+    "zh": "广告文案"
+  },
+  "quickHook.role.bait": {
+    "en": "Hook",
+    "zh": "钩子"
+  },
+  "quickHook.role.body": {
+    "en": "Scene",
+    "zh": "场景"
+  },
+  "quickHook.previewLabel": {
+    "en": "Preview of the quick hook ad",
+    "zh": "快速钩子广告预览"
+  }
+}

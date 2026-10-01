@@ -12,12 +12,12 @@
     "zh": "修改广告类型"
   },
   "adFormat.hook_ad": {
-    "en": "Hook ad",
-    "zh": "钩子广告"
+    "en": "Hook ad (retired)",
+    "zh": "钩子广告（已停用）"
   },
   "adFormat.hook_ad.desc": {
-    "en": "One whole scene of the film, played as it is (15-60 s), chosen so a stranger gets it with no backstory.",
-    "zh": "整段原片场景，原样播放（15-60 秒），选一段不看前情也能看懂的。"
+    "en": "Retired, replaced by the quick hook ad: one whole scene of the film, played as it is (15-60 s).",
+    "zh": "已停用，由快速钩子广告取代：整段原片场景，原样播放（15-60 秒）。"
   },
   "adFormat.narration_trailer": {
     "en": "Narration trailer",
@@ -42,5 +42,13 @@
   "adFormat.clip.desc": {
     "en": "A window cut from one episode (what Studio's own cutter makes).",
     "zh": "从某一集里截取的一段（Studio 自动剪辑生成的就是这种）。"
+  },
+  "adFormat.quick_hook": {
+    "en": "Quick hook ad",
+    "zh": "快速钩子广告"
+  },
+  "adFormat.quick_hook.desc": {
+    "en": "The most gripping 2-3 seconds of the story first, then the scene that leads up to it, cut before the payoff, with a line of text on screen.",
+    "zh": "先放剧情里最抓人的 2-3 秒，再接引出这一刻的那场戏，在揭晓前停住，画面上有一行字。"
   }
 }

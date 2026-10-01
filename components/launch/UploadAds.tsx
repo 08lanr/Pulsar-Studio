@@ -17,7 +17,7 @@ import { useRef, useState } from "react";
 import { postForm, describeError, type ApiErrorBody } from "@/lib/api-client";
 import { useT } from "@/components/locale";
 import type { LaunchTitleOption } from "@/lib/launch/types";
-import { AD_FORMATS, isAdFormat, type AdFormat } from "@/lib/ad-formats";
+import { AD_FORMAT_CHOICES, isAdFormat, type AdFormat } from "@/lib/ad-formats";
 
 type Props = {
   titles: LaunchTitleOption[];
@@ -123,7 +123,7 @@ export default function UploadAds({ titles, titleId, onUploaded }: Props) {
                 }}
               >
                 <option value="">{tt("adFormat.none")}</option>
-                {AD_FORMATS.map((f) => <option key={f} value={f} title={tt(`adFormat.${f}.desc`)}>{tt(`adFormat.${f}`)}</option>)}
+                {AD_FORMAT_CHOICES.map((f) => <option key={f} value={f} title={tt(`adFormat.${f}.desc`)}>{tt(`adFormat.${f}`)}</option>)}
               </select>
               <span className="upload-ads-state">{tt(`uc.state.${r.state}`)}</span>
               {r.error && <span className="err upload-ads-err">{r.error}</span>}

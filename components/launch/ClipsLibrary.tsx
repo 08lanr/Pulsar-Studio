@@ -7,7 +7,10 @@
 import { Suspense } from "react";
 import ClipsTable from "@/components/launch/ClipsTable";
 import type { MontageStatus } from "@/lib/clips/montage-run";
+import type { QuickHookStatus } from "@/lib/clips/quick-hook-run";
 
-export default function ClipsLibrary({ titleId, montage }: { titleId?: string; montage?: { canBuild: boolean; initial: MontageStatus | null } }) {
-  return <Suspense fallback={null}><ClipsTable titleId={titleId} montage={montage} /></Suspense>;
+type Props = { titleId?: string; montage?: { canBuild: boolean; initial: MontageStatus | null }; quickHooks?: { canBuild: boolean; initial: QuickHookStatus | null } };
+
+export default function ClipsLibrary({ titleId, montage, quickHooks }: Props) {
+  return <Suspense fallback={null}><ClipsTable titleId={titleId} montage={montage} quickHooks={quickHooks} /></Suspense>;
 }

@@ -8,6 +8,24 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-10-01 · Quick hook ads
+
+Ruobin, 2026-10-01, after a research pass on how ReelShort and DramaBox build their ads (the most gripping seconds of an episode first, then the scene, cut before the payoff; dozens of new creatives a week, most of them losers, winners refreshed weekly): "so this replaces hook ads in drama remix. they aren't doing well anyways. text on screen, lets try it for this one specifically. lets try this format." The first titles are the flirt title, *My New Billionaire Husband* and one of Claude's choosing.
+
+**The format** (`quick_hook`, `lib/ad-formats.ts`): the bait, 1.8-3.5 s, the end of a strong clip (its last spoken line with a quarter second either side, else its last 3 s; find_clips closes a moment where it lands), then the body, 10-40 s of a clip from its start, never through the bait's own frames (for the bait's own clip, its lead-up cut just before the bait: the flash-forward), at most 45 s in all, hard cuts, one -14 LUFS pass, as the 60-second ad. Nothing after the spoiler line, nothing inside an exclusion (the montage's own `usableWindow`), no edge through a spoken line when a gap is near.
+
+**Text on screen, for this format only.** The 2026-09-14 and 2026-09-22 rule "nothing is burned into the picture" stands for every other ad; a quick hook ad draws one person-written line (up to 72 characters, three lines of about 24) at the top of the 1080×1920 picture (y 300, below TikTok's top bar and clear of burned subtitles), white with a black edge, from the first frame until 2.5 s after the bait ends. One drawtext per line, the words read from files so nothing a person wrote is parsed as filter syntax; the font is `AD_FONT_PATH`, else the machine's bold Arial or DejaVu, else fontconfig's bold sans. The page offers the clips' own `opening_text_en` and hooks as starting points.
+
+**Many variants per press.** "Make the ads" on a title's clips page (producer and staff alike; a reviewer or approver of the title, or a staff administrator) takes up to three texts and makes every bait × body × text: up to four baits (strongest clips, one per episode first, later in the story first among equals), up to three bodies per bait (its own lead-up, then the opening and the strongest clips), at most 24 files. Each is its own clips row (moment `montage`, its `pieces`, `ad_format` `quick_hook`, the drawn text in `opening_text_en`, the bait clip's hook as the TikTok ad text) and its own file `quick-hooks/quick-hook-H2-B1-X3-<key>.mp4`: the code says which bait, body and text (numbered within the build), and the Ads tab already shows the file name and filters by type, so each variant is ranked on its own. A variant built before (same pieces, same text) is skipped; new texts make new variants beside the old ones. One `build_quick_hooks` job per title at a time, cost 0; a variant the checks refuse is noted and the rest go on.
+
+**The hook ad is retired, not erased.** `hook_ad` stays a valid type so the ads already filed under it keep their label and results ("Hook ad (retired)"); Upload finished ads and the Clips table's select no longer offer it (`AD_FORMAT_CHOICES`). Drama-remix's own hook-ad scripts are outside this repository and unchanged.
+
+**Migration** `0024_quick_hook_ads.sql` (the `build_quick_hooks` job kind and `quick_hook` in `clips_ad_format_check`, idempotent) must be applied on the live database once; until then a build is refused with a 409 naming it. 0023 must be applied first.
+
+Not done: the weekly test-and-refresh routine and per-component rollups on the Ads tab (by bait, by body, by text), a lower test budget per ad, a vision pass on the bait's choice, an end card. No launch is made from this change.
+
+Checks: `tests/quick-hook.test.ts` (the bait, the pick and its codes, the spoiler line, refusals, wrapping, the drawtext line, and the whole build on the fixture film with the real ffmpeg: the text on the first frame and gone by the last, the rows, the library, kept out of the 60-second panel, a second press), `tests/ad-formats.test.ts`, `tests/e2e/quick-hook.spec.ts`.
+
 ## 2026-09-29 · Coin price cuts retain actual purchase cost in stats
 
 Ruobin asked for coin packs to drop by roughly 30–50% and for Studio's payment attribution to remain correct. VIP prices are unchanged. CrazyDramas owns the wallet and allocates each paid lot's actual charged cents as coins are spent; Studio consumes those integer cents unchanged. A historical $4.99 pack keeps its original cost after the equivalent new pack drops to $2.99. Bonus and reward coins allocate no cash, and spending does not create a second cash payment. Full refunds and disputes contribute no retained attributed revenue.

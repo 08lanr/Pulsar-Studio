@@ -210,7 +210,7 @@ export default function ContentPicker({ clipsBase, pagePostsUrl, producerId, pro
       <small>{clip.title_name}</small>
       <span className="content-pick-meta">
         {clip.ad_format && <span className="pill pill-neutral">{tt(`adFormat.${clip.ad_format}`)}</span>}
-        {clip.montage ? <span>{tt("montage.pill")}</span> : !clip.uploaded && clip.episode_label ? <span>{tt("lpt.episode", { n: clip.episode_label })}</span> : null}
+        {clip.montage ? <span>{clip.montage.variant ? tt("quickHook.pillCode", { code: clip.montage.variant }) : tt("montage.pill")}</span> : !clip.uploaded && clip.episode_label ? <span>{tt("lpt.episode", { n: clip.episode_label })}</span> : null}
         {clip.duration_ms != null && <span>{Math.floor(clip.duration_ms / 60000)}:{String(Math.floor(clip.duration_ms / 1000) % 60).padStart(2, "0")}</span>}
         <time dateTime={clip.rendered_at ?? undefined}>{madeAt(clip.rendered_at, locale)}</time>
       </span>

@@ -3,7 +3,9 @@ import { adminLocale, staffSession } from "@/components/admin/server";
 import EpisodeClips from "@/components/producer/EpisodeClips";
 import UploadAds from "@/components/launch/UploadAds";
 import AdMontage from "@/components/launch/AdMontage";
+import QuickHooks from "@/components/launch/QuickHooks";
 import { montageStatus } from "@/lib/clips/montage-run";
+import { quickHooksStatus } from "@/lib/clips/quick-hook-run";
 import { episodeClipsPayload } from "@/lib/clips/payload";
 import { getData, isDataError } from "@/lib/data";
 import { t } from "@/lib/i18n";
@@ -14,7 +16,8 @@ import { t } from "@/lib/i18n";
 // a staff admin as it does a reviewer or approver of the title). Added
 // 2026-09-24 so Ruobin can cut clips for the first ads from his own login.
 // Above the episodes, the title's 60-second ad (components/launch/AdMontage.tsx),
-// built from those clips by the same staff administrator.
+// built from those clips by the same staff administrator, and its quick hook
+// ads (components/launch/QuickHooks.tsx, decision 2026-10-01).
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +30,7 @@ export default async function StaffTitleClipsPage({ params }: { params: { id: st
     const withVideo = detail.episodes.filter((e) => e.has_video).sort((a, b) => a.number - b.number);
     const payloads = await Promise.all(withVideo.map(async (e) => [e, await episodeClipsPayload(session, params.id, e.number)] as const));
     const montage = await montageStatus(session, params.id);
+    const quick = await quickHooksStatus(session, params.id);
     return (
       <>
         <div className="title-head">
@@ -38,6 +42,9 @@ export default async function StaffTitleClipsPage({ params }: { params: { id: st
           </div>
         </div>
         <p className="page-sub">{t(locale, "clips.staff.intro")}</p>
+        {payloads.length > 0 && <section className="card pd-panel ad-montage-card">
+          <QuickHooks titleId={detail.title.id} initial={quick} canBuild={canEdit} staff />
+        </section>}
         {payloads.length > 0 && <section className="card pd-panel ad-montage-card">
           <AdMontage titleId={detail.title.id} initial={montage} canBuild={canEdit} staff />
         </section>}
