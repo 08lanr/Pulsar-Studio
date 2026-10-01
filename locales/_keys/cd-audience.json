@@ -1,0 +1,13 @@
+{
+  "cdaud.title": {"en": "Audience by age", "zh": "按年龄看受众"},
+  "cdaud.info": {"en": "TikTok's own estimate of its users' ages: each age group's share of the spend, with its spend under it (hover for its impressions, clicks and checkouts). All campaigns first, then each campaign that spent in the period.", "zh": "年龄为 TikTok 对其用户的估算：每个年龄段占花费的比例，下方为该年龄段的花费（悬停可查看展示、点击和结账）。先看全部广告系列，再看时段内有花费的每个广告系列。"},
+  "cdaud.campaign": {"en": "Campaign", "zh": "广告系列"},
+  "cdaud.all": {"en": "All campaigns", "zh": "全部广告系列"},
+  "cdaud.spend": {"en": "Spend", "zh": "花费"},
+  "cdaud.spendInfo": {"en": "TikTok's spend in the period, the same days as the table above.", "zh": "TikTok 在所选时段的花费，与上方表格的日期一致。"},
+  "cdaud.unknownAge": {"en": "Unknown", "zh": "未知"},
+  "cdaud.cellTip": {"en": "{impressions} impressions · {clicks} clicks · {checkouts} checkouts", "zh": "{impressions} 次展示 · {clicks} 次点击 · {checkouts} 次结账"},
+  "cdaud.none": {"en": "No campaign spent in this period.", "zh": "这段时间内没有广告系列产生花费。"},
+  "cdaud.failed": {"en": "TikTok did not answer for {n} ad account(s) ({error}); their campaigns show a dash and are not in the total.", "zh": "TikTok 未返回 {n} 个广告账户的数据（{error}）；这些账户的广告系列显示为短横线，不计入合计。"},
+  "cdaud.allPeriod": {"en": "Since the first launch", "zh": "自首次上线起"}
+}

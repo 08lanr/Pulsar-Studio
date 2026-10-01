@@ -5,6 +5,7 @@
 // same figures. Invented numbers for a demo; nothing here is measured.
 
 import type { LaunchRun } from "@/lib/launch/types";
+import type { AudienceRead } from "@/lib/tiktok/audience";
 import { FIRST_WEEK_CENTS, VIP_PRICE_CENTS } from "./vip-prices";
 import { CdStatsPlaybackSchema, type CdStatsCohort, type CdStatsDay, type CdStatsDrop, type CdStatsPlayback, type CdStatsReport, type CdStatsSeries, type CdStatsSource } from "./stats-types";
 
@@ -778,4 +779,32 @@ export function fakeAdVideo(span: "lifetime" | { from: string; to: string }, now
     }),
   );
   return { covered, failed: [], ads, days, from: span.from, to: span.to };
+}
+
+/**
+ * Fixture mode's "Audience by age" (2026-10-01): the invented campaigns' spend shared across TikTok's age groups,
+ * leaning young as the real crazydramas campaigns were feared to, each campaign a little differently. Invented,
+ * never stored; added to what the fake transport answered for real fixture launches.
+ */
+export function withFakeAudience(read: AudienceRead, campaigns: readonly { campaign_id: string | null; spend_cents: number | null }[]): AudienceRead {
+  const ages = ["AGE_13_17", "AGE_18_24", "AGE_25_34", "AGE_35_44", "AGE_45_54", "AGE_55_100"];
+  const lean = [
+    [0.36, 0.33, 0.16, 0.08, 0.05, 0.02],
+    [0.18, 0.27, 0.25, 0.16, 0.09, 0.05],
+    [0.29, 0.31, 0.2, 0.11, 0.06, 0.03],
+  ];
+  const out: AudienceRead = { covered: [...read.covered], failed: [...read.failed], campaigns: { ...read.campaigns } };
+  campaigns.forEach((c, i) => {
+    if (!c.campaign_id || out.covered.includes(c.campaign_id) || !c.spend_cents) return;
+    const shares = lean[i % lean.length];
+    out.covered.push(c.campaign_id);
+    out.campaigns[c.campaign_id] = Object.fromEntries(
+      ages.map((age, k) => {
+        const spend = Math.round(c.spend_cents! * shares[k]) / 100;
+        const impressions = Math.round(spend * 1000);
+        return [age, { spend, impressions, clicks: Math.round(impressions * 0.012), conversion: Math.round(impressions * 0.0004 * (k + 1)) }];
+      }),
+    );
+  });
+  return out;
 }

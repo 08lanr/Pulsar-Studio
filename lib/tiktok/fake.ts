@@ -262,6 +262,29 @@ function day(d: Date): string {
  * lifetime row of a pixel campaign's ad, or of the campaign, also carries
  * the TikTok-attributed website conversions.
  */
+/** TikTok's age groups, as its AUDIENCE report names them. */
+const FAKE_AGES = ["AGE_13_17", "AGE_18_24", "AGE_25_34", "AGE_35_44", "AGE_45_54", "AGE_55_100"] as const;
+const FAKE_AGE_LEAN = [0.34, 0.31, 0.17, 0.1, 0.05, 0.03];
+
+/** Campaign rows split by age: shares that lean young, nudged per campaign, the counts rounded and the spend in cents. */
+function ageRows(list: Array<{ dimensions: Record<string, string>; metrics: Record<string, number> }>) {
+  const out: Array<{ dimensions: Record<string, string>; metrics: Record<string, number> }> = [];
+  for (const row of list) {
+    const cid = row.dimensions.campaign_id;
+    const weights = FAKE_AGE_LEAN.map((w, i) => w * (0.8 + hash(`${cid}:${FAKE_AGES[i]}`) * 0.4));
+    const sum = weights.reduce((a, b) => a + b, 0);
+    FAKE_AGES.forEach((age, i) => {
+      const share = weights[i] / sum;
+      const m = row.metrics;
+      out.push({
+        dimensions: { campaign_id: cid, age },
+        metrics: { spend: Math.round((m.spend ?? 0) * share * 100) / 100, impressions: Math.round((m.impressions ?? 0) * share), clicks: Math.round((m.clicks ?? 0) * share), conversion: Math.round((m.conversion ?? 0) * share) },
+      });
+    });
+  }
+  return out;
+}
+
 function reportRows(campaignIds: string[], adgroupIds: string[], start: string, end: string, level: "AUCTION_AD" | "AUCTION_ADGROUP" | "AUCTION_CAMPAIGN", byDay: boolean, adIds: string[] = []) {
   const rows: Array<{ dimensions: Record<string, string>; metrics: Record<string, number> }> = [];
   const s = state();
@@ -523,7 +546,12 @@ export const fakeTransport: TikTokTransport = {
         if (lifetime && byDay) return refuse("query_lifetime cannot be used with stat_time_day");
         const end = lifetime ? day(new Date()) : params.end_date ? String(params.end_date) : day(new Date());
         const start = lifetime ? "2000-01-01" : params.start_date ? String(params.start_date) : day(new Date(Date.now() - 30 * 86_400_000));
-        const list = reportRows(cids, gids, start, end, level, byDay, adIds);
+        const rawList = reportRows(cids, gids, start, end, level, byDay, adIds);
+        // The AUDIENCE report by campaign and age (lib/tiktok/audience.ts): each campaign's numbers shared across
+        // TikTok's age groups, a deterministic split that leans young as the crazydramas campaigns did.
+        const byAge = String(params.report_type) === "AUDIENCE" && dims.includes("age");
+        if (byAge && (level !== "AUCTION_CAMPAIGN" || byDay)) return refuse("this fake reads the age split by campaign only");
+        const list = byAge ? ageRows(rawList) : rawList;
         if (params.page_size === undefined) return ok({ list });
         // Paged as TikTok pages when the caller asks for pages.
         const size = Math.max(1, Math.min(1000, Number(params.page_size) || 10));
