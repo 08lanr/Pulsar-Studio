@@ -5457,5 +5457,20 @@
   "cdx.pay.gone": "没有返回",
   "cdx.col.checkout": "点击支付",
   "cdc.col.checkouts": "点击支付",
-  "cdc.col.checkoutsInfo": "来自该广告系列或广告、在 crazydramas 上按下支付按钮的人数（我们的统计，不是 TikTok 的）。"
+  "cdc.col.checkoutsInfo": "来自该广告系列或广告、在 crazydramas 上按下支付按钮的人数（我们的统计，不是 TikTok 的）。",
+  "tka.audiences": "自定义受众",
+  "tka.target": "只投放给",
+  "tka.exclude": "排除",
+  "tka.none": "以上定向中的所有人",
+  "tka.noneExcluded": "不排除任何人",
+  "tka.hint": "受众来自本广告账户的 Ads Manager → 工具 → 受众管理。受众至少要有 {min} 人 TikTok 才会投放；新建的受众最多需要 48 小时填充。做再营销时，请排除已购买的人。",
+  "tka.chooseAccount": "自定义受众属于单个广告账户：请在第 2 步只选择一个广告账户，再选择它的受众。",
+  "tka.loading": "正在读取该广告账户的受众…",
+  "tka.empty": "该广告账户还没有自定义受众。",
+  "tka.people": "{n} 人",
+  "tka.expired": "已过期",
+  "tka.byId": "受众 ID",
+  "tka.addTarget": "加入只投放",
+  "tka.addExclude": "加入排除",
+  "tka.idHint": "受众管理中 ID 一列的数字。"
 }

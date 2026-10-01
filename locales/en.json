@@ -5457,5 +5457,20 @@
   "cdx.pay.gone": "never came back",
   "cdx.col.checkout": "Tapped pay",
   "cdc.col.checkouts": "Tapped pay",
-  "cdc.col.checkoutsInfo": "People from this campaign or ad who pressed a pay button on crazydramas (our count, not TikTok's)."
+  "cdc.col.checkoutsInfo": "People from this campaign or ad who pressed a pay button on crazydramas (our count, not TikTok's).",
+  "tka.audiences": "Custom audiences",
+  "tka.target": "Reach only",
+  "tka.exclude": "Leave out",
+  "tka.none": "Everyone in the targeting above",
+  "tka.noneExcluded": "Nobody left out",
+  "tka.hint": "Audiences come from Ads Manager → Tools → Audience Manager on this ad account. TikTok needs {min} people in an audience before it delivers; a new one takes up to 48 hours to fill. For retargeting, leave out the buyers.",
+  "tka.chooseAccount": "Custom audiences belong to one ad account: choose exactly one in step 2 to pick its audiences.",
+  "tka.loading": "Reading this ad account's audiences…",
+  "tka.empty": "This ad account has no custom audiences yet.",
+  "tka.people": "{n} people",
+  "tka.expired": "expired",
+  "tka.byId": "Audience ID",
+  "tka.addTarget": "Reach only",
+  "tka.addExclude": "Leave out",
+  "tka.idHint": "The number in Audience Manager's ID column."
 }
