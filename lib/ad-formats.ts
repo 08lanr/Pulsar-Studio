@@ -8,10 +8,15 @@
 // budget it reserves) and not the clip's `moment` / `source` (how the cutter
 // chose a window and where the bytes came from). It is the person's label.
 //
-// The four ids are also the check constraint of studio.clips.ad_format
-// (supabase/migrations/0023_clip_ad_format.sql); change them together.
+// The ids are also the check constraint of studio.clips.ad_format
+// (supabase/migrations/0023_clip_ad_format.sql, 0024_quick_hook_ads.sql);
+// change them together.
+//
+// The quick hook ad (decision 2026-10-01) replaces the hook ad. It is built in
+// drama-remix (`scripts/quick_hook.py`) and uploaded with `npm run ad:upload`;
+// `hook_ad` stays so the ads already filed under it keep their label.
 
-export const AD_FORMATS = ["hook_ad", "narration_trailer", "direct_cuts_trailer", "clip"] as const;
+export const AD_FORMATS = ["hook_ad", "narration_trailer", "direct_cuts_trailer", "clip", "quick_hook"] as const;
 
 export type AdFormat = (typeof AD_FORMATS)[number];
 
@@ -26,7 +31,7 @@ export const AD_FORMAT_INFO: Record<AdFormat, AdFormatInfo> = {
   hook_ad: {
     id: "hook_ad",
     label_en: "Hook ad",
-    description_en: "One whole scene of the film, played as it is (15-60 s), chosen so a stranger gets it with no backstory.",
+    description_en: "Retired (replaced by the quick hook ad): one whole scene of the film, played as it is (15-60 s).",
   },
   narration_trailer: {
     id: "narration_trailer",
@@ -42,6 +47,11 @@ export const AD_FORMAT_INFO: Record<AdFormat, AdFormatInfo> = {
     id: "clip",
     label_en: "Clip",
     description_en: "A window cut from one episode (what Studio's own cutter makes).",
+  },
+  quick_hook: {
+    id: "quick_hook",
+    label_en: "Quick hook ad",
+    description_en: "The most gripping 2-3 seconds of the story first, then the scene that leads up to it, cut before the payoff, with a line of text on screen.",
   },
 };
 

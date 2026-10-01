@@ -64,7 +64,7 @@ function formatRequest(titleId: string, clipId: string, body: unknown, origin?: 
 // ---- the registry --------------------------------------------------------------------------------
 
 test("the registry names exactly the four ad types, and the guard accepts only those", () => {
-  assert.deepEqual([...AD_FORMATS], ["hook_ad", "narration_trailer", "direct_cuts_trailer", "clip"]);
+  assert.deepEqual([...AD_FORMATS], ["hook_ad", "narration_trailer", "direct_cuts_trailer", "clip", "quick_hook"]);
   for (const f of AD_FORMATS) {
     assert.equal(isAdFormat(f), true, f);
     assert.equal(AD_FORMAT_INFO[f].id, f);
