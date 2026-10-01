@@ -12,6 +12,8 @@ import { fmtUsdCents } from "@/lib/crazydramas/stats-summary";
 // The Ads tab's one table (decision 2026-09-28, "Ad video stats"): one row per ad creative, TikTok's numbers
 // summed across every ad it ran as. Sortable (most impressions first), a benchmark row (the median of ads with
 // 500+ impressions) on top, cells clearly above or below it tinted, ads under 500 impressions marked early.
+// Checkouts sit with spend and CTR (2026-10-01, Ruobin: "checkouts disappears here", off the right edge); the
+// headers wrap and the ad stays pinned while the table scrolls sideways.
 
 const n0 = (v: number | null) => (v === null ? "–" : v.toLocaleString("en-US"));
 const secs = (v: number | null) => (v === null ? "–" : `${v.toFixed(1)} s`);
@@ -43,13 +45,13 @@ export default function AdsTable({ rows, bench }: { rows: AdsViewRow[]; bench: {
     { key: "spend", label: tt("cda.spend"), info: tt("cda.spendInfo"), value: (r) => r.spend_cents, show: (r) => (r.spend_cents === null ? "–" : fmtUsdCents(r.spend_cents)) },
     { key: "impressions", label: tt("cda.impressions"), info: tt("cda.impressionsInfo"), value: (r) => r.impressions, show: (r) => n0(r.impressions) },
     { key: "ctr", label: tt("cda.ctr"), info: tt("cda.ctrInfo"), value: (r) => r.rates.ctr, show: (r) => fmtPct(r.rates.ctr), rate: "ctr" },
+    { key: "checkouts", label: tt("cda.checkouts"), info: tt("cda.checkoutsInfo"), value: (r) => r.checkouts, show: (r) => n0(r.checkouts) },
+    { key: "per1k", label: tt("cda.col.per1k"), info: tt("cda.per1kInfo"), value: (r) => r.rates.checkouts_per_1k, show: (r) => per1k(r.rates.checkouts_per_1k), rate: "checkouts_per_1k" },
     { key: "hold_2s", label: tt("cda.hold2"), info: tt("cda.hold2Info"), value: (r) => r.rates.hold_2s, show: (r) => fmtPct(r.rates.hold_2s), rate: "hold_2s" },
     { key: "hold_6s", label: tt("cda.hold6"), info: tt("cda.hold6Info"), value: (r) => r.rates.hold_6s, show: (r) => fmtPct(r.rates.hold_6s), rate: "hold_6s" },
     { key: "p25", label: tt("cda.p25"), info: tt("cda.p25Info"), value: (r) => r.rates.p25, show: (r) => fmtPct(r.rates.p25), rate: "p25" },
     { key: "p100", label: tt("cda.p100"), info: tt("cda.p100Info"), value: (r) => r.rates.p100, show: (r) => fmtPct(r.rates.p100), rate: "p100" },
     { key: "avg", label: tt("cda.col.avg"), info: tt("cda.avgInfo"), value: (r) => r.rates.avg_play_s, show: (r) => secs(r.rates.avg_play_s), rate: "avg_play_s" },
-    { key: "checkouts", label: tt("cda.checkouts"), info: tt("cda.checkoutsInfo"), value: (r) => r.checkouts, show: (r) => n0(r.checkouts) },
-    { key: "per1k", label: tt("cda.col.per1k"), info: tt("cda.per1kInfo"), value: (r) => r.rates.checkouts_per_1k, show: (r) => per1k(r.rates.checkouts_per_1k), rate: "checkouts_per_1k" },
   ];
   const sorted = useMemo(() => {
     const col = cols.find((c) => c.key === sort.key) ?? cols[1];

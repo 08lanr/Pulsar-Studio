@@ -5455,5 +5455,16 @@
   "cdx.pay.gone": "没有返回",
   "cdx.col.checkout": "点击支付",
   "cdc.col.checkouts": "点击支付",
-  "cdc.col.checkoutsInfo": "来自该广告系列或广告、在 crazydramas 上按下支付按钮的人数（我们的统计，不是 TikTok 的）。"
+  "cdc.col.checkoutsInfo": "来自该广告系列或广告、在 crazydramas 上按下支付按钮的人数（我们的统计，不是 TikTok 的）。",
+  "cdaud.title": "按年龄看受众",
+  "cdaud.info": "年龄为 TikTok 对其用户的估算：每个年龄段占花费的比例，下方为该年龄段的花费（悬停可查看展示、点击和结账）。先看全部广告系列，再看时段内有花费的每个广告系列。",
+  "cdaud.campaign": "广告系列",
+  "cdaud.all": "全部广告系列",
+  "cdaud.spend": "花费",
+  "cdaud.spendInfo": "TikTok 在所选时段的花费，与上方表格的日期一致。",
+  "cdaud.unknownAge": "未知",
+  "cdaud.cellTip": "{impressions} 次展示 · {clicks} 次点击 · {checkouts} 次结账",
+  "cdaud.none": "这段时间内没有广告系列产生花费。",
+  "cdaud.failed": "TikTok 未返回 {n} 个广告账户的数据（{error}）；这些账户的广告系列显示为短横线，不计入合计。",
+  "cdaud.allPeriod": "自首次上线起"
 }

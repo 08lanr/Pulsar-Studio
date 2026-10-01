@@ -8,6 +8,24 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-10-01 · Audience by age on the Campaigns tab; checkouts in view on the Ads tab
+
+Ruobin: "I just want to see that age range breakdown for each campaign, as well as an aggregate" (to test whether
+the ads reach people too young to pay), and of the Ads tab's table: "checkouts disappears here".
+
+- **Audience by age** is a card on the `/crazydramas/stats` Campaigns tab, after the campaigns table: all campaigns
+  together, then each campaign that spent in the period, one column per TikTok age group (13–17, 18–24, 25–34,
+  35–44, 45–54, 55+; "Unknown" only when TikTok has some). A cell is the group's share of the row's spend, its
+  spend under it and a thin bar; the tooltip has its impressions, clicks and checkouts (TikTok's `conversion`).
+- Read only through `lib/tiktok/audience.ts`: TikTok's AUDIENCE report, AUCTION_CAMPAIGN, dimensions
+  `["campaign_id", "age"]`, metrics spend / impressions / clicks / conversion, our campaign ids in 100s, per ad
+  account with its own token, the period in spans of at most 30 days (All: since the first launch), kept ten
+  minutes. An account that fails is named in a warning; its campaigns show "–" and stay out of the total (unknown,
+  never zero). Summed only by the pure `lib/crazydramas/stats-audience.ts`. The fake transport answers the split
+  with a deterministic young-leaning share per campaign. Age is TikTok's estimate of its users.
+- **Ads tab table:** Checkouts and Checkouts per 1k move next to Spend, Impressions and CTR; the number headers wrap
+  to two lines; the ad column stays pinned while the table scrolls sideways.
+
 ## 2026-09-29 · Coin price cuts retain actual purchase cost in stats
 
 Ruobin asked for coin packs to drop by roughly 30–50% and for Studio's payment attribution to remain correct. VIP prices are unchanged. CrazyDramas owns the wallet and allocates each paid lot's actual charged cents as coins are spent; Studio consumes those integer cents unchanged. A historical $4.99 pack keeps its original cost after the equivalent new pack drops to $2.99. Bonus and reward coins allocate no cash, and spending does not create a second cash payment. Full refunds and disputes contribute no retained attributed revenue.

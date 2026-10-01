@@ -4,6 +4,7 @@ import { AdDetail, AdTypeTable, type AdRun } from "@/components/admin/cd-stats/A
 import AdsTab from "@/components/admin/cd-stats/AdsTab";
 import { CoinValueNotice, RangeTabs, ReadFailure } from "@/components/admin/cd-stats/Bits";
 import { BuyersTable, PersonPanel, type Names } from "@/components/admin/cd-stats/Buyers";
+import AudienceByAge from "@/components/admin/cd-stats/AudienceByAge";
 import CampaignsView, { type CampaignsViewRow } from "@/components/admin/cd-stats/Campaigns";
 import { FunnelChart } from "@/components/admin/cd-stats/Dash";
 import FilterBar, { type FilterOptions } from "@/components/admin/cd-stats/FilterBar";
@@ -14,7 +15,7 @@ import { PlaybackSection } from "@/components/admin/cd-stats/Sections";
 import { EpisodeCurveChart, SeriesFunnelList } from "@/components/admin/cd-stats/SeriesCurve";
 import { SurveyView } from "@/components/admin/cd-stats/Tables";
 import TeamEditor from "@/components/admin/cd-stats/TeamEditor";
-import { fakeStatsArchive, fakeStatsLaunches, FAKE_STATS_CLIPS } from "@/lib/crazydramas/fake-stats";
+import { fakeStatsArchive, fakeStatsLaunches, FAKE_STATS_CLIPS, withFakeAudience } from "@/lib/crazydramas/fake-stats";
 import { readCrazydramasStats, readLaunchClips } from "@/lib/crazydramas/stats";
 import { adCreatives, byAdType, campaignFacts, changeAbove, compareCampaigns, dailySpend, fmtRatio, returnOnSpend, spendIn, type AdCreative, type CreativeClip } from "@/lib/crazydramas/stats-ads";
 import { adBuyers, browsersOf, buyerCounts, buyersByAd, fmtDuration, hasBuyerDetails, personOf, purchasesIn, untaggedBuyers } from "@/lib/crazydramas/stats-buyers";
@@ -41,6 +42,7 @@ import {
   vipWeeks,
 } from "@/lib/crazydramas/stats-money";
 import { firstWeekPrice } from "@/lib/crazydramas/vip-prices";
+import { audienceTable } from "@/lib/crazydramas/stats-audience";
 import { episodeCurve, seriesFunnel } from "@/lib/crazydramas/stats-series";
 import { readTeamList } from "@/lib/crazydramas/stats-team";
 import {
@@ -84,6 +86,7 @@ import { mediaUrl } from "@/lib/data/storage";
 import { t } from "@/lib/i18n";
 import type { LaunchRun } from "@/lib/launch/types";
 import { readTikTokAdDays, type AdDaysRead } from "@/lib/tiktok/ad-days";
+import { readTikTokAudience } from "@/lib/tiktok/audience";
 
 // /crazydramas/stats — viewing and money on crazydramas.com, staff only. Decisions 2026-09-24 "CrazyDramas
 // stats", 2026-09-25 "the stats dashboard, second cut" and 2026-09-26 "Stats: campaigns, buyers and the full
@@ -205,6 +208,10 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
 
   const span = rangeDays(report, range);
   const prev = prevSpan(report, range);
+  // The Campaigns tab's age split (lib/tiktok/audience.ts): the period's days, or "All" since the first launch.
+  const firstLaunch = launched.map((r) => r.created_at?.slice(0, 10)).filter((d): d is string => !!d).sort()[0];
+  const audienceSpan = range === "all" ? { from: firstLaunch && firstLaunch < report.to ? firstLaunch : report.to, to: report.to } : span;
+  const audience = tab === "campaigns" ? await readTikTokAudience(launched, audienceSpan, { fresh }) : null;
   const vs = prev ? tt(`cdx.vs.${range}`) : null;
   const filter: DashFilter = parseDashFilter(searchParams, report);
   const titleOf = new Map(report.series.map((s) => [s.drama_id, s]));
@@ -484,6 +491,26 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
           <CampaignsView rows={viewRows} caption={tt("cdx.ads.campaigns")} launchedLabel={launchedLabel} returns={money} />
           {untaggedN > 0 && <p className="cdx-note">{tt(untaggedN === 1 ? "cdc.untaggedLine1" : "cdc.untaggedLine", { n: untaggedN })}</p>}
         </section>
+        {audience && (
+          <section className="rs-panel cdx-card" data-testid="audience-by-age">
+            <div className="cdx-card-head">
+              <h2>
+                {tt("cdaud.title")} <Info text={tt("cdaud.info")} label={tt("cdx.about", { what: tt("cdaud.title") })} />
+              </h2>
+              {range === "all" && <span className="cdx-muted">{tt("cdaud.allPeriod")}</span>}
+            </div>
+            {audience.failed.length > 0 && <p className="note note-warn">{tt("cdaud.failed", { n: audience.failed.length, error: audience.failed[0].error })}</p>}
+            <AudienceByAge
+              table={audienceTable(
+                // Fixture mode: the invented campaigns get an invented split (never stored).
+                invented ? withFakeAudience(audience, views.filter((v) => v.kind === "campaign")) : audience,
+                views.filter((v) => v.kind === "campaign").map((v) => ({ key: v.key, campaign_id: v.campaign_id, name: [v.launch_name, v.campaign_name].filter(Boolean).join(" · ") || v.campaign_id || "–" })),
+                tt("cdaud.all"),
+              )}
+              locale={locale}
+            />
+          </section>
+        )}
         <section className="rs-panel cdx-card">
           <div className="cdx-card-head">
             <h2>

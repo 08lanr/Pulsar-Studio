@@ -5455,5 +5455,16 @@
   "cdx.pay.gone": "never came back",
   "cdx.col.checkout": "Tapped pay",
   "cdc.col.checkouts": "Tapped pay",
-  "cdc.col.checkoutsInfo": "People from this campaign or ad who pressed a pay button on crazydramas (our count, not TikTok's)."
+  "cdc.col.checkoutsInfo": "People from this campaign or ad who pressed a pay button on crazydramas (our count, not TikTok's).",
+  "cdaud.title": "Audience by age",
+  "cdaud.info": "TikTok's own estimate of its users' ages: each age group's share of the spend, with its spend under it (hover for its impressions, clicks and checkouts). All campaigns first, then each campaign that spent in the period.",
+  "cdaud.campaign": "Campaign",
+  "cdaud.all": "All campaigns",
+  "cdaud.spend": "Spend",
+  "cdaud.spendInfo": "TikTok's spend in the period, the same days as the table above.",
+  "cdaud.unknownAge": "Unknown",
+  "cdaud.cellTip": "{impressions} impressions · {clicks} clicks · {checkouts} checkouts",
+  "cdaud.none": "No campaign spent in this period.",
+  "cdaud.failed": "TikTok did not answer for {n} ad account(s) ({error}); their campaigns show a dash and are not in the total.",
+  "cdaud.allPeriod": "Since the first launch"
 }
