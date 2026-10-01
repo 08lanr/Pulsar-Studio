@@ -28,4 +28,8 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+// A dev server refuses to start when this copy is behind GitHub (scripts/fresh-check.cjs).
+module.exports = (phase) => {
+  if (phase === "phase-development-server") require("./scripts/fresh-check.cjs").assertFreshStudio();
+  return nextConfig;
+};
