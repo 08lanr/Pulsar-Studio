@@ -11,7 +11,7 @@
 import type { AdFormat } from "@/lib/ad-formats";
 import type { ContentKind, LaunchContent, LaunchProvider, LaunchRun } from "@/lib/launch/types";
 import { purchaseGoal, type LaunchSettings, type PurchaseGoal } from "@/lib/tiktok/settings";
-import { dayIn, deliveryIn, type AdPeriod, type AdRow, type AdSpend, type CampaignRow } from "./stats-summary";
+import { deliveryIn, wholeLifeIn, type AdPeriod, type AdRow, type AdSpend, type CampaignRow } from "./stats-summary";
 import type { BoughtBy, BuyerCounts } from "./stats-buyers";
 
 const str = (v: unknown) => (typeof v === "string" || typeof v === "number" ? String(v) : "");
@@ -198,7 +198,7 @@ export function gapReasons(x: { spend_cents: number | null; goal: PurchaseGoal |
 /** TikTok's lifetime purchases compare with a period only when the campaign's whole life is in it (as `deliveryIn` does for spend). */
 export function lifeInPeriod(launchedAt: string | null, period: AdPeriod | undefined): boolean {
   if (!period) return true;
-  return !!launchedAt && dayIn(launchedAt, period.timezone) >= period.from;
+  return wholeLifeIn(launchedAt, period);
 }
 
 // ---- the Campaigns table ------------------------------------------------------------------------------------

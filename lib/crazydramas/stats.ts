@@ -84,7 +84,7 @@ export async function readAdPeriod(report: CdStatsReport, range: StatsRange, run
   if (range === "all") return undefined;
   const span = rangeDays(report, range);
   const days = await readTikTokAdDays(runs, { to: report.to, fresh });
-  return { ...span, timezone: report.timezone, days };
+  return { ...span, timezone: report.timezone, last_day: report.to, days };
 }
 
 /**

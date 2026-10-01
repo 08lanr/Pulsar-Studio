@@ -212,7 +212,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
   const before = prev ? sumRows(dashRows(report, prev, filter)) : null;
   const spends = adSpendsFromRuns(runs);
   const creatives = adCreatives(runs, clips);
-  const adPeriod: AdPeriod | undefined = range === "all" ? undefined : { ...span, timezone: report.timezone, days: adDays };
+  const adPeriod: AdPeriod | undefined = range === "all" ? undefined : { ...span, timezone: report.timezone, last_day: report.to, days: adDays };
   // Spend is per ad, not per phone or country: with one of those picked, no spend (costs would divide an ad's whole spend).
   const adSpends =
     filter.device || filter.country

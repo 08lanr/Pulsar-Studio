@@ -415,6 +415,8 @@ export type AdPeriod = {
   from: string;
   to: string;
   timezone: string;
+  /** The report's last day (today). A period ending before it (yesterday) never holds an ad's whole life. Absent: `to`. */
+  last_day?: string;
   days: { ok: true; from: string; campaigns: string[]; days: Record<string, AdDay[]> } | { ok: false; error: string } | null;
 };
 
@@ -424,6 +426,14 @@ const UNKNOWN: Delivery = { spend_cents: null, clicks: null, impressions: null }
 /** The day an instant falls on in a time zone ("2026-09-24"). */
 export function dayIn(iso: string, timeZone: string): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
+}
+
+/**
+ * Whether everything since `launchedAt` lies in the period: launched on or after its first day, and the period
+ * runs to today (yesterday's numbers never hold today's, so lifetime numbers never stand in for them).
+ */
+export function wholeLifeIn(launchedAt: string | null, period: Pick<AdPeriod, "from" | "to" | "timezone" | "last_day">): boolean {
+  return !!launchedAt && dayIn(launchedAt, period.timezone) >= period.from && period.to >= (period.last_day ?? period.to);
 }
 
 /**
@@ -438,7 +448,7 @@ export function deliveryIn(s: AdSpend, period: AdPeriod): Delivery {
     const sum = (k: keyof Delivery) => (days.every((d) => d[k] !== null) ? days.reduce((n, d) => n + (d[k] as number), 0) : null);
     return { spend_cents: sum("spend_cents"), clicks: sum("clicks"), impressions: sum("impressions") };
   }
-  if (s.launched_at && dayIn(s.launched_at, period.timezone) >= period.from) return { spend_cents: s.spend_cents, clicks: s.clicks, impressions: s.impressions };
+  if (wholeLifeIn(s.launched_at, period)) return { spend_cents: s.spend_cents, clicks: s.clicks, impressions: s.impressions };
   return UNKNOWN;
 }
 

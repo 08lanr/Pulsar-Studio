@@ -11,6 +11,7 @@ import { afterEach, beforeEach, test } from "node:test";
 import { fakeCrazydramasTransport as fake } from "@/lib/crazydramas/fake";
 import { fakeStatsReport } from "@/lib/crazydramas/fake-stats";
 import { STATS_CACHE_MS, clearCdStatsCache, readCrazydramasStats } from "@/lib/crazydramas/stats";
+import { lifeInPeriod } from "@/lib/crazydramas/stats-ads";
 import { rm } from "node:fs/promises";
 import path from "node:path";
 import {
@@ -181,6 +182,13 @@ test("yesterday is the whole day before today, compared with the day before it, 
   assert.deepEqual(rangeDays(r, "yesterday"), { from: "2026-09-23", to: "2026-09-23" });
   assert.deepEqual(prevSpan(r, "yesterday"), { from: "2026-09-22", to: "2026-09-22" });
   assert.deepEqual(chartSpan(r, "yesterday"), { from: "2026-09-10", to: "2026-09-23" });
+  // An ad launched yesterday has also run today: its lifetime numbers are not yesterday's, so they never stand in.
+  const s111 = adSpendsFromRuns(launchRuns()).find((s) => s.ad_id === "111")!;
+  const yesterday = { ...rangeDays(r, "yesterday"), timezone: r.timezone, last_day: r.to, days: { ok: false as const, error: "TikTok refused" } };
+  assert.equal(dayIn(s111.launched_at!, r.timezone), "2026-09-23", "launched yesterday");
+  assert.equal(deliveryIn(s111, yesterday).spend_cents, null);
+  assert.equal(lifeInPeriod(s111.launched_at, yesterday), false, "TikTok's purchases since launch include today's");
+  assert.equal(lifeInPeriod(s111.launched_at, { ...rangeDays(r, "7d"), timezone: r.timezone, last_day: r.to, days: null }), true);
 });
 
 test("the audience never adds people across days: the week and month are crazydramas' own counts", () => {
