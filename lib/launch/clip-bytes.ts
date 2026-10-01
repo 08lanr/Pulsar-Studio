@@ -10,9 +10,24 @@ import { dataSource } from "@/lib/data-source";
 import { invalid, notFound } from "@/lib/data/errors";
 import { MEDIA_BUCKET, resolveUploadPath } from "@/lib/data/storage";
 
-/** One finished clip, and one ZIP of up to 30 of them. */
-export const MAX_CLIP_BYTES = 32 * 1024 * 1024;
-export const MAX_ARCHIVE_BYTES = 96 * 1024 * 1024;
+/**
+ * One finished clip, and one ZIP of up to 30 of them. These bound what the
+ * browser is asked to download, not what Meta accepts.
+ *
+ * 64 MB because a finished 1080x1920 ad is bigger than it looks: the 57 clips
+ * in the library on 2026-09-30 ran 6.4 MB to 45.5 MB, averaging 29.4 MB, and
+ * the old 32 MB ceiling refused 32 of them.
+ */
+export const MAX_CLIP_BYTES = 64 * 1024 * 1024;
+export const MAX_ARCHIVE_BYTES = 192 * 1024 * 1024;
+
+/**
+ * Publishing a clip to a Page is not a download: the bytes go to Meta, which
+ * takes far more than this (a Page video may be gigabytes), so the ceiling is
+ * only what we are willing to hold in memory for one post. Separate from the
+ * download limits so tightening those can never quietly refuse a post again.
+ */
+export const MAX_PUBLISH_BYTES = 256 * 1024 * 1024;
 
 async function collect(stream: ReadableStream<Uint8Array>, limit: number): Promise<Buffer> {
   const reader = stream.getReader();
