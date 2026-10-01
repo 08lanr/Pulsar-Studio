@@ -12,10 +12,15 @@ import { AGE_OPTIONS, BID_STRATEGY_OPTIONS, BUDGET_MODE_OPTIONS, COMMON_LANGUAGE
 import { attributionOf, defaultSalesLaunchSettings, defaultWebsitePurchaseSettings, launchShape, optimizesPurchases, planAdGroup, type LaunchSettings } from "@/lib/tiktok/settings";
 import InstantPageTemplatePicker from "@/components/launch/InstantPageTemplatePicker";
 import { call } from "./api";
+import AudiencePicker from "./AudiencePicker";
 
 type Region = { id: string; name: string; level: string; regionCode: string };
 
-export default function LaunchSettingsEditor({ value, onChange, budgetUsd, regionsEndpoint, disabled = false }: { value: LaunchSettings; onChange: (next: LaunchSettings) => void; budgetUsd: number; regionsEndpoint: string; disabled?: boolean }) {
+/**
+ * `audiencesEndpoint`: the chosen ad account's custom audiences (a launch); null while no account is chosen;
+ * absent where settings belong to no account (the staff presets), which then offer no audiences.
+ */
+export default function LaunchSettingsEditor({ value, onChange, budgetUsd, regionsEndpoint, audiencesEndpoint, disabled = false }: { value: LaunchSettings; onChange: (next: LaunchSettings) => void; budgetUsd: number; regionsEndpoint: string; audiencesEndpoint?: string | null; disabled?: boolean }) {
   const { tt } = useT();
   const set = <K extends keyof LaunchSettings>(key: K, v: LaunchSettings[K]) => onChange({ ...value, [key]: v });
   const toggle = (key: "age_groups" | "languages", v: string) => set(key, value[key].includes(v) ? value[key].filter((x) => x !== v) : [...value[key], v]);
@@ -55,8 +60,8 @@ export default function LaunchSettingsEditor({ value, onChange, budgetUsd, regio
     <fieldset disabled={disabled} className="tk-fieldset"><legend>{tt("salesLaunch.objective")}</legend><div className="seg tk-seg">
       {/* Three shapes (lib/tiktok/settings.ts launchShape): Website purchases on
           the crazydramas pixel (the default), Sales on an Instant Page, Traffic. */}
-      <button type="button" className={`seg-btn${shape === "website_purchases" ? " on" : ""}`} aria-pressed={shape === "website_purchases"} onClick={() => onChange({ ...defaultWebsitePurchaseSettings(), start_paused: value.start_paused, budget_mode: value.budget_mode, daily_budget_usd: value.daily_budget_usd ?? defaultWebsitePurchaseSettings().daily_budget_usd })}>{tt("lpx.objectiveWebsite")}</button>
-      <button type="button" className={`seg-btn${shape === "instant_page" ? " on" : ""}`} aria-pressed={shape === "instant_page"} onClick={() => onChange({ ...defaultSalesLaunchSettings(), start_paused: value.start_paused, budget_mode: value.budget_mode, daily_budget_usd: value.daily_budget_usd })}>{tt("salesLaunch.sales")}</button>
+      <button type="button" className={`seg-btn${shape === "website_purchases" ? " on" : ""}`} aria-pressed={shape === "website_purchases"} onClick={() => onChange({ ...defaultWebsitePurchaseSettings(), start_paused: value.start_paused, budget_mode: value.budget_mode, daily_budget_usd: value.daily_budget_usd ?? defaultWebsitePurchaseSettings().daily_budget_usd, audiences: value.audiences })}>{tt("lpx.objectiveWebsite")}</button>
+      <button type="button" className={`seg-btn${shape === "instant_page" ? " on" : ""}`} aria-pressed={shape === "instant_page"} onClick={() => onChange({ ...defaultSalesLaunchSettings(), start_paused: value.start_paused, budget_mode: value.budget_mode, daily_budget_usd: value.daily_budget_usd, audiences: value.audiences })}>{tt("salesLaunch.sales")}</button>
       <button type="button" className={`seg-btn${shape === "traffic" ? " on" : ""}`} aria-pressed={shape === "traffic"} onClick={() => onChange({ ...value, objective_type: "TRAFFIC", sales_destination: undefined, optimization_goal: "CLICK", instant_page_template: undefined, optimization_event: undefined, attribution: undefined, pixel_code: undefined })}>{tt("salesLaunch.traffic")}</button></div>
       {shape === "instant_page" && <InstantPageTemplatePicker value={value.instant_page_template} onChange={template => set("instant_page_template", template)} />}
       {shape === "website_purchases" && <>
@@ -84,6 +89,7 @@ export default function LaunchSettingsEditor({ value, onChange, budgetUsd, regio
       <div className="tk-field"><span className="tk-label">{tt("tk.languages")}</span><div className="tk-chips">{COMMON_LANGUAGES.map((l) => <button type="button" key={l.value} className={`filter-chip${value.languages.includes(l.value) ? " on" : ""}`} onClick={() => toggle("languages", l.value)}>{l.label}</button>)}{value.languages.filter((l) => !COMMON_LANGUAGES.some((c) => c.value === l)).map((l) => <button type="button" key={l} className="filter-chip on" onClick={() => toggle("languages", l)}>{l} ×</button>)}<input className="input tk-mini" value={customLang} placeholder={tt("tk.languageCode")} onChange={(e) => setCustomLang(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); const code = customLang.trim().toLowerCase(); if (/^[a-z]{2,3}(-[a-z]{2,4})?$/.test(code)) { toggle("languages", code); setCustomLang(""); } } }} /><span className="gt-muted tk-inline-note">{value.languages.length ? "" : tt("tk.allLanguages")}</span></div></div>
       <div className="tk-field"><span className="tk-label">{tt("tk.os")}</span><div className="seg tk-seg" role="radiogroup"><button type="button" className={`seg-btn${value.operating_systems.length === 0 ? " on" : ""}`} onClick={() => set("operating_systems", [])}>{tt("tk.osAll")}</button>{OS_OPTIONS.map((o) => <button type="button" key={o.value} className={`seg-btn${value.operating_systems[0] === o.value ? " on" : ""}`} onClick={() => set("operating_systems", [o.value])}>{o.label}</button>)}</div></div>
       <div className="tk-field"><span className="tk-label">{tt("tk.placement")}</span><div className="seg tk-seg" role="radiogroup">{PLACEMENT_OPTIONS.map((p) => <button type="button" key={p.value} className={`seg-btn${value.placement === p.value ? " on" : ""}`} onClick={() => set("placement", p.value as LaunchSettings["placement"])}>{tt(`tk.placement.${p.value}`)}</button>)}</div><p className="hint">{tt("tk.placementHint")}</p></div>
+      {audiencesEndpoint !== undefined && <AudiencePicker value={value.audiences} onChange={(audiences) => set("audiences", audiences)} endpoint={audiencesEndpoint} />}
     </fieldset>
 
     <fieldset disabled={disabled} className="tk-fieldset">

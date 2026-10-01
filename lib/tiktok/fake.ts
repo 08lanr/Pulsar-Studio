@@ -34,6 +34,10 @@
 //   /bc/get/ /bc/asset/get/    one Business Center holding two ad accounts
 //   /pixel/list/               the configured pixel (TIKTOK_PIXEL_CODE, else
 //                              crazydramas.com's) SHARED with every account
+//   /dmp/custom_audience/list/ three retargeting audiences on every account
+//                              (FAKE_AUDIENCES); TIKTOK_FAKE_AUDIENCES=unreadable
+//                              refuses with 40001, as a token without the
+//                              Audience Management permission is
 //   /bc/pixel/get/             that Business Center owns the configured pixel
 //                              (its code and name, no numeric id, as the live
 //                              answer read 2026-09-24)
@@ -434,6 +438,13 @@ const adgroupRow = (g: FakeAdGroup) => ({
   attribution_event_count: g.body.attribution_event_count,
 });
 
+/** /dmp/custom_audience/list/ rows, the retargeting set docs/decisions.md 2026-10-01 describes; one still filling. */
+export const FAKE_AUDIENCES = [
+  { audience_id: "7700000000000000001", name: "RT Buyers 180d", cover_num: 1400, is_valid: true, is_expired: false, audience_type: "Website Traffic" },
+  { audience_id: "7700000000000000002", name: "RT Viewers 7d no buy", cover_num: 52000, is_valid: true, is_expired: false, audience_type: "Website Traffic" },
+  { audience_id: "7700000000000000003", name: "RT Checkout 14d no buy", cover_num: 600, is_valid: false, is_expired: false, audience_type: "Website Traffic" },
+] as const;
+
 export const fakeTransport: TikTokTransport = {
   mode: "fake",
   async get(pathname, _token, params = {}) {
@@ -551,6 +562,12 @@ export const fakeTransport: TikTokTransport = {
         const pixels = fakePixels(String(params.advertiser_id ?? ""), String(params.code ?? tiktokPixelCode()));
         return ok({ pixels, page_info: { page: 1, page_size: size, total_number: pixels.length, total_page: 1 } });
       }
+      case "/dmp/custom_audience/list/": {
+        if (process.env.TIKTOK_FAKE_AUDIENCES === "unreadable") return { code: 40001, message: "advertiser does not grant you /dmp/custom_audience/list/:GET permission" };
+        const size = Number(params.page_size ?? 10);
+        if (!Number.isInteger(size) || size < 1 || size > 100) return refuse("page_size must be between 1 and 100");
+        return ok({ list: FAKE_AUDIENCES.map((a) => ({ ...a })), page_info: { page: 1, page_size: size, total_number: FAKE_AUDIENCES.length, total_page: 1 } });
+      }
       case "/page/get/": {
         if (params.business_type !== "TIKTOK_INSTANT_PAGE") return ok({ list: [], page_info: { total_page: 1 } });
         const list = (pageStore.__studioFakeTikTokPages ?? []).filter((p) => p.advertiserId === String(params.advertiser_id));
@@ -596,6 +613,12 @@ export const fakeTransport: TikTokTransport = {
         const budget = num(body.budget);
         if (budget === null || budget < 20) return refuse("Budget is below the minimum of 20");
         if (Array.isArray(body.age_groups) && body.age_groups.length === 0) return refuse("age_groups must not be empty");
+        for (const key of ["audience_ids", "excluded_audience_ids"] as const) {
+          const ids = body[key];
+          if (ids === undefined) continue;
+          if (!Array.isArray(ids) || ids.length === 0) return refuse(`${key} must be a non-empty list`);
+          if (ids.some((id) => typeof id !== "string" || !FAKE_AUDIENCES.some((a) => a.audience_id === id))) return refuse(`${key} names an audience this advertiser does not have`);
+        }
         if (body.schedule_type === "SCHEDULE_START_END" && !body.schedule_end_time) return refuse("schedule_end_time is required");
         if (body.bid_type === "BID_TYPE_CUSTOM" && num(body.bid_price) === null && num(body.conversion_bid_price) === null) return refuse("A custom bid needs bid_price or conversion_bid_price");
         const pixelProblem = pixelRule(body, campaign);

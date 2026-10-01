@@ -12,6 +12,10 @@
 //                         can watch the ad that exists, whatever it was made
 //                         from; the link lasts 30 days and is kept 20
 //
+//   the account's         custom audiences of the chosen ad account, for the
+//   audiences             settings' audience picker (decision 2026-10-01;
+//                         lib/tiktok/audiences.ts; cached 60 s)
+//
 // Scoped like every launch read: a producer session reaches its own company's
 // accounts and launches only, staff any company's; a foreign one is not found.
 
@@ -19,6 +23,7 @@ import type { Session } from "@/lib/auth";
 import { getData } from "@/lib/data";
 import { invalid, notFound } from "@/lib/data/errors";
 import { accessTokenFor, tiktokTransport } from "@/lib/tiktok";
+import { listCustomAudiences, type AudienceList } from "@/lib/tiktok/audiences";
 import { createAdPreviewLink, linkedAccountHandle, linkedAccountMissing, listLinkedAccounts, listLinkedPosts, pickLinkedAccount, sparkCodePreview, type SparkCodePreview } from "@/lib/tiktok/linked-account";
 import type { TikTokAccountPostList } from "./clip-posts";
 
@@ -27,9 +32,11 @@ const PREVIEW_CACHE_MS = 20 * 86_400_000;
 const cache = globalThis as unknown as {
   __studioTikTokPosts?: Map<string, { at: number; value: TikTokAccountPostList }>;
   __studioTikTokPreviews?: Map<string, { at: number; link: string }>;
+  __studioTikTokAudiences?: Map<string, { at: number; value: AudienceList }>;
 };
 const postCache = () => (cache.__studioTikTokPosts ??= new Map());
 const previewCache = () => (cache.__studioTikTokPreviews ??= new Map());
+const audienceCache = () => (cache.__studioTikTokAudiences ??= new Map());
 const reason = (e: unknown) => (e instanceof Error ? e.message : "TikTok did not answer");
 
 /** The linked account of one of the company's TikTok ad accounts, and its newest posts. Reads only. */
@@ -57,6 +64,23 @@ export async function listTikTokAccountPosts(session: Session, producerId: strin
   } catch (e) { return empty(reason(e)); }
   postCache().set(key, { at: Date.now(), value });
   return value;
+}
+
+/** The custom audiences of one of the company's TikTok ad accounts, with the account they belong to. Reads only. */
+export async function listTikTokAudiences(session: Session, producerId: string, connectionId: string): Promise<AudienceList & { advertiser_id: string; account: string }> {
+  const connection = (await getData().getLaunchConnections(session, producerId, "tiktok", false)).find((c) => c.id === connectionId && c.enabled);
+  if (!connection) throw notFound("Advertising account");
+  const where = { advertiser_id: connection.advertiser_id, account: connection.name };
+  const token = accessTokenFor(connection.advertiser_id);
+  if (!token) return { ok: false, reason: "unreadable", message: `No TikTok connection covers ad account ${connection.name}. Reconnect TikTok on the TikTok page.`, ...where };
+  const tt = tiktokTransport();
+  const key = `${tt.mode}:${connection.advertiser_id}`;
+  const cached = audienceCache().get(key);
+  if (cached && Date.now() - cached.at < POSTS_CACHE_MS) return { ...cached.value, ...where };
+  const value = await listCustomAudiences(tt, token, connection.advertiser_id).catch((e: unknown): AudienceList => ({ ok: false, reason: "unreadable", message: reason(e) }));
+  // A refusal is not cached: the next open asks again (a permission added meanwhile shows at once).
+  if (value.ok) audienceCache().set(key, { at: Date.now(), value });
+  return { ...value, ...where };
 }
 
 /**
@@ -112,4 +136,4 @@ export async function sparkCodePreviews(session: Session, producerId: string, co
 }
 
 /** Tests start from empty caches. */
-export function resetTikTokPostCaches(): void { postCache().clear(); previewCache().clear(); sparkCache().clear(); }
+export function resetTikTokPostCaches(): void { postCache().clear(); previewCache().clear(); sparkCache().clear(); audienceCache().clear(); }

@@ -2,7 +2,7 @@
 // (docs/meta-organic-plan.md §4). House shape: same-origin guard -> role ->
 // zod -> data layer / publishing engine -> publicJson.
 //
-// Reading — `list`, `get`, `pagePosts`, `tiktokPosts`, `sparkPreviews` — is open to any signed-in member of the
+// Reading — `list`, `get`, `pagePosts`, `tiktokPosts`, `tiktokAudiences`, `sparkPreviews` — is open to any signed-in member of the
 // company and to any staff member: a viewer sees the state of a post, which is
 // what the Clips page is for. Publishing — `post`, `retry` — needs the
 // company's approver or a staff administrator, the same rule as launching, and
@@ -17,7 +17,7 @@ import { invalid } from "@/lib/data/errors";
 import { handle } from "@/app/api/titles/_lib/handler";
 import type { ClipLibraryFilter } from "./clip-posts";
 
-export type ClipOperation = "list" | "post" | "get" | "retry" | "pagePosts" | "tiktokPosts" | "sparkPreviews";
+export type ClipOperation = "list" | "post" | "get" | "retry" | "pagePosts" | "tiktokPosts" | "tiktokAudiences" | "sparkPreviews";
 
 // The codes travel in a body, not a URL, so they stay out of request logs.
 const sparkPreviewSchema = z.object({
@@ -106,6 +106,13 @@ export function clipRoute(req: NextRequest, staff: boolean, op: ClipOperation, i
       const connectionId = req.nextUrl.searchParams.get("connection_id") || "";
       if (!connectionId) throw invalid("Choose an advertising account.");
       return publicJson(await listTikTokAccountPosts(s, producerId, connectionId));
+    }
+    if (op === "tiktokAudiences") {
+      const { listTikTokAudiences } = await import("./tiktok-posts");
+      const producerId = actingProducer(s, req.nextUrl.searchParams.get("producer_id"));
+      const connectionId = req.nextUrl.searchParams.get("connection_id") || "";
+      if (!connectionId) throw invalid("Choose an advertising account.");
+      return publicJson(await listTikTokAudiences(s, producerId, connectionId));
     }
     if (op === "sparkPreviews") {
       const parsed = sparkPreviewSchema.safeParse(await req.json().catch(() => null));
