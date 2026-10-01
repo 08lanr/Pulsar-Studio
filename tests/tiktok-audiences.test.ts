@@ -15,7 +15,7 @@ import { executeLaunch } from "@/lib/launch/service";
 import { audienceGate } from "@/lib/launch/tiktok-gate";
 import { listTikTokAudiences, resetTikTokPostCaches } from "@/lib/launch/tiktok-posts";
 import type { LaunchConnection, LaunchDraft } from "@/lib/launch/types";
-import { audiencesFromList, listCustomAudiences } from "@/lib/tiktok/audiences";
+import { audienceChoices, audiencesFromList, listCustomAudiences, SAVED_AUDIENCES } from "@/lib/tiktok/audiences";
 import { FAKE_ACCOUNT_POSTS, FAKE_AUDIENCES, fakeTikTokSnapshot, fakeTransport, resetFakeTikTok } from "@/lib/tiktok/fake";
 import { adGroupBody, defaultLaunchSettings, defaultWebsitePurchaseSettings, normalizeLaunchSettings, planAdGroup, summarizeLaunchSettings, validateLaunchSettings, type LaunchSettings } from "@/lib/tiktok/settings";
 import { builtInPresetOf } from "@/lib/tiktok/preset-match";
@@ -90,10 +90,26 @@ test("the audience list: TikTok's rows, a refusal in plain words with the way ro
 test("a producer reads their own ad account's audiences; another company's account is not found", async () => {
   const one = await account();
   const read = await listTikTokAudiences(producer(), FIXTURE_PRODUCER_ID, one.id);
-  assert.ok(read.ok);
+  assert.equal(read.listed, true);
   assert.equal(read.account, "TikTok 1");
-  assert.equal(read.audiences.length, 3);
+  // Saved order first, each with what it is for, and TikTok's size.
+  assert.deepEqual(read.audiences.map((a) => [a.name, a.size, !!a.description]), [["RT Checkout 14d no buy", 600, true], ["RT Viewers 7d no buy", 52000, true], ["RT Buyers 180d", 1400, true]]);
   await assert.rejects(listTikTokAudiences(producer(), FIXTURE_PRODUCER_ID, "not-an-account"), /not found/i);
+});
+
+test("dropdowns (2026-10-01): when TikTok won't list, the audiences saved in Studio are offered, with the reason", async () => {
+  process.env.TIKTOK_FAKE_AUDIENCES = "unreadable";
+  const one = await account();
+  const read = await listTikTokAudiences(producer(), FIXTURE_PRODUCER_ID, one.id);
+  assert.equal(read.listed, false);
+  assert.match(read.note ?? "", /Audience Management/);
+  assert.deepEqual(read.audiences.map((a) => a.name), ["RT Checkout 14d no buy", "RT Viewers 7d no buy", "RT Buyers 180d"]);
+  assert.ok(read.audiences.every((a) => a.description && a.size === null));
+  // The live ad account has the three retargeting audiences saved, by their Ads Manager ids.
+  assert.deepEqual(SAVED_AUDIENCES["7686288484534599696"].map((a) => a.id), ["196145287", "196145276", "196145200"]);
+  // A saved audience TikTok no longer lists was deleted: left out once TikTok answers.
+  const merged = audienceChoices({ ok: true, audiences: [{ id: "9", name: "Other", size: 5, valid: true, expired: false }] }, [{ id: "1", name: "Gone", description: "x" }]);
+  assert.deepEqual(merged.audiences.map((a) => [a.id, a.description]), [["9", null]]);
 });
 
 test("preview: audiences need one ad account, and must be on it when TikTok lists them; a refused list does not block", async () => {

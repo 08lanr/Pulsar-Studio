@@ -80,3 +80,16 @@
    to (2026-09-24), not below the table where nobody sees it. */
 .gtable .tk-inline-form { margin:0; padding:12px 16px 14px; background:var(--surface-2); border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
 .pd-revnote .tk-inline-form { margin-top:10px; }
+
+/* Custom audiences (components/tiktok/AudiencePicker.tsx, 2026-10-01): two dropdowns, label column then select. */
+.tk-aud .tk-aud-row { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 4px 12px; align-items: start; margin-top: 6px; }
+.tk-aud .tk-aud-row .tk-label { padding-top: 7px; }
+.tk-aud .tk-aud-select { width: 100%; max-width: 560px; }
+.tk-aud .tk-aud-about { margin: 4px 0 0; }
+.tk-aud .tk-aud-why { display: inline; }
+.tk-aud .tk-aud-why > summary { display: inline; cursor: pointer; text-decoration: underline; }
+.tk-aud .tk-aud-byid { margin-top: 8px; }
+.tk-aud .tk-aud-byid > summary { cursor: pointer; font-size: 0.9em; }
+.tk-aud .tk-aud-byid-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.tk-aud .tk-aud-byid-row .input { flex: 1 1 160px; min-width: 0; }
+@media (max-width: 640px) { .tk-aud .tk-aud-row { grid-template-columns: 1fr; } .tk-aud .tk-aud-row .tk-label { padding-top: 0; } }

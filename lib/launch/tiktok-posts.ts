@@ -23,7 +23,7 @@ import type { Session } from "@/lib/auth";
 import { getData } from "@/lib/data";
 import { invalid, notFound } from "@/lib/data/errors";
 import { accessTokenFor, tiktokTransport } from "@/lib/tiktok";
-import { listCustomAudiences, type AudienceList } from "@/lib/tiktok/audiences";
+import { audienceChoices, listCustomAudiences, SAVED_AUDIENCES, type AudienceChoices, type AudienceList } from "@/lib/tiktok/audiences";
 import { createAdPreviewLink, linkedAccountHandle, linkedAccountMissing, listLinkedAccounts, listLinkedPosts, pickLinkedAccount, sparkCodePreview, type SparkCodePreview } from "@/lib/tiktok/linked-account";
 import type { TikTokAccountPostList } from "./clip-posts";
 
@@ -66,21 +66,26 @@ export async function listTikTokAccountPosts(session: Session, producerId: strin
   return value;
 }
 
-/** The custom audiences of one of the company's TikTok ad accounts, with the account they belong to. Reads only. */
-export async function listTikTokAudiences(session: Session, producerId: string, connectionId: string): Promise<AudienceList & { advertiser_id: string; account: string }> {
+/**
+ * The audiences the launch's dropdowns offer for one of the company's TikTok ad accounts: TikTok's list when it
+ * answers, merged with the ones saved in Studio (lib/tiktok/audiences.ts SAVED_AUDIENCES); the saved ones alone
+ * when it won't. Reads only.
+ */
+export async function listTikTokAudiences(session: Session, producerId: string, connectionId: string): Promise<AudienceChoices & { advertiser_id: string; account: string }> {
   const connection = (await getData().getLaunchConnections(session, producerId, "tiktok", false)).find((c) => c.id === connectionId && c.enabled);
   if (!connection) throw notFound("Advertising account");
   const where = { advertiser_id: connection.advertiser_id, account: connection.name };
+  const saved = SAVED_AUDIENCES[connection.advertiser_id] ?? [];
   const token = accessTokenFor(connection.advertiser_id);
-  if (!token) return { ok: false, reason: "unreadable", message: `No TikTok connection covers ad account ${connection.name}. Reconnect TikTok on the TikTok page.`, ...where };
+  if (!token) return { ...audienceChoices({ ok: false, reason: "unreadable", message: `No TikTok connection covers ad account ${connection.name}. Reconnect TikTok on the TikTok page.` }, saved), ...where };
   const tt = tiktokTransport();
   const key = `${tt.mode}:${connection.advertiser_id}`;
   const cached = audienceCache().get(key);
-  if (cached && Date.now() - cached.at < POSTS_CACHE_MS) return { ...cached.value, ...where };
+  if (cached && Date.now() - cached.at < POSTS_CACHE_MS) return { ...audienceChoices(cached.value, saved), ...where };
   const value = await listCustomAudiences(tt, token, connection.advertiser_id).catch((e: unknown): AudienceList => ({ ok: false, reason: "unreadable", message: reason(e) }));
   // A refusal is not cached: the next open asks again (a permission added meanwhile shows at once).
   if (value.ok) audienceCache().set(key, { at: Date.now(), value });
-  return { ...value, ...where };
+  return { ...audienceChoices(value, saved), ...where };
 }
 
 /**

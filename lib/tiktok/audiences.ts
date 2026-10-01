@@ -36,6 +36,49 @@ export type AudienceList =
   | { ok: true; audiences: CustomAudience[] }
   | { ok: false; reason: "no_permission" | "unreadable"; message: string };
 
+/**
+ * The audiences Studio knows by name (decision 2026-10-01, "Audience dropdowns"): made in Ads Manager, saved here
+ * with what each one is for, per ad account. While TikTok won't let Studio read the list (no Audience Management
+ * permission) these are what the launch's dropdowns offer; once it does, TikTok's list (with sizes) is merged in and
+ * these add their descriptions. Add a line here when a new audience is made.
+ */
+export type SavedAudience = { id: string; name: string; description: string };
+export const SAVED_AUDIENCES: Record<string, SavedAudience[]> = {
+  // Pulsar Entertainment, Co. — the TikTok retargeting set, made 2026-10-01 on the crazydramas pixel.
+  "7686288484534599696": [
+    { id: "196145287", name: "RT Checkout 14d no buy", description: "Started checkout in the last 14 days and didn't pay" },
+    { id: "196145276", name: "RT Viewers 7d no buy", description: "Watched a series in the last 7 days and never bought" },
+    { id: "196145200", name: "RT Buyers 180d", description: "Bought in the last 180 days (leave these out)" },
+  ],
+  // Fixture mode's fake ad accounts (lib/tiktok/fake.ts FAKE_AUDIENCES), so the demo reads like the real thing.
+  ...Object.fromEntries(["7000000000000000001", "7000000000000000002"].map((adv) => [adv, [
+    { id: "7700000000000000003", name: "RT Checkout 14d no buy", description: "Started checkout in the last 14 days and didn't pay" },
+    { id: "7700000000000000002", name: "RT Viewers 7d no buy", description: "Watched a series in the last 7 days and never bought" },
+    { id: "7700000000000000001", name: "RT Buyers 180d", description: "Bought in the last 180 days (leave these out)" },
+  ]])),
+};
+
+/** One choice in the launch's audience dropdowns. `size` and `valid` are TikTok's when it listed the audience. */
+export type AudienceChoice = CustomAudience & { description: string | null };
+
+/** What the dropdowns offer: `listed` = TikTok answered; `note` = why it didn't, in plain words. */
+export type AudienceChoices = { listed: boolean; audiences: AudienceChoice[]; note: string | null };
+
+/**
+ * Pure: TikTok's list (when it answered) with the saved descriptions, else the saved audiences alone. When TikTok
+ * answers, a saved audience it no longer lists was deleted and is left out. Saved order first, then the rest.
+ */
+export function audienceChoices(list: AudienceList, saved: readonly SavedAudience[] = []): AudienceChoices {
+  if (!list.ok) {
+    return { listed: false, note: list.message, audiences: saved.map((a) => ({ id: a.id, name: a.name, description: a.description, size: null, valid: true, expired: false })) };
+  }
+  const byId = new Map(saved.map((a, i) => [a.id, { a, i }]));
+  const audiences = list.audiences
+    .map((x) => ({ ...x, description: byId.get(x.id)?.a.description ?? null }))
+    .sort((x, y) => (byId.get(x.id)?.i ?? Infinity) - (byId.get(y.id)?.i ?? Infinity));
+  return { listed: true, note: null, audiences };
+}
+
 type Row = Record<string, unknown>;
 const text = (v: unknown) => (v === undefined || v === null ? "" : String(v));
 
