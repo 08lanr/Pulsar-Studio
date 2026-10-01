@@ -30,6 +30,7 @@ import { useT } from "@/components/locale";
 import { call } from "@/components/tiktok/api";
 import PostClipDialog from "@/components/launch/PostClipDialog";
 import { madeAt, postOn, publishedOn, shortDate } from "@/components/launch/clip-state";
+import { adFormatChoices, adFormatMatches } from "@/lib/ad-formats";
 import { tiktokAdText } from "@/lib/launch/plan";
 import type { ClipLibraryRow, ClipPost, ClipPostPlatform, MetaPagePost, MetaPagePostList, TikTokAccountPostList } from "@/lib/launch/clip-posts";
 import type { LaunchConnection, LaunchContent, LaunchLibraryItem, LaunchProvider } from "@/lib/launch/types";
@@ -84,20 +85,23 @@ export default function ContentPicker({ clipsBase, pagePostsUrl, producerId, pro
   const [clips, setClips] = useState<PickerClip[]>(library);
   const [search, setSearch] = useState("");
   const [series, setSeries] = useState("");
+  // Ad type (decision 2026-10-01): "" every type, "none" unclassified, else one (lib/ad-formats.ts adFormatMatches).
+  const [adType, setAdType] = useState("");
   const [sort, setSort] = useState("newest");
   const seriesOptions = useMemo(() => Array.from(new Map(clips.map((clip) => [clip.title_id ?? clip.title_name, clip.title_name])))
     .sort((a, b) => a[1].localeCompare(b[1], locale)), [clips, locale]);
+  const typeOptions = useMemo(() => adFormatChoices(clips.map((clip) => clip.ad_format)), [clips]);
   const visibleClips = useMemo(() => {
     const words = search.trim().toLocaleLowerCase(locale).split(/\s+/).filter(Boolean);
     return clips.filter((clip) => {
       const text = [clip.title_name, clip.label, clip.text, clip.headline, clip.external_id, clip.episode_label].filter(Boolean).join(" ").toLocaleLowerCase(locale);
-      return (!series || (clip.title_id ?? clip.title_name) === series) && words.every((word) => text.includes(word));
+      return (!series || (clip.title_id ?? clip.title_name) === series) && adFormatMatches(clip.ad_format, adType) && words.every((word) => text.includes(word));
     }).sort((a, b) => {
       if (sort === "series") return a.title_name.localeCompare(b.title_name, locale);
       const time = (clip: PickerClip) => clip.rendered_at ? Date.parse(clip.rendered_at) || 0 : 0;
       return sort === "oldest" ? time(a) - time(b) : time(b) - time(a);
     });
-  }, [clips, search, series, sort, locale]);
+  }, [clips, search, series, adType, sort, locale]);
   const [pageAccount, setPageAccount] = useState(accountIds[0] ?? connections[0]?.id ?? "");
   const [pagePosts, setPagePosts] = useState<MetaPagePostList | null>(null);
   const [pageBusy, setPageBusy] = useState(false);
@@ -238,12 +242,16 @@ export default function ContentPicker({ clipsBase, pagePostsUrl, producerId, pro
             <option value="">{tt("contentPicker.allSeries")}</option>
             {seriesOptions.map(([id, name]) => <option value={id} key={id}>{name}</option>)}
           </select></label>
+          <label>{tt("adFormat.label")}<select className="select" value={adType} onChange={(event) => setAdType(event.target.value)}>
+            <option value="">{tt("cda.filter.allTypes")}</option>
+            {typeOptions.map((f) => <option value={f} key={f}>{f === "none" ? tt("cdc.type.none") : tt(`adFormat.${f}`)}</option>)}
+          </select></label>
           <label>{tt("contentPicker.sort")}<select className="select" value={sort} onChange={(event) => setSort(event.target.value)}>
             {["newest", "oldest", "series"].map((value) => <option key={value} value={value}>{tt(`contentPicker.sort.${value}`)}</option>)}
           </select></label>
         </div>
         <div className="content-picker-results"><span role="status">{tt("contentPicker.results", { n: visibleClips.length, total: clips.length })}</span>
-          {(search || series) && <button className="btn btn-ghost btn-sm" type="button" onClick={() => { setSearch(""); setSeries(""); }}>{tt("contentPicker.clearFilters")}</button>}
+          {(search || series || adType) && <button className="btn btn-ghost btn-sm" type="button" onClick={() => { setSearch(""); setSeries(""); setAdType(""); }}>{tt("contentPicker.clearFilters")}</button>}
         </div>
       </div>}
 

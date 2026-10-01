@@ -18,7 +18,7 @@ import { NextRequest } from "next/server";
 import { requestAsyncStorage } from "next/dist/client/components/request-async-storage.external";
 
 import { DEV_SESSION_COOKIE, systemSession } from "@/lib/auth";
-import { AD_FORMATS, AD_FORMAT_INFO, AD_FORMAT_MIGRATION_MESSAGE, adFormatColumnMissing, isAdFormat } from "@/lib/ad-formats";
+import { AD_FORMATS, AD_FORMAT_INFO, AD_FORMAT_MIGRATION_MESSAGE, adFormatChoices, adFormatColumnMissing, adFormatMatches, isAdFormat } from "@/lib/ad-formats";
 import { fixtureData, resetFixtureStore } from "@/lib/data/fixture";
 import { putStoredBytes } from "@/lib/data/storage";
 import { POST as upload } from "@/app/api/titles/[id]/clips/upload/route";
@@ -174,3 +174,16 @@ test("the format route refuses a bad body, a stranger, another title's clip, a s
   assert.equal((await fixtureData.listEpisodeClips(producer(), title.id))[0].ad_format ?? null, null, "nothing refused changed the clip");
 });
 
+test("one ad-type filter for the clip picker, the Clips page and both stats tabs (2026-10-01)", () => {
+  assert.equal(adFormatMatches("quick_hook", ""), true, "no filter: every ad");
+  assert.equal(adFormatMatches(null, null), true);
+  assert.equal(adFormatMatches("quick_hook", "quick_hook"), true);
+  assert.equal(adFormatMatches("narration_trailer", "quick_hook"), false);
+  assert.equal(adFormatMatches(null, "quick_hook"), false, "an unclassified ad is no type");
+  assert.equal(adFormatMatches(null, "none"), true, "none = the ads nobody classified");
+  assert.equal(adFormatMatches(undefined, "none"), true);
+  assert.equal(adFormatMatches("quick_hook", "none"), false);
+  // Only the types the list holds, in AD_FORMATS order, then "none".
+  assert.deepEqual(adFormatChoices(["quick_hook", null, "narration_trailer", "quick_hook"]), ["narration_trailer", "quick_hook", "none"]);
+  assert.deepEqual(adFormatChoices([]), []);
+});

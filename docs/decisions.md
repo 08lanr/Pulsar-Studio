@@ -8,6 +8,10 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-10-01 · Ad-type filters
+
+Ruobin, 2026-10-01: a filter by type of ad (quick hook ad vs narration trailer and so on). It is in four places: the launch clip picker ("Choose Studio clips", an Ad type select next to Series), the Clips page (an Ad type select, kept in the URL as `?type=`), the stats Campaigns tab (a row of type links, `?ad_type=`, which stays when you switch between Ads and Campaigns), and the Ads tab, which already had one. One rule everywhere (`adFormatMatches` in `lib/ad-formats.ts`): no filter is every ad, `none` is the ads nobody classified, anything else is that one type; each list offers only the types it holds (`adFormatChoices`). With a type picked, Campaigns recomputes every campaign from that type's ads only: their visitors, their spend, the buyers who landed from them, and TikTok's purchases summed over those ads. Organic visits, TikTok's stored copy of the page and untagged TikTok buyers have no ad, so they are no type and drop out. Tests: `tests/ad-formats.test.ts`.
+
 ## 2026-10-01 · Audience dropdowns
 
 Ruobin, on the first audience picker: "the UI is rather poor. its a bit confusing … if you know the codes, just have them as a drop down box with a brief description". Ad group settings → Custom audiences is now two dropdowns, **Reach only** and **Leave out**, one audience each, every option "name — what it is for", with the chosen one's description (and TikTok's size, when it lists it) underneath. The options are TikTok's list merged with the audiences saved in Studio (`SAVED_AUDIENCES` in `lib/tiktok/audiences.ts`, per ad account: the three retargeting audiences made 2026-10-01, 196145287 / 196145276 / 196145200); while TikTok refuses the list (no Audience Management permission) the saved ones alone, with one grey line and a "Why?" for TikTok's words. Naming an audience by ID moved under "Use another audience by ID". Add a line to `SAVED_AUDIENCES` when a new audience is made.

@@ -14,6 +14,7 @@ import { PlaybackSection } from "@/components/admin/cd-stats/Sections";
 import { EpisodeCurveChart, SeriesFunnelList } from "@/components/admin/cd-stats/SeriesCurve";
 import { SurveyView } from "@/components/admin/cd-stats/Tables";
 import TeamEditor from "@/components/admin/cd-stats/TeamEditor";
+import { adFormatChoices, adFormatMatches } from "@/lib/ad-formats";
 import { fakeStatsArchive, fakeStatsLaunches, FAKE_STATS_CLIPS } from "@/lib/crazydramas/fake-stats";
 import { readCrazydramasStats, readLaunchClips } from "@/lib/crazydramas/stats";
 import { adCreatives, byAdType, campaignFacts, changeAbove, compareCampaigns, dailySpend, fmtRatio, returnOnSpend, spendIn, type AdCreative, type CreativeClip } from "@/lib/crazydramas/stats-ads";
@@ -130,8 +131,9 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
     const q = new URLSearchParams();
     const next: Partial<Search> = { range, tab, eps, series: searchParams.series, device: searchParams.device, source: searchParams.source, country: searchParams.country, ad_title: searchParams.ad_title, ad_type: searchParams.ad_type, ...patch };
     for (const [k, v] of Object.entries(next)) {
-      // The Ads tab's own filters stay on the Ads tab.
-      if ((k === "ad_title" || k === "ad_type") && next.tab !== "ads") continue;
+      // The Ads tab's own filters stay on the Ads tab; the ad type also on Campaigns (2026-10-01).
+      if (k === "ad_title" && next.tab !== "ads") continue;
+      if (k === "ad_type" && next.tab !== "ads" && next.tab !== "campaigns") continue;
       if (v && !(k === "tab" && v === "overview") && !(k === "eps" && v === "1")) q.set(k, v);
     }
     return `/crazydramas/stats?${q.toString()}`;
@@ -450,11 +452,29 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
   }
 
   function CampaignsTab() {
+    // One type of ad (?ad_type=, decision 2026-10-01 "Ad-type filters"): only the people of ads of that type, and
+    // only their spend, so every campaign's numbers are that type's. Organic visits and TikTok's stored copy (which
+    // ad unknown) are no type, so a type leaves them out.
+    const adType = searchParams.ad_type || "";
+    const formatOf = (adId: string) => creatives.get(adId)?.ad_format ?? null;
+    const ofType = (adId: string | null | undefined) => !!adId && adFormatMatches(formatOf(adId), adType);
+    const allSources = dashRows(report, { from: report.from, to: report.to }, filter);
+    const typeChoices = adFormatChoices([...new Set([...adSpends.map((sp) => sp.ad_id), ...allSources.filter((x) => x.ad && !x.stored_copy).map((x) => x.ad!)])].map(formatOf));
     // The people are the filtered rows over the report (the period is the table's own, as TikTok's days are).
-    const adReport = { ...report, sources: dashRows(report, { from: report.from, to: report.to }, filter) };
-    const rows = campaignTable(adReport, adSpends, filter.series ?? undefined, adPeriod);
-    const untaggedN = paid ? untaggedBuyers(paid) : 0;
-    const views = compareCampaigns(rows, campaignFacts(runs), creatives, paid ? buyersByAd(paid) : null, untaggedN, adPeriod);
+    const adReport = { ...report, sources: adType ? allSources.filter((x) => !x.stored_copy && ofType(x.ad)) : allSources };
+    const rows = campaignTable(adReport, adType ? adSpends.filter((sp) => ofType(sp.ad_id)) : adSpends, filter.series ?? undefined, adPeriod);
+    // With a type: "we saw" counts only payments that landed from an ad of that type (an untagged TikTok buyer is no
+    // type), and "TikTok says" per campaign is the sum of that type's ads, not the whole campaign's.
+    const typePaid = adType && paid ? paid.filter((p) => !p.source?.stored_copy && ofType(p.source?.ad)) : paid;
+    const untaggedN = !adType && paid ? untaggedBuyers(paid) : 0;
+    const facts = campaignFacts(runs);
+    if (adType) {
+      for (const [id, f] of facts) {
+        const own = [...f.ad_purchases].filter(([ad, n]) => ofType(ad) && n != null).map(([, n]) => n!);
+        facts.set(id, { ...f, tiktok_purchases: own.length ? own.reduce((a, n) => a + n, 0) : null });
+      }
+    }
+    const views = compareCampaigns(rows, facts, creatives, typePaid ? buyersByAd(typePaid) : null, untaggedN, adPeriod);
     const launchDay = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Los_Angeles" });
     const viewRows: CampaignsViewRow[] = views.map((v) => ({ ...v, ads: v.ads.map((a) => ({ ...a, href: hrefWith({ ad: a.ad_id }), media_url: names.media(a.creative) })) }));
     const launchedLabel = Object.fromEntries(views.filter((v) => v.launched_at).map((v) => [v.key, tt("cds.ads.launched", { day: launchDay(v.launched_at!) })]));
@@ -479,6 +499,15 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
             <h2>{tt("cdx.ads.campaigns")}</h2>
             {range !== "all" && <span className="cdx-muted">{tt("cdc.periodNote")}</span>}
           </div>
+          {typeChoices.length > 1 && (
+            <nav className="seg" aria-label={tt("adFormat.label")}>
+              {["", ...typeChoices].map((f) => (
+                <a key={f || "all"} className={`seg-btn${f === adType ? " on" : ""}`} aria-current={f === adType ? "true" : undefined} href={hrefWith({ ad_type: f || undefined, ad: undefined })}>
+                  {f === "" ? tt("cda.filter.allTypes") : f === "none" ? tt("cdc.type.none") : tt(`adFormat.${f}`)}
+                </a>
+              ))}
+            </nav>
+          )}
           {!adDays.ok && <p className="note note-warn">{tt("cds.ads.daysFailed", { error: adDays.error })}</p>}
           {(filter.device || filter.country) && <p className="note">{tt("cdd.ads.byPhoneNote")}</p>}
           <CampaignsView rows={viewRows} caption={tt("cdx.ads.campaigns")} launchedLabel={launchedLabel} returns={money} />

@@ -60,6 +60,23 @@ export function isAdFormat(value: unknown): value is AdFormat {
 }
 
 /**
+ * An ad-type filter (decision 2026-10-01, "Ad-type filters"): "" every ad, "none" the ads nobody classified, else
+ * one type. The values of the stats Ads tab's ?ad_type=, shared by the launch clip picker, the Clips page and the
+ * Campaigns tab, so "quick hook ads" means the same everywhere.
+ */
+export function adFormatMatches(format: AdFormat | null | undefined, filter: string | null | undefined): boolean {
+  if (!filter) return true;
+  return filter === "none" ? !format : format === filter;
+}
+
+/** A filter's choices for a list: the types it holds, in AD_FORMATS order, then "none" when some have no type. */
+export function adFormatChoices(formats: Iterable<AdFormat | null | undefined>): string[] {
+  const seen = new Set<string>();
+  for (const f of formats) seen.add(f ?? "none");
+  return [...AD_FORMATS.filter((f) => seen.has(f)), ...(seen.has("none") ? ["none"] : [])];
+}
+
+/**
  * studio.clips.ad_format arrives with migration 0023. On a database without it
  * PostgREST answers PGRST204 ("Could not find the 'ad_format' column of
  * 'clips' in the schema cache") and Postgres 42703 ("column ... does not

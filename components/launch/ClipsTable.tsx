@@ -20,7 +20,7 @@ import { madeAt, postOn, publishedOn, shortDate } from "@/components/launch/clip
 import type { ClipLibraryRow, ClipPost, ClipPostPlatform } from "@/lib/launch/clip-posts";
 import type { MontageStatus } from "@/lib/clips/montage-run";
 import type { LaunchConnection, LaunchTitleOption, LaunchWorkspace } from "@/lib/launch/types";
-import { AD_FORMATS, isAdFormat, type AdFormat } from "@/lib/ad-formats";
+import { AD_FORMATS, adFormatChoices, adFormatMatches, isAdFormat, type AdFormat } from "@/lib/ad-formats";
 import { fmtPct, type ClipSummary } from "@/lib/crazydramas/stats-creatives";
 
 /** On one title's page: its 60-second ad panel (components/launch/AdMontage.tsx) above the table, which reloads when an ad lands. */
@@ -54,6 +54,8 @@ export default function ClipsTable({ staff = false, titleId, montage }: Props) {
   const episode = params?.get("episode") ?? "";
   const state = (POSTED_FILTERS.includes((params?.get("state") ?? "") as PostedFilter) ? params!.get("state") : "any") as PostedFilter;
   const querySearch = params?.get("q") ?? "";
+  // Ad type (decision 2026-10-01): "" every type, "none" unclassified, else one (lib/ad-formats.ts adFormatMatches).
+  const adType = params?.get("type") ?? "";
 
   const [rows, setRows] = useState<ClipLibraryRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -194,8 +196,9 @@ export default function ClipsTable({ staff = false, titleId, montage }: Props) {
     .map(([id, item]) => [id, chosenTitle ? tt("clipsPosting.episodeN", { n: item.number }) : `${item.title} · ${tt("clipsPosting.episodeN", { n: item.number })}`] as const);
 
   const needle = search.trim().toLowerCase();
-  const visible = needle ? rows.filter((row) => `${row.label} ${row.title_name} ${row.episode_label ?? ""}`.toLowerCase().includes(needle)) : rows;
-  const filtered = !!(producer || title || episode || search.trim() || state !== "any");
+  const typeOptions = adFormatChoices(rows.map((row) => row.ad_format));
+  const visible = rows.filter((row) => adFormatMatches(row.ad_format, adType) && (!needle || `${row.label} ${row.title_name} ${row.episode_label ?? ""}`.toLowerCase().includes(needle)));
+  const filtered = !!(producer || title || episode || search.trim() || state !== "any" || adType);
   const selectedIds = visible.filter((row) => chosen[row.id]).map((row) => row.id);
 
   function applyPost(post: ClipPost) {
@@ -317,6 +320,11 @@ export default function ClipsTable({ staff = false, titleId, montage }: Props) {
         <select className="select" value={episode} onChange={(e) => replaceQuery({ episode: e.target.value })}>
           <option value="">{tt("clipsPosting.filter.all")}</option>
           {episodeOptions.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+        </select></label>
+      <label><span>{tt("adFormat.label")}</span>
+        <select className="select" value={adType} onChange={(e) => replaceQuery({ type: e.target.value })}>
+          <option value="">{tt("cda.filter.allTypes")}</option>
+          {typeOptions.map((f) => <option key={f} value={f}>{f === "none" ? tt("cdc.type.none") : tt(`adFormat.${f}`)}</option>)}
         </select></label>
       <label><span>{tt("clipsPosting.filter.state")}</span>
         <select className="select" value={state} onChange={(e) => replaceQuery({ state: e.target.value === "any" ? "" : e.target.value })}>

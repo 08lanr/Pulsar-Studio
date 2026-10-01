@@ -2,6 +2,7 @@ import AdsTable, { AdsFilter, type AdsViewRow } from "@/components/admin/cd-stat
 import { KpiCard } from "@/components/admin/cd-stats/Overview";
 import type { Session } from "@/lib/auth";
 import { fakeAdVideo } from "@/lib/crazydramas/fake-stats";
+import { adFormatChoices, adFormatMatches } from "@/lib/ad-formats";
 import { adCreatives, type CreativeClip } from "@/lib/crazydramas/stats-ads";
 import {
   adSpans,
@@ -55,7 +56,7 @@ export type AdsTabProps = {
 
 /** The creatives the filter keeps. */
 export function filterRows(rows: CreativeRow[], filter: AdsTabProps["filter"]): CreativeRow[] {
-  return rows.filter((r) => (!filter.title || r.title_id === filter.title) && (!filter.type || (filter.type === "none" ? !r.ad_format : r.ad_format === filter.type)));
+  return rows.filter((r) => (!filter.title || r.title_id === filter.title) && adFormatMatches(r.ad_format, filter.type));
 }
 
 export default async function AdsTab(p: AdsTabProps) {
@@ -77,7 +78,7 @@ export default async function AdsTab(p: AdsTabProps) {
   const titleOptions = [...new Set(every.map((r) => r.title_id).filter((id): id is string => !!id))]
     .map((id) => ({ id, name: p.titleNames.get(id) ?? id }))
     .sort((a, b) => a.name.localeCompare(b.name));
-  const typeOptions = [...new Set(every.map((r) => r.ad_format ?? "none"))].sort((a, b) => Number(a === "none") - Number(b === "none") || a.localeCompare(b));
+  const typeOptions = adFormatChoices(every.map((r) => r.ad_format));
   const shown = all.filter((r) => r.sums.impressions !== 0);
   const hidden = all.length - shown.length;
   const before = spans.prev ? filterRows(creativeRows(creatives, numbersIn(days.days ?? {}, days.covered, spans.prev)), p.filter) : null;
