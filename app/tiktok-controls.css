@@ -93,3 +93,6 @@
 .tk-aud .tk-aud-byid-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .tk-aud .tk-aud-byid-row .input { flex: 1 1 160px; min-width: 0; }
 @media (max-width: 640px) { .tk-aud .tk-aud-row { grid-template-columns: 1fr; } .tk-aud .tk-aud-row .tk-label { padding-top: 0; } }
+.tk-aud .tk-aud-empty { margin: 7px 0 6px; color: var(--muted, inherit); }
+.tk-aud .tk-aud-chosen { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; max-width: 560px; padding: 6px 10px; margin-bottom: 6px; border: 1px solid var(--border, rgba(255,255,255,.15)); border-radius: 8px; }
+.tk-aud .tk-aud-chosen .tk-aud-about { margin: 2px 0 0; }

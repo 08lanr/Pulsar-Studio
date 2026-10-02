@@ -5463,7 +5463,7 @@
   "tka.exclude": "Leave out",
   "tka.none": "Everyone (no custom audience)",
   "tka.noneExcluded": "Nobody",
-  "tka.hint": "TikTok needs {min} people in an audience before it delivers; a new one takes up to 48 hours to fill. For retargeting, leave out the buyers.",
+  "tka.hint": "Reach only: people in any of these audiences. TikTok needs {min} people in an audience before it delivers; a new one takes up to 48 hours to fill. For retargeting, leave out the buyers.",
   "tka.chooseAccount": "Custom audiences belong to one ad account: choose exactly one in step 2 to pick its audiences.",
   "tka.loading": "Reading this ad account's audiences…",
   "tka.people": "{n} people",
@@ -5477,5 +5477,8 @@
   "tka.why": "Why?",
   "tka.byIdSummary": "Use another audience by ID",
   "tka.namePlaceholder": "Name (optional)",
-  "tka.byIdName": "Audience {id}"
+  "tka.byIdName": "Audience {id}",
+  "tka.add": "Add an audience…",
+  "tka.addAnother": "Add another audience…",
+  "tka.remove": "Remove {name}"
 }

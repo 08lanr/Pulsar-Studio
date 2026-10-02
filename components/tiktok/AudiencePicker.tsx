@@ -40,13 +40,17 @@ export default function AudiencePicker({ value, onChange, endpoint }: { value: L
   const options = [...known, ...extra];
   const byId = new Map(options.map((a) => [a.id, a]));
 
-  /** One audience per side: choosing one puts it there (and takes it off the other side); "" clears the side. */
+  /** Several audiences per side (an ad group reaches people in ANY of the Reach-only ones): adding one puts it on
+   * that side and takes it off the other; removing takes it off. */
+  const write = (next: { include: AudienceRef[]; exclude: AudienceRef[] }) => onChange(next.include.length || next.exclude.length ? next : undefined);
   const choose = (side: Side, audienceId: string, ref?: AudienceRef) => {
-    const picked = audienceId ? ref ?? { id: audienceId, name: byId.get(audienceId)?.name ?? null } : null;
-    const other: Side = side === "include" ? "exclude" : "include";
-    const next = { include, exclude, [side]: picked ? [picked] : [], [other]: (side === "include" ? exclude : include).filter((a) => a.id !== audienceId) } as { include: AudienceRef[]; exclude: AudienceRef[] };
-    onChange(next.include.length || next.exclude.length ? next : undefined);
+    if (!audienceId) return;
+    const picked = ref ?? { id: audienceId, name: byId.get(audienceId)?.name ?? null };
+    const without = (list: AudienceRef[]) => list.filter((a) => a.id !== audienceId);
+    write(side === "include" ? { include: [...without(include), picked], exclude: without(exclude) } : { include: without(include), exclude: [...without(exclude), picked] });
   };
+  const drop = (side: Side, audienceId: string) =>
+    write(side === "include" ? { include: include.filter((a) => a.id !== audienceId), exclude } : { include, exclude: exclude.filter((a) => a.id !== audienceId) });
   const addById = (side: Side) => {
     const v = id.trim();
     if (!/^\d{6,24}$/.test(v)) return;
@@ -63,15 +67,23 @@ export default function AudiencePicker({ value, onChange, endpoint }: { value: L
     return words ? <p className="hint tk-aud-about">{words}</p> : null;
   };
   const row = (side: Side) => {
-    const current = (side === "include" ? include : exclude)[0]?.id ?? "";
+    const chosen = side === "include" ? include : exclude;
+    const left = options.filter((a) => !chosen.some((c) => c.id === a.id));
     return <div className="tk-aud-row">
       <label className="tk-label" htmlFor={`tk-aud-${side}`}>{tt(side === "include" ? "tka.target" : "tka.exclude")}</label>
       <div>
-        <select id={`tk-aud-${side}`} className="select tk-aud-select" value={current} disabled={!endpoint} onChange={(e) => choose(side, e.target.value)}>
-          <option value="">{tt(side === "include" ? "tka.none" : "tka.noneExcluded")}</option>
-          {options.map((a) => <option key={a.id} value={a.id}>{a.description ? `${a.name} — ${a.description}` : a.name}</option>)}
-        </select>
-        {about(byId.get(current))}
+        {chosen.length === 0 && <p className="tk-aud-empty">{tt(side === "include" ? "tka.none" : "tka.noneExcluded")}</p>}
+        {chosen.map((c) => {
+          const a = byId.get(c.id);
+          return <div className="tk-aud-chosen" key={c.id}>
+            <div><strong>{a?.name ?? c.name ?? c.id}</strong>{about(a)}</div>
+            <button type="button" className="btn btn-ghost btn-sm" aria-label={tt("tka.remove", { name: a?.name ?? c.name ?? c.id })} onClick={() => drop(side, c.id)}>×</button>
+          </div>;
+        })}
+        {left.length > 0 && <select id={`tk-aud-${side}`} className="select tk-aud-select" value="" disabled={!endpoint} onChange={(e) => choose(side, e.target.value)}>
+          <option value="">{tt(chosen.length ? "tka.addAnother" : "tka.add")}</option>
+          {left.map((a) => <option key={a.id} value={a.id}>{a.description ? `${a.name} — ${a.description}` : a.name}</option>)}
+        </select>}
       </div>
     </div>;
   };

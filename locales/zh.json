@@ -5463,7 +5463,7 @@
   "tka.exclude": "排除",
   "tka.none": "所有人（不限自定义受众）",
   "tka.noneExcluded": "不排除",
-  "tka.hint": "受众至少要有 {min} 人 TikTok 才会投放；新建的受众最多需要 48 小时填充。做再营销时，请排除已购买的人。",
+  "tka.hint": "只投放给：属于其中任一受众的人。受众至少要有 {min} 人 TikTok 才会投放；新建的受众最多需要 48 小时填充。做再营销时，请排除已购买的人。",
   "tka.chooseAccount": "自定义受众属于单个广告账户：请在第 2 步只选择一个广告账户，再选择它的受众。",
   "tka.loading": "正在读取该广告账户的受众…",
   "tka.people": "{n} 人",
@@ -5477,5 +5477,8 @@
   "tka.why": "为什么？",
   "tka.byIdSummary": "按 ID 使用其他受众",
   "tka.namePlaceholder": "名称（可选）",
-  "tka.byIdName": "受众 {id}"
+  "tka.byIdName": "受众 {id}",
+  "tka.add": "添加受众…",
+  "tka.addAnother": "再添加一个受众…",
+  "tka.remove": "移除 {name}"
 }

@@ -4,7 +4,7 @@
   "tka.exclude": { "en": "Leave out", "zh": "排除" },
   "tka.none": { "en": "Everyone (no custom audience)", "zh": "所有人（不限自定义受众）" },
   "tka.noneExcluded": { "en": "Nobody", "zh": "不排除" },
-  "tka.hint": { "en": "TikTok needs {min} people in an audience before it delivers; a new one takes up to 48 hours to fill. For retargeting, leave out the buyers.", "zh": "受众至少要有 {min} 人 TikTok 才会投放；新建的受众最多需要 48 小时填充。做再营销时，请排除已购买的人。" },
+  "tka.hint": { "en": "Reach only: people in any of these audiences. TikTok needs {min} people in an audience before it delivers; a new one takes up to 48 hours to fill. For retargeting, leave out the buyers.", "zh": "只投放给：属于其中任一受众的人。受众至少要有 {min} 人 TikTok 才会投放；新建的受众最多需要 48 小时填充。做再营销时，请排除已购买的人。" },
   "tka.chooseAccount": { "en": "Custom audiences belong to one ad account: choose exactly one in step 2 to pick its audiences.", "zh": "自定义受众属于单个广告账户：请在第 2 步只选择一个广告账户，再选择它的受众。" },
   "tka.loading": { "en": "Reading this ad account's audiences…", "zh": "正在读取该广告账户的受众…" },
   "tka.people": { "en": "{n} people", "zh": "{n} 人" },
@@ -17,5 +17,8 @@
   "tka.why": { "en": "Why?", "zh": "为什么？" },
   "tka.byIdSummary": { "en": "Use another audience by ID", "zh": "按 ID 使用其他受众" },
   "tka.namePlaceholder": { "en": "Name (optional)", "zh": "名称（可选）" },
-  "tka.byIdName": { "en": "Audience {id}", "zh": "受众 {id}" }
+  "tka.byIdName": { "en": "Audience {id}", "zh": "受众 {id}" },
+  "tka.add": { "en": "Add an audience…", "zh": "添加受众…" },
+  "tka.addAnother": { "en": "Add another audience…", "zh": "再添加一个受众…" },
+  "tka.remove": { "en": "Remove {name}", "zh": "移除 {name}" }
 }
