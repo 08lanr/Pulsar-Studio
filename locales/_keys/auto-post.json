@@ -1,0 +1,10 @@
+{
+  "autoPost.posted": { "en": "Auto-posted {n} Reels from {clips} proven clips: {names}", "zh": "已自动发布 {n} 条 Reels，来自 {clips} 条已验证素材：{names}" },
+  "autoPost.nothing": { "en": "Auto-posting found nothing to post ({why})", "zh": "自动发布本轮没有可发的素材（{why}）" },
+  "autoPost.idleNever": { "en": "Auto-posting is on. Nothing posted yet this session; next run {next}.", "zh": "自动发布已开启。本次运行尚未发布；下次 {next}。" },
+  "autoPost.waiting": { "en": "{n} more clips qualify and go out next time", "zh": "另有 {n} 条素材达标，将在下一轮发布" },
+  "autoPost.failed": { "en": "{n} refused ({first})", "zh": "{n} 条被拒（{first}）" },
+  "autoPost.next": { "en": "next run {next}", "zh": "下次运行 {next}" },
+  "autoPost.due": { "en": "within a few minutes", "zh": "几分钟内" },
+  "autoPost.tiktokByHand": { "en": "TikTok has no posting credential, so mirror these to the TikTok account by hand.", "zh": "TikTok 没有发布权限，请手动把这些发到 TikTok 账号。" }
+}

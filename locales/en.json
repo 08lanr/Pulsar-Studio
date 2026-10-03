@@ -5480,5 +5480,13 @@
   "tka.byIdName": "Audience {id}",
   "tka.add": "Add an audience…",
   "tka.addAnother": "Add another audience…",
-  "tka.remove": "Remove {name}"
+  "tka.remove": "Remove {name}",
+  "autoPost.posted": "Auto-posted {n} Reels from {clips} proven clips: {names}",
+  "autoPost.nothing": "Auto-posting found nothing to post ({why})",
+  "autoPost.idleNever": "Auto-posting is on. Nothing posted yet this session; next run {next}.",
+  "autoPost.waiting": "{n} more clips qualify and go out next time",
+  "autoPost.failed": "{n} refused ({first})",
+  "autoPost.next": "next run {next}",
+  "autoPost.due": "within a few minutes",
+  "autoPost.tiktokByHand": "TikTok has no posting credential, so mirror these to the TikTok account by hand."
 }
