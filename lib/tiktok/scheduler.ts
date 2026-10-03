@@ -120,6 +120,11 @@ export async function tick(opts: { metrics?: boolean } = {}): Promise<TickSummar
     // 7. the segment worker, started once this computer has a films folder (idempotent)
     try { (await import("@/lib/segment/worker")).ensureInProcessWorker(); }
     catch (e) { summary.errors.push(`segment worker: ${(e as Error).message}`); }
+    // 8. post the clips TikTok has already proved to the Page and Instagram
+    //    (decision 2026-10-03): self-throttled to every few days, gated on the
+    //    same switches a live Meta write needs, and never throws.
+    try { await (await import("@/lib/launch/auto-post")).tickAutoPost(); }
+    catch (e) { summary.errors.push(`auto post: ${(e as Error).message}`); }
   } finally {
     s.ticking = false;
     s.lastTickAt = Date.now();

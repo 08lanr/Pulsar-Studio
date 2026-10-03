@@ -73,6 +73,7 @@ export default function ClipsTable({ staff = false, titleId, montage }: Props) {
   const [accounts, setAccounts] = useState<Record<string, LaunchConnection[]>>({});
   // Staff: each launched clip's TikTok numbers over its life (decision 2026-09-28, "Ad video stats").
   const [tiktok, setTiktok] = useState<{ clips: Record<string, ClipSummary>; failed: { advertiser_id: string; error: string }[] } | null>(null);
+  const [autoPost, setAutoPost] = useState<AutoPost | null>(null);
   const request = useRef(0);
   const options = useRef({ producer: "", titles: new Map<string, string>(), episodes: new Map<string, { titleId: string; title: string; number: string }>() });
 
@@ -124,6 +125,17 @@ export default function ClipsTable({ staff = false, titleId, montage }: Props) {
     void call<{ clips: Record<string, ClipSummary>; failed: { advertiser_id: string; error: string }[] }>("/api/admin/crazydramas/ad-video")
       .then((answer) => { if (active) setTiktok(answer); })
       .catch((e) => { if (active) setTiktok({ clips: {}, failed: [{ advertiser_id: "", error: errorText(e) }] }); });
+    return () => { active = false; };
+  }, [staff]);
+
+  // The auto-poster's own line (decision 2026-10-03). Read-only and quiet: a
+  // sweep that has not run in this process says nothing but when it is next due.
+  useEffect(() => {
+    if (!staff) return;
+    let active = true;
+    void call<AutoPost>("/api/admin/auto-post")
+      .then((answer) => { if (active) setAutoPost(answer); })
+      .catch(() => undefined);
     return () => { active = false; };
   }, [staff]);
 
@@ -345,6 +357,7 @@ export default function ClipsTable({ staff = false, titleId, montage }: Props) {
 
     {error && <p className="note note-warn" role="alert">{error}</p>}
     {tiktok?.failed.map((f) => <p key={f.advertiser_id || "all"} className="note note-warn">{tt("clipsPosting.tiktok.failed", { error: f.advertiser_id ? `${f.advertiser_id}: ${f.error}` : f.error })}</p>)}
+    {autoPost?.enabled && <p className="note" data-testid="auto-post-note">{autoPostLine(tt, autoPost)}</p>}
     {loading && <p role="status">{tt("clipsAcceptance.loading")}</p>}
     {!loading && !error && !visible.length && <div className="empty"><p>{tt(filtered ? "clipsPosting.noMatches" : "lv2.clips.empty")}</p>{!filtered && <Link href={staff ? "/titles" : "/producer/titles"} className="btn btn-outline">{tt("lv2.clips.openTitles")}</Link>}</div>}
 
@@ -397,4 +410,36 @@ export default function ClipsTable({ staff = false, titleId, montage }: Props) {
       onClose={() => setOpening(null)}
       onPosted={(post) => { applyPost(post); setOpening(null); }} />}
   </div>;
+}
+
+/** The auto-poster's summary, as /api/admin/auto-post answers it (decision 2026-10-03). */
+type AutoPost = {
+  enabled: boolean;
+  next_due_at: string | null;
+  last: {
+    at: string; idle: string | null; waiting: number; errors: string[];
+    posted: { label: string; title: string; checkouts: number; ctr_pct: number;
+      results: { platform: string; ok: boolean; permalink?: string | null; error?: string }[] }[];
+  } | null;
+};
+
+/**
+ * One sentence about the sweep: what it last did, and when it goes again. The
+ * posts themselves are already on their rows, so this never repeats them —
+ * it says how many, and names what still has to be mirrored to TikTok by hand.
+ */
+function autoPostLine(tt: (key: string, vars?: Record<string, string | number>) => string, a: AutoPost): string {
+  const when = a.next_due_at ? new Date(a.next_due_at) : null;
+  const next = when ? (when.getTime() <= Date.now() ? tt("autoPost.due") : when.toLocaleDateString()) : "";
+  if (!a.last) return tt("autoPost.idleNever", { next });
+  const ok = a.last.posted.flatMap(p => p.results.filter(r => r.ok));
+  const failed = a.last.posted.flatMap(p => p.results.filter(r => !r.ok));
+  const parts: string[] = [];
+  if (ok.length) parts.push(tt("autoPost.posted", { n: ok.length, clips: a.last.posted.length, names: a.last.posted.map(p => p.label).join("; ") }));
+  else parts.push(tt("autoPost.nothing", { why: a.last.idle ?? "" }));
+  if (a.last.waiting) parts.push(tt("autoPost.waiting", { n: a.last.waiting }));
+  if (failed.length) parts.push(tt("autoPost.failed", { n: failed.length, first: failed[0].error ?? "" }));
+  if (a.last.errors.length) parts.push(a.last.errors[0]);
+  parts.push(tt("autoPost.next", { next }));
+  return parts.join(" · ");
 }
