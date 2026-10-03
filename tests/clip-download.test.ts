@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { test } from "node:test";
-import { downloadClips, MAX_ARCHIVE_BYTES, zipClips } from "../lib/launch/clip-download";
+import { downloadClips, MAX_ARCHIVE_BYTES, MAX_CLIP_BYTES, zipClips } from "../lib/launch/clip-download";
 import type { LaunchLibraryItem } from "../lib/launch/types";
 
 const bytes = Buffer.from("finished-clip-\n");
@@ -48,7 +48,9 @@ test("all IDs are authorized before any storage read", async () => {
 test("hash mismatch and total download limit stop the archive", async () => {
   await assert.rejects(downloadClips(["own"], [clip("own")], async () => Buffer.from("tampered")), { code: "invalid" });
   const many = Array.from({ length: 4 }, (_, n) => clip(`clip-${n}`));
-  const large = Buffer.alloc(32 * 1024 * 1024);
+  // Expressed in the constants, not in numbers: the archive holds exactly
+  // three clips at the per-clip ceiling, and the fourth read is refused.
+  const large = Buffer.alloc(MAX_CLIP_BYTES);
   for (const item of many) item.sha256 = createHash("sha256").update(large).digest("hex");
   const limits: number[] = [];
   await assert.rejects(downloadClips(many.map(x => x.id), many, async (_path, limit) => {

@@ -17,7 +17,7 @@ import { systemSession, type Session } from "@/lib/auth";
 import { getData } from "@/lib/data";
 import { DataError, notFound } from "@/lib/data/errors";
 import { assertMayPublishClip } from "@/lib/data/launch";
-import { MAX_CLIP_BYTES, readClipBytes, signedClipUrl } from "@/lib/launch/clip-bytes";
+import { MAX_PUBLISH_BYTES, readClipBytes, signedClipUrl } from "@/lib/launch/clip-bytes";
 import type { ClipLibraryRow, ClipPost, MetaPagePost, MetaPagePostList, PublishClipInput } from "@/lib/launch/clip-posts";
 import type { ClipPostPatch, LaunchConnection } from "@/lib/launch/types";
 import { metaTransport } from "./index";
@@ -186,7 +186,7 @@ const sleep = (ms: number) => ms > 0 ? new Promise(resolve => setTimeout(resolve
 
 /** The exact rendered bytes, re-hashed against the row before anything is sent. */
 async function verifiedBytes(runner: Runner): Promise<Buffer> {
-  const bytes = await readClipBytes(runner.clip.file_path!, MAX_CLIP_BYTES);
+  const bytes = await readClipBytes(runner.clip.file_path!, MAX_PUBLISH_BYTES);
   if (createHash("sha256").update(bytes).digest("hex") !== runner.post.sha256) {
     throw permanent("This clip changed after it was rendered. Render it again before posting.");
   }

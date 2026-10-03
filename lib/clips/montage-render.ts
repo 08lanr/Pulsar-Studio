@@ -14,7 +14,8 @@
 // The file is checked before it is kept: the frame count must be the plan's
 // (ffprobe counts the packets, as the import does), the size 1080×1920, the
 // length at most 60.0 s and the file no bigger than a clip may be for the zip
-// download and the Meta posting (MAX_CLIP_BYTES; the encode is capped at
+// download (MAX_CLIP_BYTES; posting has its own, larger ceiling — the encode
+// is capped at
 // 3.5 Mbit/s so a grainy or 60 fps title stays well under it); the measured
 // loudness is recorded.
 
@@ -190,7 +191,7 @@ export async function renderMontage(input: MontageRenderInput): Promise<Rendered
 
     await input.onStep?.("storing");
     const bytes = await readFile(out);
-    if (bytes.length > MAX_CLIP_BYTES) throw new MontageCheckError(`The finished ad came out at ${(bytes.length / 1048576).toFixed(1)} MB, over the ${MAX_CLIP_BYTES / 1048576} MB a clip may be for the zip download and posting. It was not kept; tell Pulsar staff.`);
+    if (bytes.length > MAX_CLIP_BYTES) throw new MontageCheckError(`The finished ad came out at ${(bytes.length / 1048576).toFixed(1)} MB, over the ${MAX_CLIP_BYTES / 1048576} MB a clip may be for the zip download. It was not kept; tell Pulsar staff.`);
     const render_sha256 = createHash("sha256").update(bytes).digest("hex");
     await putStoredBytes(input.storedPath, bytes, "video/mp4");
     return {
