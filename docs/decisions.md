@@ -8,6 +8,28 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-10-03 · Auto-post proven clips to the Page and Instagram
+
+Andre, 2026-10-03: "can you make an automated cron job like every 2-3 days if there are new 'good' ads that we post it on the ig and facebook, and also tiktok accounts as non paid ads organic posts. is this possible? maybe send me an email whenever its done, if the second part is really hard just make a notif in pulsar studio. i dont want to set up extra resend stuff."
+
+Two thirds of that is now built, and the third is not possible today. What follows says which is which, because the gap matters more than the feature.
+
+**What runs.** Step 8 of the scheduler (`lib/launch/auto-post.ts`, `tickAutoPost`) looks at what TikTok has already paid to learn about each clip and posts the ones that cleared the bar to the Facebook Page and the Instagram account as ordinary organic Reels. Nothing here buys anything: it is distribution of creative that already proved itself somewhere else, through the same `publishClip` a person uses.
+
+**The bar.** A clip qualifies when TikTok has shown it enough to mean something (not `early`, which `lib/crazydramas/stats-creatives.ts` already draws at 500 impressions), people clicked at a rate worth repeating, and at least one of them reached checkout. Defaults: 500 impressions, 2.0% CTR, 1 checkout, at most 3 clips a run, every 60 hours. Every one is an env override (`AUTO_POST_*`), and `AUTO_POST_DISABLED=1` stops it.
+
+Checkouts are the rank, click-through breaks the tie, reach breaks that. Checkouts are the closest thing in the data to money; ranking on CTR alone would promote a 1,300-impression clip over a 54,000-impression proven one.
+
+**What it refuses.** A clip with no numbers at all is never posted — an ad account TikTok would not report on leaves its clips absent, and absent must read as "not proven", never as "fine to post". A platform that already has a row for that clip is never posted to again, whatever that row's status: a failure is for a person to look at, not for a sweep to retry on a public account. A clip with no stored file is skipped rather than sent to fail.
+
+**The gates are the ones a live Meta write already needs**, not new ones: `DATA_SOURCE=supabase` and `META_LIVE_WRITES=enabled`. Fixture mode therefore cannot post, which is what makes the rule safe to test.
+
+**The cadence needs no table.** An auto-posted row is the one whose `created_by` is `SYSTEM_USER_ID`, so the next run is the newest of those plus the interval. A restart cannot re-post, and a person posting by hand does not reset the clock. No migration, and `promote.clip_posts` stays the only source of truth for "posted".
+
+**TikTok is not in this.** Studio has no TikTok content-posting credential at all: its TikTok clips run as dark posts inside ads (`dark_post_status: "ON"`) and never touch the profile, and the Content Posting API needs a `video.publish` scope and an app audit Studio has never had. The sweep names what it posted so a person mirrors it to TikTok by hand; nothing pretends otherwise.
+
+**No email.** The repository has no mail transport — no Resend, no SMTP, no nodemailer — and Andre asked not to add one. The notification is a line on the staff Clips page instead (`GET /api/admin/auto-post`, rendered by `ClipsTable`): what the last run posted, how many qualified clips are still waiting, anything refused, and when the next run is due. It is process-local on purpose: the summary lives in memory, so a restarted server reports none until the next run, while the cadence itself is read from the database and is never lost.
+
 ## 2026-10-01 · Ad-type filters
 
 Ruobin, 2026-10-01: a filter by type of ad (quick hook ad vs narration trailer and so on). It is in four places: the launch clip picker ("Choose Studio clips", an Ad type select next to Series), the Clips page (an Ad type select, kept in the URL as `?type=`), the stats Campaigns tab (a row of type links, `?ad_type=`, which stays when you switch between Ads and Campaigns), and the Ads tab, which already had one. One rule everywhere (`adFormatMatches` in `lib/ad-formats.ts`): no filter is every ad, `none` is the ads nobody classified, anything else is that one type; each list offers only the types it holds (`adFormatChoices`). With a type picked, Campaigns recomputes every campaign from that type's ads only: their visitors, their spend, the buyers who landed from them, and TikTok's purchases summed over those ads. Organic visits, TikTok's stored copy of the page and untagged TikTok buyers have no ad, so they are no type and drop out. Tests: `tests/ad-formats.test.ts`.
