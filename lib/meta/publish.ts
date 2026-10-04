@@ -94,11 +94,10 @@ const CAPTION_STOPWORDS = new Set([
 /** Crude suffix stripping, enough that "begged" and "begging" count as the same word. */
 const stem = (word: string): string => word.replace(/(ings|ing|ed|es|s)$/, "");
 
-const contentWords = (text: string): Set<string> => new Set(
+const contentList = (text: string): string[] =>
   text.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/)
     .filter(word => word.length > 2 && !CAPTION_STOPWORDS.has(word))
-    .map(stem).filter(word => word.length > 2),
-);
+    .map(stem).filter(word => word.length > 2);
 
 /**
  * Does the title only say the hook again? A short-drama title is itself a plot
@@ -106,17 +105,25 @@ const contentWords = (text: string): Set<string> => new Set(
  * printing one under a hook that already told that story reads as the same
  * sentence twice — which is what the first captions Studio posted did.
  *
- * The test runs one way on purpose: the question is whether the TITLE adds
- * anything, so it is the title's words that must be new. Half or more of them
- * already in the hook means it earns no second line.
+ * Two ways to be a restatement, because one measure missed real cases:
+ *
+ *  - Most of the title's words are already in the hook. The test runs one way
+ *    round on purpose: the question is whether the TITLE adds anything, so it
+ *    is the title's words that must be new.
+ *  - Both open on the same action. "He humiliated her for a laugh. Now he
+ *    wants her back" under "He Humiliated Me in Front of the Whole School, Now
+ *    He's Begging For Me Back" shares only two words of six — "wants" and
+ *    "begging" are the same idea in different words — but both sentences start
+ *    on the same verb, and that is enough to read as one story told twice.
  */
 export function titleRestatesHook(hook: string, title: string): boolean {
-  const titleWords = contentWords(title);
-  const hookWords = contentWords(hook);
-  if (!titleWords.size || !hookWords.size) return false;
-  let shared = 0;
-  for (const word of titleWords) if (hookWords.has(word)) shared++;
-  return shared / titleWords.size >= 0.5;
+  const titleWords = contentList(title);
+  const hookWords = contentList(hook);
+  if (!titleWords.length || !hookWords.length) return false;
+  if (titleWords[0] === hookWords[0]) return true;
+  const inHook = new Set(hookWords);
+  const distinct = [...new Set(titleWords)];
+  return distinct.filter(word => inHook.has(word)).length / distinct.length >= 0.5;
 }
 
 /**

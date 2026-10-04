@@ -64,3 +64,19 @@ test("the restatement test asks only whether the title adds anything", () => {
   // …while a short hook under a long title is not, because the title is mostly new.
   assert.equal(titleRestatesHook("The bus was full.", "Offered to the Dragon King, I'm the Only One Who Can Break His Curse"), false);
 });
+
+test("a hook and a title that open on the same action are one story told twice", () => {
+  // Only two of six words overlap here — "wants" and "begging" are the same
+  // idea in different words — so the word count alone let this one through.
+  // Both sentences start on the same verb, which is the tell.
+  const same = clip("He humiliated her for a laugh. Now he wants her back, and she's done.",
+    "He Humiliated Me in Front of the Whole School, Now He's Begging For Me Back");
+  assert.equal(defaultCaption(same), "He humiliated her for a laugh. Now he wants her back, and she's done.");
+
+  // A hook about somewhere else entirely keeps the title, even for a drama
+  // whose other clips are restatements.
+  const elsewhere = clip("I lied about New York. I trained in California all summer, then returned to Ridgewater.",
+    "Dumped for the Cheer Queen, I Came Back and Took Her Crown");
+  assert.equal(defaultCaption(elsewhere),
+    "I lied about New York. I trained in California all summer, then returned to Ridgewater.\nDumped for the Cheer Queen, I Came Back and Took Her Crown");
+});
