@@ -3,6 +3,7 @@ import { adminLocale, staffSession } from "@/components/admin/server";
 import { AdDetail, AdTypeTable, type AdRun } from "@/components/admin/cd-stats/AdDetail";
 import AdsTab from "@/components/admin/cd-stats/AdsTab";
 import { CoinValueNotice, RangeTabs, ReadFailure } from "@/components/admin/cd-stats/Bits";
+import { BoughtPanel, CampaignBriefPanel, PaywallTestPanel } from "@/components/admin/cd-stats/Brief";
 import { BuyersTable, PersonPanel, type Names } from "@/components/admin/cd-stats/Buyers";
 import CampaignsView, { type CampaignsViewRow } from "@/components/admin/cd-stats/Campaigns";
 import { FunnelChart } from "@/components/admin/cd-stats/Dash";
@@ -18,6 +19,7 @@ import { adFormatChoices, adFormatMatches } from "@/lib/ad-formats";
 import { fakeStatsArchive, fakeStatsLaunches, FAKE_STATS_CLIPS } from "@/lib/crazydramas/fake-stats";
 import { readCrazydramasStats, readLaunchClips } from "@/lib/crazydramas/stats";
 import { adCreatives, byAdType, campaignFacts, changeAbove, compareCampaigns, dailySpend, fmtRatio, returnOnSpend, spendIn, type AdCreative, type CreativeClip } from "@/lib/crazydramas/stats-ads";
+import { boughtMix, campaignBrief, paywallTest } from "@/lib/crazydramas/stats-brief";
 import { adBuyers, browsersOf, buyerCounts, buyersByAd, fmtDuration, hasBuyerDetails, personOf, purchasesIn, untaggedBuyers } from "@/lib/crazydramas/stats-buyers";
 import {
   coinsByDay,
@@ -350,6 +352,10 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
     const perFirstBefore = paysBefore && spendBefore !== null && firstFromAds(paysBefore) > 0 ? Math.round(spendBefore / firstFromAds(paysBefore)) : null;
     const firstDays = chartPays ? spendDays.map((d) => new Set(chartPays.filter((p) => p.day === d.day && p.first && !p.refunded).map((p) => p.person)).size) : null;
 
+    // The daily questions (decision 2026-10-04): the paywall test, what was bought, each campaign's spend and sales.
+    // The campaigns are the Campaigns tab's rows (the filtered people over the report, the period TikTok's days).
+    const briefRows = pays ? campaignBrief(campaignTable({ ...report, sources: dashRows(report, { from: report.from, to: report.to }, filter) }, adSpends, filter.series ?? undefined, adPeriod), pays) : null;
+
     const steps = dashPath(totals).filter((s) => ["seen", "played", "finished", "ep2", "paywall", "checkout", "paid"].includes(s.key));
     const out = notCounted(report, span);
     const noSpend = !!(filter.device || filter.country);
@@ -419,6 +425,19 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
             />
           )}
         </div>
+        {pays && briefRows && (
+          <>
+            <PaywallTestPanel rows={paywallTest(report, span, allPays ?? [])} wholeSite={filtered} href={hrefWith({ tab: "paywall" })} locale={locale} />
+            <BoughtPanel mix={boughtMix(pays)} href={hrefWith({ tab: "money" })} locale={locale} />
+            <CampaignBriefPanel
+              rows={briefRows}
+              nameOf={names.campaign}
+              note={!adDays.ok ? tt("cds.ads.daysFailed", { error: adDays.error }) : filter.device || filter.country ? tt("cdd.ads.byPhoneNote") : null}
+              href={hrefWith({ tab: "campaigns" })}
+              locale={locale}
+            />
+          </>
+        )}
         <section className="rs-panel cdx-card">
           <SpendRevenueChart
             title={tt("cdo.chart")}

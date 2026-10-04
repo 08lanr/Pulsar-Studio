@@ -255,6 +255,10 @@ export const CdStatsJourneyStepSchema = z.object({
 /** What a payment bought (since 2026-09-28): a series, a coin pack, the first-week VIP deal, a new VIP, a VIP renewal. */
 export const PAYMENT_KINDS = ["series", "coins", "vip_intro", "vip", "vip_renewal"] as const;
 
+/** The two sheets of crazydramas' paywall test (its lib/paywall-test.ts): Weekly VIP first, or the series first. */
+export const PAYWALL_ARMS = ["vip", "series"] as const;
+export type PaywallArm = (typeof PAYWALL_ARMS)[number];
+
 /**
  * Every live payment in the report's days (since 2026-09-28, docs/COINS.md; no cap): cash the day it was paid,
  * before Stripe's fees. `first`: the person's first payment of all. `refunded`: refunded or disputed since,
@@ -281,6 +285,9 @@ export const CdStatsPaymentSchema = z.object({
   device: z.string().max(40).nullable().optional().catch(null),
   country: z.string().max(8).nullable().optional().catch(null),
   paid_after_s: z.number().nonnegative().nullable().default(null),
+  // The paywall test's sheet the paying browser was last shown before it paid (crazydramas since 2026-10-04; absent
+  // before, null for a renewal or a payment with no sheet on record).
+  arm: z.enum(PAYWALL_ARMS).nullable().optional().catch(null),
 });
 
 /** Coins in and out of every wallet on a day (sign-in moves left out: they only change hands). */
@@ -338,6 +345,8 @@ export const CdStatsPaywallDaySchema = z.object({
   gift_shown: later,
   retention_shown: later,
   not_completed: later,
+  // The same sheet views and checkouts by the paywall test's sheet (crazydramas since 2026-10-04; absent before).
+  arms: z.record(z.enum(PAYWALL_ARMS), z.object({ views: later, viewers: later, checkouts: later, starters: later })).optional().catch(undefined),
 });
 
 export const CdStatsReportSchema = z.object({

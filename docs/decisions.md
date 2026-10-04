@@ -8,6 +8,18 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-10-04 · The summary answers the daily questions
+
+Ruobin, 2026-10-04, after a day of asking Claude for purchases since the morning, which campaign brought each buyer, each campaign's spend, and how the paywall test's two sheets were doing: "the 'summary' page should include the A / B tests, the campaigns, how many VIP vs normal. the reason im constantly prompting you is that its easier than studio, and that shouldn't be the case".
+
+- The stats page's first tab is named **Summary** (`cdx.tab.overview`; the route value stays `overview`). Under the number cards it carries three panels, for the period and filters picked (Today answers "what happened today"):
+  - **Paywall test**: a row per sheet of crazydramas' paywall test (Weekly VIP first, the series first for $0.99): people shown it (per day), its share of them, people who opened a checkout, people who paid, paid of shown, their payments as VIP / series / coins, cash. It is the whole site's (crazydramas does not split the sheets by series or source), and says so when a filter is on. Days without arms (before 2026-10-02, or an older crazydramas) say the numbers are not there instead of showing zeros.
+  - **What was bought**: the period's payments as new VIP (first week or a full plan), series, coins and VIP renewals, refunds left out.
+  - **Campaigns**: the Campaigns tab's rows (TikTok's own days of spend, visitors, checkouts) with the period's payments laid over them by the paying browser's origin, split VIP / series / coins, and spend per payment; the stored copy and "no ad" are rows of their own; the total's cost per payment divides spend by the ads' payments only.
+- crazydramas' report gained two additive fields (its docs/STUDIO_API.md): `payments[].arm` (the sheet the paying browser was last shown, or checked out from, before it paid; null for a renewal) and `paywall_days[].arms` (`{ vip?, series? }` of `{ views, viewers, checkouts, starters }`). The arm is read from the browser's `paywall_viewed` / `purchase_started` events, not Stripe's `paywall_arm` metadata, which only a quarter of payments carried (the pay sheet's checkouts do not send it).
+- The sums are the pure `lib/crazydramas/stats-brief.ts` (`paywallTest`, `boughtMix`, `campaignBrief`); the panels are `components/admin/cd-stats/Brief.tsx`; the fake report invents arms at 75/25 so fixture mode shows them. Tests: `tests/crazydramas-brief.test.ts`.
+- Not in this cut: an hour-by-hour view of today, and the robots split by reason (the foot's "Left out" line still gives the total).
+
 ## 2026-10-04 · Adopt a TikTok campaign
 
 Ruobin, 2026-10-04, after copying the Sep 29 campaign in TikTok Ads Manager ("Copy 1 of crazydramas-sep-29-…", a $500 ad group) and finding it missing from the Monitor and from the stats' ad names: "can you add the copy campaign to studio", then "build the adopt a tiktok campaign feature". A row written into `promote.launch_runs` by hand was tried first and removed: it carried no valid approval, so `signed()` refused it and the Monitor's forced refresh failed for every launch. A record of a campaign has to be made by Studio, signed by a person who may launch.
