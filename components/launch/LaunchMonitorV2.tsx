@@ -197,6 +197,8 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
   const [provider, setProvider] = useState("all");
   const [filter, setFilter] = useState("all");
   const [focused, setFocused] = useState(!!focusId);
+  // Adopt a TikTok campaign made outside Studio (decision 2026-10-04).
+  const [adopt, setAdopt] = useState<{ id: string; note: string; error: string; done: boolean } | null>(null);
   // The titles the launches promote (by name), the Title filter, and whether
   // the page shows the launches or the "By title" table.
   const [titles, setTitles] = useState<Record<string, string>>({});
@@ -242,6 +244,16 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
     try { await refresh(true); } catch (e) { setError(message(e)); } finally { setRefreshing(false); }
   }, [refresh]);
   useEffect(() => { void refresh().catch((e) => { setError(message(e)); setLoading(false); }); }, [refresh]);
+  const adoptCampaign = async () => {
+    if (!adopt || busyRef.current) return;
+    setBusy("adopt"); setAdopt({ ...adopt, error: "", done: false });
+    try {
+      await call(`${api}/adopt`, "POST", { campaign_id: adopt.id.trim(), ...(adopt.note.trim() ? { note: adopt.note.trim() } : {}) });
+      setAdopt({ id: "", note: "", error: "", done: true });
+      await refresh();
+    } catch (e) { setAdopt((current) => current && { ...current, error: message(e) }); }
+    finally { setBusy(""); }
+  };
   // A launch nobody has swept reads "Not checked yet" for as long as this
   // sweep takes and no longer: it starts as soon as the first list lands.
   useEffect(() => {
@@ -377,8 +389,20 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
   }
 
   return <div className="launch-flow lm" id="launch-monitor">
-    <div className="page-head"><div><h1>{tt("lv2.monitor.title")}</h1><p className="page-sub">{tt("monitorV2.subtitle")}</p></div><div className="rs-tool-row">{!embedded && <Link className="btn btn-outline" href={page}>{tt("launchFeedback.createLaunch")}</Link>}<button className="btn btn-outline" disabled={!!busy || refreshing} onClick={() => void refreshDelivery()}>{tt(refreshing ? "common.loading" : "lv2.refresh")}</button></div></div>
+    <div className="page-head"><div><h1>{tt("lv2.monitor.title")}</h1><p className="page-sub">{tt("monitorV2.subtitle")}</p></div><div className="rs-tool-row">{!embedded && <Link className="btn btn-outline" href={page}>{tt("launchFeedback.createLaunch")}</Link>}{capabilities.can_launch && <button className="btn btn-outline" data-testid="adopt-open" disabled={!!busy} onClick={() => setAdopt(adopt ? null : { id: "", note: "", error: "", done: false })}>{tt("adopt.open")}</button>}<button className="btn btn-outline" disabled={!!busy || refreshing} onClick={() => void refreshDelivery()}>{tt(refreshing ? "common.loading" : "lv2.refresh")}</button></div></div>
     {error && <p className="note note-warn" role="alert">{error}</p>}
+    {adopt && <form className="card lm-adopt" data-testid="adopt-form" onSubmit={(e) => { e.preventDefault(); void adoptCampaign(); }}>
+      <h2>{tt("adopt.title")}</h2>
+      <p className="page-sub">{tt("adopt.help")}</p>
+      <div className="rs-tool-row">
+        <label>{tt("adopt.id")}<input value={adopt.id} onChange={(e) => setAdopt({ ...adopt, id: e.target.value, done: false })} inputMode="numeric" placeholder={tt("adopt.idHint")} data-testid="adopt-id" required /></label>
+        {staff && <label>{tt("adopt.note")}<input value={adopt.note} onChange={(e) => setAdopt({ ...adopt, note: e.target.value })} placeholder={tt("adopt.noteHint")} data-testid="adopt-note" required /></label>}
+        <button className="btn" type="submit" disabled={!!busy || !adopt.id.trim() || (staff && !adopt.note.trim())} data-testid="adopt-submit">{tt(busy === "adopt" ? "adopt.working" : "adopt.submit")}</button>
+        <button className="btn btn-outline" type="button" disabled={busy === "adopt"} onClick={() => setAdopt(null)}>{tt("adopt.cancel")}</button>
+      </div>
+      {adopt.error && <p className="note note-warn" role="alert" data-testid="adopt-error">{adopt.error}</p>}
+      {adopt.done && <p className="note" role="status" data-testid="adopt-done">{tt("adopt.done")}</p>}
+    </form>}
     {focusId && focused && <div className="lm-focus"><span>{tt("monitorV2.focused")}</span><button className="btn btn-outline btn-sm" onClick={() => setFocused(false)}>{tt("monitorV2.showAll")}</button></div>}
     {/* Two ways to read the same launches: one by one, or added up per title. */}
     <div className="seg lm-view" role="group" aria-label={tt("mad.view")}>
@@ -439,6 +463,7 @@ export default function LaunchMonitorV2({ staff = false, focusId, embedded = fal
                 <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M11.1 2.9a1.4 1.4 0 0 1 2 2L6 12l-2.7.7.7-2.7 7.1-7.1Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" /></svg>
               </button>}
               <span className="lm-run-status">{run.status === "draft" ? tt("lv2.plan.draft") : tt(`lv2.run.${run.status === "done" ? "complete" : run.status}`)}</span>
+              {run.campaigns.some(c => c.state.adopted) && <span className="lm-run-status" data-testid="adopted-badge">{tt("adopt.badge")}</span>}
             </div>
             <div className="lm-eyebrow"><span>{providerName}</span>{runTitleIds(run).length > 0 && <span data-testid="run-titles">{runTitleIds(run).map((id) => titleName(id)).join(" · ")}</span>}{staff && <span>{producers[run.producer_id] ?? tt("monitorV2.producer")}</span>}<span>{tt("lv2.round")} {run.round}</span><span><time dateTime={run.created_at}>{date(run.created_at)}</time></span>{run.mode !== "production" && <span>{tt(run.mode === "fake" ? "lv2.demo" : "lv2.sandbox")}</span>}</div>
           </div>

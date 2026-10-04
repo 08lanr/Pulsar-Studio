@@ -4,7 +4,7 @@
 import { randomUUID, createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { FIXTURE_PRODUCER_ID, isSystemSession, type Session } from "@/lib/auth";
+import { FIXTURE_PRODUCER_ID, isSystemSession, systemSession, type Session } from "@/lib/auth";
 import { dataSource } from "@/lib/data-source";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { buildLaunchPlan, draftSchema, nextCampidStart } from "@/lib/launch/plan";
@@ -619,6 +619,67 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
       r.status = "pending"; r.error = null; r.lease_owner = null; r.lease_until = null; audit(r, s, "retry"); return save(r, r.revision);
     },
     renameLaunchRun,
+    /**
+     * Adopt a TikTok campaign Studio did not create (decision 2026-10-04,
+     * "Adopt a TikTok campaign"; lib/launch/adopt.ts decides what it is).
+     *
+     * Authorization is the launch authorization: the company's approver, or a
+     * staff administrator with an on-behalf note. The record is signed like an
+     * approved launch (who, when, the hash of the draft and the account), so
+     * the monitor and the controls treat it as one; what it signs is the
+     * campaign as TikTok reports it at this moment, with TikTok's own budget
+     * as the ceiling. Nothing is written to TikTok: three reads, one row.
+     *
+     * One campaign, one record: a campaign any launch already holds is refused.
+     */
+    async adoptLaunchRun(s, input) {
+      const campaignId = input.campaign_id.trim();
+      if (!/^\d{6,24}$/.test(campaignId)) throw invalid("Enter the TikTok campaign ID: the number TikTok Ads Manager shows for the campaign.");
+      const producerIds = s.kind === "producer" ? [s.producerId!] : input.producer_id ? [input.producer_id] : (await base.listProducers(s)).map(p => p.id);
+      if (!producerIds.length) throw invalid("Choose a company.");
+      for (const id of producerIds) authorize(s, id, "launch");
+      if (s.kind === "staff" && !input.note?.trim()) throw invalid("Explain the on-behalf authorization.");
+      if (s.kind === "staff" && input.producer_id && !(await base.listProducers(s)).some(p => p.id === input.producer_id)) throw notFound("Company");
+      const all = await readRuns(systemSession());
+      const holder = all.find(r => r.campaigns.some(c => c.state.campaign_id === campaignId));
+      if (holder) throw conflict(producerIds.includes(holder.producer_id) ? `Studio already tracks this campaign as "${holder.draft.name}".` : "Studio already tracks this campaign.");
+      const { readTikTokCampaign } = await import("@/lib/tiktok/adopt");
+      const { buildAdoption } = await import("@/lib/launch/adopt");
+      const reads = new Map<string, Awaited<ReturnType<typeof readTikTokCampaign>>>();
+      let found = false, reason: string | null = null;
+      for (const producerId of producerIds) {
+        let own: LaunchConnection[];
+        // One company's account discovery failing must not hide the campaign on another's.
+        try { own = (await connections(s, producerId, "tiktok", false)).filter(c => c.enabled); }
+        catch (e) { reason ??= e instanceof Error ? e.message : "TikTok account discovery failed."; continue; }
+        const runs = all.filter(r => r.producer_id === producerId);
+        for (const connection of own) {
+          if (!reads.has(connection.advertiser_id)) {
+            try { reads.set(connection.advertiser_id, await readTikTokCampaign(connection.advertiser_id, campaignId)); }
+            catch (e) { reason ??= e instanceof Error ? e.message : "TikTok did not answer."; reads.set(connection.advertiser_id, null); }
+          }
+          const read = reads.get(connection.advertiser_id);
+          if (!read) continue;
+          found = true;
+          const built = buildAdoption(read, runs, connection, { name: input.name });
+          if (!built.ok) { reason = built.reason; continue; }
+          const at = now();
+          const run: LaunchRun = { id: randomUUID(), external_id: `lr_${randomUUID().replace(/-/g, "").slice(0, 12)}`, producer_id: producerId,
+            draft: built.draft, round: 1, parent_run_id: null, status: "done", revision: 0, snapshot_hash: null,
+            approved_by: s.userId, approved_at: at, approval_note: input.note?.trim() || null,
+            // The campaign's own start, so the monitor's reports cover its whole life.
+            created_by: s.userId, created_at: built.created_at && built.created_at < at ? built.created_at : at, updated_at: at,
+            mode: launchEnvironment("tiktok"), error: null, campaigns: [], lease_owner: null, lease_until: null, connections: [connection] };
+          run.campaigns = [{ ...built.row, id: randomUUID(), run_id: run.id, status: "done", state: built.state, error: null, snapshot: null }];
+          run.snapshot_hash = launchHash(run.draft, run.connections ?? []);
+          audit(run, s, "campaign_adopted", input.note?.trim() || undefined, { campaign_id: campaignId, ads: Object.values(built.state.groups as { ads: Record<string, string> }[]).reduce((n, g) => n + Object.keys(g.ads).length, 0),
+            budget_cents: built.budget_cents, source_run_ids: built.source_run_ids, hash: run.snapshot_hash });
+          return save(run, null);
+        }
+      }
+      if (found && reason) throw invalid(reason);
+      throw invalid(reason && !found ? `Studio could not look for this campaign: ${reason}` : "No TikTok ad account assigned to this company has a campaign with that ID.");
+    },
     async recordClipSpark(s, creativeId, code, postUrl = "") {
       // Manual Spark entry is the primary launch flow. Retained only as a fixture library convenience.
       if (dataSource() !== "fixture") throw invalid("Paste Spark codes directly in Launch.");

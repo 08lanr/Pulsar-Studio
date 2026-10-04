@@ -1,0 +1,50 @@
+{
+  "adopt.open": {
+    "en": "Adopt a TikTok campaign",
+    "zh": "接管 TikTok 广告活动"
+  },
+  "adopt.title": {
+    "en": "Adopt a TikTok campaign",
+    "zh": "接管 TikTok 广告活动"
+  },
+  "adopt.help": {
+    "en": "For a campaign made in TikTok Ads Manager by copying one Studio launched. Studio reads it from TikTok and starts tracking its spend and results. Nothing is changed on TikTok.",
+    "zh": "用于在 TikTok Ads Manager 里复制 Studio 投放而生成的广告活动。Studio 会从 TikTok 读取它，并开始跟踪花费和结果，不会改动 TikTok 上的任何内容。"
+  },
+  "adopt.id": {
+    "en": "TikTok campaign ID",
+    "zh": "TikTok 广告活动 ID"
+  },
+  "adopt.idHint": {
+    "en": "The number under the campaign's name in Ads Manager",
+    "zh": "Ads Manager 里广告活动名称下方的数字"
+  },
+  "adopt.note": {
+    "en": "Authorization note",
+    "zh": "授权说明"
+  },
+  "adopt.noteHint": {
+    "en": "Who asked for this and why",
+    "zh": "谁提出的、原因是什么"
+  },
+  "adopt.submit": {
+    "en": "Adopt campaign",
+    "zh": "接管广告活动"
+  },
+  "adopt.working": {
+    "en": "Reading from TikTok…",
+    "zh": "正在从 TikTok 读取…"
+  },
+  "adopt.cancel": {
+    "en": "Cancel",
+    "zh": "取消"
+  },
+  "adopt.done": {
+    "en": "Adopted. Studio now tracks this campaign.",
+    "zh": "已接管，Studio 现在会跟踪这个广告活动。"
+  },
+  "adopt.badge": {
+    "en": "Adopted from TikTok",
+    "zh": "从 TikTok 接管"
+  }
+}

@@ -292,3 +292,8 @@
 .clips-tt { display: grid; gap: 1px; font-size: 12px; line-height: 1.35; font-variant-numeric: tabular-nums; }
 .clips-tt strong { font-weight: var(--w-strong); }
 .clips-tt-head { display: inline-flex; align-items: center; gap: 4px; }
+/* Adopt a TikTok campaign (decision 2026-10-04): one row under the Monitor's head. */
+.launch-flow .lm-adopt { margin: 0 0 14px; padding: 14px 16px; }
+.launch-flow .lm-adopt h2 { margin: 0 0 4px; font-size: 1rem; }
+.launch-flow .lm-adopt .rs-tool-row label { flex: 1 1 260px; flex-direction: column; align-items: stretch; gap: 4px; }
+.launch-flow .lm-adopt .rs-tool-row input { width: 100%; }

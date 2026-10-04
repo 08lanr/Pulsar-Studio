@@ -5480,5 +5480,17 @@
   "tka.byIdName": "受众 {id}",
   "tka.add": "添加受众…",
   "tka.addAnother": "再添加一个受众…",
-  "tka.remove": "移除 {name}"
+  "tka.remove": "移除 {name}",
+  "adopt.open": "接管 TikTok 广告活动",
+  "adopt.title": "接管 TikTok 广告活动",
+  "adopt.help": "用于在 TikTok Ads Manager 里复制 Studio 投放而生成的广告活动。Studio 会从 TikTok 读取它，并开始跟踪花费和结果，不会改动 TikTok 上的任何内容。",
+  "adopt.id": "TikTok 广告活动 ID",
+  "adopt.idHint": "Ads Manager 里广告活动名称下方的数字",
+  "adopt.note": "授权说明",
+  "adopt.noteHint": "谁提出的、原因是什么",
+  "adopt.submit": "接管广告活动",
+  "adopt.working": "正在从 TikTok 读取…",
+  "adopt.cancel": "取消",
+  "adopt.done": "已接管，Studio 现在会跟踪这个广告活动。",
+  "adopt.badge": "从 TikTok 接管"
 }

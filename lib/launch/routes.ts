@@ -5,7 +5,7 @@ import { getData } from "@/lib/data";
 import { invalid } from "@/lib/data/errors";
 import { handle } from "@/app/api/titles/_lib/handler";
 import { draftSchema } from "./plan";
-import { controlLaunch, queueLaunch, refreshLaunches } from "./service";
+import { controlLaunch, monitorLaunch, queueLaunch, refreshLaunches } from "./service";
 import { runTitleIds } from "./title-stats";
 
 const money = z.number().int().min(1).max(100_000_000);
@@ -15,7 +15,7 @@ export const controlSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("bid"), bid_cents: money }), z.object({ action: z.literal("schedule"), end_time: z.string().datetime({ offset: true }) }),
   z.object({ action: z.literal("duplicate") }), z.object({ action: z.literal("group"), group_id: z.string().min(1).max(100), enabled: z.boolean() }),
 ]);
-type Operation = "workspace" | "scan" | "list" | "create" | "get" | "update" | "preview" | "launch" | "round" | "retry" | "controls" | "rename";
+type Operation = "workspace" | "scan" | "list" | "create" | "get" | "update" | "preview" | "launch" | "round" | "retry" | "controls" | "rename" | "adopt";
 const bodySchema = {
   create: z.object({ draft: draftSchema, producer_id: z.string().uuid().optional() }),
   update: z.object({ draft: draftSchema, revision: z.number().int().positive() }),
@@ -23,6 +23,8 @@ const bodySchema = {
   controls: z.object({ campaign_id: z.string().uuid(), control: controlSchema }),
   // The name people read on the monitor. Meta and TikTok objects are never renamed by it.
   rename: z.object({ name: z.string().trim().min(1).max(80) }),
+  // Adopt a TikTok campaign Studio did not create (decision 2026-10-04). The ID is TikTok's own number.
+  adopt: z.object({ campaign_id: z.string().trim().min(1).max(40), note: z.string().trim().max(2000).optional(), producer_id: z.string().uuid().optional(), name: z.string().trim().max(80).optional() }),
 };
 function publicJson(value: unknown) {
   // Local storage paths and content hashes are server-side provenance, never
@@ -83,6 +85,14 @@ export function launchRoute(req: NextRequest, staff: boolean, op: Operation, id 
     if (op === "retry") { const run = await data.retryLaunchRun(s, id); queueLaunch(run.id); return publicJson({ run }); }
     if (op === "controls") { const b = await parse(req, bodySchema.controls); return publicJson({ run: await controlLaunch(s, id, b.campaign_id, b.control) }); }
     if (op === "rename") { const b = await parse(req, bodySchema.rename); return publicJson({ run: await data.renameLaunchRun(s, id, b.name) }); }
+    if (op === "adopt") {
+      const b = await parse(req, bodySchema.adopt);
+      const run = await data.adoptLaunchRun(s, b);
+      // Read its numbers once, so the Monitor opens on a campaign with a state. A failed read leaves the
+      // record as adopted: the next sweep reads it again.
+      try { await monitorLaunch(run.id); } catch { /* the record stands */ }
+      return publicJson({ run: await data.getLaunchRun(s, run.id) });
+    }
     const b = await parse(req, bodySchema.launch);
     let run;
     try { run = await data.submitLaunchRun(s, id, b.revision, b.note); }

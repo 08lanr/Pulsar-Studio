@@ -264,6 +264,12 @@ export interface LaunchDataLayer {
   retryLaunchRun(session: Session, id: string): Promise<LaunchRun>;
   /** The name people read on the monitor. Approver or staff administrator; refused while the run is being created; never renames a provider object. */
   renameLaunchRun(session: Session, id: string, name: string): Promise<LaunchRun>;
+  /**
+   * Record a TikTok campaign Studio did not create (a copy made in Ads Manager of one it launched), so the monitor
+   * reads it. Approver or staff administrator (staff with a note); never writes to TikTok; refused when any launch
+   * already holds the campaign or an ad plays a video no launch of the company put on that ad account.
+   */
+  adoptLaunchRun(session: Session, input: { campaign_id: string; note?: string; producer_id?: string; name?: string }): Promise<LaunchRun>;
   recordClipSpark(session: Session, creativeId: string, code: string, postUrl?: string): Promise<void>;
   assignLaunchConnection(session: Session, connection: Omit<LaunchConnection, "id" | "assigned_by" | "verified_at">): Promise<LaunchConnection>;
   claimLaunchRun(session: Session, id: string, owner: string): Promise<LaunchRun | null>;

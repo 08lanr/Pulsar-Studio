@@ -708,10 +708,16 @@ async function monitor(ctx: DriverContext): Promise<DeliverySnapshot> {
     ads = (await list(c, "/ad/get/", { filtering: JSON.stringify({ campaign_ids: [state(ctx).campaign_id] }) })).filter((a) => codeById.has(str(a.ad_id)));
     const ids = [...codeById.keys()];
     const verdicts: Record<string, Row> = {};
-    for (let i = 0; i < ids.length; i += 100) {
-      const data = requireOk(await c.tt.get("/ad/review_info/", c.token, { advertiser_id: c.advertiser, ad_ids: JSON.stringify(ids.slice(i, i + 100)) }), "Ad review");
-      Object.assign(verdicts, data.ad_review_map ?? {});
-    }
+    // The review read fails soft (decision 2026-10-04): TikTok refuses it for a campaign it made a Smart+ one
+    // ("This API does not support Upgraded Smart Plus ads"), as a copy made in Ads Manager can be. The ads
+    // still list with their numbers; each verdict then rests on the ad's own status alone, which never reads
+    // an unrecognised status as approved (normalizeReview), and the refusal stays in the note.
+    try {
+      for (let i = 0; i < ids.length; i += 100) {
+        const data = requireOk(await c.tt.get("/ad/review_info/", c.token, { advertiser_id: c.advertiser, ad_ids: JSON.stringify(ids.slice(i, i + 100)) }), "Ad review");
+        Object.assign(verdicts, data.ad_review_map ?? {});
+      }
+    } catch (e) { errors.push((e as Error).message); }
     reviews = ads.map((ad) => normalizeReview(str(ad.ad_id), verdicts[str(ad.ad_id)] ?? {}, str(ad.secondary_status)));
   } catch (e) { errors.push((e as Error).message); }
   try {

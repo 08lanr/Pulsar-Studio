@@ -5480,5 +5480,17 @@
   "tka.byIdName": "Audience {id}",
   "tka.add": "Add an audience…",
   "tka.addAnother": "Add another audience…",
-  "tka.remove": "Remove {name}"
+  "tka.remove": "Remove {name}",
+  "adopt.open": "Adopt a TikTok campaign",
+  "adopt.title": "Adopt a TikTok campaign",
+  "adopt.help": "For a campaign made in TikTok Ads Manager by copying one Studio launched. Studio reads it from TikTok and starts tracking its spend and results. Nothing is changed on TikTok.",
+  "adopt.id": "TikTok campaign ID",
+  "adopt.idHint": "The number under the campaign's name in Ads Manager",
+  "adopt.note": "Authorization note",
+  "adopt.noteHint": "Who asked for this and why",
+  "adopt.submit": "Adopt campaign",
+  "adopt.working": "Reading from TikTok…",
+  "adopt.cancel": "Cancel",
+  "adopt.done": "Adopted. Studio now tracks this campaign.",
+  "adopt.badge": "Adopted from TikTok"
 }

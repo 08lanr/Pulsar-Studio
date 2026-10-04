@@ -436,6 +436,10 @@ const adgroupRow = (g: FakeAdGroup) => ({
   click_attribution_window: g.body.click_attribution_window,
   view_attribution_window: g.body.view_attribution_window,
   attribution_event_count: g.body.attribution_event_count,
+  // Who the ad group reaches, as production's /adgroup/get/ names it (read by lib/tiktok/adopt.ts).
+  age_groups: g.body.age_groups,
+  audience_ids: g.body.audience_ids,
+  excluded_audience_ids: g.body.excluded_audience_ids,
 });
 
 /** /dmp/custom_audience/list/ rows, the retargeting set docs/decisions.md 2026-10-01 describes; one still filling. */
