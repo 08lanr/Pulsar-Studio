@@ -22,6 +22,7 @@ import type { ClipLibraryRow, ClipPost, MetaPagePost, MetaPagePostList, PublishC
 import type { ClipPostPatch, LaunchConnection } from "@/lib/launch/types";
 import { metaTransport } from "./index";
 import { MetaApiError, type MetaObject, type MetaTransport } from "./transport";
+import { buildCaption } from "@/lib/launch/caption";
 
 /** Overridable so tests do not wait out a real Meta poll. */
 export const publishTiming = {
@@ -82,65 +83,20 @@ function label(clip: ClipLibraryRow): string {
 export function facebookVideoTitle(clip: ClipLibraryRow, postId: string): string {
   return `${label(clip).slice(0, 140)} · studio:${postId}`;
 }
-/** Words too common to tell two sentences apart. Anything under three letters is dropped by length. */
-const CAPTION_STOPWORDS = new Set([
-  "the", "and", "but", "for", "with", "from", "that", "this", "then", "than", "now", "not",
-  "his", "her", "him", "she", "they", "them", "their", "its", "our", "your", "you", "who",
-  "was", "were", "are", "has", "have", "had", "will", "would", "could", "did", "does",
-  "all", "any", "one", "out", "off", "own", "too", "very", "just", "only", "into", "onto",
-  "over", "after", "before", "when", "what", "why", "how", "another", "about",
-]);
-
-/** Crude suffix stripping, enough that "begged" and "begging" count as the same word. */
-const stem = (word: string): string => word.replace(/(ings|ing|ed|es|s)$/, "");
-
-const contentList = (text: string): string[] =>
-  text.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/)
-    .filter(word => word.length > 2 && !CAPTION_STOPWORDS.has(word))
-    .map(stem).filter(word => word.length > 2);
-
 /**
- * Does the title only say the hook again? A short-drama title is itself a plot
- * summary ("He Told Me to Flirt With His Rival. Then I Fell For Him"), so
- * printing one under a hook that already told that story reads as the same
- * sentence twice — which is what the first captions Studio posted did.
- *
- * Two ways to be a restatement, because one measure missed real cases:
- *
- *  - Most of the title's words are already in the hook. The test runs one way
- *    round on purpose: the question is whether the TITLE adds anything, so it
- *    is the title's words that must be new.
- *  - Both open on the same action. "He humiliated her for a laugh. Now he
- *    wants her back" under "He Humiliated Me in Front of the Whole School, Now
- *    He's Begging For Me Back" shares only two words of six — "wants" and
- *    "begging" are the same idea in different words — but both sentences start
- *    on the same verb, and that is enough to read as one story told twice.
- */
-export function titleRestatesHook(hook: string, title: string): boolean {
-  const titleWords = contentList(title);
-  const hookWords = contentList(hook);
-  if (!titleWords.length || !hookWords.length) return false;
-  if (titleWords[0] === hookWords[0]) return true;
-  const inHook = new Set(hookWords);
-  const distinct = [...new Set(titleWords)];
-  return distinct.filter(word => inHook.has(word)).length / distinct.length >= 0.5;
-}
-
-/**
- * Hook on the first line, title (and episode) on the second
- * (docs/meta-organic-plan.md §0) — unless the title only says the hook again
- * (decision 2026-10-04), when the hook stands alone rather than summarising the
- * plot twice. A clip with no hook falls back to the title alone: `clip.label`
- * can be the internal `clip_…` reference, which must never become the caption
- * of a public post.
+ * The caption Studio fills in when the client sends none
+ * (docs/meta-organic-plan.md §0). The rule itself lives in
+ * `lib/launch/caption.ts` so the posting dialog shares it — it used to carry a
+ * second copy, and the two drifted. A clip with no hook falls back to the title
+ * alone: `clip.label` can be the internal `clip_…` reference, which must never
+ * become the caption of a public post.
  */
 export function defaultCaption(clip: ClipLibraryRow): string {
-  const hook = clip.label && clip.label !== clip.external_id ? clip.label : "";
-  const title = clip.episode_label ? `${clip.title_name} · Episode ${clip.episode_label}` : clip.title_name;
-  // An episode number is something the hook never carries, so a numbered clip
-  // keeps its second line whatever the words do.
-  const repeats = Boolean(hook) && !clip.episode_label && titleRestatesHook(hook, clip.title_name);
-  return [hook, repeats ? "" : title].filter(Boolean).join("\n").trim();
+  return buildCaption({
+    hook: clip.label && clip.label !== clip.external_id ? clip.label : "",
+    title_name: clip.title_name,
+    episode_label: clip.episode_label,
+  });
 }
 
 async function connectionFor(session: Session, producerId: string, connectionId: string): Promise<LaunchConnection> {

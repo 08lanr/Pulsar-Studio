@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { defaultCaption, titleRestatesHook } from "@/lib/meta/publish";
+import { defaultCaption } from "@/lib/meta/publish";
+import { buildCaption, titleRestatesHook } from "@/lib/launch/caption";
+import { defaultCaption as dialogCaption } from "@/components/launch/PostClipDialog";
 import type { ClipLibraryRow } from "@/lib/launch/clip-posts";
 
 // The caption summarised the plot twice (decision 2026-10-04). A short-drama
@@ -79,4 +81,32 @@ test("a hook and a title that open on the same action are one story told twice",
     "Dumped for the Cheer Queen, I Came Back and Took Her Crown");
   assert.equal(defaultCaption(elsewhere),
     "I lied about New York. I trained in California all summer, then returned to Ridgewater.\nDumped for the Cheer Queen, I Came Back and Took Her Crown");
+});
+
+test("the dialog and the server build the same caption", () => {
+  // The real bug behind Ruobin's report: PostClipDialog carried its own
+  // `hook \n title` and SENDS what it shows, so the server's rule never ran for
+  // a post made from the UI. One rule now, and this keeps it that way.
+  const cases: [string, string, string | null][] = [
+    ["The guy I loved told me to flirt with his rival. So I did.", "He Told Me to Flirt With His Rival. Then I Fell For Him", null],
+    ["He humiliated her for a laugh. Now he wants her back, and she's done.", "He Humiliated Me in Front of the Whole School, Now He's Begging For Me Back", null],
+    ["My secret boyfriend told the whole party I wasn't his type.", "Dumped for the Cheer Queen, I Came Back and Took Her Crown", null],
+    ["I lied about New York. I trained in California all summer.", "Dumped for the Cheer Queen, I Came Back and Took Her Crown", "4"],
+  ];
+  for (const [label, title_name, episode_label] of cases) {
+    const row = clip(label, title_name, { episode_label });
+    assert.equal(
+      dialogCaption({ id: row.id, label: row.label, title_name: row.title_name, episode_label: row.episode_label }),
+      defaultCaption(row),
+      `dialog and server disagree on "${title_name}"`,
+    );
+  }
+});
+
+test("buildCaption is the only rule, and the hook always survives it", () => {
+  // Whatever it decides about the title, the hook is never dropped.
+  for (const hook of ["He humiliated her for a laugh.", "Something entirely unrelated."]) {
+    const out = buildCaption({ hook, title_name: "He Humiliated Me in Front of the Whole School, Now He's Begging For Me Back" });
+    assert.ok(out.startsWith(hook), `the hook must open the caption: ${out}`);
+  }
 });
