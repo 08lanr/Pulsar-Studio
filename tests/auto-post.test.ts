@@ -76,10 +76,17 @@ test("the cadence is read from the posts the system user made, not from memory",
   const justNow = new Date().toISOString();
   const longAgo = new Date(Date.now() - (hours + 5) * 3600_000).toISOString();
 
-  // No auto post ever: due immediately.
+  // Nothing posted at all: due immediately.
   assert.ok((await nextDueAt([])).getTime() <= Date.now());
-  // A person's post does not reset the clock, however recent.
-  assert.ok((await nextDueAt([post({ created_by: "a-person", created_at: justNow })])).getTime() <= Date.now());
+  // Never auto-posted before, but a person just posted by hand: the sweep waits
+  // its turn rather than piling onto the account the same day.
+  assert.ok((await nextDueAt([post({ created_by: "a-person", created_at: justNow })])).getTime() > Date.now());
+  // Once the sweep has its own history, only its own posts set the clock, so a
+  // hand post between runs never delays it.
+  assert.ok((await nextDueAt([
+    post({ created_by: SYSTEM_USER_ID, created_at: longAgo }),
+    post({ created_by: "a-person", created_at: justNow }),
+  ])).getTime() <= Date.now());
   // The sweep's own recent post does.
   assert.ok((await nextDueAt([post({ created_by: SYSTEM_USER_ID, created_at: justNow })])).getTime() > Date.now());
   // And one older than the cadence does not.

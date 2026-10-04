@@ -88,9 +88,14 @@ export function autoPostEnabled(): boolean {
 
 /** When the sweep may run again, from the newest row the system user created. */
 export async function nextDueAt(posts: readonly ClipPost[]): Promise<Date> {
-  const mine = posts.filter(p => p.created_by === SYSTEM_USER_ID).map(p => Date.parse(p.created_at)).filter(Number.isFinite);
-  const last = mine.length ? Math.max(...mine) : 0;
-  return new Date(last + AUTO_POST_RULE.everyHours * 3600_000);
+  const at = (rows: readonly ClipPost[]) => rows.map(p => Date.parse(p.created_at)).filter(Number.isFinite);
+  const mine = at(posts.filter(p => p.created_by === SYSTEM_USER_ID));
+  if (mine.length) return new Date(Math.max(...mine) + AUTO_POST_RULE.everyHours * 3600_000);
+  // Never run before: the clock starts from the newest post by anybody, so a
+  // first start after a person has just posted by hand waits its turn instead
+  // of posting again on top of them. With no posts at all it is due at once.
+  const anyone = at(posts);
+  return new Date((anyone.length ? Math.max(...anyone) : 0) + AUTO_POST_RULE.everyHours * 3600_000);
 }
 
 /**
