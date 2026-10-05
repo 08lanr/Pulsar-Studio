@@ -105,3 +105,31 @@ test("the fake report carries the paywall test, so fixture mode shows the summar
   assert.ok(rows && rows[0].viewer_days > rows[1].viewer_days && rows[1].viewer_days > 0, "three quarters see VIP");
   assert.ok((report.payments ?? []).some((p) => p.arm === "series") && (report.payments ?? []).filter((p) => p.kind === "vip_renewal").every((p) => p.arm == null));
 });
+
+test("TikTok's daily spend: an ad account TikTok refuses leaves the other accounts' days standing (2026-10-04)", async () => {
+  const { clearAdDaysCache, readTikTokAdDays } = await import("@/lib/tiktok/ad-days");
+  const runs = [
+    { external_id: "lr_1", mode: "production", draft: { provider: "tiktok" }, campaigns: [{ advertiser_id: "old", state: { campaign_id: "c0" } }] },
+    { external_id: "lr_2", mode: "production", draft: { provider: "tiktok" }, campaigns: [{ advertiser_id: "now", state: { campaign_id: "c1" } }] },
+  ] as never;
+  let calls = 0;
+  const tt = {
+    mode: "production" as const,
+    get: async (_path: string, _token: string, params: Record<string, string | number> = {}) => {
+      calls++;
+      if (params.advertiser_id === "old") return { code: 40001, message: "No permission to operate advertiser: old" };
+      return { code: 0, message: "OK", data: { list: [{ dimensions: { ad_id: "a1", stat_time_day: "2026-10-04 00:00:00" }, metrics: { spend: "62.33", impressions: "10", clicks: "1" } }], page_info: { total_page: 1 } } };
+    },
+    post: async () => ({ code: 0, message: "" }),
+    upload: async () => ({ code: 0, message: "" }),
+  };
+  const opts = { to: "2026-10-04", transport: tt as never, tokenFor: () => "token", now: () => 1 };
+  const read = await readTikTokAdDays(runs, opts);
+  assert.ok(read.ok);
+  assert.deepEqual(read.campaigns, ["c1"], "the refused account's campaigns are not covered: their ads stay unknown, never zero");
+  assert.deepEqual(Object.keys(read.days), ["a1"]);
+  assert.deepEqual(read.failed, [{ advertiser: "old", campaigns: ["c0"], error: "No permission to operate advertiser: old" }]);
+  await readTikTokAdDays(runs, opts);
+  assert.equal(calls, 4, "a read with a failed account is not kept: the next look asks again");
+  clearAdDaysCache();
+});

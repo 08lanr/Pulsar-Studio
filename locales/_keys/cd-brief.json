@@ -37,5 +37,6 @@
   "cdbf.camp.col.visitors": {"en": "Visitors", "zh": "访客"},
   "cdbf.camp.col.checkouts": {"en": "Checkouts", "zh": "结账"},
   "cdbf.camp.col.cost": {"en": "Cost per payment", "zh": "每笔付款成本"},
+  "cdbf.camp.partDays": {"en": "TikTok's daily spend could not be read for {n} older campaigns (ad account {account}: {error}). They show a dash; the other campaigns' spend is complete.", "zh": "无法读取 {n} 个较早广告系列的 TikTok 每日花费（广告账户 {account}：{error}）。它们显示为短横线；其他广告系列的花费完整。"},
   "cdbf.camp.total": {"en": "Total", "zh": "合计"}
 }

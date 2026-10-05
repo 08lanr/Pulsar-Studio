@@ -207,6 +207,10 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
   for (const c of inventedClips) clips.set(c.id, { ...c });
   const adDays = withDays(withDays(realDays, fake?.days ?? null), archive?.days ?? null);
 
+  // An ad account TikTok refused (ad-days.ts): its campaigns show a dash, the others' spend stands.
+  const adDaysPart = adDays.ok ? (adDays.failed ?? []) : [];
+  const adDaysPartNote = adDaysPart.length ? tt("cdbf.camp.partDays", { n: adDaysPart.reduce((a, f) => a + f.campaigns.length, 0), account: adDaysPart.map((f) => f.advertiser).join(", "), error: adDaysPart[0].error }) : null;
+
   const span = rangeDays(report, range);
   const prev = prevSpan(report, range);
   const vs = prev ? tt(`cdx.vs.${range}`) : null;
@@ -432,7 +436,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
             <CampaignBriefPanel
               rows={briefRows}
               nameOf={names.campaign}
-              note={!adDays.ok ? tt("cds.ads.daysFailed", { error: adDays.error }) : filter.device || filter.country ? tt("cdd.ads.byPhoneNote") : null}
+              note={!adDays.ok ? tt("cds.ads.daysFailed", { error: adDays.error }) : adDaysPartNote ?? (filter.device || filter.country ? tt("cdd.ads.byPhoneNote") : null)}
               href={hrefWith({ tab: "campaigns" })}
               locale={locale}
             />
@@ -528,6 +532,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
             </nav>
           )}
           {!adDays.ok && <p className="note note-warn">{tt("cds.ads.daysFailed", { error: adDays.error })}</p>}
+          {adDaysPartNote && <p className="note note-warn">{adDaysPartNote}</p>}
           {(filter.device || filter.country) && <p className="note">{tt("cdd.ads.byPhoneNote")}</p>}
           <CampaignsView rows={viewRows} caption={tt("cdx.ads.campaigns")} launchedLabel={launchedLabel} returns={money} />
           {untaggedN > 0 && <p className="cdx-note">{tt(untaggedN === 1 ? "cdc.untaggedLine1" : "cdc.untaggedLine", { n: untaggedN })}</p>}

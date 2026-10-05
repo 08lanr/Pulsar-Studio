@@ -216,6 +216,12 @@ const STUDIO_PATH = /^\/api\/studio\/[A-Za-z0-9/_.%-]+$/;
  * crazydramas and needs only the read gate, never CRAZYDRAMAS_LIVE_WRITES.
  */
 const READ_ONLY_POSTS = new Set(["/api/studio/stats"]);
+/**
+ * The stats report reads 120 days of events and takes 20-30 s to build (measured 2026-10-04: 21 s and 28 s, 15 MB);
+ * crazydramas allows it 60 s (its route's maxDuration). The other calls keep TIMEOUT_MS.
+ */
+const STATS_TIMEOUT_MS = 65_000;
+const timeoutFor = (path: string) => (path === "/api/studio/stats" ? STATS_TIMEOUT_MS : TIMEOUT_MS);
 
 /** Only this function sends the token. Every HTTP answer comes back as a value; no answer throws. */
 async function studioCall(method: "GET" | "PUT" | "POST", path: string, body?: unknown): Promise<StudioHttpAnswer> {
@@ -239,7 +245,7 @@ async function studioCall(method: "GET" | "PUT" | "POST", path: string, body?: u
       body: body === undefined ? undefined : JSON.stringify(body),
       cache: "no-store",
       redirect: "error",
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutFor(path)),
     });
   } catch {
     throw new CrazydramasApiError("crazydramas did not answer (timeout, DNS or a refused connection).");

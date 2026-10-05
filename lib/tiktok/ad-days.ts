@@ -7,7 +7,10 @@
 // the stats' last day, one report per ad account, kept five minutes.
 // TikTok's days are the ad account's time zone (Pulsar Entertainment's is
 // UTC−8, an hour off Pacific summer time). A report that fails fails soft:
-// the stats pages then cost only ads whose whole life is in the period.
+// the stats pages then cost only ads whose whole life is in the period. One
+// ad account that fails does not take the others with it (2026-10-04: an old
+// account the connection no longer covers blanked every campaign's spend):
+// its campaigns are left out of `campaigns` and named in `failed`.
 // Server-only.
 
 import type { LaunchRun } from "@/lib/launch/types";
@@ -21,7 +24,7 @@ export const AD_DAYS_CACHE_MS = 5 * 60_000;
 
 export type AdDaysRead =
   /** `campaigns`: the TikTok campaign ids the read covered; an ad of one of them with no days spent nothing. */
-  | { ok: true; from: string; to: string; campaigns: string[]; days: Record<string, AdDay[]> }
+  | { ok: true; from: string; to: string; campaigns: string[]; days: Record<string, AdDay[]>; failed?: { advertiser: string; campaigns: string[]; error: string }[] }
   | { ok: false; error: string };
 
 type Cached = { at: number; read: AdDaysRead & { ok: true } };
@@ -64,13 +67,15 @@ export async function readTikTokAdDays(
   const now = opts.now ?? Date.now;
   const from = addDays(opts.to, -(AD_DAYS_SPAN - 1));
   const accounts = tiktokCampaignsByAdvertiser(runs, tt.mode);
-  const campaigns = [...accounts.values()].flat().sort();
-  const key = `${tt.mode}|${opts.to}|${campaigns.join(",")}`;
+  const all = [...accounts.values()].flat().sort();
+  const key = `${tt.mode}|${opts.to}|${all.join(",")}`;
   const kept = cache.get(key);
   if (!opts.fresh && kept && now() - kept.at < AD_DAYS_CACHE_MS) return kept.read;
-  try {
-    const rows: Record<string, unknown>[] = [];
-    for (const [advertiser, ids] of accounts) {
+  const rows: Record<string, unknown>[] = [];
+  const failed: NonNullable<(AdDaysRead & { ok: true })["failed"]> = [];
+  for (const [advertiser, ids] of accounts) {
+    const own: Record<string, unknown>[] = [];
+    try {
       const token = tokenFor(advertiser);
       if (!token) throw new Error(`No TikTok connection covers ad account ${advertiser}.`);
       for (let i = 0; i < ids.length; i += 100) {
@@ -87,17 +92,21 @@ export async function readTikTokAdDays(
           if (res.code !== 0) throw new Error(res.message || "TikTok did not return the daily ad report.");
           const list = res.data?.list;
           if (!Array.isArray(list)) throw new Error("TikTok's daily ad report came back without its rows.");
-          rows.push(...(list as Record<string, unknown>[]));
+          own.push(...(list as Record<string, unknown>[]));
           const pages = (res.data?.page_info as { total_page?: number } | undefined)?.total_page;
           if (pages === undefined && list.length >= 100) throw new Error("TikTok's daily ad report came back without its page count.");
           total = pages === undefined ? 1 : Math.max(1, Number(pages));
         }
       }
+      rows.push(...own);
+    } catch (e) {
+      failed.push({ advertiser, campaigns: ids, error: (e as Error).message });
     }
-    const read = { ok: true as const, from, to: opts.to, campaigns, days: adDaysFromRows(rows) };
-    cache.set(key, { at: now(), read });
-    return read;
-  } catch (e) {
-    return { ok: false, error: (e as Error).message };
   }
+  // Every account failed: nothing was read (as before, never kept). Some failed: the others' days stand.
+  if (failed.length && failed.length === accounts.size) return { ok: false, error: failed[0].error };
+  const lost = new Set(failed.flatMap((f) => f.campaigns));
+  const read = { ok: true as const, from, to: opts.to, campaigns: all.filter((id) => !lost.has(id)), days: adDaysFromRows(rows), ...(failed.length ? { failed } : {}) };
+  if (!failed.length) cache.set(key, { at: now(), read });
+  return read;
 }
