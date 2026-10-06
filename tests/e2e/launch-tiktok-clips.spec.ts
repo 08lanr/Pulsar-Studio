@@ -66,7 +66,8 @@ test("a Studio clip, a post of the linked account and a Spark code: a picture pe
   await expect(rows.locator("[data-ad-row]")).toHaveCount(3);
   await page.getByRole("button", { name: "Preview campaigns" }).click();
   // A cold dev server compiles the preview route on this first request.
-  await expect(page.getByTestId("tiktok-runs-as")).toContainText(`1 Studio clip runs as ${HANDLE}, shown only as an ad (not on the profile)`, { timeout: 60_000 });
+  // A new launch also posts its clips to the profile (decision 2026-10-05, on by default).
+  await expect(page.getByTestId("tiktok-runs-as")).toContainText(`1 Studio clip runs as ${HANDLE} and is also posted to its profile`, { timeout: 60_000 });
   await expect(page.getByTestId("tiktok-runs-as")).toContainText(`1 post of ${HANDLE} runs as an ad, with no Spark code`);
   await page.getByRole("button", { name: /Launch 1 campaign/ }).click();
   const confirm = page.getByRole("dialog", { name: "Confirm launch" });
@@ -89,7 +90,7 @@ test("a Studio clip, a post of the linked account and a Spark code: a picture pe
   await expect(watch).toHaveCount(3);
   const runsAs = run.getByTestId("ad-runs-as");
   await expect(runsAs).toHaveCount(2);
-  await expect(runsAs.filter({ hasText: "only as an ad, not on the profile" })).toHaveCount(1);
+  await expect(runsAs.filter({ hasText: "only as an ad, not on the profile" })).toHaveCount(0);
   const preview = await page.request.get(await watch.first().getAttribute("href") ?? "", { maxRedirects: 0 });
   expect(preview.status()).toBe(302);
   expect(preview.headers().location).toMatch(/^https:\/\/fake\.tiktok\.invalid\/ad_preview_tool\?ad_preview_id=\d+$/);

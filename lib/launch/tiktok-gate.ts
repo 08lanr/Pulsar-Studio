@@ -194,7 +194,8 @@ export async function audienceGate(audiences: LaunchDraft["tiktok_settings"]["au
  * Returns what the preview and the confirm dialog say: the account's handle
  * per ad account, and whether its videos stay off the profile.
  */
-export async function tiktokIdentityGate(draft: Pick<LaunchDraft, "content">, rows: readonly LaunchPlanRow[], own: readonly LaunchConnection[]): Promise<NonNullable<LaunchPlan["tiktok_identity"]>> {
+export async function tiktokIdentityGate(draft: Pick<LaunchDraft, "content"> & { tiktok_settings?: Pick<LaunchDraft["tiktok_settings"], "profile_posts"> }, rows: readonly LaunchPlanRow[], own: readonly LaunchConnection[]): Promise<NonNullable<LaunchPlan["tiktok_identity"]>> {
+  const profile = draft.tiktok_settings?.profile_posts === true;
   const tt = tiktokTransport();
   const content = draft.content;
   const accounts: NonNullable<LaunchPlan["tiktok_identity"]>["accounts"] = [];
@@ -212,6 +213,10 @@ export async function tiktokIdentityGate(draft: Pick<LaunchDraft, "content">, ro
     }
     const account = pickLinkedAccount(linkedOn.get(connection.id)!, needs);
     if (!account) throw invalid(linkedAccountMissing(needs, connection.name));
+    // Posting clips to the profile needs the account's own Business Center setting to allow it (decision 2026-10-05):
+    // refused here, in words, rather than by TikTok halfway through the launch.
+    if (profile && needs.includes("push") && account.ads_only)
+      throw invalid(`${linkedAccountHandle(account)} is set to "Only show as ads" in TikTok Business Center, so its clips cannot also be posted to the profile. Switch it to "Show on TikTok profile and as ads" (Accounts › TikTok accounts › View › Business Center permissions), or untick "Also post Studio clips to the TikTok profile" in the launch settings, then preview again.`);
     for (const item of row.content) {
       if (item.kind !== "tiktok_post") continue;
       const post = await findLinkedPost(tt, token, connection.advertiser_id, account, item.value).catch((e: unknown) => {
@@ -223,5 +228,6 @@ export async function tiktokIdentityGate(draft: Pick<LaunchDraft, "content">, ro
     if (!accounts.some((a) => a.connection_id === connection.id))
       accounts.push({ connection_id: connection.id, name: account.name, handle: linkedAccountHandle(account), ads_only: account.ads_only });
   }
-  return { clips: content.filter((c) => c.kind === "video").length, posts: content.filter((c) => c.kind === "tiktok_post").length, accounts };
+  const clips = content.filter((c) => c.kind === "video").length;
+  return { clips, posts: content.filter((c) => c.kind === "tiktok_post").length, ...(profile && clips ? { profile: true } : {}), accounts };
 }

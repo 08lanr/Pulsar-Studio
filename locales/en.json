@@ -5529,5 +5529,10 @@
   "cdbf.camp.total": "Total",
   "cdbf.col.coins": "Coins",
   "cdbf.test.col.paid": "People paid",
-  "cdbf.camp.partDays": "TikTok's daily spend could not be read for {n} older campaigns (ad account {account}: {error}). They show a dash; the other campaigns' spend is complete."
+  "cdbf.camp.partDays": "TikTok's daily spend could not be read for {n} older campaigns (ad account {account}: {error}). They show a dash; the other campaigns' spend is complete.",
+  "ltc.runsAsClipsProfile": "{n} Studio clips run as {handle} and are also posted to its profile.",
+  "ltc.runsAsClipsProfileOne": "1 Studio clip runs as {handle} and is also posted to its profile.",
+  "tk.profilePosts": "Also post Studio clips to the TikTok profile",
+  "tk.profilePostsOnHint": "Each Studio clip runs as an ad and also appears on the linked account's profile as a regular post, with a public link. Posts you pick from the account and Spark codes are already on the profile.",
+  "tk.profilePostsOffHint": "Studio clips are shown only as ads and never appear on the profile."
 }

@@ -147,6 +147,8 @@ export default function LaunchSettingsEditor({ value, onChange, budgetUsd, regio
 
     <fieldset disabled={disabled} className="tk-fieldset">
       <legend>{tt("tk.launch")}</legend>
+      <label className="tk-check" data-testid="tk-profile-posts"><input type="checkbox" checked={value.profile_posts === true} onChange={(e) => set("profile_posts", e.target.checked)} /> {tt("tk.profilePosts")}</label>
+      <p className="hint">{tt(value.profile_posts ? "tk.profilePostsOnHint" : "tk.profilePostsOffHint")}</p>
       <div className="tk-field tk-row">
         <label className="tk-label" htmlFor="tk-cta">{tt("tk.cta")}</label>
         <select id="tk-cta" className="select" value={value.call_to_action} onChange={(e) => set("call_to_action", e.target.value)}>{CTA_OPTIONS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select>

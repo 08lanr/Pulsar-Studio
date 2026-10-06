@@ -133,11 +133,15 @@ export const FAKE_ACCOUNT_POSTS = [
   { item_id: "1730000000000000102", text: "The night bus leaves at 11 sharp. Nobody gets off.", duration: 29.6 },
   { item_id: "1730000000000000101", text: "My cold boss doesn't know he is my son's father.", duration: 24.1 },
 ] as const;
+/**
+ * TIKTOK_FAKE_IDENTITY: unset, the linked account as CrazyDramas' is since 2026-10-05 ("Show on TikTok profile and as
+ * ads"); `ads_only` as it was before ("Only show as ads"); `pull_only` cannot take uploads; `none` links no account.
+ */
 function fakeIdentityRows(advertiserId: string): Record<string, unknown>[] {
   const mode = process.env.TIKTOK_FAKE_IDENTITY;
   if (mode === "none") return [];
   return [{ identity_id: fakeLinkedIdentityId(advertiserId), identity_type: "BC_AUTH_TT", display_name: "Pulsar Dramas", username: "pulsar.dramas",
-    identity_authorized_bc_id: FAKE_BC_ID, available_status: "AVAILABLE", can_pull_video: true, can_push_video: mode !== "pull_only", ads_only_mode: true }];
+    identity_authorized_bc_id: FAKE_BC_ID, available_status: "AVAILABLE", can_pull_video: true, can_push_video: mode !== "pull_only", ads_only_mode: mode === "ads_only" }];
 }
 function fakePostRow(post: (typeof FAKE_ACCOUNT_POSTS)[number]): Record<string, unknown> {
   return { item_id: post.item_id, item_type: "VIDEO", status: "ITEM_STATUS_HESITATE_RECOMMEND", text: post.text,
@@ -666,6 +670,8 @@ export const fakeTransport: TikTokTransport = {
               if (!text.trim() || text.length > 100) return refuse("ad_text must be 1-100 characters");
               if (c.dark_post_status !== undefined && c.dark_post_status !== "ON" && c.dark_post_status !== "OFF") return refuse("dark_post_status must be ON or OFF");
               if (fakeIdentityRows(adv)[0]?.can_push_video === false) return refuse("This TikTok account does not allow videos to be pushed to it");
+              // Assumed, not documented: an account set to "Only show as ads" takes no profile post.
+              if (c.dark_post_status === "OFF" && fakeIdentityRows(adv)[0]?.ads_only_mode === true) return refuse("This TikTok account only allows videos to be shown as ads");
             }
           } else if (!c.identity_id || !c.video_id || !Array.isArray(c.image_ids) || !c.landing_page_url) {
             throw new Error("fake TikTok: incomplete ad payload");
@@ -674,7 +680,8 @@ export const fakeTransport: TikTokTransport = {
         const adIds = creatives.map((c) => {
           const adId = nextId("172");
           // An uploaded video under a linked account becomes a post of that
-          // account; ads-only (dark post ON), only its owner sees it.
+          // account: ads-only (dark post ON) only its owner sees it; OFF it is
+          // on the profile as well.
           const pushed = c.identity_type === "BC_AUTH_TT" && c.video_id && c.dark_post_status ? { tiktok_item_id: nextId("173") } : {};
           s.ads.set(adId, { adId, adgroupId: adgroup.adgroupId, campaignId: adgroup.campaignId, advertiserId: String(body.advertiser_id), polls: 0, adName: String(c.ad_name ?? ""), body: { ...c, ...pushed } });
           return adId;

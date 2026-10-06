@@ -8,6 +8,16 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-10-05 · Studio clips on the profile
+
+Ruobin, 2026-10-05: "I want to post on studio, without having to post it myself, copy a link / spark code, and paste in. I want this post to appear on my profile", then "build it, on by default". The Accounts API (posting to the profile, as Meta does) is still in TikTok's review since 2026-09-17. The same day Ruobin switched @crazydramaus in Business Center (Accounts › TikTok accounts › View › Business Center permissions › Edit permissions › "Publish and manage new videos") from "Only show as ads" to "Show on TikTok profile and as ads"; `/identity/get/` then answered `ads_only_mode: false`. With that, an ad Studio creates from a clip with `dark_post_status: "OFF"` (TikTok's per-ad "Show through ads only" off) is also a post on the profile.
+
+- `launch_settings.profile_posts` (optional boolean): "Also post Studio clips to the TikTok profile", a checkbox in the TikTok settings' launch section, with the summary line "Studio clips also posted to the profile". **On for every new launch** (`defaultWebsitePurchaseSettings`, `defaultSalesLaunchSettings`). Absent on every draft, run and preset saved before: they stay ads-only (`ON`), as their approvers signed, auto-duplicate copies included; `defaultLaunchSettings` (the base older rows are filled from) never adds it. A preset saved before keeps the draft's own choice when picked. One rule for the driver: `clipDarkPostStatus` in `lib/tiktok/settings.ts`.
+- It governs Studio clips only. A post of the account and a Spark code are already posts.
+- Preview refuses, in words, a launch with the box ticked whose linked account is still "Only show as ads" (`tiktokIdentityGate`), naming where to switch it and the box to untick; nothing is created. The plan and the confirm dialog say "1 Studio clip runs as @crazydramaus and is also posted to its profile." The Monitor already reads `dark_post_status` from TikTok's ad record: such an ad shows "Runs as @crazydramaus" and links its post, now public.
+- The fake's linked account is now as CrazyDramas' is (`ads_only_mode` false); `TIKTOK_FAKE_IDENTITY=ads_only` keeps the old account, whose fake refuses `OFF` (an assumption: TikTok does not document the refusal).
+- Unverified until the first real launch with the box ticked: when the post appears on the profile (on creation, or once TikTok approves the ad), whether it stays after the ad is paused or ends, and how TikTok words the post (the ad text, at most 100 characters, is the only caption). Tests: `tests/tiktok-profile-posts.test.ts`.
+
 ## 2026-10-04 · The summary answers the daily questions
 
 Ruobin, 2026-10-04, after a day of asking Claude for purchases since the morning, which campaign brought each buyer, each campaign's spend, and how the paywall test's two sheets were doing: "the 'summary' page should include the A / B tests, the campaigns, how many VIP vs normal. the reason im constantly prompting you is that its easier than studio, and that shouldn't be the case".

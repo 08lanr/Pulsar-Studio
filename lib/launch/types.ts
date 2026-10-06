@@ -120,7 +120,8 @@ export type LaunchPlan = {
    * (lib/tiktok/linked-account.ts), read at preview; the driver picks it again
    * by the same rule before anything is written.
    */
-  tiktok_identity?: { clips: number; posts: number; accounts: { connection_id: string; name: string; handle: string; ads_only: boolean }[] };
+  /** `profile`: the launch's Studio clips also become posts on the account's profile (tiktok_settings.profile_posts). */
+  tiktok_identity?: { clips: number; posts: number; profile?: boolean; accounts: { connection_id: string; name: string; handle: string; ads_only: boolean }[] };
   /**
    * Meta conversions: the pixel the preview resolved on every chosen account
    * and the event the ad sets optimize toward (decision 2026-09-25, "Meta

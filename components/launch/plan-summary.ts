@@ -46,11 +46,11 @@ export function pixelHandSetNote(tt: Translate, pixelId: string, owners: readonl
  * confirm dialog: the account's handle, and that clips stay off its profile.
  * Undefined for a launch of Spark codes only.
  */
-export function planIdentityLine(tt: Translate, identity?: { clips: number; posts: number; accounts: { handle: string; ads_only: boolean }[] }): string | undefined {
+export function planIdentityLine(tt: Translate, identity?: { clips: number; posts: number; profile?: boolean; accounts: { handle: string; ads_only: boolean }[] }): string | undefined {
   if (!identity?.accounts.length) return undefined;
   const handle = [...new Set(identity.accounts.map((a) => a.handle))].join(" · ");
   const parts = [
-    identity.clips ? tt(identity.clips === 1 ? "ltc.runsAsClipsOne" : "ltc.runsAsClips", { handle, n: identity.clips }) : null,
+    identity.clips ? tt(identity.profile ? (identity.clips === 1 ? "ltc.runsAsClipsProfileOne" : "ltc.runsAsClipsProfile") : identity.clips === 1 ? "ltc.runsAsClipsOne" : "ltc.runsAsClips", { handle, n: identity.clips }) : null,
     identity.posts ? tt(identity.posts === 1 ? "ltc.runsAsPostsOne" : "ltc.runsAsPosts", { handle, n: identity.posts }) : null,
   ];
   return parts.filter(Boolean).join(" ");

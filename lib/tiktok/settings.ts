@@ -119,6 +119,13 @@ export const launchSettingsSchema = z.object({
   comments_disabled: z.boolean(),
   // ads
   call_to_action: z.enum(values(CTA_OPTIONS)),
+  /**
+   * Studio clips also become posts on the linked TikTok account's profile (TikTok's dark_post_status OFF; decision
+   * 2026-10-05 "Studio clips on the profile"). On for every new launch. Absent on drafts and runs saved before: they
+   * stay ads-only (ON), as their approvers signed, auto-duplicate copies included. Posts of the account and Spark codes
+   * are already posts and are not affected.
+   */
+  profile_posts: z.boolean().optional(),
   // launch
   start_paused: z.boolean(),
   duplicate_copies: z.number().int().min(0).max(MAX_DUPLICATE_COPIES),
@@ -126,6 +133,12 @@ export const launchSettingsSchema = z.object({
 });
 
 export type LaunchSettings = z.infer<typeof launchSettingsSchema>;
+
+/**
+ * TikTok's dark_post_status for a Studio clip's ad: "OFF" (also a post on the linked account's profile) only when the
+ * launch says so; anything else, an older launch without the setting included, stays "ON" (shown only as an ad).
+ */
+export const clipDarkPostStatus = (s: Pick<LaunchSettings, "profile_posts"> | null | undefined): "ON" | "OFF" => (s?.profile_posts === true ? "OFF" : "ON");
 
 /**
  * The three launch shapes, from the fields that decide them:
@@ -192,6 +205,7 @@ export function defaultWebsitePurchaseSettings(): LaunchSettings {
     comments_disabled: false,
     budget_mode: "BUDGET_MODE_TOTAL",
     daily_budget_usd: null,
+    profile_posts: true,
   };
 }
 
@@ -215,6 +229,7 @@ export function defaultSalesLaunchSettings(): LaunchSettings {
     comments_disabled: false,
     budget_mode: "BUDGET_MODE_DAY",
     daily_budget_usd: 20,
+    profile_posts: true,
     instant_page_template: {
       id: "00000000-0000-4000-8000-000000000001",
       name: "(default)", button_text: "Watch now", background: "white", hand_cursor: false,
@@ -259,7 +274,7 @@ export function normalizeLaunchSettings(raw: unknown): LaunchSettings {
     if (v !== undefined) merged[key] = v;
   }
   const source = raw as Record<string, unknown>;
-  for (const key of ["objective_type", "instant_page_template", "sales_destination", "optimization_event", "attribution", "pixel_code", "audiences"] as const) {
+  for (const key of ["objective_type", "instant_page_template", "sales_destination", "optimization_event", "attribution", "pixel_code", "audiences", "profile_posts"] as const) {
     if (source[key] !== undefined) merged[key] = source[key];
   }
   const parsed = launchSettingsSchema.safeParse(merged);
@@ -473,6 +488,7 @@ export function summarizeLaunchSettings(s: LaunchSettings, locationNames: Record
     s.bid_strategy === "COST_CAP" ? `cost cap $${s.bid_usd ?? "?"}` : "lowest cost",
     s.pacing === "PACING_MODE_FAST" ? "accelerated" : null,
     s.duplicate_copies > 0 ? `${s.duplicate_copies} auto-duplicate cop${s.duplicate_copies === 1 ? "y" : "ies"}` : null,
+    s.profile_posts ? "Studio clips also posted to the profile" : null,
     s.start_paused ? "starts paused" : "live on approval",
   ];
   return parts.filter((p): p is string => !!p);

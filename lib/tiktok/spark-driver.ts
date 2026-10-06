@@ -18,7 +18,7 @@ import { findLinkedPost, linkedAccountHandle, linkedAccountMissing, linkedNeeds,
 import { accessTokenFor, tiktokTransport, type TikTokResponse, type TikTokTransport } from "./index";
 import { normalizeReview } from "./review";
 import { accountHealth, accountStatusLabel } from "./account-health";
-import { adGroupBody, attributionLabel, attributionOf, launchSettingsSchema, launchShape, planAdGroup, validateLaunchSettings, type AdGroupPlan, type LaunchSettings } from "./settings";
+import { adGroupBody, attributionLabel, attributionOf, clipDarkPostStatus, launchSettingsSchema, launchShape, planAdGroup, validateLaunchSettings, type AdGroupPlan, type LaunchSettings } from "./settings";
 import { isCrazydramasAdUrl } from "./ad-url";
 import { resolvePixel, tiktokPixelCode } from "./pixel";
 import { WEB_METRICS, webConversionsFromReport } from "./web-metrics";
@@ -492,10 +492,11 @@ async function createAds(ctx: DriverContext, c: Client, group: SparkGroup): Prom
       };
       const linked = { identity_type: "BC_AUTH_TT", identity_id: post.identity_id, identity_authorized_bc_id: post.bc_id };
       const creative = post.kind === "video"
-        // A Studio clip under the linked account, shown only as an ad: in the
-        // For You feed with the account's name and picture, never on its
-        // profile, no organic views (TikTok's "Show through ads only").
-        ? { ...common, ...linked, ad_format: "SINGLE_VIDEO", video_id: post.video_id, image_ids: [post.image_id], ad_text: post.ad_text, dark_post_status: "ON" }
+        // A Studio clip under the linked account: in the For You feed with the
+        // account's name and picture. Shown only as an ad (TikTok's "Show
+        // through ads only", ON) unless the launch also posts it to the
+        // profile (OFF, decision 2026-10-05): clipDarkPostStatus is the rule.
+        ? { ...common, ...linked, ad_format: "SINGLE_VIDEO", video_id: post.video_id, image_ids: [post.image_id], ad_text: post.ad_text, dark_post_status: clipDarkPostStatus(state(ctx).settings) }
         : post.kind === "tiktok_post"
           ? { ...common, ...linked, tiktok_item_id: post.item_id, ad_format: post.item_type === "CAROUSEL" ? "CAROUSEL_ADS" : "SINGLE_VIDEO" }
           : { ...common, identity_type: "AUTH_CODE", identity_id: post.identity_id, tiktok_item_id: post.item_id, ad_format: post.item_type === "CAROUSEL" ? "CAROUSEL_ADS" : "SINGLE_VIDEO" };

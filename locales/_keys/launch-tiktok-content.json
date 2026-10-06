@@ -99,6 +99,14 @@
     "en": "1 Studio clip runs as {handle}, shown only as an ad (not on the profile).",
     "zh": "1 个 Studio 切片以 {handle} 的身份投放，只作为广告展示（不在主页上）。"
   },
+  "ltc.runsAsClipsProfile": {
+    "en": "{n} Studio clips run as {handle} and are also posted to its profile.",
+    "zh": "{n} 个 Studio 切片以 {handle} 的身份投放，并同时发布到其主页。"
+  },
+  "ltc.runsAsClipsProfileOne": {
+    "en": "1 Studio clip runs as {handle} and is also posted to its profile.",
+    "zh": "1 个 Studio 切片以 {handle} 的身份投放，并同时发布到其主页。"
+  },
   "ltc.runsAsPosts": {
     "en": "{n} posts of {handle} run as ads, with no Spark code.",
     "zh": "{handle} 的 {n} 个帖子作为广告投放，无需 Spark 授权码。"

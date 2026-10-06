@@ -88,7 +88,9 @@ test("a Studio clip is an ad by itself: uploaded once, TikTok's cover, run as th
   assert.equal(item.landing_url, A_LINK, "and carries its own title's link");
   assert.equal(item.clip_id, clip.id);
   assert.equal(item.sha256, clip.render_sha256, "the approved file is pinned by its hash");
-  assert.deepEqual(plan.tiktok_identity, { clips: 1, posts: 0, accounts: [{ connection_id: one.id, name: "Pulsar Dramas", handle: "@pulsar.dramas", ads_only: true }] });
+  // The account allows profile posts (as CrazyDramas' does since 2026-10-05), but this draft's settings predate the
+  // choice (no profile_posts): its clip stays ads-only, as its approver signed (tests/tiktok-profile-posts.test.ts).
+  assert.deepEqual(plan.tiktok_identity, { clips: 1, posts: 0, accounts: [{ connection_id: one.id, name: "Pulsar Dramas", handle: "@pulsar.dramas", ads_only: false }] });
 
   await executeLaunch(run.id);
   const after = await current(run.id);
