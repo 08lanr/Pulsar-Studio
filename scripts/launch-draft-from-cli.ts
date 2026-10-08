@@ -7,6 +7,7 @@
 //
 // spec.json: { "name": "Winners A · Oct 7", "clips": ["<clip uuid or prefix>", ...], "total_budget_usd": 100,
 //              "duration_days": 4, "age_groups": ["AGE_13_17", ...] (optional: default 18+),
+//              "gender": "GENDER_FEMALE", "operating_systems": ["IOS"], "profile_posts": false (optional),
 //              "comments_disabled": true, "producer_id": "<uuid>", "account_id": "tiktok:<producer>:<advertiser>" }
 import fs from "node:fs";
 import path from "node:path";
@@ -51,7 +52,10 @@ async function main() {
     console.log(`  clip ${String(r.id).slice(0, 8)}  ${String(r.title_name ?? "").slice(0, 40).padEnd(40)}  "${text}"`);
   }
   const settings = { ...defaultTikTokLaunchSettings(), duration_days: spec.duration_days ?? 4, comments_disabled: spec.comments_disabled ?? true,
-    ...(spec.age_groups ? { age_groups: spec.age_groups } : {}) };
+    ...(spec.age_groups ? { age_groups: spec.age_groups } : {}),
+    ...(spec.gender ? { gender: spec.gender } : {}),
+    ...(spec.operating_systems ? { operating_systems: spec.operating_systems } : {}),
+    ...(typeof spec.profile_posts === "boolean" ? { profile_posts: spec.profile_posts } : {}) };
   const start = new Date(); const end = new Date(start.getTime() + (spec.duration_days ?? 4) * 86400e3);
   const draft = {
     provider: "tiktok" as const, name: spec.name, account_ids: [accountId], campaigns_per_account: 1, content_per_campaign: content.length,
@@ -63,7 +67,7 @@ async function main() {
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const run = await data.saveLaunchDraft(session, draft as any, { producerId });
-  console.log(`draft saved: ${run.id} (${run.external_id}) "${run.draft.name}" $${(run.draft.total_budget_cents / 100).toFixed(0)} total, ${run.draft.content.length} ads, ages ${settings.age_groups.join("/")}, profile posts ${settings.profile_posts}`);
+  console.log(`draft saved: ${run.id} (${run.external_id}) "${run.draft.name}" $${(run.draft.total_budget_cents / 100).toFixed(0)} total, ${run.draft.content.length} ads, ages ${settings.age_groups.join("/")}, gender ${settings.gender}, os ${settings.operating_systems.join("/") || "all"}, profile posts ${settings.profile_posts}`);
 
   const plan = await data.previewLaunchRun(session, run.id);
   console.log(`preview: ${plan.campaign_count} campaign(s), ${plan.content_count} ads, $${(plan.total_budget_cents / 100).toFixed(0)}; pixel ${plan.tiktok_pixel?.code ?? "-"} event ${plan.tiktok_pixel?.event ?? "-"}`);
