@@ -13,6 +13,7 @@ import { call } from "@/components/tiktok/api";
 import { publishedOn } from "@/components/launch/clip-state";
 import type { ClipPost, ClipPostPlatform } from "@/lib/launch/clip-posts";
 import type { LaunchConnection } from "@/lib/launch/types";
+import { buildCaption } from "@/lib/launch/caption";
 
 /** What the dialog needs of a clip; a `ClipLibraryRow` satisfies it. */
 export type PostableClip = { id: string; label?: string; title_name: string; episode_label?: string | null };
@@ -24,7 +25,12 @@ type Props = {
   onClose: () => void; onPosted: (post: ClipPost) => void;
 };
 
-export const defaultCaption = (clip: PostableClip) => `${clip.label ?? ""}\n${clip.title_name}`;
+// The same rule the server uses when the client sends no caption
+// (lib/launch/caption.ts). This file used to build `hook \n title` of its own,
+// so the plot was summarised twice on every post and a fix to the server's
+// copy never reached the box people actually send.
+export const defaultCaption = (clip: PostableClip) =>
+  buildCaption({ hook: clip.label ?? "", title_name: clip.title_name, episode_label: clip.episode_label });
 
 export default function PostClipDialog({ base, clip, platform, posts, connections, onClose, onPosted }: Props) {
   const { tt } = useT();

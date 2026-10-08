@@ -33,9 +33,17 @@ async function main() {
     console.log(`run ${run.id} (${run.external_id}) "${run.draft.name}" status=${run.status} approved_by=${run.approved_by ?? "-"} error=${run.error ? JSON.stringify(run.error).slice(0, 200) : "-"}`);
     for (const c of run.campaigns ?? []) {
       const st = c.state as Record<string, unknown>;
-      const groups = (st.groups ?? []) as { id?: string; key?: string; ads?: Record<string, string> }[];
+      // `state.groups` is stored JSON: an array on every run the engine wrote,
+      // but read defensively as a map too. Typed as unknown first, because
+      // asserting the array type made Array.isArray narrow the other branch to
+      // never and every group read back as unknown.
+      type Group = { id?: string; key?: string; ads?: Record<string, string> };
+      const rawGroups: unknown = st.groups ?? [];
+      const groups: Group[] = Array.isArray(rawGroups)
+        ? rawGroups as Group[]
+        : Object.values(rawGroups as Record<string, Group>);
       console.log(`  campaign ${c.name} status=${c.status} tiktok_campaign=${(st.campaign_id as string | undefined) ?? "-"} error=${c.error ? JSON.stringify(c.error).slice(0, 300) : "-"}`);
-      for (const g of Array.isArray(groups) ? groups : Object.values(groups)) console.log(`    group ${g.key ?? ""} id=${g.id ?? "-"} ads=${JSON.stringify(g.ads ?? {})}`);
+      for (const g of groups) console.log(`    group ${g.key ?? ""} id=${g.id ?? "-"} ads=${JSON.stringify(g.ads ?? {})}`);
       if (st.waiting) console.log(`    waiting: ${JSON.stringify(st.waiting).slice(0, 200)}`);
       const snap = c.snapshot as { ads?: { id: string; status: string; runs_as?: string; ads_only?: boolean; post_url?: string; item_id?: string; content_value?: string; note?: string }[] } | null;
       for (const a of snap?.ads ?? []) console.log(`    ad ${a.id} ${a.status} runs_as=${a.runs_as ?? "-"} ads_only=${a.ads_only ?? "-"} item=${a.item_id ?? "-"} post=${a.post_url ?? "-"} content=${(a.content_value ?? "").slice(0, 8)} ${a.note ?? ""}`);

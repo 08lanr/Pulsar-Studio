@@ -22,6 +22,7 @@ import type { ClipLibraryRow, ClipPost, MetaPagePost, MetaPagePostList, PublishC
 import type { ClipPostPatch, LaunchConnection } from "@/lib/launch/types";
 import { metaTransport } from "./index";
 import { MetaApiError, type MetaObject, type MetaTransport } from "./transport";
+import { buildCaption } from "@/lib/launch/caption";
 
 /** Overridable so tests do not wait out a real Meta poll. */
 export const publishTiming = {
@@ -83,15 +84,19 @@ export function facebookVideoTitle(clip: ClipLibraryRow, postId: string): string
   return `${label(clip).slice(0, 140)} · studio:${postId}`;
 }
 /**
- * Hook on the first line, title (and episode) on the second
- * (docs/meta-organic-plan.md §0). A clip with no hook falls back to the title
+ * The caption Studio fills in when the client sends none
+ * (docs/meta-organic-plan.md §0). The rule itself lives in
+ * `lib/launch/caption.ts` so the posting dialog shares it — it used to carry a
+ * second copy, and the two drifted. A clip with no hook falls back to the title
  * alone: `clip.label` can be the internal `clip_…` reference, which must never
  * become the caption of a public post.
  */
 export function defaultCaption(clip: ClipLibraryRow): string {
-  const hook = clip.label && clip.label !== clip.external_id ? clip.label : "";
-  const title = clip.episode_label ? `${clip.title_name} · Episode ${clip.episode_label}` : clip.title_name;
-  return [hook, title].filter(Boolean).join("\n").trim();
+  return buildCaption({
+    hook: clip.label && clip.label !== clip.external_id ? clip.label : "",
+    title_name: clip.title_name,
+    episode_label: clip.episode_label,
+  });
 }
 
 async function connectionFor(session: Session, producerId: string, connectionId: string): Promise<LaunchConnection> {

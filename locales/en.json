@@ -5534,5 +5534,13 @@
   "ltc.runsAsClipsProfileOne": "1 Studio clip runs as {handle} and is also posted to its profile.",
   "tk.profilePosts": "Also post Studio clips to the TikTok profile",
   "tk.profilePostsOnHint": "Each Studio clip runs as an ad and also appears on the linked account's profile as a regular post, with a public link. Posts you pick from the account and Spark codes are already on the profile.",
-  "tk.profilePostsOffHint": "Studio clips are shown only as ads and never appear on the profile."
+  "tk.profilePostsOffHint": "Studio clips are shown only as ads and never appear on the profile.",
+  "autoPost.posted": "Auto-posted {n} Reels from {clips} proven clips: {names}",
+  "autoPost.nothing": "Auto-posting found nothing to post ({why})",
+  "autoPost.idleNever": "Auto-posting is on. Nothing posted yet this session; next run {next}.",
+  "autoPost.waiting": "{n} more clips qualify and go out next time",
+  "autoPost.failed": "{n} refused ({first})",
+  "autoPost.next": "next run {next}",
+  "autoPost.due": "within a few minutes",
+  "autoPost.tiktokByHand": "TikTok has no posting credential, so mirror these to the TikTok account by hand."
 }
