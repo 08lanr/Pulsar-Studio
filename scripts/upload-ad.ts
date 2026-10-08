@@ -127,7 +127,10 @@ async function main() {
   const file = path.resolve(args.file!);
   if (!fs.existsSync(file)) usage(`no such file ${file}`);
   const bytes = new Uint8Array(fs.readFileSync(file));
-  const hook = (args.hook ?? "").replace(/\s+/g, " ").trim().slice(0, HOOK_MAX) || path.basename(file).replace(/\.[^.]+$/, "").slice(0, HOOK_MAX);
+  // An over-long ad text is refused, not cut: a silent cut stored "...Then the billionaire I" as an ad text (2026-09-28).
+  const given = (args.hook ?? "").replace(/\s+/g, " ").trim();
+  if (given.length > HOOK_MAX) usage(`--hook is ${given.length} characters; the ad text holds at most ${HOOK_MAX}`);
+  const hook = given || path.basename(file).replace(/\.[^.]+$/, "").slice(0, HOOK_MAX);
   const render_sha256 = createHash("sha256").update(bytes).digest("hex");
   const probed = probe(file);
   const detail = await data.getTitle(session, title.id);
