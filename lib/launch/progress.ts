@@ -35,7 +35,7 @@ import { launchShape } from "@/lib/tiktok/settings";
 import { deriveAdSets } from "./plan";
 import type { LaunchCampaign, LaunchDraft } from "./types";
 
-export type ProgressStepKey = "account" | "pixel" | "videos" | "posts" | "page" | "campaign" | "adgroup" | "adsets" | "ads" | "done";
+export type ProgressStepKey = "account" | "pixel" | "app" | "videos" | "posts" | "page" | "campaign" | "adgroup" | "adsets" | "ads" | "done";
 export type ProgressStepStatus = "done" | "current" | "todo" | "failed";
 /** What the videos step is doing right now. */
 export type VideoPhase = "uploading" | "covers" | "processing";
@@ -84,6 +84,7 @@ const MIN = 60_000;
 export const STUCK_AFTER: Record<ProgressStepKey | VideoPhase, { ms: number; usual: string }> = {
   account: { ms: 5 * MIN, usual: "lpg.usual.seconds" },
   pixel: { ms: 5 * MIN, usual: "lpg.usual.seconds" },
+  app: { ms: 5 * MIN, usual: "lpg.usual.seconds" },
   videos: { ms: 5 * MIN, usual: "lpg.usual.underMinute" },
   uploading: { ms: 5 * MIN, usual: "lpg.usual.underMinute" },
   covers: { ms: 5 * MIN, usual: "lpg.usual.underMinute" },
@@ -124,6 +125,7 @@ function tiktokEvidence(draft: Draft, c: Campaign): Evidence[] {
   const pageStep = obj(s.instant_page);
   const steps: Evidence[] = [{ key: "account", label: "lpg.step.account", done: !!obj(s.settings) }];
   if (shape === "website_purchases") steps.push({ key: "pixel", label: "lpg.step.pixel", done: !!text(obj(s.pixel)?.pixel_id) });
+  if (shape === "app_install") steps.push({ key: "app", label: "lpg.step.app", done: !!text(obj(s.app)?.app_id) });
   steps.push(clips.length
     ? { key: "videos", label: "lpg.step.videos", done: posts > 0,
         counts: [count("uploaded", uploaded, clips.length), count("covers", covered, clips.length)],

@@ -5542,5 +5542,12 @@
   "autoPost.failed": "{n} refused ({first})",
   "autoPost.next": "next run {next}",
   "autoPost.due": "within a few minutes",
-  "autoPost.tiktokByHand": "TikTok has no posting credential, so mirror these to the TikTok account by hand."
+  "autoPost.tiktokByHand": "TikTok has no posting credential, so mirror these to the TikTok account by hand.",
+  "lpx.objectiveApp": "App install · Google Play",
+  "lpx.appHint": "The ad's button opens the Crazy Drama app on Google Play. TikTok optimizes for installs it hears from AppsFlyer; the app must be registered in Ads Manager (Assets → Events → App) and connected to AppsFlyer first. Android phones only; no website link.",
+  "lpx.appUnverified": "App ID {id} for {package} is set by hand; TikTok can't confirm it yet because the app permission is still waiting for TikTok's approval. The launch uses it anyway; the first paused launch is the check.",
+  "lpg.step.app": "App resolved on the ad account",
+  "cdc.goal.installs": "app installs",
+  "cdc.goalShort.installs": "optimizes app installs",
+  "lpx.appLine": "App install: the ads open {package} on {store}; TikTok app ID {ids}. Optimized for installs reported by AppsFlyer."
 }

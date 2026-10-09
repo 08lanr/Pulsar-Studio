@@ -31,6 +31,13 @@ async function tiktokGate(s: Session, draft: LaunchDraft, producerId: string, ow
   return tiktokLaunchGate(s, draft, producerId, own);
 }
 
+/** App install (2026-10-09): the app resolved on every chosen ad account, read-only, at preview and again at approval. */
+async function tiktokApp(draft: LaunchDraft, own: LaunchConnection[]): Promise<LaunchPlan["tiktok_app"] | undefined> {
+  if (draft.provider !== "tiktok") return undefined;
+  const { tiktokAppGate } = await import("@/lib/launch/tiktok-gate");
+  return tiktokAppGate(draft, own);
+}
+
 /**
  * The Meta pixel a conversions launch optimizes toward, resolved on every
  * chosen ad account at preview (lib/meta/pixel.ts) so the approver signs a
@@ -436,6 +443,8 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
       // both. A title whose slug cannot carry a link leaves the link unset,
       // and preview says why.
       const { tiktokLandingFor } = await import("@/lib/launch/tiktok-gate");
+      // An App install launch's ads open the app's store listing: no website link, on the launch or on any ad.
+      const appInstall = launchShape(safe.tiktok_settings) === "app_install";
       const links = new Map<string, string | null>();
       const landing = async (titleId: string): Promise<string | null> => {
         if (!links.has(titleId)) {
@@ -446,18 +455,18 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
         }
         return links.get(titleId) ?? null;
       };
-      if (safe.title_id) safe.destination_url = (await landing(safe.title_id)) ?? safe.destination_url;
+      if (safe.title_id && !appInstall) safe.destination_url = (await landing(safe.title_id)) ?? safe.destination_url;
       for (const c of safe.content) {
         // A Studio clip promotes its own title, whatever the row says; a Spark
         // code or a post the title its row names, else the clip it was made
         // from, else the launch's.
         const clipTitle = own.find(a => a.id === (c.kind === "video" ? c.value : c.clip_id))?.title_id;
         const titleId = c.kind === "video" ? clipTitle : c.title_id ?? clipTitle ?? safe.title_id ?? undefined;
-        const link = titleId ? await landing(titleId) : null;
+        const link = titleId && !appInstall ? await landing(titleId) : null;
         ads.set(c, { title_id: titleId, landing_url: link ?? undefined });
       }
       // No launch title, no launch link: every ad carries its own title's link.
-      if (!safe.title_id) safe.destination_url = "";
+      if (!safe.title_id || appInstall) safe.destination_url = "";
       const { pixel_code: _stale, ...settings } = safe.tiktok_settings;
       if (launchShape(settings) === "website_purchases") {
         const { tiktokPixelCode } = await import("@/lib/tiktok/pixel");
@@ -549,10 +558,11 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
     async previewLaunchRun(s, id) {
       const r = await find(s, id); const own = await connections(s, r.producer_id, r.draft.provider);
       const pixel = await tiktokGate(s, r.draft, r.producer_id, own);
+      const app = await tiktokApp(r.draft, own);
       const plan = buildLaunchPlan(r.draft, own, r.external_id, await takenCampaignNames(r.draft, own));
       const identity = await tiktokIdentity(r.draft, plan.rows, own);
       const metaPixel = await metaGate(r.draft, own);
-      return { ...plan, ...(pixel ? { tiktok_pixel: pixel } : {}), ...(identity ? { tiktok_identity: identity } : {}), ...(metaPixel ? { meta_pixel: metaPixel } : {}) };
+      return { ...plan, ...(pixel ? { tiktok_pixel: pixel } : {}), ...(app ? { tiktok_app: app } : {}), ...(identity ? { tiktok_identity: identity } : {}), ...(metaPixel ? { meta_pixel: metaPixel } : {}) };
     },
     async submitLaunchRun(s, id, revision, note) {
       const r = await find(s, id); authorize(s, r.producer_id, "launch");
@@ -574,6 +584,7 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
       if (launchHash(currentDraft, []) !== launchHash(r.draft, [])) throw conflict("A selected clip changed. Save and preview the draft again.");
       const own = await connections(s, r.producer_id, r.draft.provider);
       await tiktokGate(s, r.draft, r.producer_id, own);
+      await tiktokApp(r.draft, own);
       // The pixel is read again at approval, not only at preview: an approver
       // signs minutes or hours later, and a pixel un-shared in between must
       // stop here rather than fail the ad set create on a live campaign.

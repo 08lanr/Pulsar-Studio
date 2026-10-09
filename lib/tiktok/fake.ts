@@ -68,6 +68,7 @@
 // process, like the fixture store.
 
 import type { TikTokResponse, TikTokTransport, UploadField } from "./transport";
+import { APP_ID_SHAPE, playStoreUrl, tiktokAppId, tiktokAppPackage } from "./app";
 import { CLICK_WINDOWS, EVENT_COUNTS, VIEW_WINDOWS, WEB_EVENTS } from "./options";
 import { PIXEL_ID_SHAPE, tiktokPixelCode, tiktokPixelId } from "./pixel";
 
@@ -153,6 +154,19 @@ const linkedIdentity = (params: Record<string, unknown>) =>
 
 /** The fake's pixel: one id for the configured code, shared with every ad account. */
 export const FAKE_PIXEL_ID = "1790000000000000001";
+/** The app /app/list/ lists for every fake advertiser: the crazydramas Android app (lib/tiktok/app.ts). */
+export const FAKE_APP_ID = "7290000000000000001";
+/** The app id /adgroup/create/ accepts while /app/list/ is unreadable: the id set by hand (TIKTOK_APP_ID), else FAKE_APP_ID. */
+export function fakeAppId(): string {
+  const handSet = tiktokAppId();
+  return handSet && APP_ID_SHAPE.test(handSet) ? handSet : FAKE_APP_ID;
+}
+/** TIKTOK_FAKE_APP=missing lists no app; the row's field names are the fake's own guess at TikTok's (lib/tiktok/app.ts matches by the package anywhere on the row). */
+export function fakeApps(): Record<string, unknown>[] {
+  if (process.env.TIKTOK_FAKE_APP === "missing") return [];
+  const pkg = tiktokAppPackage();
+  return [{ app_id: FAKE_APP_ID, app_name: "Crazy Drama", platform: "ANDROID", package_name: pkg, download_url: playStoreUrl(pkg) }];
+}
 /**
  * The id the fake's pixel carries: a well-formed TIKTOK_PIXEL_ID when one is
  * set (the fake has no real pixel to hold it against, so a fixture server
@@ -170,7 +184,29 @@ function fakePixels(advertiserId: string, code: string): Record<string, unknown>
     asset_ownership: { asset_relation_status: mode === "unbound" ? "UNBOUND" : "SHARED", ownership_status: false } }];
 }
 /** The optimization goal → billing event table of /adgroup/create/ for the goals Studio sends. */
-const GOAL_BILLING: Record<string, string> = { CLICK: "CPC", TRAFFIC_LANDING_PAGE_VIEW: "OCPM", CONVERT: "OCPM", VALUE: "OCPM" };
+const GOAL_BILLING: Record<string, string> = { CLICK: "CPC", TRAFFIC_LANDING_PAGE_VIEW: "OCPM", CONVERT: "OCPM", VALUE: "OCPM", INSTALL: "OCPM" };
+/**
+ * The documented refusals of an app ad group (/adgroup/create/, 2026-10-09): app_id required on an APP_PROMOTION
+ * campaign and only there, and one the account has (usable while /app/list/ is unreadable: the id set by hand);
+ * operating_systems required, one value; promotion_type the app's store; INSTALL only under APP_PROMOTION; no pixel.
+ */
+function appRule(body: Record<string, unknown>, campaign: FakeCampaign): string | null {
+  const goal = String(body.optimization_goal ?? "");
+  const appId = body.app_id === undefined || body.app_id === null || body.app_id === "" ? null : String(body.app_id);
+  if (campaign.objective === "APP_PROMOTION") {
+    if (!appId) return "app_id is required when objective_type is APP_PROMOTION and app_promotion_type is APP_INSTALL";
+    const usable = process.env.TIKTOK_FAKE_APP === "unreadable" ? [fakeAppId()] : fakeApps().map((a) => String(a.app_id));
+    if (!usable.includes(appId)) return "app_id is not an app of this advertiser";
+    if (!Array.isArray(body.operating_systems) || body.operating_systems.length !== 1) return "operating_systems is required when objective_type is APP_PROMOTION";
+    if (body.promotion_type !== "APP_ANDROID" && body.promotion_type !== "APP_IOS") return "promotion_type must be APP_ANDROID or APP_IOS when objective_type is APP_PROMOTION";
+    if (goal !== "INSTALL" && goal !== "CLICK") return `optimization_goal ${goal} is not supported by objective APP_PROMOTION here`;
+    if (body.pixel_id) return "pixel_id is not supported on an app ad group";
+    return null;
+  }
+  if (appId) return "app_id is not supported when objective_type is not APP_PROMOTION";
+  if (goal === "INSTALL") return `optimization_goal INSTALL is not supported by objective ${campaign.objective}`;
+  return null;
+}
 /** The documented refusals of a pixel/attribution field set, or null. */
 function pixelRule(body: Record<string, unknown>, campaign: FakeCampaign): string | null {
   const goal = String(body.optimization_goal ?? "");
@@ -570,6 +606,11 @@ export const fakeTransport: TikTokTransport = {
         const pixels = fakePixels(String(params.advertiser_id ?? ""), String(params.code ?? tiktokPixelCode()));
         return ok({ pixels, page_info: { page: 1, page_size: size, total_number: pixels.length, total_page: 1 } });
       }
+      case "/app/list/": {
+        if (process.env.TIKTOK_FAKE_APP === "unreadable") return { code: 40001, message: "advertiser does not grant you /app/list/:GET permission" };
+        const apps = fakeApps();
+        return ok({ apps, page_info: { page: 1, page_size: apps.length || 10, total_number: apps.length, total_page: 1 } });
+      }
       case "/dmp/custom_audience/list/": {
         if (process.env.TIKTOK_FAKE_AUDIENCES === "unreadable") return { code: 40001, message: "advertiser does not grant you /dmp/custom_audience/list/:GET permission" };
         const size = Number(params.page_size ?? 10);
@@ -607,6 +648,7 @@ export const fakeTransport: TikTokTransport = {
       case "/campaign/create/": {
         const name = String(body.campaign_name ?? "");
         if ([...s.campaigns.values()].some((c) => c.advertiserId === String(body.advertiser_id) && c.name === name)) return refuse("Campaign name already exists");
+        if (body.objective_type === "APP_PROMOTION" && !body.app_promotion_type) return refuse("app_promotion_type is required when objective_type is APP_PROMOTION");
         const budget = num(body.budget);
         if (body.budget_mode === "BUDGET_MODE_TOTAL" && (budget === null || budget < 50)) return refuse("Campaign budget is below the minimum of 50");
         const campaignId = nextId("170");
@@ -631,6 +673,8 @@ export const fakeTransport: TikTokTransport = {
         if (body.bid_type === "BID_TYPE_CUSTOM" && num(body.bid_price) === null && num(body.conversion_bid_price) === null) return refuse("A custom bid needs bid_price or conversion_bid_price");
         const pixelProblem = pixelRule(body, campaign);
         if (pixelProblem) return refuse(pixelProblem);
+        const appProblem = appRule(body, campaign);
+        if (appProblem) return refuse(appProblem);
         const adgroupId = nextId("171");
         s.adgroups.set(adgroupId, {
           adgroupId, campaignId: campaign.campaignId, advertiserId: String(body.advertiser_id), status: body.operation_status === "DISABLE" ? "DISABLE" : "ENABLE",
@@ -648,10 +692,13 @@ export const fakeTransport: TikTokTransport = {
         for (const c of creatives) {
           if (c.identity_type === "AUTH_CODE") {
             const post = [...s.sparks.values()].find((p) => p.advertiserId === String(body.advertiser_id) && p.itemId === c.tiktok_item_id && p.identityId === c.identity_id);
-            if (!post || !(c.landing_page_url || c.page_id) || c.video_id || c.image_ids || c.ad_text) return refuse("Invalid Spark ad: use only the authorized post and identity");
+            const sparkAppGroup = /^APP_/.test(String(adgroup.body.promotion_type ?? ""));
+            if (!post || (!sparkAppGroup && !(c.landing_page_url || c.page_id)) || c.video_id || c.image_ids || c.ad_text) return refuse("Invalid Spark ad: use only the authorized post and identity");
             // An Instant Page group's ads name the page; a website group's ads carry the landing page.
             const instantPage = adgroup.body.promotion_website_type === "TIKTOK_NATIVE_PAGE";
-            if (instantPage ? !c.page_id || c.landing_page_url : !c.landing_page_url || c.page_id) return refuse(instantPage ? "An Instant Page ad group's ads need page_id and no landing_page_url" : "A website ad group's ads need landing_page_url and no page_id");
+            // An app ad group's ads open the app's store listing (ASSUMPTION, as lib/tiktok/spark-driver.ts says): no link, no page.
+            if (/^APP_/.test(String(adgroup.body.promotion_type ?? ""))) { if (c.landing_page_url || c.page_id) return refuse("An app ad group's ads carry no landing_page_url and no page_id"); }
+            else if (instantPage ? !c.page_id || c.landing_page_url : !c.landing_page_url || c.page_id) return refuse(instantPage ? "An Instant Page ad group's ads need page_id and no landing_page_url" : "A website ad group's ads need landing_page_url and no page_id");
             if (/^reject-ad/i.test(post.code)) return refuse("Spark creative not valid");
           } else if (c.identity_type === "BC_AUTH_TT") {
             const adv = String(body.advertiser_id);
@@ -659,7 +706,9 @@ export const fakeTransport: TikTokTransport = {
             // Studio's new ads always name the Business Center; the retired engine (lib/tiktok/launch.ts) never did.
             if (c.identity_authorized_bc_id !== undefined && String(c.identity_authorized_bc_id) !== FAKE_BC_ID) return refuse("identity_authorized_bc_id has not authorized this identity");
             const instantPage = adgroup.body.promotion_website_type === "TIKTOK_NATIVE_PAGE";
-            if (instantPage ? !c.page_id || c.landing_page_url : !c.landing_page_url || c.page_id) return refuse(instantPage ? "An Instant Page ad group's ads need page_id and no landing_page_url" : "A website ad group's ads need landing_page_url and no page_id");
+            // An app ad group's ads open the app's store listing (ASSUMPTION, as lib/tiktok/spark-driver.ts says): no link, no page.
+            if (/^APP_/.test(String(adgroup.body.promotion_type ?? ""))) { if (c.landing_page_url || c.page_id) return refuse("An app ad group's ads carry no landing_page_url and no page_id"); }
+            else if (instantPage ? !c.page_id || c.landing_page_url : !c.landing_page_url || c.page_id) return refuse(instantPage ? "An Instant Page ad group's ads need page_id and no landing_page_url" : "A website ad group's ads need landing_page_url and no page_id");
             if (c.tiktok_item_id !== undefined) {
               if (c.identity_authorized_bc_id === undefined) return refuse("identity_authorized_bc_id is required when identity_type is BC_AUTH_TT");
               if (!FAKE_ACCOUNT_POSTS.some((p) => p.item_id === String(c.tiktok_item_id))) return refuse("Unable to fetch a valid item. Please check the 'identity_id' you inputted or the 'identity_id' under your ad, and try again.");

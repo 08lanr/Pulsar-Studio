@@ -63,8 +63,14 @@ export const audienceRefSchema = z.object({
 export type AudienceRef = z.infer<typeof audienceRefSchema>;
 
 export const launchSettingsSchema = z.object({
-  /** Absent on old saved rows: preserve their Traffic/Clicks behavior. */
-  objective_type: z.enum(["TRAFFIC", "WEB_CONVERSIONS"]).optional(),
+  /** Absent on old saved rows: preserve their Traffic/Clicks behavior. APP_PROMOTION (2026-10-09): the App install shape. */
+  objective_type: z.enum(["TRAFFIC", "WEB_CONVERSIONS", "APP_PROMOTION"]).optional(),
+  /**
+   * App install only: the store the promoted app lives in (lib/tiktok/app.ts).
+   * The app itself is resolved on each ad account at preview by its package,
+   * never typed. Android is the only app crazydramas has published.
+   */
+  app_platform: z.enum(["ANDROID", "IOS"]).optional(),
   /**
    * WEB_CONVERSIONS only: where the sale happens. `website` is the Website
    * purchases shape (the pixel on crazydramas.com); absent or `instant_page`
@@ -141,13 +147,17 @@ export type LaunchSettings = z.infer<typeof launchSettingsSchema>;
 export const clipDarkPostStatus = (s: Pick<LaunchSettings, "profile_posts"> | null | undefined): "ON" | "OFF" => (s?.profile_posts === true ? "OFF" : "ON");
 
 /**
- * The three launch shapes, from the fields that decide them:
+ * The four launch shapes, from the fields that decide them:
  *   traffic             TRAFFIC; clicks (or landing page views) to crazydramas.com
  *   instant_page        WEB_CONVERSIONS on a Sales Instant Page (button taps; no pixel)
  *   website_purchases   WEB_CONVERSIONS to crazydramas.com, optimized toward a pixel event
+ *   app_install         APP_PROMOTION / APP_INSTALL (2026-10-09): the ad's button opens the
+ *                       app's store listing; optimized toward installs the measurement
+ *                       partner reports (no website link, no pixel)
  */
-export type LaunchShape = "traffic" | "instant_page" | "website_purchases";
+export type LaunchShape = "traffic" | "instant_page" | "website_purchases" | "app_install";
 export function launchShape(s: Pick<LaunchSettings, "objective_type" | "sales_destination">): LaunchShape {
+  if (s.objective_type === "APP_PROMOTION") return "app_install";
   if (s.objective_type !== "WEB_CONVERSIONS") return "traffic";
   return s.sales_destination === "website" ? "website_purchases" : "instant_page";
 }
@@ -157,9 +167,10 @@ export function launchShape(s: Pick<LaunchSettings, "objective_type" | "sales_de
  * (Website purchases on the Purchase event) makes TikTok count purchases; clicks, landing page views, checkouts
  * and Instant Page taps do not, while crazydramas still counts every buyer.
  */
-export type PurchaseGoal = "purchases" | "checkouts" | "instant_page" | "clicks" | "page_views";
+export type PurchaseGoal = "purchases" | "checkouts" | "instant_page" | "clicks" | "page_views" | "installs";
 export function purchaseGoal(s: Pick<LaunchSettings, "objective_type" | "sales_destination" | "optimization_goal" | "optimization_event">): PurchaseGoal {
   const shape = launchShape(s);
+  if (shape === "app_install") return "installs";
   if (shape === "website_purchases") return (s.optimization_event ?? "SHOPPING") === "SHOPPING" ? "purchases" : "checkouts";
   if (shape === "instant_page") return "instant_page";
   return s.optimization_goal === "TRAFFIC_LANDING_PAGE_VIEW" ? "page_views" : "clicks";
@@ -240,6 +251,34 @@ export function defaultSalesLaunchSettings(): LaunchSettings {
   };
 }
 
+/**
+ * The App install shape (decision 2026-10-09, "App install launches"): APP_PROMOTION / APP_INSTALL for the crazydramas
+ * Android app on Google Play, optimized toward installs (oCPM, lowest cost), Android devices only (TikTok requires
+ * the operating system on an app ad group), US, 18+, TikTok placement, a lifetime budget, comments on, the clips
+ * also posted to the profile, "Install Now" on the button. The app is resolved on each ad account at preview
+ * (lib/tiktok/app.ts); the ads carry no website link.
+ */
+export function defaultAppInstallSettings(): LaunchSettings {
+  return {
+    ...defaultLaunchSettings(),
+    objective_type: "APP_PROMOTION",
+    app_platform: "ANDROID",
+    location_ids: ["6252001"],
+    age_groups: ["AGE_18_24", "AGE_25_34", "AGE_35_44", "AGE_45_54", "AGE_55_100"],
+    operating_systems: ["ANDROID"],
+    placement: "tiktok",
+    optimization_goal: "INSTALL",
+    bid_strategy: "LOWEST_COST",
+    bid_usd: null,
+    pacing: "PACING_MODE_SMOOTH",
+    comments_disabled: false,
+    budget_mode: "BUDGET_MODE_TOTAL",
+    daily_budget_usd: null,
+    profile_posts: true,
+    call_to_action: "INSTALL_NOW",
+  };
+}
+
 /** The behaviour the engine had before settings existed: US, everyone, lifetime budget, clicks, lowest cost, live. */
 export function defaultLaunchSettings(): LaunchSettings {
   return {
@@ -276,7 +315,7 @@ export function normalizeLaunchSettings(raw: unknown): LaunchSettings {
     if (v !== undefined) merged[key] = v;
   }
   const source = raw as Record<string, unknown>;
-  for (const key of ["objective_type", "instant_page_template", "sales_destination", "optimization_event", "attribution", "pixel_code", "audiences", "profile_posts"] as const) {
+  for (const key of ["objective_type", "app_platform", "instant_page_template", "sales_destination", "optimization_event", "attribution", "pixel_code", "audiences", "profile_posts"] as const) {
     if (source[key] !== undefined) merged[key] = source[key];
   }
   const parsed = launchSettingsSchema.safeParse(merged);
@@ -294,7 +333,16 @@ export class LaunchSettingsError extends Error {}
 export function validateLaunchSettings(input: LaunchSettings, budgetUsd: number): LaunchSettings {
   const s = { ...input };
   const shape = launchShape(s);
-  if (shape === "website_purchases") {
+  if (shape === "app_install") {
+    // The app's installs, as TikTok hears them from the measurement partner: one goal, one store, one operating
+    // system (TikTok requires operating_systems on an APP_PROMOTION ad group), no pixel, no page, no website link.
+    if (s.optimization_goal !== "INSTALL") throw new LaunchSettingsError("An App install launch optimizes toward installs; the goal must be app installs.");
+    if (s.instant_page_template) throw new LaunchSettingsError("An App install launch sends people to the app's store listing, not to an Instant Page.");
+    delete s.optimization_event; delete s.attribution; delete s.pixel_code; delete s.sales_destination;
+    s.app_platform = s.app_platform ?? "ANDROID";
+    s.operating_systems = [s.app_platform];
+  } else if (shape === "website_purchases") {
+    delete s.app_platform;
     if (s.optimization_goal !== "CONVERT") throw new LaunchSettingsError("Website purchases optimize toward a pixel event; the goal must be conversions.");
     if (s.instant_page_template) throw new LaunchSettingsError("Website purchases send people to crazydramas.com, not to an Instant Page.");
     s.optimization_event = s.optimization_event ?? "SHOPPING";
@@ -302,7 +350,8 @@ export function validateLaunchSettings(input: LaunchSettings, budgetUsd: number)
     s.attribution = attributionOf(s);
   } else {
     // Only the website shape carries a pixel; nothing of it rides along on another shape.
-    delete s.optimization_event; delete s.attribution; delete s.pixel_code;
+    delete s.optimization_event; delete s.attribution; delete s.pixel_code; delete s.app_platform;
+    if (s.optimization_goal === "INSTALL") throw new LaunchSettingsError("App installs are the App install launch's goal; choose that shape.");
     if (shape === "instant_page") {
       if (s.optimization_goal !== "CONVERT") throw new LaunchSettingsError("Sales Instant Pages require button conversion optimization.");
       if (!s.instant_page_template) throw new LaunchSettingsError("Choose an Instant Page template before previewing a Sales launch.");
@@ -402,11 +451,15 @@ export function biddingFields(s: LaunchSettings): Record<string, unknown> {
 export function targetingFields(s: LaunchSettings): Record<string, unknown> {
   // An Instant Page is TIKTOK_NATIVE_PAGE; the website shapes leave the field
   // out (UNSET), which is the only way /adgroup/create/ accepts a pixel_id.
-  const nativePage = launchShape(s) === "instant_page" ? { promotion_website_type: "TIKTOK_NATIVE_PAGE" } : {};
+  const shape = launchShape(s);
+  const nativePage = shape === "instant_page" ? { promotion_website_type: "TIKTOK_NATIVE_PAGE" } : {};
+  // An App install group's optimization location is the app itself (promotion_type APP_ANDROID / APP_IOS, the
+  // store the app lives in); every website shape's is the website.
+  const promotion = shape === "app_install" ? ((s.app_platform ?? "ANDROID") === "IOS" ? "APP_IOS" : "APP_ANDROID") : "WEBSITE";
   return {
     ...(s.placement === "tiktok"
-      ? { promotion_type: "WEBSITE", ...nativePage, placement_type: "PLACEMENT_TYPE_NORMAL", placements: ["PLACEMENT_TIKTOK"] }
-      : { promotion_type: "WEBSITE", ...nativePage, placement_type: "PLACEMENT_TYPE_AUTOMATIC" }),
+      ? { promotion_type: promotion, ...nativePage, placement_type: "PLACEMENT_TYPE_NORMAL", placements: ["PLACEMENT_TIKTOK"] }
+      : { promotion_type: promotion, ...nativePage, placement_type: "PLACEMENT_TYPE_AUTOMATIC" }),
     location_ids: s.location_ids.length ? s.location_ids : DEFAULT_LOCATION_IDS,
     ...(s.age_groups.length ? { age_groups: s.age_groups } : {}),
     ...(s.gender !== "GENDER_UNLIMITED" ? { gender: s.gender } : {}),
@@ -436,18 +489,28 @@ export function targetingFields(s: LaunchSettings): Record<string, unknown> {
  * OCPM ("Corresponding billing event for an optimization goal", same page).
  */
 export type AdGroupPixel = { pixel_id: string };
+/**
+ * What an App install ad group adds (/adgroup/create/, same page): `app_id`, "Required ... when objective_type is
+ * APP_PROMOTION, app_promotion_type is APP_INSTALL", the id /app/list/ answers (lib/tiktok/app.ts); optimization_goal
+ * INSTALL with billing_event OCPM ("Corresponding billing event for an optimization goal"); operating_systems, "required
+ * ... objective_type is APP_PROMOTION", one value. TikTok adds: "You cannot specify an App that has not activated the
+ * SAN module on your MMP", so the app must be connected to the measurement partner first.
+ */
+export type AdGroupApp = { app_id: string };
 
 /** The whole ad group create body, minus the ids and the name. Pure, so tests can assert on it. */
-export function adGroupBody(s: LaunchSettings, plan: AdGroupPlan, pixel?: AdGroupPixel | null): Record<string, unknown> {
+export function adGroupBody(s: LaunchSettings, plan: AdGroupPlan, pixel?: AdGroupPixel | null, app?: AdGroupApp | null): Record<string, unknown> {
   const goal = goalOption(s.optimization_goal);
   const shape = launchShape(s);
   if (shape === "website_purchases" && !pixel?.pixel_id) throw new LaunchSettingsError("A Website purchases ad group needs the pixel's id; resolve the pixel on the ad account first.");
+  if (shape === "app_install" && !app?.app_id) throw new LaunchSettingsError("An App install ad group needs the app's id; resolve the app on the ad account first.");
   const attribution = attributionOf(s);
   return {
     ...targetingFields(s),
     optimization_goal: goal.value,
     billing_event: goal.billing,
     ...(shape === "instant_page" ? { optimization_event: "BUTTON" } : {}),
+    ...(shape === "app_install" ? { app_id: app!.app_id } : {}),
     ...(shape === "website_purchases" ? {
       pixel_id: pixel!.pixel_id,
       optimization_event: s.optimization_event ?? "SHOPPING",
@@ -475,7 +538,7 @@ export function summarizeLaunchSettings(s: LaunchSettings, locationNames: Record
   const loc = s.location_ids.map((id) => locationNames[id] ?? (id === "6252001" ? "United States" : id));
   const shape = launchShape(s);
   const parts = [
-    shape === "website_purchases" ? "Website purchases · crazydramas.com" : shape === "instant_page" ? "Sales · Instant Page" : "Traffic · website",
+    shape === "website_purchases" ? "Website purchases · crazydramas.com" : shape === "instant_page" ? "Sales · Instant Page" : shape === "app_install" ? `App install · ${(s.app_platform ?? "ANDROID") === "IOS" ? "App Store" : "Google Play"}` : "Traffic · website",
     loc.length <= 3 ? loc.join(", ") : `${loc.length} locations`,
     !s.age_groups.length ? "all ages" : s.age_groups.length === 5 && !s.age_groups.includes("AGE_13_17") ? "18+" : `${s.age_groups.length} age band${s.age_groups.length === 1 ? "" : "s"}`,
     s.gender === "GENDER_UNLIMITED" ? "everyone" : s.gender === "GENDER_MALE" ? "men" : "women",
@@ -485,7 +548,7 @@ export function summarizeLaunchSettings(s: LaunchSettings, locationNames: Record
     s.audiences?.include.length ? `audiences: ${audienceNames(s.audiences.include)}` : null,
     s.audiences?.exclude.length ? `excluding ${audienceNames(s.audiences.exclude)}` : null,
     s.budget_mode === "BUDGET_MODE_TOTAL" ? "lifetime budget" : `$${s.daily_budget_usd ?? "?"}/day per ad group`,
-    shape === "website_purchases" ? `optimizes for ${webEventLabel(s.optimization_event)} (pixel)` : shape === "instant_page" ? "Instant Page button taps (oCPM)" : goalOption(s.optimization_goal).label,
+    shape === "website_purchases" ? `optimizes for ${webEventLabel(s.optimization_event)} (pixel)` : shape === "instant_page" ? "Instant Page button taps (oCPM)" : shape === "app_install" ? "optimizes for app installs (measurement partner)" : goalOption(s.optimization_goal).label,
     shape === "website_purchases" ? attributionLabel(attributionOf(s)) : null,
     s.bid_strategy === "COST_CAP" ? `cost cap $${s.bid_usd ?? "?"}` : "lowest cost",
     s.pacing === "PACING_MODE_FAST" ? "accelerated" : null,

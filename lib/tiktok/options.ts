@@ -70,7 +70,8 @@ export type GoalOption = Option & { billing: "CPC" | "OCPM"; billingLabel: strin
  * docs?id=1739499616346114; sandbox-verified in overlord). CLICK and
  * TRAFFIC_LANDING_PAGE_VIEW are the Traffic shape's; CONVERT belongs to the two
  * WEB_CONVERSIONS shapes (Instant Page button taps, or a pixel event on
- * crazydramas.com). First entry = default.
+ * crazydramas.com); INSTALL belongs to the App install shape (APP_PROMOTION,
+ * the app's installs through the measurement partner). First entry = default.
  * Cost caps live in `bid_price` under CPC and `conversion_bid_price` under
  * oCPM — writing the wrong field is accepted and ignored, so the goal decides.
  */
@@ -78,6 +79,7 @@ export const GOAL_OPTIONS: GoalOption[] = [
   { value: "CLICK", label: "Clicks (CPC)", billing: "CPC", billingLabel: "CPC — cost per click" },
   { value: "TRAFFIC_LANDING_PAGE_VIEW", label: "Landing page views (oCPM)", billing: "OCPM", billingLabel: "oCPM — optimized cost per mille" },
   { value: "CONVERT", label: "Conversions (oCPM)", billing: "OCPM", billingLabel: "oCPM — optimized toward the conversion event" },
+  { value: "INSTALL", label: "App installs (oCPM)", billing: "OCPM", billingLabel: "oCPM — optimized toward app installs" },
 ];
 
 export function goalOption(value: string | null | undefined): GoalOption {

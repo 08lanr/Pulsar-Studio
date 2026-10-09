@@ -8,7 +8,8 @@
 // spec.json: { "name": "Winners A · Oct 7", "clips": ["<clip uuid or prefix>", ...], "total_budget_usd": 100,
 //              "duration_days": 4, "age_groups": ["AGE_13_17", ...] (optional: default 18+),
 //              "gender": "GENDER_FEMALE", "operating_systems": ["IOS"], "profile_posts": false (optional),
-//              "comments_disabled": true, "producer_id": "<uuid>", "account_id": "tiktok:<producer>:<advertiser>" }
+//              "comments_disabled": true, "producer_id": "<uuid>", "account_id": "tiktok:<producer>:<advertiser>",
+//              "shape": "app_install" (optional, 2026-10-09: the App install shape; default is the Website purchases default) }
 import fs from "node:fs";
 import path from "node:path";
 
@@ -28,7 +29,7 @@ async function main() {
   const { getData } = await import("@/lib/data");
   const { systemSession } = await import("@/lib/auth");
   const { tiktokAdText } = await import("@/lib/launch/plan");
-  const { defaultTikTokLaunchSettings } = await import("@/lib/tiktok/settings");
+  const { defaultAppInstallSettings, defaultTikTokLaunchSettings } = await import("@/lib/tiktok/settings");
   const { withUserSupabase, createServiceSupabase } = await import("@/lib/supabase/server");
   const data = getData(); const session = systemSession();
   console.log(`data source: ${process.env.DATA_SOURCE ?? "fixture"}, TikTok mode: ${process.env.TIKTOK_MODE ?? "(unset)"}`);
@@ -51,7 +52,7 @@ async function main() {
       creative_id: String(r.creative_id ?? r.id), clip_id: String(r.id), title_id: r.title_id as string | undefined, text, headline: (r.headline as string) ?? (r.title_name as string) ?? undefined });
     console.log(`  clip ${String(r.id).slice(0, 8)}  ${String(r.title_name ?? "").slice(0, 40).padEnd(40)}  "${text}"`);
   }
-  const settings = { ...defaultTikTokLaunchSettings(), duration_days: spec.duration_days ?? 4, comments_disabled: spec.comments_disabled ?? true,
+  const settings = { ...(spec.shape === "app_install" ? defaultAppInstallSettings() : defaultTikTokLaunchSettings()), duration_days: spec.duration_days ?? 4, comments_disabled: spec.comments_disabled ?? true,
     ...(spec.age_groups ? { age_groups: spec.age_groups } : {}),
     ...(spec.gender ? { gender: spec.gender } : {}),
     ...(spec.operating_systems ? { operating_systems: spec.operating_systems } : {}),
@@ -71,6 +72,7 @@ async function main() {
 
   const plan = await data.previewLaunchRun(session, run.id);
   console.log(`preview: ${plan.campaign_count} campaign(s), ${plan.content_count} ads, $${(plan.total_budget_cents / 100).toFixed(0)}; pixel ${plan.tiktok_pixel?.code ?? "-"} event ${plan.tiktok_pixel?.event ?? "-"}`);
+  if (plan.tiktok_app) console.log(`app: ${plan.tiktok_app.package} (${plan.tiktok_app.platform}) ${plan.tiktok_app.store_url}; accounts ${plan.tiktok_app.accounts.map(a => `${a.app_id}${a.unverified ? " (set by hand)" : ""}`).join(", ")}`);
   const ident = plan.tiktok_identity;
   if (ident) console.log(`identity: ${ident.clips} clips, profile=${ident.profile ?? false}; accounts ${ident.accounts.map(a => `${a.handle} (ads_only=${a.ads_only})`).join(", ")}`);
   for (const w of plan.warnings ?? []) console.log(`  warning: ${w}`);

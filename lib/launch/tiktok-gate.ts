@@ -32,6 +32,7 @@ import { crazydramasAdUrl, crazydramasAdUrlFor, crazydramasSlugProblem } from "@
 import { accessTokenFor, tiktokTransport } from "@/lib/tiktok";
 import { findLinkedPost, linkedAccountHandle, linkedAccountMissing, linkedNeeds, listLinkedAccounts, pickLinkedAccount, type LinkedAccount } from "@/lib/tiktok/linked-account";
 import { listCustomAudiences } from "@/lib/tiktok/audiences";
+import { playStoreUrl, resolveApp, tiktokAppPackage } from "@/lib/tiktok/app";
 import { tiktokPixelCode } from "@/lib/tiktok/pixel";
 import { probePixel } from "@/lib/tiktok/preflight";
 import { attributionLabel, attributionOf, audienceNames, launchShape, webEventLabel } from "@/lib/tiktok/settings";
@@ -121,6 +122,12 @@ async function launchableTitle(s: Session, titleId: string, producerId: string):
  */
 export async function tiktokLaunchGate(s: Session, draft: LaunchDraft, producerId: string, own: readonly LaunchConnection[]): Promise<LaunchPlan["tiktok_pixel"] | undefined> {
   if (draft.provider !== "tiktok") return undefined;
+  if (launchShape(draft.tiktok_settings) === "app_install") {
+    // An App install launch (2026-10-09) carries no website link and needs no title: its ads open the app's
+    // store listing. The app itself is resolved by tiktokAppGate. The audiences rule still holds.
+    await audienceGate(draft.tiktok_settings.audiences, own.filter((c) => draft.account_ids.includes(c.id)));
+    return undefined;
+  }
   // The launch's title is optional (decision 2026-09-25): it is only the
   // default for new ads. Without one, every ad names its own title and link.
   const untitled = draft.content.findIndex((c) => !c.title_id);
@@ -183,6 +190,27 @@ export async function audienceGate(audiences: LaunchDraft["tiktok_settings"]["au
   if (!list.ok) return;
   const missing = named.filter((a) => !list.audiences.some((x) => x.id === a.id));
   if (missing.length) throw invalid(`Ad account ${connection.name} has no audience ${audienceNames(missing)} (TikTok lists ${list.audiences.length ? list.audiences.map((a) => a.name).join(", ") : "none"}). Choose the audiences again in Ad group settings.`);
+}
+
+/**
+ * App install (decision 2026-10-09): the app, by its store package, resolved
+ * read-only on every chosen ad account (lib/tiktok/app.ts), so the approver
+ * signs an app TikTok lists for the account, or one set by hand while TikTok
+ * refuses the app read. Nothing for the other shapes.
+ */
+export async function tiktokAppGate(draft: LaunchDraft, own: readonly LaunchConnection[]): Promise<LaunchPlan["tiktok_app"] | undefined> {
+  if (draft.provider !== "tiktok" || launchShape(draft.tiktok_settings) !== "app_install") return undefined;
+  const platform = draft.tiktok_settings.app_platform ?? "ANDROID";
+  const pkg = tiktokAppPackage();
+  const accounts: NonNullable<LaunchPlan["tiktok_app"]>["accounts"] = [];
+  for (const connection of own.filter((c) => draft.account_ids.includes(c.id))) {
+    const token = accessTokenFor(connection.advertiser_id);
+    if (!token) throw invalid(`No TikTok authorization covers ad account ${connection.advertiser_id}.`);
+    const app = await resolveApp(tiktokTransport(), token, connection.advertiser_id, pkg, platform);
+    if (!app.ok) throw invalid(app.message);
+    accounts.push(app.relation === "UNVERIFIED" ? { connection_id: connection.id, app_id: app.app_id, unverified: true } : { connection_id: connection.id, app_id: app.app_id });
+  }
+  return { package: pkg, platform, store_url: platform === "ANDROID" ? playStoreUrl(pkg) : "", accounts };
 }
 
 /**

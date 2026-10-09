@@ -1,0 +1,30 @@
+{
+  "lpx.objectiveApp": {
+    "en": "App install · Google Play",
+    "zh": "应用安装 · Google Play"
+  },
+  "lpx.appHint": {
+    "en": "The ad's button opens the Crazy Drama app on Google Play. TikTok optimizes for installs it hears from AppsFlyer; the app must be registered in Ads Manager (Assets → Events → App) and connected to AppsFlyer first. Android phones only; no website link.",
+    "zh": "广告按钮直接打开 Google Play 上的 Crazy Drama 应用。TikTok 以 AppsFlyer 回传的安装为优化目标；应用需先在广告管理平台注册（资产 → 事件 → 应用）并连接 AppsFlyer。仅限 Android 手机；没有网站链接。"
+  },
+  "lpx.appUnverified": {
+    "en": "App ID {id} for {package} is set by hand; TikTok can't confirm it yet because the app permission is still waiting for TikTok's approval. The launch uses it anyway; the first paused launch is the check.",
+    "zh": "{package} 的应用 ID {id} 是手动设置的；应用权限仍在等待 TikTok 审批，TikTok 暂时无法确认。投放照常使用它；第一次暂停投放就是检验。"
+  },
+  "lpg.step.app": {
+    "en": "App resolved on the ad account",
+    "zh": "已在广告账户上找到应用"
+  },
+  "cdc.goal.installs": {
+    "en": "app installs",
+    "zh": "应用安装"
+  },
+  "cdc.goalShort.installs": {
+    "en": "optimizes app installs",
+    "zh": "优化应用安装"
+  },
+  "lpx.appLine": {
+    "en": "App install: the ads open {package} on {store}; TikTok app ID {ids}. Optimized for installs reported by AppsFlyer.",
+    "zh": "应用安装：广告打开 {store} 上的 {package}；TikTok 应用 ID {ids}。以 AppsFlyer 回传的安装为优化目标。"
+  }
+}

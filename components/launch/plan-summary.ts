@@ -61,3 +61,9 @@ export function planPixelNote(tt: Translate, pixel?: { accounts: { pixel_id: str
   const handSet = pixel?.accounts.filter((a) => a.unverified) ?? [];
   return handSet.length ? pixelHandSetNote(tt, handSet[0].pixel_id, handSet.map((a) => a.owner)) : undefined;
 }
+
+/** TikTok App install: the plain words for an app ID set by hand, which TikTok cannot confirm yet; nothing when every account's app was listed. */
+export function planAppNote(tt: Translate, app?: { package: string; accounts: { app_id: string; unverified?: true }[] }): string | undefined {
+  const unverified = app?.accounts.find((a) => a.unverified);
+  return unverified ? tt("lpx.appUnverified", { id: unverified.app_id, package: app!.package }) : undefined;
+}

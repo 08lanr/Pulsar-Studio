@@ -115,6 +115,12 @@ export type LaunchPlan = {
    */
   tiktok_pixel?: { code: string; event: string; attribution: string; accounts: { connection_id: string; pixel_id: string; unverified?: true; owner?: string | null }[] };
   /**
+   * TikTok App install (2026-10-09): the app the preview resolved on every
+   * chosen account (lib/tiktok/app.ts), by its store package. `unverified`:
+   * the id is TIKTOK_APP_ID, set by hand while TikTok refuses the app read.
+   */
+  tiktok_app?: { package: string; platform: "ANDROID" | "IOS"; store_url: string; accounts: { connection_id: string; app_id: string; unverified?: true }[] };
+  /**
    * TikTok, when the ads include Studio clips or the linked account's posts:
    * how many of each, and the account they run as on every chosen ad account
    * (lib/tiktok/linked-account.ts), read at preview; the driver picks it again

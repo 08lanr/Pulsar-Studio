@@ -9,7 +9,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useT } from "@/components/locale";
 import { AGE_OPTIONS, BID_STRATEGY_OPTIONS, BUDGET_MODE_OPTIONS, COMMON_LANGUAGES, CTA_OPTIONS, GENDER_OPTIONS, GOAL_OPTIONS, MAX_DURATION_DAYS, MAX_DUPLICATE_COPIES, MIN_ADGROUP_BUDGET_USD, OS_OPTIONS, PACING_OPTIONS, PLACEMENT_OPTIONS, WEB_EVENT_OPTIONS, defaultEventCount, goalOption } from "@/lib/tiktok/options";
-import { attributionOf, defaultSalesLaunchSettings, defaultWebsitePurchaseSettings, launchShape, optimizesPurchases, planAdGroup, type LaunchSettings } from "@/lib/tiktok/settings";
+import { attributionOf, defaultAppInstallSettings, defaultSalesLaunchSettings, defaultWebsitePurchaseSettings, launchShape, optimizesPurchases, planAdGroup, type LaunchSettings } from "@/lib/tiktok/settings";
 import InstantPageTemplatePicker from "@/components/launch/InstantPageTemplatePicker";
 import { call } from "./api";
 import AudiencePicker from "./AudiencePicker";
@@ -62,7 +62,10 @@ export default function LaunchSettingsEditor({ value, onChange, budgetUsd, regio
           the crazydramas pixel (the default), Sales on an Instant Page, Traffic. */}
       <button type="button" className={`seg-btn${shape === "website_purchases" ? " on" : ""}`} aria-pressed={shape === "website_purchases"} onClick={() => onChange({ ...defaultWebsitePurchaseSettings(), start_paused: value.start_paused, budget_mode: value.budget_mode, daily_budget_usd: value.daily_budget_usd ?? defaultWebsitePurchaseSettings().daily_budget_usd, audiences: value.audiences })}>{tt("lpx.objectiveWebsite")}</button>
       <button type="button" className={`seg-btn${shape === "instant_page" ? " on" : ""}`} aria-pressed={shape === "instant_page"} onClick={() => onChange({ ...defaultSalesLaunchSettings(), start_paused: value.start_paused, budget_mode: value.budget_mode, daily_budget_usd: value.daily_budget_usd, audiences: value.audiences })}>{tt("salesLaunch.sales")}</button>
-      <button type="button" className={`seg-btn${shape === "traffic" ? " on" : ""}`} aria-pressed={shape === "traffic"} onClick={() => onChange({ ...value, objective_type: "TRAFFIC", sales_destination: undefined, optimization_goal: "CLICK", instant_page_template: undefined, optimization_event: undefined, attribution: undefined, pixel_code: undefined })}>{tt("salesLaunch.traffic")}</button></div>
+      <button type="button" className={`seg-btn${shape === "traffic" ? " on" : ""}`} aria-pressed={shape === "traffic"} onClick={() => onChange({ ...value, objective_type: "TRAFFIC", sales_destination: undefined, optimization_goal: "CLICK", instant_page_template: undefined, optimization_event: undefined, attribution: undefined, pixel_code: undefined })}>{tt("salesLaunch.traffic")}</button>
+      {/* App install (2026-10-09): the crazydramas Android app on Google Play, optimized toward installs. */}
+      <button type="button" className={`seg-btn${shape === "app_install" ? " on" : ""}`} aria-pressed={shape === "app_install"} data-testid="tk-shape-app" onClick={() => onChange({ ...defaultAppInstallSettings(), start_paused: value.start_paused, budget_mode: value.budget_mode, daily_budget_usd: value.daily_budget_usd, audiences: value.audiences })}>{tt("lpx.objectiveApp")}</button></div>
+      {shape === "app_install" && <p className="hint" data-testid="tk-app-hint">{tt("lpx.appHint")}</p>}
       {shape === "instant_page" && <InstantPageTemplatePicker value={value.instant_page_template} onChange={template => set("instant_page_template", template)} />}
       {shape === "website_purchases" && <>
         <div className="tk-field tk-row">
@@ -126,7 +129,7 @@ export default function LaunchSettingsEditor({ value, onChange, budgetUsd, regio
       <legend>{tt("tk.bidding")}</legend>
       <div className="tk-field tk-row">
         <label className="tk-label" htmlFor="tk-goal">{tt("tk.goal")}</label>
-        <select id="tk-goal" className="select" value={value.optimization_goal} onChange={(e) => set("optimization_goal", e.target.value)}>{GOAL_OPTIONS.filter(g => shape !== "traffic" ? g.value === "CONVERT" : g.value !== "CONVERT").map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}</select>
+        <select id="tk-goal" className="select" value={value.optimization_goal} onChange={(e) => set("optimization_goal", e.target.value)}>{GOAL_OPTIONS.filter(g => shape === "app_install" ? g.value === "INSTALL" : shape !== "traffic" ? g.value === "CONVERT" : g.value !== "CONVERT" && g.value !== "INSTALL").map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}</select>
         <span className="gt-muted">{goal.billingLabel}</span>
       </div>
       {/* Decision 2026-09-26: only Website purchases on Purchase makes TikTok count purchases. */}

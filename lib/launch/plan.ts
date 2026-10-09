@@ -380,12 +380,14 @@ export function buildLaunchPlan(input: LaunchDraft, connections: LaunchConnectio
     // title and that its series is live before it gets here.
     // The launch's own link is needed only by an ad without its own link, and
     // by an Instant Page's one button (the launch's title is optional).
-    const needsLaunchLink = !input.content.length || input.content.some(item => item.landing_url === undefined) || launchShape(d.tiktok_settings) === "instant_page";
+    // An App install launch's ads open the app's store listing (2026-10-09): no link anywhere.
+    const appInstall = launchShape(d.tiktok_settings) === "app_install";
+    const needsLaunchLink = !appInstall && (!input.content.length || input.content.some(item => item.landing_url === undefined) || launchShape(d.tiktok_settings) === "instant_page");
     if (needsLaunchLink && !isCrazydramasAdUrl(d.destination_url)) throw new Error(TIKTOK_DESTINATION_REFUSAL);
     // Each ad may promote its own title, so each carries its own link (the
     // server writes it on save; the gate checks it against the title).
     input.content.forEach((item, i) => {
-      if (item.landing_url !== undefined && !isCrazydramasAdUrl(item.landing_url)) throw new Error(`Ad ${i + 1} has no crazydramas link. Choose a title that is live on crazydramas for it.`);
+      if (!appInstall && item.landing_url !== undefined && !isCrazydramasAdUrl(item.landing_url)) throw new Error(`Ad ${i + 1} has no crazydramas link. Choose a title that is live on crazydramas for it.`);
     });
     if (launchShape(d.tiktok_settings) === "instant_page" && input.content.some(item => item.landing_url !== undefined && item.landing_url !== d.destination_url))
       throw new Error(INSTANT_PAGE_ONE_TITLE);

@@ -62,6 +62,7 @@ function preview(plan: LaunchPlan, run: LaunchRun, connections: LaunchConnection
     title_id: run.draft.title_id ?? null, tiktok_pixel: plan.tiktok_pixel ? { code: plan.tiktok_pixel.code, event: plan.tiktok_pixel.event, attribution: plan.tiktok_pixel.attribution,
       // The pixel ID was set by hand and TikTok cannot confirm it yet (lib/tiktok/pixel.ts); the first paused launch is the check.
       set_by_hand: plan.tiktok_pixel.accounts.some((a) => a.unverified) } : null,
+    tiktok_app: plan.tiktok_app ? { package: plan.tiktok_app.package, platform: plan.tiktok_app.platform, store_url: plan.tiktok_app.store_url, set_by_hand: plan.tiktok_app.accounts.some((a) => a.unverified) } : null,
     start_paused: run.draft.start_paused, allocation: run.draft.allocation,
     settings: run.draft.provider === "meta" ? run.draft.meta_settings : run.draft.tiktok_settings,
     total_budget_cents: plan.total_budget_cents, daily_total_cents: plan.daily_total_cents,

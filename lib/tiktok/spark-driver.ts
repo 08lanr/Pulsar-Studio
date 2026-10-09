@@ -21,6 +21,7 @@ import { accountHealth, accountStatusLabel } from "./account-health";
 import { adGroupBody, attributionLabel, attributionOf, clipDarkPostStatus, launchSettingsSchema, launchShape, planAdGroup, validateLaunchSettings, type AdGroupPlan, type LaunchSettings } from "./settings";
 import { isCrazydramasAdUrl } from "./ad-url";
 import { resolvePixel, tiktokPixelCode } from "./pixel";
+import { resolveApp, tiktokAppPackage } from "./app";
 import { WEB_METRICS, webConversionsFromReport } from "./web-metrics";
 import { AD_METRICS, adStatsByAd, VIDEO_METRICS } from "./ad-stats";
 import { assertCampaignBudget } from "@/lib/launch/budget";
@@ -53,6 +54,8 @@ type SparkState = {
   instant_page?: { name: string; phase: "creating" | "created" | "published"; id?: string } | null;
   /** Website purchases: the pixel resolved on this ad account before anything was written (lib/tiktok/pixel.ts); `unverified` when the id was set by hand. */
   pixel?: { code: string; pixel_id: string; unverified?: true } | null;
+  /** App install: the app resolved on this ad account before anything was written (lib/tiktok/app.ts); `unverified` when the id was set by hand. */
+  app?: { package: string; platform: "ANDROID" | "IOS"; app_id: string; unverified?: true } | null;
   activated?: boolean; ended?: boolean; tiktok_mode?: string;
   pending_copy?: { key: string; allocations: Record<string, number>; new_budget: number; was_on: boolean } | null;
   pending_bid?: { bid_cents: number; was_on: boolean; replacements: { old_id: string; key: string; budget: number; enabled: boolean }[] } | null;
@@ -371,6 +374,25 @@ async function ensurePixel(ctx: DriverContext, c: Client): Promise<void> {
   await ctx.checkpoint({ pixel: found.relation === "UNVERIFIED" ? { code, pixel_id: found.pixel_id, unverified: true } : { code, pixel_id: found.pixel_id } });
 }
 
+/**
+ * App install (decision 2026-10-09): the app resolved on this ad account
+ * before anything is written, the preview's resolution again (lib/tiktok/app.ts);
+ * an unverified id (TIKTOK_APP_ID, while TikTok refuses the app read) is
+ * resolved on every attempt until an ad group is recorded, so a corrected
+ * setting takes effect on Retry; after that the recorded id is the group's.
+ */
+async function ensureApp(ctx: DriverContext, c: Client): Promise<void> {
+  const settings = state(ctx).settings;
+  if (!settings || launchShape(settings) !== "app_install") return;
+  const platform = settings.app_platform ?? "ANDROID";
+  const pkg = tiktokAppPackage();
+  const recorded = state(ctx).app;
+  if (recorded?.package === pkg && recorded.platform === platform && recorded.app_id && (!recorded.unverified || (state(ctx).groups ?? []).length > 0)) return;
+  const found = await resolveApp(c.tt, c.token, c.advertiser, pkg, platform);
+  if (!found.ok) throw new Error(found.message);
+  await ctx.checkpoint({ app: found.relation === "UNVERIFIED" ? { package: pkg, platform, app_id: found.app_id, unverified: true } : { package: pkg, platform, app_id: found.app_id } });
+}
+
 async function ensureSalesPage(ctx: DriverContext): Promise<void> {
   const settings = state(ctx).settings;
   if (!settings || launchShape(settings) !== "instant_page") return;
@@ -443,6 +465,10 @@ async function createGroup(ctx: DriverContext, c: Client, key: string, budgetCen
   if (existing && shapeOf(s) === "website_purchases" && (str(existing.pixel_id) !== str(s.pixel?.pixel_id) || str(existing.optimization_event) !== str(s.settings!.optimization_event ?? "SHOPPING"))) {
     throw new Error("The existing ad group optimizes toward a different pixel or event than this approved launch; refusing adoption.");
   }
+  // An App install group promotes one app; a group of our name on another app is not the one we approved.
+  if (existing && shapeOf(s) === "app_install" && str(existing.app_id) !== str(s.app?.app_id)) {
+    throw new Error("The existing ad group promotes a different app than this approved launch; refusing adoption.");
+  }
   if (!id) {
     const plan = { ...s.plan!, budget: budgetCents / 100 };
     const signedStart = Date.parse(`${plan.schedule_start_time.replace(" ", "T")}Z`);
@@ -452,7 +478,7 @@ async function createGroup(ctx: DriverContext, c: Client, key: string, budgetCen
     plan.schedule_start_time = new Date(start).toISOString().slice(0, 19).replace("T", " ");
     const result = await write(ctx, c, "/adgroup/create/", {
       campaign_id: s.campaign_id, adgroup_name: name,
-      ...adGroupBody(s.settings!, plan, s.pixel),
+      ...adGroupBody(s.settings!, plan, s.pixel, s.app),
       operation_status: "DISABLE",
     });
     id = str(result.data?.adgroup_id);
@@ -486,9 +512,14 @@ async function createAds(ctx: DriverContext, c: Client, group: SparkGroup): Prom
         // An Instant Page ad points at the page; every website ad (Traffic,
         // Website purchases) carries its own title's approved crazydramas
         // link verbatim.
+        // An App install ad opens the ad group's app in its store: no landing page, no page (ASSUMPTION,
+        // UNVERIFIED AGAINST THE LIVE API: /ad/create/ documents landing_page_url as conditional and TikTok
+        // Ads Manager shows no URL field for an app ad; the first paused App install launch is the check).
         ...(shapeOf(state(ctx)) === "instant_page"
           ? { page_id: state(ctx).instant_page?.id }
-          : { landing_page_url: adLanding(ctx, post.code) }),
+          : shapeOf(state(ctx)) === "app_install"
+            ? {}
+            : { landing_page_url: adLanding(ctx, post.code) }),
       };
       const linked = { identity_type: "BC_AUTH_TT", identity_id: post.identity_id, identity_authorized_bc_id: post.bc_id };
       const creative = post.kind === "video"
@@ -612,6 +643,7 @@ async function launch(ctx: DriverContext): Promise<void> {
       planned_budgets: split(daily ?? ctx.campaign.budget_cents, copies), tiktok_mode: c.tt.mode });
   }
   await ensurePixel(ctx, c);
+  await ensureApp(ctx, c);
   if (!state(ctx).posts?.length) await resolveContent(ctx, c);
   await ensureSalesPage(ctx);
   if (!state(ctx).campaign_id) {
@@ -631,6 +663,8 @@ async function launch(ctx: DriverContext): Promise<void> {
       const result = await write(ctx, c, "/campaign/create/", {
         campaign_name: name, objective_type: s.settings!.objective_type ?? "TRAFFIC",
         ...(s.settings!.objective_type === "WEB_CONVERSIONS" ? { virtual_objective_type: "SALES", sales_destination: "WEBSITE" } : {}),
+        // "Required when objective_type is APP_PROMOTION" (/campaign/create/): new installs, not retargeting.
+        ...(s.settings!.objective_type === "APP_PROMOTION" ? { app_promotion_type: "APP_INSTALL" } : {}),
         operation_status: "DISABLE",
         ...(s.plan!.campaign_budget !== null ? { budget_mode: "BUDGET_MODE_TOTAL", budget: s.budget_cents! / 100 } : { budget_mode: "BUDGET_MODE_INFINITE" }),
       });

@@ -5542,5 +5542,12 @@
   "autoPost.failed": "{n} 条被拒（{first}）",
   "autoPost.next": "下次运行 {next}",
   "autoPost.due": "几分钟内",
-  "autoPost.tiktokByHand": "TikTok 没有发布权限，请手动把这些发到 TikTok 账号。"
+  "autoPost.tiktokByHand": "TikTok 没有发布权限，请手动把这些发到 TikTok 账号。",
+  "lpx.objectiveApp": "应用安装 · Google Play",
+  "lpx.appHint": "广告按钮直接打开 Google Play 上的 Crazy Drama 应用。TikTok 以 AppsFlyer 回传的安装为优化目标；应用需先在广告管理平台注册（资产 → 事件 → 应用）并连接 AppsFlyer。仅限 Android 手机；没有网站链接。",
+  "lpx.appUnverified": "{package} 的应用 ID {id} 是手动设置的；应用权限仍在等待 TikTok 审批，TikTok 暂时无法确认。投放照常使用它；第一次暂停投放就是检验。",
+  "lpg.step.app": "已在广告账户上找到应用",
+  "cdc.goal.installs": "应用安装",
+  "cdc.goalShort.installs": "优化应用安装",
+  "lpx.appLine": "应用安装：广告打开 {store} 上的 {package}；TikTok 应用 ID {ids}。以 AppsFlyer 回传的安装为优化目标。"
 }
