@@ -112,10 +112,10 @@ test("adGroupBody: the Sales Instant Page stays TIKTOK_NATIVE_PAGE with the BUTT
   assert.equal(body.conversion_bid_price, 0.2);
 });
 
-test("the Website purchases default is the Sep 26 launch: InitiateCheckout once per person, $50 lifetime, 18+, every device", () => {
+test("the Website purchases default is the Sep 26 launch on the Purchase event (2026-10-09): every purchase, $50 lifetime, 18+, every device", () => {
   const d = defaultWebsitePurchaseSettings();
-  assert.equal(d.optimization_event, "INITIATE_ORDER");
-  assert.deepEqual(d.attribution, { click: "SEVEN_DAYS", view: "ONE_DAY", event_count: "ONCE" });
+  assert.equal(d.optimization_event, "SHOPPING");
+  assert.deepEqual(d.attribution, { click: "SEVEN_DAYS", view: "ONE_DAY", event_count: "EVERY" });
   assert.equal(d.budget_mode, "BUDGET_MODE_TOTAL");
   assert.equal(d.daily_budget_usd, null);
   assert.deepEqual(d.age_groups, ["AGE_18_24", "AGE_25_34", "AGE_35_44", "AGE_45_54", "AGE_55_100"]);
@@ -125,15 +125,15 @@ test("the Website purchases default is the Sep 26 launch: InitiateCheckout once 
   const draft = defaultLaunchDraft("tiktok");
   assert.equal(draft.total_budget_cents, 5000);
   assert.equal(draft.daily_budget_cents, null);
-  assert.equal(draft.tiktok_settings.optimization_event, "INITIATE_ORDER");
+  assert.equal(draft.tiktok_settings.optimization_event, "SHOPPING");
   const body = adGroupBody(validateLaunchSettings({ ...d, pixel_code: CRAZYDRAMAS_PIXEL_CODE }, 5000), plan({ ...d, pixel_code: CRAZYDRAMAS_PIXEL_CODE }), { pixel_id: "1790000000000000001" });
-  assert.equal(body.optimization_event, "INITIATE_ORDER");
-  assert.equal(body.attribution_event_count, "ONCE");
+  assert.equal(body.optimization_event, "SHOPPING");
+  assert.equal(body.attribution_event_count, "EVERY");
   assert.equal(body.budget_mode, "BUDGET_MODE_TOTAL");
   assert.deepEqual(body.age_groups, ["AGE_18_24", "AGE_25_34", "AGE_35_44", "AGE_45_54", "AGE_55_100"]);
   assert.equal(body.operating_systems, undefined, "every device: no operating_systems sent");
   const line = summarizeLaunchSettings(d);
-  assert.ok(line.includes("18+") && line.includes("all devices") && line.includes("optimizes for InitiateCheckout (pixel)") && line.includes("lifetime budget"), line.join(" · "));
+  assert.ok(line.includes("18+") && line.includes("all devices") && line.includes("optimizes for Purchase (pixel)") && line.includes("lifetime budget"), line.join(" · "));
   assert.ok(summarizeLaunchSettings({ ...d, operating_systems: ["IOS"] }).includes("iPhone only"), "a device restriction is always shown");
 });
 
@@ -172,7 +172,7 @@ test("validation keeps the shapes apart: a website launch takes no Instant Page,
   assert.equal(page.pixel_code, undefined);
 });
 
-test("a new TikTok draft is Website purchases on InitiateCheckout, $50 lifetime, with no title chosen yet", () => {
+test("a new TikTok draft is Website purchases on Purchase, $50 lifetime, with no title chosen yet", () => {
   const draft = defaultLaunchDraft("tiktok");
   assert.equal(launchShape(draft.tiktok_settings), "website_purchases");
   assert.deepEqual(draft.tiktok_settings, { ...defaultTikTokLaunchSettings(), start_paused: false }, "live, comments on, 18+ (2026-09-29)");
@@ -408,7 +408,7 @@ function context(settings: LaunchSettings, landing = LIVE_AD_URL, businessId = "
   return { run, campaign, connection: run.connections[0],
     checkpoint: async (patch) => { campaign.state = { ...campaign.state, ...structuredClone(patch) }; }, assertActive: async () => {} };
 }
-// The Purchase event, explicitly: since 2026-09-26 the default is InitiateCheckout, and these tests pin the Purchase path.
+// The Purchase event, explicitly: the default from 2026-09-26 to 2026-10-09 was InitiateCheckout, and these tests pin the Purchase path.
 const purchaseSettings = (): LaunchSettings => ({ ...defaultWebsitePurchaseSettings(), optimization_event: "SHOPPING", attribution: undefined, budget_mode: "BUDGET_MODE_DAY", daily_budget_usd: 30 });
 const website = (): LaunchSettings => ({ ...purchaseSettings(), pixel_code: tiktokPixelCode(), start_paused: true });
 
@@ -582,7 +582,7 @@ test("save writes the title's ad link and the pixel code; preview resolves the p
   assert.equal(saved.draft.destination_url, LIVE_AD_URL, "a typed URL never reaches TikTok");
   assert.equal(saved.draft.tiktok_settings.pixel_code, CRAZYDRAMAS_PIXEL_CODE);
   const preview = await getData().previewLaunchRun(producer(), saved.id);
-  assert.deepEqual(preview.tiktok_pixel, { code: CRAZYDRAMAS_PIXEL_CODE, event: "InitiateCheckout", attribution: "7-day click · 1-day view · one per person",
+  assert.deepEqual(preview.tiktok_pixel, { code: CRAZYDRAMAS_PIXEL_CODE, event: "Purchase", attribution: "7-day click · 1-day view · every conversion",
     accounts: accounts.map((a) => ({ connection_id: a.id, pixel_id: FAKE_PIXEL_ID })) });
   assert.ok(preview.rows.every((row) => row.tracking_url === LIVE_AD_URL));
   const approved = await getData().submitLaunchRun(producer(), saved.id, saved.revision);
@@ -660,7 +660,7 @@ test("refused for the permission with TIKTOK_PIXEL_ID set, preview and approval 
   process.env.TIKTOK_PIXEL_ID = HAND_SET_ID;
   const saved = await getData().saveLaunchDraft(producer(), await websiteDraft(live.id, accounts));
   const preview = await getData().previewLaunchRun(producer(), saved.id);
-  assert.deepEqual(preview.tiktok_pixel, { code: CRAZYDRAMAS_PIXEL_CODE, event: "InitiateCheckout", attribution: "7-day click · 1-day view · one per person",
+  assert.deepEqual(preview.tiktok_pixel, { code: CRAZYDRAMAS_PIXEL_CODE, event: "Purchase", attribution: "7-day click · 1-day view · every conversion",
     accounts: [{ connection_id: accounts[0].id, pixel_id: HAND_SET_ID, unverified: true, owner: null }] });
   assert.deepEqual(preview.warnings, [], "no scary refusal");
   // What the preview and the confirm dialog print, word for word.

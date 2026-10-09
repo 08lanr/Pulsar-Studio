@@ -181,10 +181,12 @@ export function webEventLabel(event: string | null | undefined): string {
  * crazydramas.com (CONVERT, billed oCPM), 7-day click / 1-day view, lowest
  * cost, US, TikTok placement, comments off, no copies while the group learns.
  * Since 2026-09-26 (Ruobin: "make ... whatever i have here the default"; "18+
- * all devices") it is the Sep 26 launch's settings: the pixel's
- * InitiateCheckout event, counted once per person (far more frequent than a
- * purchase, so the group learns on a small budget; Purchase stays selectable),
- * a lifetime budget (the amount stays on the launch draft, $50 by default),
+ * all devices") it is the Sep 26 launch's settings, and since 2026-10-09
+ * (Ruobin: "switch all of our tiktok optimization pixels to purchase") the
+ * pixel's Purchase event, counted every time (crazydramas reports every
+ * purchase, a free trial's start and its first paid week as Purchase;
+ * InitiateCheckout stays selectable for a group that must learn on a small
+ * budget), a lifetime budget (the amount stays on the launch draft, $50 by default),
  * ages 18+ (only adults can pay; crazydramas' Terms require 18), every device, comments on (Ruobin, 2026-09-29).
  */
 export function defaultWebsitePurchaseSettings(): LaunchSettings {
@@ -193,8 +195,8 @@ export function defaultWebsitePurchaseSettings(): LaunchSettings {
     objective_type: "WEB_CONVERSIONS",
     sales_destination: "website",
     optimization_goal: "CONVERT",
-    optimization_event: "INITIATE_ORDER",
-    attribution: { click: DEFAULT_CLICK_WINDOW, view: DEFAULT_VIEW_WINDOW, event_count: defaultEventCount("INITIATE_ORDER") },
+    optimization_event: "SHOPPING",
+    attribution: { click: DEFAULT_CLICK_WINDOW, view: DEFAULT_VIEW_WINDOW, event_count: defaultEventCount("SHOPPING") },
     location_ids: ["6252001"],
     age_groups: ["AGE_18_24", "AGE_25_34", "AGE_35_44", "AGE_45_54", "AGE_55_100"],
     operating_systems: [],

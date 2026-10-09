@@ -8,6 +8,15 @@ Newest first. A decision here overrides anything older in `PRODUCT.md`,
 `docs/build-plan.md`, `docs/data-model.md` or `docs/build-context-review.md`
 until those files are brought in line.
 
+## 2026-10-09 · TikTok launches optimize for Purchase
+
+Ruobin, 2026-10-09: "switch all of our tiktok optimization pixels to 'purchase' (if you can loop free trial in this too it would be good)". Since 2026-09-26 the Website purchases default was the pixel's InitiateCheckout event (a group learns on a small budget; 50 purchases a week per group was the threshold to switch back). Oct 9 the account was buying 5-8 purchases a day across nine live groups, all on InitiateCheckout, whose checkouts mostly end unpaid (Oct 9: 47 sheet openings, 5 purchases).
+
+- `defaultWebsitePurchaseSettings` optimizes for the pixel's Purchase event (`SHOPPING`), counted every conversion (`defaultEventCount("SHOPPING")`); InitiateCheckout stays selectable. The preview line reads "optimizes for Purchase (pixel)".
+- crazydramas (same day, released separately) reports a free trial's start as a $0 Purchase beside StartTrial, and its first paid week as the Purchase it already was, so a Purchase-optimized group learns from trials too; its first VIP week went to $1.99 (50% off $3.99).
+- TikTok does not change the optimization event of an ad group that exists: the nine live groups stay on InitiateCheckout until relaunched as new campaigns on Purchase (Ruobin chose the relaunch; budgets per his go).
+- Studio's stats compare TikTok's purchases with crazydramas' buyers (`purchaseGoal` "purchases"): TikTok's count now includes trial starts, which Studio's payments leave out, so a gap of a few per day is trials, not lost attribution.
+
 ## 2026-10-05 · Studio clips on the profile
 
 Ruobin, 2026-10-05: "I want to post on studio, without having to post it myself, copy a link / spark code, and paste in. I want this post to appear on my profile", then "build it, on by default". The Accounts API (posting to the profile, as Meta does) is still in TikTok's review since 2026-09-17. The same day Ruobin switched @crazydramaus in Business Center (Accounts › TikTok accounts › View › Business Center permissions › Edit permissions › "Publish and manage new videos") from "Only show as ads" to "Show on TikTok profile and as ads"; `/identity/get/` then answered `ads_only_mode: false`. With that, an ad Studio creates from a clip with `dark_post_status: "OFF"` (TikTok's per-ad "Show through ads only" off) is also a post on the profile.
