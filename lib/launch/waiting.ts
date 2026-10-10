@@ -46,15 +46,25 @@ const META_TRANSIENT_CODES = new Set([1, 2, 4, 17, 32, 613]);
 // account. It is a wait, not a refusal, and a longer one than the others.
 const META_ADS_RATE_LIMIT_CODE = 80004;
 const META_ADS_RATE_LIMIT_RETRY_MS = 5 * 60_000;
+// Each attempt at the final read-back spends a dozen or more calls itself, so
+// a fixed five-minute cadence starved the window it was waiting for (the
+// Flirt run, 05:01 the same night, six refusals in a row). The wait doubles
+// per refusal: 5, 10, 20, then 40 minutes for every refusal after that.
+const META_ADS_RATE_LIMIT_MAX_DOUBLINGS = 3;
 const TIKTOK_TRANSIENT = /did not respond in time|could not reach tiktok|unreadable response|qps limit|too many request|rate limit/i;
 const PROVIDER_RETRY_MS = 60_000;
 
-/** The delay before a provider's "later" is worth another attempt, or null when the refusal is final. */
-export function providerRetryDelay(error: unknown): number | null {
+/**
+ * The delay before a provider's "later" is worth another attempt, or null when
+ * the refusal is final. `refusals` is how many times this campaign has already
+ * been told "later" (the service's `provider_retries`): the ad-account rate
+ * limit backs off with it, every other wait is flat.
+ */
+export function providerRetryDelay(error: unknown, refusals = 0): number | null {
   if (!(error instanceof Error)) return null;
   if (error.name === "MetaApiError") {
     const meta = error as Error & { code?: number; ambiguous?: boolean };
-    if (meta.code === META_ADS_RATE_LIMIT_CODE) return META_ADS_RATE_LIMIT_RETRY_MS;
+    if (meta.code === META_ADS_RATE_LIMIT_CODE) return META_ADS_RATE_LIMIT_RETRY_MS * 2 ** Math.min(Math.max(0, refusals), META_ADS_RATE_LIMIT_MAX_DOUBLINGS);
     if (meta.ambiguous || (meta.code !== undefined && META_TRANSIENT_CODES.has(meta.code)) || /HTTP 5\d\d/.test(error.message)) return PROVIDER_RETRY_MS;
     return null;
   }

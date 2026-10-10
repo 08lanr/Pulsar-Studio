@@ -420,6 +420,12 @@ test("a rate-limited provider makes the campaign wait and resume from its checkp
   assert.equal(throttled?.campaigns[0].status, "pending");
   assert.equal(monitorState(throttled!.campaigns[0]), "waiting");
   assert.equal((throttled?.campaigns[0].state.waiting as WaitingState).retry_after_ms, 5 * 60_000);
+  // Every attempt spends calls of its own, so the wait doubles per refusal
+  // (05:01 the same night: six five-minute retries in a row never got through).
+  fakeMetaTransport.failNext("POST", "act_9000000000000001/campaigns", { code: 80004 });
+  const throttledAgain = await executeLaunch(limited.id);
+  assert.equal((throttledAgain?.campaigns[0].state.waiting as WaitingState).retry_after_ms, 10 * 60_000);
+  assert.equal(throttledAgain?.campaigns[0].state.provider_retries, 2);
   const recovered = await executeLaunch(limited.id);
   assert.equal(recovered?.status, "done");
   assert.equal(networkCalls, 0);

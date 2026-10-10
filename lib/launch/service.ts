@@ -133,7 +133,7 @@ export async function executeLaunch(id: string): Promise<LaunchRun | null> {
           // provider that is rate-limiting, timing out or answering 5xx is the
           // same wait, a bounded number of times; a lost write is reconciled by
           // the driver's own intent record on the next attempt, never resent.
-          const delay = isLaunchWaiting(e) ? e.retryAfterMs : providerRetryDelay(e)!;
+          const delay = isLaunchWaiting(e) ? e.retryAfterMs : providerRetryDelay(e, Number(campaign.state.provider_retries ?? 0))!;
           if (!isLaunchWaiting(e)) campaign.state.provider_retries = Number(campaign.state.provider_retries ?? 0) + 1;
           campaign.status = "pending"; campaign.error = null;
           // `first_since` survives while the same reason repeats, so the
