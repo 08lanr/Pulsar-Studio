@@ -117,7 +117,7 @@ export type LaunchPlan = {
   /**
    * TikTok App install (2026-10-09): the app the preview resolved on every
    * chosen account (lib/tiktok/app.ts), by its store package. `unverified`:
-   * the id is TIKTOK_APP_ID, set by hand while TikTok refuses the app read.
+   * the id is TIKTOK_PROMOTED_APP_ID, set by hand while TikTok refuses the app read.
    */
   tiktok_app?: { package: string; platform: "ANDROID" | "IOS"; store_url: string; accounts: { connection_id: string; app_id: string; unverified?: true }[] };
   /**

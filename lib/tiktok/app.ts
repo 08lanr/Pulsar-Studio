@@ -14,7 +14,7 @@
 //
 // While TikTok refuses /app/list/ for want of the permission (40001, as it
 // refused the pixel read until the Pixel scope was approved; the Studio app's
-// token answered exactly that on 2026-10-09), TIKTOK_APP_ID stands in and the
+// token answered exactly that on 2026-10-09), TIKTOK_PROMOTED_APP_ID stands in and the
 // account is marked unverified, exactly as TIKTOK_PIXEL_ID does for the pixel.
 // Server-only; reads, never writes.
 
@@ -37,18 +37,19 @@ export function tiktokAppPackage(): string {
 export const APP_ID_SHAPE = /^\d{10,20}$/;
 
 /**
- * TIKTOK_APP_ID, trimmed; blank means none. Server-only, not a secret: the
+ * TIKTOK_PROMOTED_APP_ID (not TIKTOK_APP_ID, which is the Studio developer app's own credential, lib/tiktok/tokens.ts),
+ * trimmed; blank means none. Server-only, not a secret: the
  * number Ads Manager shows for the registered app, used only while TikTok
  * refuses /app/list/ for want of the permission.
  */
 export function tiktokAppId(): string | null {
-  return process.env.TIKTOK_APP_ID?.trim() || null;
+  return process.env.TIKTOK_PROMOTED_APP_ID?.trim() || null;
 }
 
 export type AppResolution =
   /** Read from /app/list/: TikTok lists this app on the account. */
   | { ok: true; package: string; platform: AppPlatform; app_id: string; name: string | null; relation: "LISTED" }
-  /** TIKTOK_APP_ID while /app/list/ is refused for want of the permission: TikTok has not confirmed the id. */
+  /** TIKTOK_PROMOTED_APP_ID while /app/list/ is refused for want of the permission: TikTok has not confirmed the id. */
   | { ok: true; package: string; platform: AppPlatform; app_id: string; name: string | null; relation: "UNVERIFIED"; note: string }
   | { ok: false; package: string; platform: AppPlatform; reason: "not_found" | "no_permission" | "unreadable" | "bad_app_id" | "app_id_differs"; message: string };
 
@@ -64,9 +65,9 @@ export function appUnverifiedNote(appId: string, pkg: string): string {
 export function appRefusal(reason: Exclude<AppResolution, { ok: true }>["reason"], pkg: string, platform: AppPlatform, advertiserId: string, detail = ""): string {
   const store = platform === "ANDROID" ? "Google Play" : "the App Store";
   switch (reason) {
-    case "bad_app_id": return `The app ID set by hand (TIKTOK_APP_ID) is "${detail}", which is not a TikTok app ID: that is the 10–20 digit number Ads Manager shows under Assets → Events → App for ${pkg}. Correct it or clear it, then preview again.`;
+    case "bad_app_id": return `The app ID set by hand (TIKTOK_PROMOTED_APP_ID) is "${detail}", which is not a TikTok app ID: that is the 10–20 digit number Ads Manager shows under Assets → Events → App for ${pkg}. Correct it or clear it, then preview again.`;
     case "app_id_differs": return detail;
-    case "no_permission": return `TikTok won't let Studio read the apps of ad account ${advertiserId} yet${detail ? ` (${detail})` : ""}: the Studio app on TikTok doesn't have the app permission. To fix it: 1. In the TikTok for Business developer portal, open the Studio app and add the App Management permission. 2. In Studio, open the TikTok page (/tiktok), press Connect a Business Center and approve the same Business Center again. 3. Preview again. Until then, set TIKTOK_APP_ID to the app ID Ads Manager shows for ${pkg} (Assets → Events → App) and preview again; the launch then uses it unverified.`;
+    case "no_permission": return `TikTok won't let Studio read the apps of ad account ${advertiserId} yet${detail ? ` (${detail})` : ""}: the Studio app on TikTok doesn't have the app permission. To fix it: 1. In the TikTok for Business developer portal, open the Studio app and add the App Management permission. 2. In Studio, open the TikTok page (/tiktok), press Connect a Business Center and approve the same Business Center again. 3. Preview again. Until then, set TIKTOK_PROMOTED_APP_ID to the app ID Ads Manager shows for ${pkg} (Assets → Events → App) and preview again; the launch then uses it unverified.`;
     case "unreadable": return `Studio could not read the apps of ad account ${advertiserId} from TikTok${detail ? ` (${detail})` : ""}. Preview again in a minute.`;
     default: return `Ad account ${advertiserId} has no ${store} app registered for ${pkg}. Register it in Ads Manager → Assets → Events → App (paste the ${store} link), connect it to the measurement partner (AppsFlyer) and preview again.`;
   }
@@ -83,7 +84,7 @@ export function appFromList(rows: readonly Row[], pkg: string, platform: AppPlat
 }
 
 export type ResolveAppOptions = {
-  /** The id set by hand; omitted means TIKTOK_APP_ID, null means none. */
+  /** The id set by hand; omitted means TIKTOK_PROMOTED_APP_ID, null means none. */
   appId?: string | null;
 };
 
@@ -108,7 +109,7 @@ export async function resolveApp(tt: TikTokTransport, token: string, advertiserI
   const rows = ((res.data?.apps ?? res.data?.list ?? []) as Row[]);
   const found = appFromList(rows, pkg, platform, advertiserId);
   if (found.ok && handSet && handSet !== found.app_id) {
-    return { ok: false, package: pkg, platform, reason: "app_id_differs", message: `TikTok lists ${pkg} as app ID ${found.app_id}, but the app ID set by hand (TIKTOK_APP_ID) is ${handSet}. They must be the same app: change the setting to ${found.app_id} or clear it, then preview again.` };
+    return { ok: false, package: pkg, platform, reason: "app_id_differs", message: `TikTok lists ${pkg} as app ID ${found.app_id}, but the app ID set by hand (TIKTOK_PROMOTED_APP_ID) is ${handSet}. They must be the same app: change the setting to ${found.app_id} or clear it, then preview again.` };
   }
   return found;
 }

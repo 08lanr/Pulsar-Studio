@@ -1,7 +1,7 @@
 // TikTok App install launches (decision 2026-10-09, "App install launches"):
 // the fourth launch shape, APP_PROMOTION / APP_INSTALL for the crazydramas
 // Android app on Google Play. The app resolved on the ad account the way the
-// pixel is (lib/tiktok/app.ts, TIKTOK_APP_ID set by hand while TikTok refuses
+// pixel is (lib/tiktok/app.ts, TIKTOK_PROMOTED_APP_ID set by hand while TikTok refuses
 // /app/list/), the ad group on the app with INSTALL / OCPM and the operating
 // system, the campaign with app_promotion_type, ads with no link and no page,
 // the fake's documented refusals, the data layer's save / preview / approval
@@ -23,13 +23,13 @@ import { planAppNote } from "@/components/launch/plan-summary";
 import { t } from "@/lib/i18n";
 
 const HAND_SET_APP = "7290000000000000777";
-const env = { TIKTOK_FAKE_APP: process.env.TIKTOK_FAKE_APP, TIKTOK_APP_ID: process.env.TIKTOK_APP_ID, TIKTOK_APP_PACKAGE: process.env.TIKTOK_APP_PACKAGE };
+const env = { TIKTOK_FAKE_APP: process.env.TIKTOK_FAKE_APP, TIKTOK_PROMOTED_APP_ID: process.env.TIKTOK_PROMOTED_APP_ID, TIKTOK_APP_PACKAGE: process.env.TIKTOK_APP_PACKAGE };
 const originalGet = fakeTransport.get;
 const originalPost = fakeTransport.post;
 const en = (key: string, vars?: Record<string, string | number>) => t("en", key, vars);
 beforeEach(() => {
   process.env.DATA_SOURCE = "fixture"; process.env.FIXTURE_SEED = "empty"; process.env.FIXTURE_PERSIST = "off";
-  delete process.env.TIKTOK_LIVE; delete process.env.TIKTOK_FAKE_APP; delete process.env.TIKTOK_APP_ID; delete process.env.TIKTOK_APP_PACKAGE;
+  delete process.env.TIKTOK_LIVE; delete process.env.TIKTOK_FAKE_APP; delete process.env.TIKTOK_PROMOTED_APP_ID; delete process.env.TIKTOK_APP_PACKAGE;
   resetFixtureStore(); resetLaunchFixture(); resetFakeTikTok();
 });
 afterEach(() => {
@@ -81,13 +81,13 @@ test("adGroupBody: the app's store as the optimization location, the app id, INS
 
 // ---- the app --------------------------------------------------------------------------------------------------
 
-test("the app settings: the crazydramas package by default, TIKTOK_APP_PACKAGE overrides it; TIKTOK_APP_ID blank is none, a 10–20 digit id is its shape", () => {
+test("the app settings: the crazydramas package by default, TIKTOK_APP_PACKAGE overrides it; TIKTOK_PROMOTED_APP_ID blank is none, a 10–20 digit id is its shape", () => {
   assert.equal(tiktokAppPackage(), CRAZYDRAMAS_ANDROID_PACKAGE);
   assert.equal(playStoreUrl(CRAZYDRAMAS_ANDROID_PACKAGE), "https://play.google.com/store/apps/details?id=com.crazydrama.app");
   process.env.TIKTOK_APP_PACKAGE = " com.example.other ";
   assert.equal(tiktokAppPackage(), "com.example.other");
   assert.equal(tiktokAppId(), null);
-  process.env.TIKTOK_APP_ID = `  ${HAND_SET_APP} `;
+  process.env.TIKTOK_PROMOTED_APP_ID = `  ${HAND_SET_APP} `;
   assert.equal(tiktokAppId(), HAND_SET_APP);
   for (const good of [HAND_SET_APP, FAKE_APP_ID, "1".repeat(10), "1".repeat(20)]) assert.ok(APP_ID_SHAPE.test(good), good);
   for (const bad of ["1".repeat(9), "1".repeat(21), "com.crazydrama.app", "7290-0000"]) assert.ok(!APP_ID_SHAPE.test(bad), bad);
@@ -110,22 +110,22 @@ test("appFromList: the row that names the package wins, whatever TikTok calls it
 test("resolveApp: listed resolves to its id; a hand-set id that disagrees is refused with both numbers; a bad hand-set id is refused by name before any read", async () => {
   const listed = await resolveApp(fakeTransport, "fake-token", "700");
   assert.ok(listed.ok && listed.app_id === FAKE_APP_ID && listed.relation === "LISTED");
-  process.env.TIKTOK_APP_ID = HAND_SET_APP;
+  process.env.TIKTOK_PROMOTED_APP_ID = HAND_SET_APP;
   const differs = await resolveApp(fakeTransport, "fake-token", "700");
   assert.ok(!differs.ok && differs.reason === "app_id_differs" && differs.message.includes(FAKE_APP_ID) && differs.message.includes(HAND_SET_APP));
-  process.env.TIKTOK_APP_ID = "not-an-id";
+  process.env.TIKTOK_PROMOTED_APP_ID = "not-an-id";
   const reads: string[] = [];
   fakeTransport.get = async (path, token, query) => { reads.push(path); return originalGet.call(fakeTransport, path, token, query); };
   const bad = await resolveApp(fakeTransport, "fake-token", "700");
-  assert.ok(!bad.ok && bad.reason === "bad_app_id" && /TIKTOK_APP_ID/.test(bad.message));
+  assert.ok(!bad.ok && bad.reason === "bad_app_id" && /TIKTOK_PROMOTED_APP_ID/.test(bad.message));
   assert.deepEqual(reads, [], "nothing read for a malformed setting");
 });
 
-test("refused for the permission: with TIKTOK_APP_ID set, ok and unverified in plain words; without it, the refusal says which permission and what to set", async () => {
+test("refused for the permission: with TIKTOK_PROMOTED_APP_ID set, ok and unverified in plain words; without it, the refusal says which permission and what to set", async () => {
   process.env.TIKTOK_FAKE_APP = "unreadable";
   const refused = await resolveApp(fakeTransport, "fake-token", "700");
-  assert.ok(!refused.ok && refused.reason === "no_permission" && /App Management permission/.test(refused.message) && /TIKTOK_APP_ID/.test(refused.message));
-  process.env.TIKTOK_APP_ID = HAND_SET_APP;
+  assert.ok(!refused.ok && refused.reason === "no_permission" && /App Management permission/.test(refused.message) && /TIKTOK_PROMOTED_APP_ID/.test(refused.message));
+  process.env.TIKTOK_PROMOTED_APP_ID = HAND_SET_APP;
   const handSet = await resolveApp(fakeTransport, "fake-token", "700");
   assert.ok(handSet.ok && handSet.relation === "UNVERIFIED" && handSet.app_id === HAND_SET_APP && /set by hand/.test(handSet.note));
   assert.equal(planAppNote(en, { package: CRAZYDRAMAS_ANDROID_PACKAGE, accounts: [{ app_id: HAND_SET_APP, unverified: true }] }), en("lpx.appUnverified", { id: HAND_SET_APP, package: CRAZYDRAMAS_ANDROID_PACKAGE }));
@@ -199,9 +199,9 @@ test("an App install launch resolves the app, sends APP_PROMOTION / APP_INSTALL 
   assert.equal(writes.some((w) => w.path.startsWith("/page/")), false, "no Instant Page is built");
 });
 
-test("refused for the permission with TIKTOK_APP_ID set, the driver launches with that id, recorded unverified; without it nothing is written", async () => {
+test("refused for the permission with TIKTOK_PROMOTED_APP_ID set, the driver launches with that id, recorded unverified; without it nothing is written", async () => {
   process.env.TIKTOK_FAKE_APP = "unreadable";
-  process.env.TIKTOK_APP_ID = HAND_SET_APP;
+  process.env.TIKTOK_PROMOTED_APP_ID = HAND_SET_APP;
   const ctx = context(app());
   const writes: { path: string; body: Record<string, unknown> }[] = [];
   fakeTransport.post = async (path, token, body) => { writes.push({ path, body: structuredClone(body) }); return originalPost(path, token, body); };
@@ -209,7 +209,7 @@ test("refused for the permission with TIKTOK_APP_ID set, the driver launches wit
   assert.deepEqual(ctx.campaign.state.app, { package: CRAZYDRAMAS_ANDROID_PACKAGE, platform: "ANDROID", app_id: HAND_SET_APP, unverified: true });
   assert.equal(writes.find((w) => w.path === "/adgroup/create/")!.body.app_id, HAND_SET_APP);
   resetFakeTikTok();
-  delete process.env.TIKTOK_APP_ID;
+  delete process.env.TIKTOK_PROMOTED_APP_ID;
   const refused = context(app());
   writes.length = 0;
   await assert.rejects(tiktokSparkDriver.launch(refused), /doesn't have the app permission/);
@@ -260,9 +260,9 @@ test("save keeps an App install draft free of links and pixel; preview resolves 
   await assert.rejects(getData().previewLaunchRun(producer(), again.id), /no Google Play app registered for com\.crazydrama\.app/);
 });
 
-test("refused for the permission with TIKTOK_APP_ID set, preview and approval pass and say the id is set by hand", async () => {
+test("refused for the permission with TIKTOK_PROMOTED_APP_ID set, preview and approval pass and say the id is set by hand", async () => {
   process.env.TIKTOK_FAKE_APP = "unreadable";
-  process.env.TIKTOK_APP_ID = HAND_SET_APP;
+  process.env.TIKTOK_PROMOTED_APP_ID = HAND_SET_APP;
   const accounts = await tiktokAccounts(1);
   const saved = await getData().saveLaunchDraft(producer(), appDraft(accounts));
   const preview = await getData().previewLaunchRun(producer(), saved.id);
@@ -270,7 +270,7 @@ test("refused for the permission with TIKTOK_APP_ID set, preview and approval pa
   assert.ok(planAppNote(en, preview.tiktok_app)?.includes(HAND_SET_APP));
   const approved = await getData().submitLaunchRun(producer(), saved.id, saved.revision);
   assert.equal(approved.status, "pending");
-  delete process.env.TIKTOK_APP_ID;
+  delete process.env.TIKTOK_PROMOTED_APP_ID;
   const refused = await getData().saveLaunchDraft(producer(), appDraft(accounts));
   await assert.rejects(getData().previewLaunchRun(producer(), refused.id), /doesn't have the app permission/);
 });

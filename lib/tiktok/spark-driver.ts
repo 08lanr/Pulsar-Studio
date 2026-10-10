@@ -377,7 +377,7 @@ async function ensurePixel(ctx: DriverContext, c: Client): Promise<void> {
 /**
  * App install (decision 2026-10-09): the app resolved on this ad account
  * before anything is written, the preview's resolution again (lib/tiktok/app.ts);
- * an unverified id (TIKTOK_APP_ID, while TikTok refuses the app read) is
+ * an unverified id (TIKTOK_PROMOTED_APP_ID, while TikTok refuses the app read) is
  * resolved on every attempt until an ad group is recorded, so a corrected
  * setting takes effect on Retry; after that the recorded id is the group's.
  */

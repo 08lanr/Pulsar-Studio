@@ -156,7 +156,7 @@ const linkedIdentity = (params: Record<string, unknown>) =>
 export const FAKE_PIXEL_ID = "1790000000000000001";
 /** The app /app/list/ lists for every fake advertiser: the crazydramas Android app (lib/tiktok/app.ts). */
 export const FAKE_APP_ID = "7290000000000000001";
-/** The app id /adgroup/create/ accepts while /app/list/ is unreadable: the id set by hand (TIKTOK_APP_ID), else FAKE_APP_ID. */
+/** The app id /adgroup/create/ accepts while /app/list/ is unreadable: the id set by hand (TIKTOK_PROMOTED_APP_ID), else FAKE_APP_ID. */
 export function fakeAppId(): string {
   const handSet = tiktokAppId();
   return handSet && APP_ID_SHAPE.test(handSet) ? handSet : FAKE_APP_ID;
