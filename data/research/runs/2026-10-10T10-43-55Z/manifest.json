@@ -1,0 +1,23 @@
+{
+  "run_id": "2026-10-10T10-43-55Z",
+  "builder_version": "2.0",
+  "taxonomy_version": "2026-09-07.1",
+  "built_at": "2026-10-10T10:44:07.637Z",
+  "platforms": {
+    "reelshort": {
+      "status": "ok",
+      "titles": 304,
+      "with_views": 304,
+      "detail_coverage": null
+    },
+    "dramabox": {
+      "status": "stale",
+      "from_run": "2026-09-08T08-08-30Z",
+      "error": "HTTP 403"
+    }
+  },
+  "validation": {
+    "ok": true,
+    "errors": []
+  }
+}
