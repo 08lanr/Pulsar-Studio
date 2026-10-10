@@ -53,7 +53,13 @@ async function main() {
 
   await withUserSupabase(createServiceSupabase(), async () => {
     if (arg("--monitor")) { await monitorLaunch(runId); await printRun(); return; }
-    const current = await data.getLaunchRun(session, runId);
+    let current = await data.getLaunchRun(session, runId);
+    // --retry: a failed run goes back to pending with its checkpoints (retryLaunchRun, the Launch page's Retry),
+    // so --execute adopts the objects Meta or TikTok already holds instead of creating them again (2026-10-09).
+    if (process.argv.includes("--retry") && current.status === "failed") {
+      current = await data.retryLaunchRun(session, runId);
+      console.log(`retry: "${current.draft.name}" status=${current.status}; failed campaigns are pending again, checkpoints kept`);
+    }
     if (current.status === "draft") {
       await data.previewLaunchRun(session, runId);
       const approved = await data.submitLaunchRun(session, runId, current.revision, note ?? "approved from the command line");
@@ -66,8 +72,12 @@ async function main() {
       const states = run.campaigns.map(c => c.status);
       console.log(`[${new Date().toISOString().slice(11, 19)}] run ${run.status}; campaigns ${states.join(",")}`);
       if (!states.some(s => ["pending", "running"].includes(s)) && run.status !== "running") break;
-      const waiting = run.campaigns.some(c => (c.state as Record<string, unknown>).waiting);
-      await sleep(waiting ? 30_000 : 5_000);
+      // A waiting campaign names its own delay (a Meta ad-account rate limit asks for five minutes, 2026-10-10);
+      // attempting sooner only spends more of the allowance that ran out.
+      const waits = run.campaigns.map(c => (c.state as { waiting?: { since?: string; retry_after_ms?: number; reason?: string } }).waiting).filter(Boolean) as { since?: string; retry_after_ms?: number; reason?: string }[];
+      const due = Math.max(0, ...waits.map(w => Date.parse(w.since ?? "") + (w.retry_after_ms ?? 60_000) - Date.now()));
+      if (waits.length) console.log(`  waiting ${Math.ceil(Math.max(due, 30_000) / 1000)}s: ${waits[0].reason?.slice(0, 120)}`);
+      await sleep(waits.length ? Math.max(due, 30_000) : 5_000);
     }
     await monitorLaunch(runId);
     await printRun();

@@ -411,6 +411,17 @@ test("a rate-limited provider makes the campaign wait and resume from its checkp
   const result = await executeLaunch(refused.id);
   assert.equal(result?.campaigns[0].status, "failed");
   assert.equal(monitorState(result!.campaigns[0]), "failed");
+  // Meta's per-ad-account Ads Management limit (80004, 2026-10-10: two live
+  // launches failed on it with every object already created) is a wait too,
+  // and a longer one: the window is a rolling hour.
+  const { run: limited } = await approved("meta", { count: 1 });
+  fakeMetaTransport.failNext("POST", "act_9000000000000001/campaigns", { code: 80004 });
+  const throttled = await executeLaunch(limited.id);
+  assert.equal(throttled?.campaigns[0].status, "pending");
+  assert.equal(monitorState(throttled!.campaigns[0]), "waiting");
+  assert.equal((throttled?.campaigns[0].state.waiting as WaitingState).retry_after_ms, 5 * 60_000);
+  const recovered = await executeLaunch(limited.id);
+  assert.equal(recovered?.status, "done");
   assert.equal(networkCalls, 0);
 });
 

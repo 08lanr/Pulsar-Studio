@@ -119,6 +119,27 @@ function includes(actual: unknown, expected: unknown): boolean {
   }
   return fingerprint(actual) === fingerprint(expected);
 }
+/**
+ * The creative read-back as real Meta answers it (first live creative,
+ * 2026-10-09, creative 1616582446792394 on the CrazyDramas Ads app): the
+ * stored `name` is the sent name with a date and hash appended
+ * ("… 2026-10-09-6c18…"), and a video creative's `video_data.image_url` comes
+ * back re-hosted under facebook.com/ads/image with an `image_hash` beside it.
+ * Neither changes content, identity or destination, so the name is matched as
+ * a prefix and the thumbnail URL is left out; page, Instagram identity, video
+ * id, title, message and the call to action with its link must still match
+ * exactly. The fake transport answers the same way (lib/meta/fake.ts).
+ */
+function creativeMatches(actual: MetaObject, expected: MetaObject): boolean {
+  const { name, ...rest } = expected;
+  if (name !== undefined && !String(actual.name ?? "").startsWith(String(name))) return false;
+  const spec = rest.object_story_spec as MetaObject | undefined;
+  const video = spec?.video_data as MetaObject | undefined;
+  const comparable = video && "image_url" in video
+    ? { ...rest, object_story_spec: { ...spec, video_data: Object.fromEntries(Object.entries(video).filter(([key]) => key !== "image_url")) } }
+    : rest;
+  return includes(actual, comparable);
+}
 function matchFields(edge: string, payload: MetaObject): MetaObject {
   // Names alone are insufficient: compare account, parent and content as appropriate.
   const fields = edge === "campaigns" ? ["name", "objective"]
@@ -408,7 +429,7 @@ async function hierarchy(ctx: DriverContext, transport: MetaTransport, current: 
       if (!intent) throw new Error("Meta creative has no frozen create intent.");
       const expected = matchFields("adcreatives", intent.payload);
       const creative = await transport.get(id, { fields: ["id", ...Object.keys(expected)].join(",") });
-      if (!includes(creative, expected)) throw new Error("Meta creative read-back differs from the approved content, identity or destination.");
+      if (!creativeMatches(creative, expected)) throw new Error("Meta creative read-back differs from the approved content, identity or destination.");
     }
   }
   return { campaign, groups, ads };

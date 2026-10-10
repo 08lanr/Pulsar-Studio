@@ -10,6 +10,11 @@
 //              "gender": "GENDER_FEMALE", "operating_systems": ["IOS"], "profile_posts": false (optional),
 //              "comments_disabled": true, "producer_id": "<uuid>", "account_id": "tiktok:<producer>:<advertiser>",
 //              "shape": "app_install" (optional, 2026-10-09: the App install shape; default is the Website purchases default) }
+//
+// Meta (2026-10-09, the CrazyDramas Ads app): "provider": "meta", "account_id": "<launch_connections uuid>",
+//   "destination_url": "<the title's Meta link, …?source=meta>", "title_id": "<uuid>", "start_paused": true,
+//   "meta": { "placements": ["facebook","instagram"], "call_to_action": "WATCH_MORE", ... } (merged over defaultLaunchDraft("meta")).
+//   Clips become video ads; the preview runs metaDraftIssues like the page. Same approve script afterwards.
 import fs from "node:fs";
 import path from "node:path";
 
@@ -28,7 +33,7 @@ async function main() {
   loadEnvLocal();
   const { getData } = await import("@/lib/data");
   const { systemSession } = await import("@/lib/auth");
-  const { tiktokAdText } = await import("@/lib/launch/plan");
+  const { tiktokAdText, defaultLaunchDraft } = await import("@/lib/launch/plan");
   const { defaultAppInstallSettings, defaultTikTokLaunchSettings } = await import("@/lib/tiktok/settings");
   const { withUserSupabase, createServiceSupabase } = await import("@/lib/supabase/server");
   const data = getData(); const session = systemSession();
@@ -58,7 +63,13 @@ async function main() {
     ...(spec.operating_systems ? { operating_systems: spec.operating_systems } : {}),
     ...(typeof spec.profile_posts === "boolean" ? { profile_posts: spec.profile_posts } : {}) };
   const start = new Date(); const end = new Date(start.getTime() + (spec.duration_days ?? 4) * 86400e3);
-  const draft = {
+  const meta = spec.provider === "meta";
+  const draft = meta ? {
+    ...defaultLaunchDraft("meta"), name: spec.name, account_ids: [accountId], campaigns_per_account: 1, content_per_campaign: content.length,
+    allocation: "unique" as const, content, destination_url: String(spec.destination_url ?? ""), total_budget_cents: Math.round(spec.total_budget_usd * 100),
+    daily_budget_cents: null, start_paused: spec.start_paused ?? true, title_id: spec.title_id ?? null,
+    meta_settings: { ...defaultLaunchDraft("meta").meta_settings, ...(spec.meta ?? {}), start_time: start.toISOString(), end_time: end.toISOString() },
+  } : {
     provider: "tiktok" as const, name: spec.name, account_ids: [accountId], campaigns_per_account: 1, content_per_campaign: content.length,
     allocation: "unique" as const, content, destination_url: "", total_budget_cents: Math.round(spec.total_budget_usd * 100), daily_budget_cents: null,
     start_paused: false, tiktok_settings: settings,

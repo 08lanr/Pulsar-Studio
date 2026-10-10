@@ -39,6 +39,13 @@ export function nextWaiting(prior: Partial<WaitingState> | undefined, reason: st
 // same set lib/meta/publish.ts waits on); TikTok's transport folds a timeout,
 // an unreachable host, an unreadable body and a throttle into these sentences.
 const META_TRANSIENT_CODES = new Set([1, 2, 4, 17, 32, 613]);
+// Meta's per-ad-account Ads Management limit (code 80004, "too many calls to
+// this ad-account"): a rolling hour, and an app on the Limited access tier has
+// a small allowance. Three launches created and polled at once hit it on
+// 2026-10-10 and two of them read `failed` with every object already on the
+// account. It is a wait, not a refusal, and a longer one than the others.
+const META_ADS_RATE_LIMIT_CODE = 80004;
+const META_ADS_RATE_LIMIT_RETRY_MS = 5 * 60_000;
 const TIKTOK_TRANSIENT = /did not respond in time|could not reach tiktok|unreadable response|qps limit|too many request|rate limit/i;
 const PROVIDER_RETRY_MS = 60_000;
 
@@ -47,6 +54,7 @@ export function providerRetryDelay(error: unknown): number | null {
   if (!(error instanceof Error)) return null;
   if (error.name === "MetaApiError") {
     const meta = error as Error & { code?: number; ambiguous?: boolean };
+    if (meta.code === META_ADS_RATE_LIMIT_CODE) return META_ADS_RATE_LIMIT_RETRY_MS;
     if (meta.ambiguous || (meta.code !== undefined && META_TRANSIENT_CODES.has(meta.code)) || /HTTP 5\d\d/.test(error.message)) return PROVIDER_RETRY_MS;
     return null;
   }

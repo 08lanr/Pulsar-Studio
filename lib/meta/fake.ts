@@ -176,6 +176,18 @@ export class FakeMetaTransport implements MetaTransport {
     const id = String(880000000000000n + BigInt(++this.sequence));
     const row: FakeRow = { ...structuredClone(params), id, account_id: account.replace(/^act_/, ""), edge };
     if (edge === "ads") row.creative = { id: (params.creative as MetaObject).creative_id };
+    if (edge === "adcreatives") {
+      // As real Meta stores a creative (2026-10-09, creative 1616582446792394): the name gains a
+      // date and hash, and a video thumbnail is re-hosted with an image_hash beside it. The driver's
+      // read-back must accept both; a fake that echoed the payload hid that until the first live launch.
+      row.name = `${String(params.name ?? "")} 2026-10-09-${id.slice(-12).padStart(32, "0")}`;
+      const spec = row.object_story_spec as MetaObject | undefined;
+      const video = spec?.video_data as MetaObject | undefined;
+      if (video && typeof video.image_url === "string") {
+        video.image_url = `https://www.facebook.com/ads/image/?d=fake-${id}`;
+        video.image_hash = id.slice(-16).padStart(32, "0");
+      }
+    }
     if (params.status) row.effective_status = params.status;
     if (edge === "advideos") {
       row.status = { video_status: this.videoStatus };
