@@ -690,6 +690,13 @@ export const fakeTransport: TikTokTransport = {
         const creatives = Array.isArray(body.creatives) ? (body.creatives as Array<Record<string, unknown>>) : [];
         if (!creatives.length) return refuse("creatives is empty");
         for (const c of creatives) {
+          // Deferred deep links (/ad/create/ v1.3): app promotion only, and only for allowlisted accounts
+          // (TIKTOK_FAKE_DEEPLINK=refused plays an account that is not).
+          if (c.deeplink_type === "DEFERRED_DEEPLINK") {
+            if (!/^APP_/.test(String(adgroup.body.promotion_type ?? ""))) return refuse("deeplink_type DEFERRED_DEEPLINK is only supported for app promotion");
+            if (process.env.TIKTOK_FAKE_DEEPLINK === "refused") return refuse("Deferred deeplink is an allowlist-only feature. Please contact your TikTok representative.");
+            if (!c.deeplink) return refuse("deeplink is required when deeplink_type is DEFERRED_DEEPLINK");
+          }
           if (c.identity_type === "AUTH_CODE") {
             const post = [...s.sparks.values()].find((p) => p.advertiserId === String(body.advertiser_id) && p.itemId === c.tiktok_item_id && p.identityId === c.identity_id);
             const sparkAppGroup = /^APP_/.test(String(adgroup.body.promotion_type ?? ""));

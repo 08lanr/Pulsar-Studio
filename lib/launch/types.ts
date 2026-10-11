@@ -31,6 +31,12 @@ export type LaunchContent = {
    * campaign's link applies.
    */
   landing_url?: string;
+  /**
+   * TikTok App install ads: the deep link to this ad's series in the app, `crazydramasAppLink(slug)` of its title
+   * (decision 2026-10-10). Written by the server on save, never taken from the client, signed with the draft, and
+   * sent as the ad's `deeplink` when the launch has `app_deeplink` on. Absent when the title has no live series.
+   */
+  app_link?: string;
   // Populated by the server from company-owned finished creatives, never trusted from JSON input.
   file_path?: string; sha256?: string; thumbnail_path?: string; text?: string; headline?: string;
 };

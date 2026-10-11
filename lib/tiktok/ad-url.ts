@@ -82,6 +82,19 @@ export function crazydramasAdUrlFor(slug: string, provider: "tiktok" | "meta"): 
   return `${CRAZYDRAMAS_WATCH_BASE}${slug.trim()}?${CRAZYDRAMAS_AD_QUERY[provider]}`;
 }
 
+/**
+ * The deep link a TikTok App install ad carries for its title (decision 2026-10-10, "App install ads open the app on
+ * the ad's series"): the series' crazydramas App Link. An installed app opens its player on it at once (Android
+ * verifies crazydramas.com/watch for the app); after an install TikTok hands it to AppsFlyer, which hands it to the
+ * app on the first launch (crazydramas docs/WEB_TO_APP.md, `deferredTarget`). No ad macros: TikTok fills none in a
+ * deep link.
+ */
+export function crazydramasAppLink(slug: string): string {
+  const problem = crazydramasSlugProblem(slug);
+  if (problem) throw new Error(`"${slug}" cannot carry an app link (${problem}).`);
+  return `${CRAZYDRAMAS_WATCH_BASE}${slug.trim()}?source=tiktok`;
+}
+
 /** The slug of a link built by crazydramasAdUrl, or null for any other string (a query that differs by one byte included). */
 export function slugOfCrazydramasAdUrl(url: string | null | undefined): string | null {
   return crazydramasAdUrlParts(url)?.slug ?? null;
