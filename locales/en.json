@@ -5303,7 +5303,7 @@
   "cdw.notCompleted": "Payment not completed",
   "cdw.notCompletedInfo": "Times a viewer came back from Stripe's page without paying and saw the “Payment not completed” pop-up.",
   "cdw.table": "Where people pay",
-  "cdw.tableInfo": "Shown: sheet views and pop-ups shown. Checkouts: Stripe's page opened from it. Paid: payments made from it (older payments without a screen count as the sheet's; VIP renewals left out). The store page has no view count.",
+  "cdw.tableInfo": "Shown: sheet views and pop-ups shown. Checkouts: Stripe's page opened from it. Paid: payments made from it (older payments without a screen count as the sheet's; VIP renewals left out). The store page, the free trial pop-up and Keep/Rejoin VIP have no view count. Checkouts from a screen not listed here are in no row.",
   "cdw.pl.sheet": "Unlock sheet",
   "cdw.pl.gift": "“Exclusive Gift” pop-up",
   "cdw.pl.retention": "“Don't stop here” pop-up",
@@ -5549,5 +5549,7 @@
   "lpg.step.app": "App resolved on the ad account",
   "cdc.goal.installs": "app installs",
   "cdc.goalShort.installs": "optimizes app installs",
-  "lpx.appLine": "App install: the ads open {package} on {store}; TikTok app ID {ids}. Optimized for installs reported by AppsFlyer."
+  "lpx.appLine": "App install: the ads open {package} on {store}; TikTok app ID {ids}. Optimized for installs reported by AppsFlyer.",
+  "cdw.pl.trial": "Free trial pop-up",
+  "cdw.pl.vip_back": "Keep/Rejoin VIP"
 }

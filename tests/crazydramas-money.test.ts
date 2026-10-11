@@ -195,7 +195,7 @@ test("paywall: sheet views, unlocks and checkouts by screen; paid and cash per s
   });
   const pw = paywallIn(r, { from: "2026-09-27", to: "2026-09-28" });
   assert.deepEqual([pw.views, pw.viewer_days, pw.unlocks, pw.gift_shown, pw.retention_shown, pw.not_completed], [16, 13, 6, 6, 5, 1]);
-  assert.deepEqual(pw.checkouts, { sheet: 3, gift: 1, retention: 1, store: 1, other: 2 });
+  assert.deepEqual(pw.checkouts, { sheet: 3, gift: 1, retention: 1, store: 1, trial: 0, vip_back: 0, other: 2 });
   const list = [
     pay({ person: "a", kind: "coins", cents: 499, placement: "sheet", product: "coins:c500first" }),
     pay({ person: "b", kind: "coins", cents: 499, placement: null }),
@@ -204,15 +204,37 @@ test("paywall: sheet views, unlocks and checkouts by screen; paid and cash per s
     pay({ person: "e", kind: "vip_renewal", cents: 699, placement: null }),
   ];
   const rows = placementRows(pw, list);
+  // "other" (a checkout from a screen the report does not know) counts in no row, never the sheet's.
   assert.deepEqual(rows.map((x) => [x.placement, x.shown, x.checkouts, x.paid, x.cents]), [
-    ["sheet", 16, 5, 2, 998],
+    ["sheet", 16, 3, 2, 998],
     ["gift", 6, 1, 0, 0],
     ["retention", 5, 1, 1, 199],
     ["store", null, 1, 0, 0],
+    ["trial", null, 0, 0, 0],
+    ["vip_back", null, 0, 0, 0],
   ]);
   assert.deepEqual(firstOffersTaken(list), { first_week: 1, first_pack: 1 });
   // A renewal carries the subscription's `offer: first_week`: it is not another $1.99 week taken.
   assert.deepEqual(firstOffersTaken([...list, pay({ person: "c", kind: "vip_renewal", cents: 699, offer: "first_week" })]), { first_week: 1, first_pack: 1 });
+});
+
+// Review 2026-10-11: crazydramas sells from the free trial's pop-up ("trial") and Keep / Rejoin VIP ("vip_back") too.
+// Their checkouts were counted as the unlock sheet's, and what they sold appeared in no row.
+test("paywall: the free trial pop-up and Keep / Rejoin VIP have rows of their own", () => {
+  const r = report({
+    paywall_days: [{ day: "2026-09-28", views: 4, viewers: 4, unlocks: 0, unlockers: 0, checkouts: { sheet: 1, trial: 3, vip_back: 2 }, gift_shown: 0, retention_shown: 0, not_completed: 0 }],
+  });
+  const pw = paywallIn(r, { from: "2026-09-28", to: "2026-09-28" });
+  assert.deepEqual(pw.checkouts, { sheet: 1, gift: 0, retention: 0, store: 0, trial: 3, vip_back: 2, other: 0 });
+  const rows = placementRows(pw, [
+    pay({ person: "a", kind: "vip_intro", cents: 0, placement: "trial", offer: "trial" }),
+    pay({ person: "b", kind: "vip", cents: 399, placement: "vip_back" }),
+    pay({ person: "c", kind: "series", cents: 399, placement: "sheet" }),
+  ]);
+  const by = Object.fromEntries(rows.map((x) => [x.placement, [x.shown, x.checkouts, x.paid, x.cents]]));
+  assert.deepEqual(by.sheet, [4, 1, 1, 399]);
+  assert.deepEqual(by.trial, [null, 3, 1, 0]);
+  assert.deepEqual(by.vip_back, [null, 2, 1, 399]);
 });
 
 test("VIP: active by plan, monthly value without the $1.99 weeks, ended; new, renewals and first week → renewal", () => {

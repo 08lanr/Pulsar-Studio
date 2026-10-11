@@ -137,8 +137,11 @@ export function productMix(list: readonly CdStatsPayment[]): { product: string; 
 
 // ---- the paywall ---------------------------------------------------------------------------------------------
 
-/** Where a checkout was opened: the unlock sheet, the "Exclusive Gift" and "Don't stop here" pop-ups, the store page. */
-export const PLACEMENTS = ["sheet", "gift", "retention", "store"] as const;
+/**
+ * Where a checkout was opened: the unlock sheet, the "Exclusive Gift" and "Don't stop here" pop-ups, the store page,
+ * the free trial's pop-up and the Keep / Rejoin VIP prompt (crazydramas lib/checkout-form.ts Placement).
+ */
+export const PLACEMENTS = ["sheet", "gift", "retention", "store", "trial", "vip_back"] as const;
 export type Placement = (typeof PLACEMENTS)[number];
 
 export type PaywallTotals = {
@@ -155,7 +158,7 @@ export type PaywallTotals = {
 };
 
 export function paywallIn(report: Pick<CdStatsReport, "paywall_days">, span: Span): PaywallTotals {
-  const t: PaywallTotals = { views: 0, unlocks: 0, viewer_days: 0, unlocker_days: 0, gift_shown: 0, retention_shown: 0, not_completed: 0, checkouts: { sheet: 0, gift: 0, retention: 0, store: 0, other: 0 } };
+  const t: PaywallTotals = { views: 0, unlocks: 0, viewer_days: 0, unlocker_days: 0, gift_shown: 0, retention_shown: 0, not_completed: 0, checkouts: { sheet: 0, gift: 0, retention: 0, store: 0, trial: 0, vip_back: 0, other: 0 } };
   for (const d of report.paywall_days ?? []) {
     if (d.day < span.from || d.day > span.to) continue;
     t.views += d.views;
@@ -174,17 +177,17 @@ export function paywallIn(report: Pick<CdStatsReport, "paywall_days">, span: Spa
 }
 
 /**
- * One row per screen that sells: how often it was shown (the store page has no count), the checkouts it opened,
- * what was paid from it and how much. Payments from before the screen was recorded (no placement) count as the
- * sheet's.
+ * One row per screen that sells: how often it was shown (the store page, the trial pop-up and Keep / Rejoin VIP have
+ * no count in the report), the checkouts it opened, what was paid from it and how much. Payments from before the
+ * screen was recorded (no placement) count as the sheet's; checkouts from an unknown screen ("other") count in no row.
  */
 export type PlacementRow = { placement: Placement; shown: number | null; checkouts: number; paid: number; cents: number };
 export function placementRows(pw: PaywallTotals, list: readonly CdStatsPayment[]): PlacementRow[] {
   const paid = (pl: Placement) => list.filter((p) => !p.refunded && p.kind !== "vip_renewal" && (p.placement === pl || (pl === "sheet" && !p.placement)));
-  const shown: Record<Placement, number | null> = { sheet: pw.views, gift: pw.gift_shown, retention: pw.retention_shown, store: null };
+  const shown: Record<Placement, number | null> = { sheet: pw.views, gift: pw.gift_shown, retention: pw.retention_shown, store: null, trial: null, vip_back: null };
   return PLACEMENTS.map((pl) => {
     const ps = paid(pl);
-    return { placement: pl, shown: shown[pl], checkouts: pw.checkouts[pl] + (pl === "sheet" ? pw.checkouts.other : 0), paid: ps.length, cents: ps.reduce((a, p) => a + p.cents, 0) };
+    return { placement: pl, shown: shown[pl], checkouts: pw.checkouts[pl], paid: ps.length, cents: ps.reduce((a, p) => a + p.cents, 0) };
   });
 }
 
