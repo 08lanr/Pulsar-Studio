@@ -112,13 +112,13 @@ test("adGroupBody: the Sales Instant Page stays TIKTOK_NATIVE_PAGE with the BUTT
   assert.equal(body.conversion_bid_price, 0.2);
 });
 
-test("the Website purchases default is the Sep 26 launch on the Purchase event (2026-10-09): every purchase, $50 lifetime, 18+, every device", () => {
+test("the Website purchases default is the Sep 26 launch on the Purchase event (2026-10-09): every purchase, $50 lifetime, 25+ (2026-10-11), every device", () => {
   const d = defaultWebsitePurchaseSettings();
   assert.equal(d.optimization_event, "SHOPPING");
   assert.deepEqual(d.attribution, { click: "SEVEN_DAYS", view: "ONE_DAY", event_count: "EVERY" });
   assert.equal(d.budget_mode, "BUDGET_MODE_TOTAL");
   assert.equal(d.daily_budget_usd, null);
-  assert.deepEqual(d.age_groups, ["AGE_18_24", "AGE_25_34", "AGE_35_44", "AGE_45_54", "AGE_55_100"]);
+  assert.deepEqual(d.age_groups, ["AGE_25_34", "AGE_35_44", "AGE_45_54", "AGE_55_100"]);
   assert.deepEqual(d.operating_systems, []);
   assert.equal(d.placement, "tiktok");
   assert.equal(d.bid_strategy, "LOWEST_COST");
@@ -130,10 +130,10 @@ test("the Website purchases default is the Sep 26 launch on the Purchase event (
   assert.equal(body.optimization_event, "SHOPPING");
   assert.equal(body.attribution_event_count, "EVERY");
   assert.equal(body.budget_mode, "BUDGET_MODE_TOTAL");
-  assert.deepEqual(body.age_groups, ["AGE_18_24", "AGE_25_34", "AGE_35_44", "AGE_45_54", "AGE_55_100"]);
+  assert.deepEqual(body.age_groups, ["AGE_25_34", "AGE_35_44", "AGE_45_54", "AGE_55_100"]);
   assert.equal(body.operating_systems, undefined, "every device: no operating_systems sent");
   const line = summarizeLaunchSettings(d);
-  assert.ok(line.includes("18+") && line.includes("all devices") && line.includes("optimizes for Purchase (pixel)") && line.includes("lifetime budget"), line.join(" · "));
+  assert.ok(line.includes("25+") && line.includes("all devices") && line.includes("optimizes for Purchase (pixel)") && line.includes("lifetime budget"), line.join(" · "));
   assert.ok(summarizeLaunchSettings({ ...d, operating_systems: ["IOS"] }).includes("iPhone only"), "a device restriction is always shown");
 });
 
@@ -178,7 +178,7 @@ test("a new TikTok draft is Website purchases on Purchase, $50 lifetime, with no
   assert.deepEqual(draft.tiktok_settings, { ...defaultTikTokLaunchSettings(), start_paused: false }, "live, comments on, 18+ (2026-09-29)");
   assert.equal(draft.start_paused, false);
   assert.equal(draft.tiktok_settings.comments_disabled, false);
-  assert.ok(!draft.tiktok_settings.age_groups.includes("AGE_13_17"), "18+: crazydramas' Terms require 18");
+  assert.ok(!draft.tiktok_settings.age_groups.includes("AGE_13_17") && !draft.tiktok_settings.age_groups.includes("AGE_18_24"), "25+ (2026-10-11); crazydramas' Terms require 18 in any case");
   assert.equal(draft.total_budget_cents, 5000);
   assert.equal(draft.daily_budget_cents, null);
   assert.equal(draft.title_id, null);
