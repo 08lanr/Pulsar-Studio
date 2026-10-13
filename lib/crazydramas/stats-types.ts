@@ -349,6 +349,41 @@ export const CdStatsPaywallDaySchema = z.object({
   arms: z.record(z.enum(PAYWALL_ARMS), z.object({ views: later, viewers: later, checkouts: later, starters: later })).optional().catch(undefined),
 });
 
+/** The routes the Routes tab compares (decision 2026-10-12, "Acquisition routes A/B/C"): A Google Play, B landing page, C web player. */
+export const ROUTE_KEYS = ["store", "lander", "web"] as const;
+
+/**
+ * One route's viewers on one day for one TikTok campaign (crazydramas since 2026-10-12, docs/STUDIO_API.md "routes"). `day`
+ * is the viewer's first touch with the route, a day of the report's own time zone like every other day row. A store row's
+ * campaign comes from AppsFlyer, a lander or web row's from the ad link's macro; null when neither named one.
+ */
+export const CdStatsRouteSchema = z.object({
+  day,
+  route: z.enum(ROUTE_KEYS),
+  campaign_id: z.string().max(64).nullable().default(null),
+  /** Opened the landing page (B) or the player from a route=web ad (C); 0 for A. */
+  landed: later,
+  /** Tapped through to Google Play (crazydramas' /go). */
+  store_taps: later,
+  /** App installs credited to the route (the app's first launch). */
+  installs: later,
+  /** Of installs, the first launch opened the advertised series. */
+  opened_episode: later,
+  /** Started a VIP free trial, on the web or in the app store. */
+  trials: later,
+  /** Paid (web or store), trial conversions included. */
+  paid: later,
+  /** Started episodes on two or more different days. */
+  repeat_viewers: later,
+  /** Gross paid, cents. */
+  revenue_cents: later,
+});
+/** Rows read one by one: a row crazydramas adds a route to later (or any malformed row) is left out, never the whole report. */
+const routeRows = z.array(z.unknown()).transform((rows) => rows.flatMap((r) => {
+  const parsed = CdStatsRouteSchema.safeParse(r);
+  return parsed.success ? [parsed.data] : [];
+}));
+
 export const CdStatsReportSchema = z.object({
   version: z.literal(1),
   generated_at: z.string(),
@@ -388,6 +423,8 @@ export const CdStatsReportSchema = z.object({
   coins: CdStatsCoinsSchema.optional(),
   vip: z.array(CdStatsVipSchema).optional(),
   paywall_days: z.array(CdStatsPaywallDaySchema).optional(),
+  /** The acquisition routes (crazydramas since 2026-10-12). Absent (not empty) in an older report: the Routes tab says so. */
+  routes: routeRows.optional(),
 });
 
 export type CdStatsDay = z.infer<typeof CdStatsDaySchema>;
@@ -406,3 +443,5 @@ export type CdStatsCoins = z.infer<typeof CdStatsCoinsSchema>;
 export type CdStatsVip = z.infer<typeof CdStatsVipSchema>;
 export type CdStatsPaywallDay = z.infer<typeof CdStatsPaywallDaySchema>;
 export type PaymentKind = (typeof PAYMENT_KINDS)[number];
+export type CdStatsRoute = z.infer<typeof CdStatsRouteSchema>;
+export type RouteKey = (typeof ROUTE_KEYS)[number];
