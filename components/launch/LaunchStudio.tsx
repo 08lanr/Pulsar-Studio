@@ -14,7 +14,7 @@ import LaunchConfirmDialog from "@/components/launch/LaunchConfirmDialog";
 import ContentPicker from "@/components/launch/ContentPicker";
 import AdCard, { type AdCardProps } from "@/components/launch/AdCard";
 import { launchShape, summarizeLaunchSettings } from "@/lib/tiktok/settings";
-import { crazydramasRouteAdUrl } from "@/lib/tiktok/ad-url";
+import { crazydramasAppLink, crazydramasRouteAdUrl } from "@/lib/tiktok/ad-url";
 import { metaDestination, startingDraft } from "@/lib/launch/draft-defaults";
 import { adLandingUrl, campidForRun, campidSeries, defaultLaunchDraft, deriveAdSets, metaDraftIssues, metaObjectiveSettings, TIKTOK_AD_TEXT_MAX, tiktokAdText, trackingUrlForCampaign } from "@/lib/launch/plan";
 import { DEFAULT_META_CONVERSION_EVENT, META_CONVERSION_EVENTS, type MetaConversionEvent } from "@/lib/meta/events";
@@ -271,9 +271,13 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
   const chosenTitle = titles.find((t) => t.id === draft.title_id) ?? null;
   // The launch's title is every ad's default: ads that follow it move with it,
   // and an ad set to another title, or made from a clip, keeps its own.
-  // A TikTok title's link on the launch's acquisition route (decision 2026-10-12), as the server writes it on save.
+  // A TikTok title's link on the launch's acquisition route (decision 2026-10-12), as the server writes it on save. An
+  // App install ad has no website link: it shows the app link it carries (route A's says route=store), or nothing.
   const routedLink = (t: { slug: string | null; ad_url: string | null } | null | undefined, d: Pick<LaunchDraft, "provider" | "tiktok_settings"> = draft): string | null => {
     const route = d.tiktok_settings.acquisition_route;
+    if (d.provider === "tiktok" && launchShape(d.tiktok_settings) === "app_install") {
+      try { return t?.ad_url && t.slug ? crazydramasAppLink(t.slug, route) : null; } catch { return null; }
+    }
     if (!t?.ad_url || !t.slug || d.provider !== "tiktok" || !route || route === "none" || route === "store") return t?.ad_url ?? null;
     try { return crazydramasRouteAdUrl(t.slug, route); } catch { return t.ad_url; }
   };
@@ -281,7 +285,7 @@ export default function LaunchStudio({ staff = false, runId }: Props) {
     const t = titles.find((x) => x.id === id);
     // Per platform: TikTok's link carries its macros, Meta's carries
     // source=meta. The wrong one writes a false row into crazydramas.
-    setDraft((d) => ({ ...d, title_id: t?.id ?? null, destination_url: (d.provider === "tiktok" ? routedLink(t, d) : t?.ad_urls?.[d.provider] ?? null) ?? "",
+    setDraft((d) => ({ ...d, title_id: t?.id ?? null, destination_url: (d.provider !== "tiktok" ? t?.ad_urls?.[d.provider] ?? null : launchShape(d.tiktok_settings) === "app_install" ? t?.ad_url ?? null : routedLink(t, d)) ?? "",
       content: d.provider !== "tiktok" ? d.content : d.content.map((x) => !titleOnRow(x) || x.clip_id || (x.title_id && x.title_id !== d.title_id) ? x : withTitle(x, t?.id)) }));
     setPlan(null);
   };

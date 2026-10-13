@@ -423,8 +423,8 @@ export const CdStatsReportSchema = z.object({
   coins: CdStatsCoinsSchema.optional(),
   vip: z.array(CdStatsVipSchema).optional(),
   paywall_days: z.array(CdStatsPaywallDaySchema).optional(),
-  /** The acquisition routes (crazydramas since 2026-10-12). Absent (not empty) in an older report: the Routes tab says so. */
-  routes: routeRows.optional(),
+  /** The acquisition routes (crazydramas since 2026-10-12). Absent (not empty) in an older report: the Routes tab says so. Null or not a list reads as absent, never a failed report. */
+  routes: routeRows.nullish().catch(undefined),
 });
 
 export type CdStatsDay = z.infer<typeof CdStatsDaySchema>;

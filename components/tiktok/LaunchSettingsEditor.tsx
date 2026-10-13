@@ -9,7 +9,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useT } from "@/components/locale";
 import { AGE_OPTIONS, BID_STRATEGY_OPTIONS, BUDGET_MODE_OPTIONS, COMMON_LANGUAGES, CTA_OPTIONS, GENDER_OPTIONS, GOAL_OPTIONS, MAX_DURATION_DAYS, MAX_DUPLICATE_COPIES, MIN_ADGROUP_BUDGET_USD, OS_OPTIONS, PACING_OPTIONS, PLACEMENT_OPTIONS, SALE_EVENTS, WEB_EVENT_OPTIONS, defaultEventCount, goalOption } from "@/lib/tiktok/options";
-import { attributionOf, defaultAppInstallSettings, defaultSalesLaunchSettings, defaultWebsitePurchaseSettings, landerOptimization, launchShape, optimizesPurchases, planAdGroup, routeShapeProblem, withAcquisitionRoute, type LaunchSettings } from "@/lib/tiktok/settings";
+import { attributionOf, defaultAppInstallSettings, defaultSalesLaunchSettings, defaultWebsitePurchaseSettings, landerOptimization, launchShape, optimizesPurchases, planAdGroup, routeShapeProblem, withAcquisitionRoute, withoutDownloadEvent, type LaunchSettings } from "@/lib/tiktok/settings";
 import { ACQUISITION_ROUTES } from "@/lib/tiktok/ad-url";
 import InstantPageTemplatePicker from "@/components/launch/InstantPageTemplatePicker";
 import { call } from "./api";
@@ -60,7 +60,7 @@ export default function LaunchSettingsEditor({ value, onChange, budgetUsd, regio
   const route = value.acquisition_route ?? "none";
   const reshape = (next: LaunchSettings) => {
     const kept = route !== "none" ? { ...next, acquisition_route: route } : next;
-    onChange(routeShapeProblem(kept) ? next : kept);
+    onChange(routeShapeProblem(kept) ? withoutDownloadEvent(next) : kept);
   };
   const routeProblem = routeShapeProblem(value);
 

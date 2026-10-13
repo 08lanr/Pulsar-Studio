@@ -10,6 +10,7 @@ import { getData } from "@/lib/data";
 import { resetFixtureStore } from "@/lib/data/fixture";
 import { launchHash, resetLaunchFixture } from "@/lib/data/launch";
 import { defaultLaunchDraft, metaDraftIssues } from "@/lib/launch/plan";
+import { metaDestination } from "@/lib/launch/draft-defaults";
 import type { DriverContext, LaunchCampaign, LaunchConnection, LaunchDraft, LaunchRun } from "@/lib/launch/types";
 import {
   CRAZYDRAMAS_TRY_BASE, TIKTOK_AD_QUERY, TIKTOK_NAME_MAX,
@@ -18,11 +19,11 @@ import {
 import { FAKE_PIXEL_ID, fakeTikTokSnapshot, fakeTransport, resetFakeTikTok } from "@/lib/tiktok/fake";
 import {
   adGroupBody, defaultAppInstallSettings, defaultSalesLaunchSettings, defaultTikTokLaunchSettings, defaultWebsitePurchaseSettings, landerOptimization, launchShape,
-  LaunchSettingsError, normalizeLaunchSettings, planAdGroup, purchaseGoal, routeShapeProblem, summarizeLaunchSettings, validateLaunchSettings, withAcquisitionRoute, type LaunchSettings,
+  LaunchSettingsError, normalizeLaunchSettings, planAdGroup, purchaseGoal, presetSettings, routeShapeProblem, summarizeLaunchSettings, validateLaunchSettings, withAcquisitionRoute, withoutDownloadEvent, type LaunchSettings,
 } from "@/lib/tiktok/settings";
 import { appInstallNameTag, tiktokSparkDriver } from "@/lib/tiktok/spark-driver";
 import { CdStatsReportSchema, type CdStatsRoute } from "@/lib/crazydramas/stats-types";
-import { campaignRoutes, hasRoutes, routeColumns, routeDaily, routeOfRun, routesIn, routeTotals } from "@/lib/crazydramas/stats-routes";
+import { campaignRoutes, hasRoutes, routeColumns, routeDaily, routeOfRun, routesIn, routeSpanAll, routeTotals } from "@/lib/crazydramas/stats-routes";
 import type { AdPeriod, AdSpend } from "@/lib/crazydramas/stats-summary";
 import { fakeRouteLaunches, fakeRoutes, FAKE_ROUTE_CAMPAIGNS } from "@/lib/crazydramas/fake-stats";
 import { launchTitle, LIVE_SLUG } from "./launch-title";
@@ -295,41 +296,61 @@ const spend = (ad_id: string, campaign_id: string, spend_cents: number | null, p
 const run = (campaignId: string, route: string | undefined, provider: "tiktok" | "meta" = "tiktok") =>
   ({ draft: { provider, tiktok_settings: route ? { acquisition_route: route } : {} }, campaigns: [{ state: { campaign_id: campaignId } }] }) as unknown as LaunchRun;
 
-test("a campaign's route: the report's rows first, then the Studio launch's acquisition_route; Meta and none are no route", () => {
-  const routes = campaignRoutes([r("2026-10-11", "web", "C1", { landed: 9 }), r("2026-10-11", "lander", "C1", { landed: 1 })], [run("C1", "lander"), run("C2", "store"), run("C3", undefined), run("C4", "web", "meta")]);
-  assert.equal(routes.get("C1"), "web", "the report's rows win, and the route with more activity");
+test("a campaign's route: a Studio launch decides for its own campaigns (none = in no route); only unknown campaigns take the report's route", () => {
+  const rows = [r("2026-10-11", "web", "C1", { landed: 9 }), r("2026-10-11", "store", "LIVE", { installs: 30 }), r("2026-10-11", "lander", "U1", { landed: 1 }), r("2026-10-11", "web", "U1", { landed: 5 })];
+  const routes = campaignRoutes(rows, [run("C1", "lander"), run("C2", "store"), run("LIVE", undefined), run("C4", "web", "meta")]);
+  assert.equal(routes.get("C1"), "lander", "the launch's route wins over the report's");
   assert.equal(routes.get("C2"), "store", "no rows yet: the launch's route");
-  assert.equal(routes.has("C3"), false);
+  assert.equal(routes.get("LIVE"), null, "an App install launch on no route (1878639243715761) is in none of A/B/C, whatever crazydramas calls it");
+  assert.equal(routes.get("U1"), "web", "a campaign Studio does not know: the report's route with more activity");
   assert.equal(routes.has("C4"), false, "a Meta run is never on a route");
   assert.equal(routeOfRun(run("x", "none")), null);
+  // The excluded campaign's installs are counted nowhere; C1's rows count under its launch's route.
+  const [a, b, c] = routeColumns(rows, [spend("live1", "LIVE", 50000)], routes);
+  assert.deepEqual([a.installs, a.spend_cents, b.landed, c.landed], [0, null, 9, 6], "U1's stray lander row counts under its campaign's route");
+  assert.deepEqual(routeDaily(rows, { from: "2026-10-11", to: "2026-10-11" }, "installs", routes), [0], "the daily line leaves it out too");
 });
 
-test("routeColumns: A, B, C always; counts summed; spend, impressions and clicks per route's campaigns; costs from known spend only", () => {
+test("routeColumns: counts summed; spend per route's campaigns; costs divide known spend by only the people of costed campaigns", () => {
   const rows = [
     r("2026-10-10", "store", "A1", { installs: 40, opened_episode: 10, trials: 4, paid: 2, repeat_viewers: 12, revenue_cents: 798 }),
-    r("2026-10-11", "store", null, { installs: 10 }),
+    r("2026-10-11", "store", null, { installs: 10, trials: 1 }),
+    r("2026-10-11", "store", "ONELINK", { installs: 6 }),
     r("2026-10-10", "lander", "B1", { landed: 300, store_taps: 100, installs: 25, opened_episode: 20, trials: 0, paid: 0 }),
   ];
   const spends = [spend("a1", "A1", 10000), spend("b1", "B1", 6000), spend("b2", "B1", 4000), spend("m1", "B1", 99999, "meta"), spend("x1", "X9", 5000)];
   const routeOf = campaignRoutes(rows, []);
   const [a, b, c] = routeColumns(rows, spends, routeOf);
   assert.deepEqual([a.route, b.route, c.route], ["store", "lander", "web"]);
-  assert.deepEqual([a.installs, a.trials, a.paid, a.revenue_cents, a.spend_cents, a.campaigns], [50, 4, 2, 798, 10000, ["A1"]]);
-  assert.deepEqual([a.cost_per_install_cents, a.cost_per_trial_cents, a.cost_per_paid_cents], [200, 2500, 5000]);
+  assert.deepEqual([a.installs, a.trials, a.paid, a.revenue_cents, a.spend_cents, a.campaigns], [56, 5, 2, 798, 10000, ["A1", "ONELINK"]], "every count stays in the route's totals");
+  assert.deepEqual([a.unmatched.installs, a.unmatched.trials], [16, 1], "no campaign, and a campaign Studio has no spend for");
+  assert.deepEqual([a.cost_per_install_cents, a.cost_per_trial_cents, a.cost_per_paid_cents, a.partial, a.spend_partial], [250, 2500, 5000, true, false], "$100 over A1's 40 installs, not 56");
   assert.deepEqual([b.landed, b.store_taps, b.installs, b.spend_cents, b.impressions, b.clicks], [300, 100, 25, 10000, 30000, 500], "two ads summed; the Meta ad and an unrouted campaign left out");
-  assert.deepEqual([b.cost_per_install_cents, b.cost_per_trial_cents, b.cost_per_paid_cents], [400, null, null], "nobody trialled or paid: no cost, never a division by zero");
+  assert.deepEqual([b.cost_per_install_cents, b.cost_per_trial_cents, b.cost_per_paid_cents, b.partial], [400, null, null, false], "nobody trialled or paid: no cost, never a division by zero");
   assert.deepEqual([c.installs, c.spend_cents, c.cost_per_install_cents, c.campaigns], [0, null, null, []]);
   const total = routeTotals([a, b, c]);
-  assert.deepEqual([total.installs, total.spend_cents, total.cost_per_install_cents, total.partial], [75, 20000, 267, false]);
+  assert.deepEqual([total.installs, total.unmatched.installs, total.spend_cents, total.cost_per_install_cents, total.partial], [81, 16, 20000, 308, true]);
 });
 
-test("spend unknown for an ad: the route is partial and costs divide the known spend; all unknown is no spend at all", () => {
-  const rows = [r("2026-10-10", "web", "C1", { installs: 4, paid: 2 })];
-  const [, , c] = routeColumns(rows, [spend("c1", "C1", 3000), spend("c2", "C1", null)], campaignRoutes(rows, []));
-  assert.deepEqual([c.spend_cents, c.partial, c.cost_per_paid_cents], [3000, true, 1500]);
-  const [, , none] = routeColumns(rows, [spend("c2", "C1", null)], campaignRoutes(rows, []));
-  assert.deepEqual([none.spend_cents, none.partial, none.cost_per_install_cents], [null, false, null]);
-  assert.equal(routeTotals(routeColumns(rows, [spend("c2", "C1", null)], campaignRoutes(rows, []))).spend_cents, null);
+test("spend unknown for an ad: its campaign's people and spend leave the costs; the spend shown is the known part", () => {
+  const rows = [r("2026-10-10", "web", "C1", { installs: 4, paid: 2 }), r("2026-10-10", "web", "C2", { installs: 5, paid: 1 })];
+  const [, , c] = routeColumns(rows, [spend("c1", "C1", 3000), spend("c1b", "C1", null), spend("c2", "C2", 2000)], campaignRoutes(rows, []));
+  assert.deepEqual([c.spend_cents, c.costed_spend_cents, c.spend_partial, c.partial, c.unmatched.installs], [5000, 2000, true, true, 4]);
+  assert.deepEqual([c.cost_per_install_cents, c.cost_per_paid_cents], [400, 2000], "only C2: $20 over its 5 installs and 1 payer");
+  const [, , none] = routeColumns(rows.slice(0, 1), [spend("c1b", "C1", null)], campaignRoutes(rows, []));
+  assert.deepEqual([none.spend_cents, none.costed_spend_cents, none.cost_per_install_cents], [null, null, null]);
+  assert.equal(routeTotals(routeColumns(rows.slice(0, 1), [spend("c1b", "C1", null)], campaignRoutes(rows, []))).spend_cents, null);
+});
+
+test("All starts on the first day with route rows: lifetime spend from before the routes is never set against them", () => {
+  assert.equal(routeSpanAll({ routes: undefined, to: "2026-10-20" }), null);
+  const rows = [r("2026-10-14", "web", "C1", { installs: 2 }), r("2026-10-12", "web", "C1", { installs: 1 })];
+  const all = routeSpanAll({ routes: rows, to: "2026-10-20" })!;
+  assert.deepEqual(all, { from: "2026-10-12", to: "2026-10-20" });
+  const period: AdPeriod = { ...all, timezone: "America/Los_Angeles", last_day: "2026-10-20",
+    days: { ok: true, from: "2026-09-21", campaigns: ["C1"], days: { c1: [{ day: "2026-10-05", spend_cents: 7000, impressions: 1, clicks: 1 }, { day: "2026-10-13", spend_cents: 1500, impressions: 1, clicks: 1 }] } } };
+  const [, , c] = routeColumns(routesIn({ routes: rows }, all), [spend("c1", "C1", 8500)], campaignRoutes(rows, []), period);
+  assert.deepEqual([c.spend_cents, c.installs, c.cost_per_install_cents], [1500, 3, 500], "the Oct 5 spend predates the routes");
 });
 
 test("the period: route rows by their day, spend from TikTok's days in it; the daily line has every day", () => {
@@ -363,4 +384,42 @@ test("the fixture's routes join the invented route launches: three routes with s
   const days = fake.days.days[fake.runs[1].campaigns![0].snapshot!.ads![0].id];
   assert.equal(days.reduce((n, d) => n + (d.spend_cents ?? 0), 0), b.spend_cents, "the invented days add up to the lifetime spend");
   assert.ok(CdStatsReportSchema.safeParse({ ...REPORT, routes: rows }).success);
+});
+
+// ---- review fixes (2026-10-12) --------------------------------------------------------------------------------------
+
+test("leaving B on Download puts the event back to Purchase (and its count), so the draft saves", () => {
+  const downloads = landerOptimization(withAcquisitionRoute(defaultTikTokLaunchSettings(), "lander"), "downloads");
+  const none = withAcquisitionRoute(downloads, "none");
+  assert.deepEqual([none.acquisition_route, launchShape(none), none.optimization_event, none.attribution?.event_count], [undefined, "website_purchases", "SHOPPING", "EVERY"]);
+  assert.doesNotThrow(() => validateLaunchSettings(none, 100));
+  for (const route of ["web", "store"] as const) assert.doesNotThrow(() => validateLaunchSettings(withAcquisitionRoute(downloads, route), 100), route);
+  assert.equal(withAcquisitionRoute(downloads, "web").optimization_event, "SHOPPING");
+  assert.equal(withoutDownloadEvent(downloads), downloads, "on B, Download stays");
+});
+
+test("presets never carry a route or the deferred deep link: stripped by presetSettings, on save in the data layer", async () => {
+  const downloads = landerOptimization(withAcquisitionRoute(defaultTikTokLaunchSettings(), "lander"), "downloads");
+  const stripped = presetSettings(downloads);
+  assert.deepEqual([stripped.acquisition_route, stripped.optimization_event], [undefined, "SHOPPING"]);
+  assert.doesNotThrow(() => validateLaunchSettings(stripped, 100));
+  assert.equal(presetSettings({ ...defaultAppInstallSettings(), app_deeplink: true, acquisition_route: "store" }).app_deeplink, undefined);
+  const saved = await getData().saveLaunchPreset(fixtureSession("staff"), { name: "Route preset", settings: { ...defaultAppInstallSettings(), app_deeplink: true, acquisition_route: "store" } });
+  assert.deepEqual([saved.settings.acquisition_route, saved.settings.app_deeplink, saved.settings.objective_type], [undefined, undefined, "APP_PROMOTION"]);
+});
+
+test("a Meta draft started from a route link gets the series' player page, never the landing page", () => {
+  assert.equal(metaDestination(crazydramasRouteAdUrl(SLUG, "lander")), `https://crazydramas.com/watch/${SLUG}`);
+  assert.equal(metaDestination(crazydramasRouteAdUrl(SLUG, "web")), `https://crazydramas.com/watch/${SLUG}`);
+  assert.equal(metaDestination(crazydramasAdUrl(SLUG)), `https://crazydramas.com/watch/${SLUG}`, "today's link as before");
+  assert.equal(metaDestination("https://example.com/x?y=1"), "https://example.com/x?y=1");
+});
+
+test("routes: null or not a list reads as absent; it never fails the report", () => {
+  for (const routes of [null, "x", 3, { a: 1 }]) {
+    const parsed = CdStatsReportSchema.safeParse({ ...REPORT, routes });
+    assert.ok(parsed.success, JSON.stringify(routes));
+    assert.equal(parsed.data!.routes ?? undefined, undefined);
+    assert.equal(hasRoutes(parsed.data!), false);
+  }
 });

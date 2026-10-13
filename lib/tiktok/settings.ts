@@ -226,10 +226,29 @@ export function routeShapeProblem(s: Pick<LaunchSettings, "objective_type" | "sa
 export function withAcquisitionRoute(value: LaunchSettings, route: AcquisitionRoute): LaunchSettings {
   const keep = { start_paused: value.start_paused, budget_mode: value.budget_mode, daily_budget_usd: value.daily_budget_usd, duration_days: value.duration_days,
     schedule_start: value.schedule_start, schedule_end: value.schedule_end, audiences: value.audiences, campaign_name_prefix: value.campaign_name_prefix };
-  if (route === "none") { const { acquisition_route: _drop, ...rest } = value; return rest; }
+  if (route === "none") { const { acquisition_route: _drop, ...rest } = value; return withoutDownloadEvent(rest); }
   if (route === "store") return { ...defaultAppInstallSettings(), ...keep, acquisition_route: "store" };
   if (route === "web") return { ...defaultWebsitePurchaseSettings(), ...keep, operating_systems: ["ANDROID"], acquisition_route: "web" };
   return landerOptimization({ ...defaultWebsitePurchaseSettings(), ...keep, operating_systems: ["ANDROID"], acquisition_route: "lander" }, "page_views");
+}
+
+/**
+ * Download (DOWNLOAD_START) is route B's alone: off B, a Website purchases launch goes back to Purchase with Purchase's
+ * event count, so the draft saves (validateLaunchSettings refuses Download elsewhere). Anything else is returned as it is.
+ */
+export function withoutDownloadEvent(value: LaunchSettings): LaunchSettings {
+  if (value.acquisition_route === "lander" || value.optimization_event !== "DOWNLOAD_START") return value;
+  return { ...value, optimization_event: "SHOPPING", attribution: { ...attributionOf(value), event_count: defaultEventCount("SHOPPING") } };
+}
+
+/**
+ * A launch preset never carries a launch's own choices (2026-10-12): its acquisition route (a test of one launch) and the
+ * App install deferred deep link (an allowlist of one ad account). Stripped when a preset is saved and when one is applied;
+ * Download goes with the route.
+ */
+export function presetSettings(value: LaunchSettings): LaunchSettings {
+  const { acquisition_route: _route, app_deeplink: _deeplink, ...rest } = value;
+  return withoutDownloadEvent(rest);
 }
 
 /**

@@ -27,7 +27,7 @@ import { MONTAGE_RANK_BASE, montageClipProblem } from "@/lib/clips/montage";
 import { ffmpegAvailable } from "@/lib/promote/render";
 import { blockerMessage, isAssignedBusinessCenter, isReadyLaunchAccount, launchReadiness } from "@/lib/promote/launch-gate";
 import { launchMode } from "@/lib/tiktok";
-import { launchSettingsSchema, LaunchSettingsError, normalizeLaunchSettings, validateLaunchSettings, type LaunchSettings } from "@/lib/tiktok/settings";
+import { launchSettingsSchema, LaunchSettingsError, normalizeLaunchSettings, presetSettings, validateLaunchSettings, type LaunchSettings } from "@/lib/tiktok/settings";
 import { LAST_CUE_MS, liftStamp, MAX_DERIVED_CUE_MS, SAMPLE_LATENCY_MS, type IngestResult } from "@/lib/ingest";
 import { applyGlobalOffset, assertValidCue } from "@/lib/subtitle-timing";
 import { splitSpeaker } from "@/lib/ingest/text";
@@ -3514,11 +3514,11 @@ export const fixtureData: DataLayer = {
     const existing = input.id ? db.launch_presets.find((p) => p.id === input.id) : null;
     if (input.id && !existing) throw notFound("launch preset", input.id);
     if (existing) {
-      Object.assign(existing, { name: input.name.trim(), settings: parsed.data, note: input.note?.trim() || null, updated_at: at });
+      Object.assign(existing, { name: input.name.trim(), settings: presetSettings(parsed.data), note: input.note?.trim() || null, updated_at: at });
       audit(store(), session, "save_launch_preset", "promote.launch_presets", existing.id, null, null, { name: existing.name });
       return clone(existing);
     }
-    const row: LaunchPreset = { id: randomUUID(), name: input.name.trim(), settings: parsed.data, note: input.note?.trim() || null, created_by: session.userId, created_at: at, updated_at: at };
+    const row: LaunchPreset = { id: randomUUID(), name: input.name.trim(), settings: presetSettings(parsed.data), note: input.note?.trim() || null, created_by: session.userId, created_at: at, updated_at: at };
     db.launch_presets.push(row);
     audit(store(), session, "save_launch_preset", "promote.launch_presets", row.id, null, null, { name: row.name });
     return clone(row);
