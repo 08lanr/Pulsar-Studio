@@ -24,7 +24,7 @@ test("MCP handshake, tool list and notification use stateless JSON-RPC shapes", 
   const init = await handleMcpMessage(approver, { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: MCP_VERSION, capabilities: {}, clientInfo: { name: "test", version: "1" } } });
   assert.equal((init?.result as { protocolVersion: string }).protocolVersion, MCP_VERSION);
   const list = await handleMcpMessage(approver, { jsonrpc: "2.0", id: 2, method: "tools/list" });
-  assert.deepEqual((list?.result as { tools: { name: string }[] }).tools.map(x => x.name), ["launch_list", "launch_get", "launch_preview", "launch_submit", "launch_retry", "launch_control", "launch_new_round"]);
+  assert.deepEqual((list?.result as { tools: { name: string }[] }).tools.map(x => x.name).filter(n => n.startsWith("launch_")), ["launch_list", "launch_get", "launch_preview", "launch_submit", "launch_retry", "launch_control", "launch_new_round"]);
   assert.equal(await handleMcpMessage(approver, { jsonrpc: "2.0", method: "notifications/initialized" }), null);
   assert.equal((await handleMcpMessage(approver, { jsonrpc: "2.0", id: 3, method: "something/unknown" }))?.error && ((await handleMcpMessage(approver, { jsonrpc: "2.0", id: 3, method: "something/unknown" }))?.error as { code: number }).code, -32601);
 });

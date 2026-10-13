@@ -18,6 +18,9 @@
 //      waited for: it uploads one file at a time for as long as it takes
 //   7. keep the segment worker running once the computer has a films
 //      folder (lib/segment/worker.ts), so a restart resumes its runs
+//   8. post proven clips to the Page and Instagram (lib/launch/auto-post.ts)
+//   9. run the creator accounts (lib/creators/sweeps.ts): due posts,
+//      comments and replies, daily insights; same live gates as 8
 //
 // State lives on globalThis (Next bundles lib/ per route). `tick()` is also
 // what the staff "Sync now" button runs, so the desk never waits five minutes.
@@ -125,6 +128,10 @@ export async function tick(opts: { metrics?: boolean } = {}): Promise<TickSummar
     //    same switches a live Meta write needs, and never throws.
     try { await (await import("@/lib/launch/auto-post")).tickAutoPost(); }
     catch (e) { summary.errors.push(`auto post: ${(e as Error).message}`); }
+    // 9. creator accounts (decision 2026-10-12): scheduled posts, comment
+    //    replies and daily insights; the same gates as 8 plus CREATORS_DISABLED=1.
+    try { await (await import("@/lib/creators/sweeps")).tickCreators(); }
+    catch (e) { summary.errors.push(`creators: ${(e as Error).message}`); }
   } finally {
     s.ticking = false;
     s.lastTickAt = Date.now();

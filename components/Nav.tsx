@@ -81,6 +81,8 @@ export default function Nav({ displayName, role }: NavProps) {
         { href: "/crazydramas", label: tt("admin.nav.cdSeries"), icon: <IconFilm /> },
         // Viewing and money on crazydramas.com, real people only (2026-09-24).
         { href: "/crazydramas/stats", label: tt("admin.nav.cdStats"), icon: <IconFilm /> },
+        // Instagram creator accounts Studio posts for and replies on (2026-10-12).
+        { href: "/creators", label: tt("cr.nav"), icon: <IconProducers /> },
       ],
     },
     {
@@ -102,7 +104,7 @@ export default function Nav({ displayName, role }: NavProps) {
   ];
   // The header names the screen with the same word the rail uses; derived from
   // the path so no page threads a prop through. Deeper routes are matched first.
-  const title = pathname.startsWith("/crazydramas/stats") ? tt("cds.nav") : pathname.startsWith("/crazydramas") ? tt("cdh.nav") : pathname.startsWith("/films/runs") ? tt("seg.nav") : pathname.startsWith("/films") ? tt("fi.nav") : pathname.startsWith("/clips") ? tt("lv2.clips.title") : pathname.startsWith("/meta") ? tt("lv2.meta.title") : pathname.startsWith("/promote/launches") ? tt("lv2.launch.title") : pathname.startsWith("/promote/monitor") ? tt("lv2.monitor.title") : pathname.startsWith("/tiktok")
+  const title = pathname.startsWith("/creators") ? tt("cr.nav") : pathname.startsWith("/crazydramas/stats") ? tt("cds.nav") : pathname.startsWith("/crazydramas") ? tt("cdh.nav") : pathname.startsWith("/films/runs") ? tt("seg.nav") : pathname.startsWith("/films") ? tt("fi.nav") : pathname.startsWith("/clips") ? tt("lv2.clips.title") : pathname.startsWith("/meta") ? tt("lv2.meta.title") : pathname.startsWith("/promote/launches") ? tt("lv2.launch.title") : pathname.startsWith("/promote/monitor") ? tt("lv2.monitor.title") : pathname.startsWith("/tiktok")
     ? tt("admin.nav.connections")
     : pathname.startsWith("/promote")
     ? tt("lv2.legacyCampaigns")

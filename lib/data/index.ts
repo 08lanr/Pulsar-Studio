@@ -1172,11 +1172,12 @@ export interface DataLayer {
 // ---- the switch ------------------------------------------------------------------------------
 
 import { createLaunchData } from "./launch";
+import { createCreatorData, type CreatorDataLayer } from "./creators";
 import type { LaunchDataLayer } from "@/lib/launch/types";
 import { fixtureData } from "./fixture";
 import { supabaseData } from "./supabase";
 
-export function getData(): DataLayer & LaunchDataLayer {
+export function getData(): DataLayer & LaunchDataLayer & CreatorDataLayer {
   const core = dataSource() === "supabase" ? supabaseData : fixtureData;
-  return { ...core, ...createLaunchData(core) };
+  return { ...core, ...createLaunchData(core), ...createCreatorData() };
 }

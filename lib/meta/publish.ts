@@ -11,6 +11,9 @@
 // rendered with a stored SHA-256, and that hash is re-verified on the exact
 // bytes Studio uploads. The Page access token is derived per call by
 // transport.forPage() and never stored, logged, returned or put in an error.
+// Since 2026-10-12 it is derived from the PUBLISH token (META_PUBLISH_TOKEN,
+// app Pulsar Entertainment; META_ACCESS_TOKEN when unset): the ads-only app's
+// token answered "(#10) Application does not have permission" to every post.
 
 import { createHash, randomUUID } from "node:crypto";
 import { systemSession, type Session } from "@/lib/auth";
@@ -20,7 +23,7 @@ import { assertMayPublishClip } from "@/lib/data/launch";
 import { MAX_PUBLISH_BYTES, readClipBytes, signedClipUrl } from "@/lib/launch/clip-bytes";
 import type { ClipLibraryRow, ClipPost, MetaPagePost, MetaPagePostList, PublishClipInput } from "@/lib/launch/clip-posts";
 import type { ClipPostPatch, LaunchConnection } from "@/lib/launch/types";
-import { metaTransport } from "./index";
+import { metaPublishTransport, metaTransport } from "./index";
 import { MetaApiError, type MetaObject, type MetaTransport } from "./transport";
 import { buildCaption } from "@/lib/launch/caption";
 
@@ -381,7 +384,7 @@ export async function runClipPost(id: string): Promise<ClipPost | null> {
     const connection = await connectionFor(system(), existing.producer_id, existing.connection_id);
     const clip = await clipFor(system(), existing.producer_id, existing.clip_id);
     const owner = randomUUID();
-    runner = { post: existing, clip, connection, transport: metaTransport().forPage(connection.page_id!), owner };
+    runner = { post: existing, clip, connection, transport: metaPublishTransport().forPage(connection.page_id!), owner };
     try { await step(runner, { lease_owner: owner }); }
     catch { return existing; } // another worker claimed it first
     try {
@@ -453,6 +456,7 @@ export async function listMetaPagePosts(session: Session, producerId: string, co
   const key = `${connection.id}:${connection.page_id}:${connection.instagram_id ?? ""}`;
   const cached = pagePostCache.get(key);
   if (cached && Date.now() - cached.at < PAGE_POST_CACHE_MS) return cached.value;
+  // The ads token on purpose: this list feeds ad creatives, which the ads app must be able to read.
   const transport = metaTransport().forPage(connection.page_id!);
   const rows = async (path: string, fields: string) => {
     const response = await transport.get(path, { fields, limit: 25 });

@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Session } from "@/lib/auth";
 import { getData } from "@/lib/data";
 import { isDataError } from "@/lib/data/errors";
+import { creatorMcpTools, invokeCreatorTool } from "@/lib/creators/mcp";
 import { controlSchema } from "./routes";
 import { controlLaunch, queueLaunch, refreshLaunches } from "./service";
 import type { LaunchConnection, LaunchPlan, LaunchRun } from "./types";
@@ -32,6 +33,8 @@ const tools: Tool[] = [
   { name: "launch_retry", description: "Retry failed steps of a visible launch without making duplicate campaigns.", inputSchema: object(idShape, ["id"]), parse: z.object({ id }).strict() },
   { name: "launch_control", description: "Change one campaign through Studio's audited provider control service.", inputSchema: object({ ...idShape, campaign_id: { type: "string", format: "uuid" }, control: controlInput }, ["id", "campaign_id", "control"]), parse: z.object({ id, campaign_id: z.string().uuid(), control: controlSchema }).strict() },
   { name: "launch_new_round", description: "Create a new draft round using the existing launch's approved settings and content.", inputSchema: object(idShape, ["id"]), parse: z.object({ id }).strict() },
+  // Creator accounts (decision 2026-10-12): the same endpoint, the same session rules.
+  ...creatorMcpTools,
 ];
 
 export const mcpToolDefinitions = tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema }));
@@ -85,6 +88,7 @@ function jsonResult(data: unknown) { return { content: [{ type: "text", text: JS
 const rpcError = (id: string | number | null, code: number, message: string) => ({ jsonrpc: "2.0" as const, id, error: { code, message } });
 
 async function invoke(session: Session, name: string, args: Params) {
+  if (name.startsWith("creator_")) return invokeCreatorTool(session, name, args);
   const data = getData();
   switch (name) {
     case "launch_list": return { runs: (await refreshLaunches(session, args.force === true)).map(summary) };
@@ -132,7 +136,7 @@ export async function handleMcpMessage(session: Session, input: unknown): Promis
   if (!args.success) return rpcError(requestId, -32602, redact(args.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ")));
   try { return { jsonrpc: "2.0", id: requestId, result: jsonResult(await invoke(session, tool.name, args.data)) }; }
   catch (e) {
-    const message = isDataError(e) ? redact(e.message) : "Launch operation failed.";
+    const message = isDataError(e) ? redact(e.message) : tool.name.startsWith("creator_") ? "Creator operation failed." : "Launch operation failed.";
     return { jsonrpc: "2.0", id: requestId, result: { content: [{ type: "text", text: message }], isError: true } };
   }
 }
