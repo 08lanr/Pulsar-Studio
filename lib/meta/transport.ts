@@ -37,17 +37,39 @@ export function metaApiVersion(): string {
   return version;
 }
 
+/**
+ * Which configured token a transport sends (decision 2026-10-12, "Creator
+ * accounts"). Two Meta apps, two System User tokens:
+ *   ads      META_ACCESS_TOKEN — app "CrazyDramas Ads", Marketing API only:
+ *            launches, controls, the monitor, pixels, the "From the Page" list.
+ *   publish  META_PUBLISH_TOKEN — app "Pulsar Entertainment", the Instagram and
+ *            Page use cases: every organic post (clips and creator accounts),
+ *            comments, replies and insights. Falls back to META_ACCESS_TOKEN
+ *            when unset, so a deployment without it behaves as before.
+ * Only the variable's NAME ever leaves this module; the value is read per call.
+ */
+export type MetaTokenKind = "ads" | "publish";
+export function metaTokenSource(kind: MetaTokenKind): "META_ACCESS_TOKEN" | "META_PUBLISH_TOKEN" | null {
+  if (kind === "publish" && process.env.META_PUBLISH_TOKEN?.trim()) return "META_PUBLISH_TOKEN";
+  return process.env.META_ACCESS_TOKEN?.trim() ? "META_ACCESS_TOKEN" : null;
+}
+function configuredToken(kind: MetaTokenKind): string {
+  const source = metaTokenSource(kind);
+  const token = source ? process.env[source]?.trim() : "";
+  if (!token) throw new MetaApiError(kind === "publish" ? "META_PUBLISH_TOKEN (or META_ACCESS_TOKEN) is not configured." : "META_ACCESS_TOKEN is not configured.");
+  return token;
+}
+
 function value(value: unknown): string {
   return typeof value === "object" ? JSON.stringify(value) : String(value);
 }
 
 /** Only this transport sends HTTP to Meta. Never retries an uncertain write. */
-async function request<T extends MetaObject>(method: "GET" | "POST", path: string, params: MetaObject, files?: Record<string, MetaFile>, actAs?: string): Promise<T> {
+async function request<T extends MetaObject>(method: "GET" | "POST", path: string, params: MetaObject, files: Record<string, MetaFile> | undefined, actAs: string | undefined, kind: MetaTokenKind): Promise<T> {
   serverOnly();
   if (dataSource() !== "supabase") throw new MetaApiError("Live Meta access is disabled in fixture mode.");
   if (method === "POST" && process.env.META_LIVE_WRITES !== "enabled") throw new MetaApiError("Meta live writes are disabled. Set META_LIVE_WRITES=enabled only in the approved deployment.");
-  const configured = process.env.META_ACCESS_TOKEN?.trim();
-  if (!configured) throw new MetaApiError("META_ACCESS_TOKEN is not configured.");
+  const configured = configuredToken(kind);
   // Derived per call, held only for this request, never assigned to anything
   // that outlives it. A failure here says the Page is unavailable, never why.
   const token = actAs ? await pageToken(actAs, configured) : configured;
@@ -112,17 +134,25 @@ async function pageToken(pageId: string, configured: string): Promise<string> {
   return token;
 }
 
-function liveTransport(actAs?: string): MetaTransport {
+function liveTransport(kind: MetaTokenKind, actAs?: string): MetaTransport {
   return {
     mode: "live",
-    get: (path, params = {}) => request("GET", path, params, undefined, actAs),
-    post: (path, params) => request("POST", path, params, undefined, actAs),
-    upload: (path, params, files) => request("POST", path, params, files, actAs),
-    forPage: (pageId: string) => liveTransport(pageId),
+    get: (path, params = {}) => request("GET", path, params, undefined, actAs, kind),
+    post: (path, params) => request("POST", path, params, undefined, actAs, kind),
+    upload: (path, params, files) => request("POST", path, params, files, actAs, kind),
+    forPage: (pageId: string) => liveTransport(kind, pageId),
   };
 }
 
-export const liveMetaTransport: MetaTransport = liveTransport();
+/** The ads token: launches, controls, the monitor, pixels. */
+export const liveMetaTransport: MetaTransport = liveTransport("ads");
+/**
+ * The publish token: organic posts, comments, replies and insights. An
+ * Instagram account with no linked Page is called directly
+ * (`/{instagram_id}/...`); with a Page, `forPage` derives the Page token from
+ * this same token, as before.
+ */
+export const liveMetaPublishTransport: MetaTransport = liveTransport("publish");
 
 /** Use cursor values, never Meta's next URL (which may contain a token). */
 export async function metaList(transport: MetaTransport, path: string, params: MetaObject = {}): Promise<MetaObject[]> {

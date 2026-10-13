@@ -13,8 +13,21 @@ type Failure = { method: "GET" | "POST" | "UPLOAD"; path: string; after: boolean
  * derived Page token to one request.
  */
 const FAKE_PAGE_TOKEN = "fixture-page-token-not-a-credential";
-/** `ig_error` ends the Reel container in ERROR; `fb_throttle` rate-limits the first /videos upload once. */
+/**
+ * `ig_error` ends every Instagram container in ERROR; `fb_throttle` rate-limits the first /videos upload once.
+ * Creator accounts (decision 2026-10-12) add: `ig_quota` (the 24-hour publishing allowance is used up),
+ * `ig_throttle` (the first media_publish is rate-limited once, code 4), `comments_error` (comment reads refused),
+ * `reply_error` (comment replies refused) and `insights_error` (insights refused). Comma-separated values combine.
+ */
 const publishMode = () => process.env.META_FAKE_PUBLISH || "";
+const fakeMode = (mode: string) => publishMode().split(",").map(v => v.trim()).includes(mode);
+type FakeComment = { id: string; media_id: string; account_id: string; text: string; username: string; from_id: string; timestamp: string; parent_id: string | null };
+/** What the fake's followers say under a newly published creator post: ordinary comments and one a rule must catch. */
+const DEMO_COMMENTS: readonly { text: string; username: string }[] = [
+  { text: "this light is so pretty, where is this?", username: "mara.wanders" },
+  { text: "🤍🤍", username: "jess_cooks" },
+  { text: "are you even real? looks ai", username: "skeptic_sam" },
+];
 const demoStamp = (offsetDays: number) => new Date(Date.UTC(2026, 8, 16 - offsetDays, 12, 0, 0)).toISOString();
 function removeRunObjects(objects: Map<string, FakeRow>, runs: readonly LaunchRun[]) {
   const ids = new Set<string>();
@@ -53,6 +66,13 @@ export class FakeMetaTransport implements MetaTransport {
   private blocked = new Set<string>();
   private containerPolls = new Map<string, number>();
   private throttledOnce = false;
+  private publishThrottledOnce = false;
+  /** Comments by id, replies included (their parent_id set). */
+  readonly comments = new Map<string, FakeComment>();
+  /** Newly published media gets DEMO_COMMENTS. Tests switch it off to seed their own. */
+  demoComments = true;
+  /** The account username the fake answers for an Instagram id (`{ig}?fields=username`). */
+  readonly usernames = new Map<string, string>();
   videoStatus = "ready";
   /** Instagram's rolling 24-hour publishing allowance, as the fake reports it. */
   publishingQuota = { used: 0, total: 50 };
@@ -66,7 +86,8 @@ export class FakeMetaTransport implements MetaTransport {
 
   reset() {
     this.calls.length = 0; this.objects.clear(); this.sequence = 0; this.failures = []; this.sources.clear();
-    this.blocked.clear(); this.containerPolls.clear(); this.throttledOnce = false;
+    this.blocked.clear(); this.containerPolls.clear(); this.throttledOnce = false; this.publishThrottledOnce = false;
+    this.comments.clear(); this.demoComments = true; this.usernames.clear();
     this.publishingQuota = { used: 0, total: 50 }; this.videoStatus = "ready";
     this.pixels = [{ id: metaPixelId(), name: "CrazyDramas" }]; this.pixelReadRefused = false;
     this.conversions = 0; this.conversionValue = 0;
@@ -95,7 +116,7 @@ export class FakeMetaTransport implements MetaTransport {
     if (this.blocked.has(path)) throw new MetaApiError("Content is unavailable.", 100);
     const [id, edge] = path.split("/");
     const fields = String(params.fields ?? "");
-    const publish = this.publishGet(id, edge, fields);
+    const publish = this.publishGet(id, edge, fields, params);
     if (publish) return publish as T;
     if (edge === "insights") {
       if (!this.objects.has(id)) return { data: [] } as unknown as T;
@@ -122,9 +143,14 @@ export class FakeMetaTransport implements MetaTransport {
   }
 
   /** The organic publishing reads (docs/meta-organic-plan.md §3); null when this is not one of them. */
-  private publishGet(id: string, edge: string, fields: string): MetaObject | null {
+  private publishGet(id: string, edge: string, fields: string, params: MetaObject = {}): MetaObject | null {
     if (!edge && fields.includes("access_token")) return { id, access_token: FAKE_PAGE_TOKEN };
-    if (edge === "content_publishing_limit") return { data: [{ quota_usage: this.publishingQuota.used, config: { quota_total: this.publishingQuota.total, quota_duration: 86400 } }] };
+    if (edge === "content_publishing_limit") {
+      const used = fakeMode("ig_quota") ? this.publishingQuota.total : this.publishingQuota.used;
+      return { data: [{ quota_usage: used, config: { quota_total: this.publishingQuota.total, quota_duration: 86400 } }] };
+    }
+    const creator = this.creatorGet(id, edge, fields, params);
+    if (creator) return creator;
     if (edge === "videos") return { data: this.snapshot().filter(r => r.edge === "videos" && r.account_id === id) };
     if (edge === "posts") return { data: [
       ...this.snapshot().filter(r => r.edge === "videos" && r.account_id === id && r.post_id)
@@ -134,7 +160,7 @@ export class FakeMetaTransport implements MetaTransport {
     ] };
     if (edge === "media") return { data: [
       ...this.snapshot().filter(r => r.edge === "media" && r.account_id === id)
-        .map(r => ({ id: r.id, caption: r.caption ?? "", media_type: "VIDEO", permalink: r.permalink, thumbnail_url: null, timestamp: r.timestamp })),
+        .map(r => ({ id: r.id, caption: r.caption ?? "", media_type: r.media_type ?? "VIDEO", permalink: r.permalink, thumbnail_url: null, timestamp: r.timestamp })),
       { id: `${id}0000001`, caption: "Reel: the confession scene.", media_type: "VIDEO", permalink: `https://www.instagram.com/reel/${id}0000001/`, thumbnail_url: null, timestamp: demoStamp(2) },
       { id: `${id}0000002`, caption: "Reel: the rooftop cliffhanger.", media_type: "VIDEO", permalink: `https://www.instagram.com/reel/${id}0000002/`, thumbnail_url: null, timestamp: demoStamp(4) },
     ] };
@@ -155,7 +181,7 @@ export class FakeMetaTransport implements MetaTransport {
       if (row.failing) return { id, status_code: "ERROR", status: "The media could not be processed." };
       const polls = (this.containerPolls.get(id) ?? 0) + 1;
       this.containerPolls.set(id, polls);
-      return polls > 2 ? { id, status_code: "FINISHED", status: "Finished" } : { id, status_code: "IN_PROGRESS", status: "In progress" };
+      return this.containerReady(row) ? { id, status_code: "FINISHED", status: "Finished" } : { id, status_code: "IN_PROGRESS", status: "In progress" };
     }
     return null;
   }
@@ -231,22 +257,133 @@ export class FakeMetaTransport implements MetaTransport {
 
   /** The organic publishing writes; null when this is not one of them. */
   private publishPost(account: string, edge: string, params: MetaObject): MetaObject | null {
-    if (edge === "media") {
-      if (params.media_type !== "REELS") throw new MetaApiError("Instagram accepts video only as a Reel.", 100);
-      if (typeof params.video_url !== "string" || !params.video_url) throw new MetaApiError("A Reel container needs a fetchable video URL.", 100);
-      const id = this.nextId();
-      this.objects.set(id, { id, edge: "ig_container", account_id: account, caption: String(params.caption ?? ""), video_url: params.video_url, failing: publishMode() === "ig_error" });
-      return { id };
-    }
+    if (edge === "media") return this.createContainer(account, params);
     if (edge === "media_publish") {
       const container = this.objects.get(String(params.creation_id ?? ""));
-      if (!container || container.edge !== "ig_container" || container.account_id !== account) throw new MetaApiError("Unknown Reel container.", 100);
+      if (!container || container.edge !== "ig_container" || container.account_id !== account) throw new MetaApiError("Unknown Instagram container.", 100);
       if (container.published_id) throw new MetaApiError("This container was already published.", 100);
-      if ((this.containerPolls.get(container.id) ?? 0) <= 2) throw new MetaApiError("The Reel is still processing.", 9007);
+      if (container.is_carousel_item) throw new MetaApiError("A carousel item is published through its carousel.", 100);
+      if (fakeMode("ig_quota") || this.publishingQuota.used >= this.publishingQuota.total) throw new MetaApiError("The account has reached its content publishing limit.", 9, false, 2207042);
+      if (fakeMode("ig_throttle") && !this.publishThrottledOnce) {
+        this.publishThrottledOnce = true;
+        throw new MetaApiError("Application request limit reached.", 4);
+      }
+      // A container nobody has read the status of, or that is not FINISHED, is refused as Instagram does.
+      if (!this.containerReady(container) || (this.containerPolls.get(container.id) ?? 0) < 1) throw new MetaApiError("The media is still processing.", 9007);
       const id = this.nextId();
       container.published_id = id;
-      this.objects.set(id, { id, edge: "media", account_id: account, caption: container.caption, permalink: `https://www.instagram.com/reel/${id}/`, timestamp: new Date().toISOString() });
+      this.publishingQuota.used += 1;
+      const type = String(container.container_kind ?? "REELS");
+      const mediaType = type === "CAROUSEL" ? "CAROUSEL_ALBUM" : type === "IMAGE" ? "IMAGE" : "VIDEO";
+      this.objects.set(id, { id, edge: "media", account_id: account, caption: container.caption, media_type: mediaType,
+        ...(type === "CAROUSEL" ? { children: container.children } : {}),
+        permalink: type === "REELS" ? `https://www.instagram.com/reel/${id}/` : `https://www.instagram.com/p/${id}/`, timestamp: new Date().toISOString() });
+      if (this.demoComments) this.seedDemoComments(id);
       return { id };
+    }
+    if (edge === "replies") return this.createReply(account, params);
+    return null;
+  }
+
+  // ---- creator accounts (decision 2026-10-12): images, carousels, comments, insights ----
+
+  /** Ready = what Instagram calls FINISHED: an image at once, a video after two status reads, a carousel when every child is. */
+  private containerReady(row: FakeRow): boolean {
+    if (row.failing) return false;
+    if (row.container_kind === "IMAGE") return true;
+    if (row.container_kind === "CAROUSEL") return (row.children as string[]).every(child => {
+      const c = this.objects.get(child);
+      return !!c && this.containerReady(c);
+    });
+    return (this.containerPolls.get(row.id) ?? 0) > 2;
+  }
+
+  private createContainer(account: string, params: MetaObject): MetaObject {
+    const base = { edge: "ig_container", account_id: account, caption: String(params.caption ?? ""), failing: fakeMode("ig_error") };
+    if (params.media_type === "CAROUSEL") {
+      const children = String(params.children ?? "").split(",").map(v => v.trim()).filter(Boolean);
+      if (children.length < 2 || children.length > 10) throw new MetaApiError("A carousel needs 2 to 10 children.", 100);
+      for (const child of children) {
+        const c = this.objects.get(child);
+        if (!c || c.edge !== "ig_container" || !c.is_carousel_item || c.account_id !== account) throw new MetaApiError(`Unknown carousel child ${child}.`, 100);
+        if (!this.containerReady(c)) throw new MetaApiError("A carousel child is still processing.", 9007);
+      }
+      const id = this.nextId();
+      this.objects.set(id, { id, ...base, container_kind: "CAROUSEL", children });
+      return { id };
+    }
+    if (params.is_carousel_item === true || params.is_carousel_item === "true") {
+      const id = this.nextId();
+      if (typeof params.image_url === "string" && params.image_url && params.media_type === undefined) {
+        this.objects.set(id, { id, ...base, caption: "", container_kind: "IMAGE", is_carousel_item: true, image_url: params.image_url });
+      } else if (params.media_type === "VIDEO" && typeof params.video_url === "string" && params.video_url) {
+        this.objects.set(id, { id, ...base, caption: "", container_kind: "VIDEO", is_carousel_item: true, video_url: params.video_url });
+      } else throw new MetaApiError("A carousel item needs an image_url, or media_type VIDEO and a video_url.", 100);
+      return { id };
+    }
+    if (typeof params.image_url === "string" && params.image_url && params.media_type === undefined) {
+      const id = this.nextId();
+      this.objects.set(id, { id, ...base, container_kind: "IMAGE", image_url: params.image_url });
+      return { id };
+    }
+    if (params.media_type !== "REELS") throw new MetaApiError("Instagram accepts video only as a Reel.", 100);
+    if (typeof params.video_url !== "string" || !params.video_url) throw new MetaApiError("A Reel container needs a fetchable video URL.", 100);
+    const id = this.nextId();
+    this.objects.set(id, { id, ...base, container_kind: "REELS", video_url: params.video_url });
+    return { id };
+  }
+
+  /** Tests: a comment on a media (a reply under one when `parent_id` is set). Returns its id. */
+  seedComment(mediaId: string, comment: { id?: string; text: string; username: string; from_id?: string; timestamp?: string; parent_id?: string | null }): string {
+    const media = this.objects.get(mediaId);
+    const id = comment.id ?? `179${String(++this.sequence).padStart(14, "0")}`;
+    this.comments.set(id, { id, media_id: mediaId, account_id: String(media?.account_id ?? ""), text: comment.text, username: comment.username,
+      from_id: comment.from_id ?? `fan-${comment.username}`, timestamp: comment.timestamp ?? new Date().toISOString(), parent_id: comment.parent_id ?? null });
+    return id;
+  }
+  private seedDemoComments(mediaId: string) {
+    DEMO_COMMENTS.forEach((c, i) => this.seedComment(mediaId, { ...c, timestamp: new Date(Date.now() + i * 1000).toISOString() }));
+  }
+
+  private createReply(commentId: string, params: MetaObject): MetaObject {
+    if (fakeMode("reply_error")) throw new MetaApiError("(#10) Application does not have permission for this action.", 10);
+    const parent = this.comments.get(commentId);
+    if (!parent) throw new MetaApiError("Unknown comment.", 100);
+    const message = String(params.message ?? "").trim();
+    if (!message) throw new MetaApiError("A reply needs a message.", 100);
+    const id = `179${String(++this.sequence).padStart(14, "0")}`;
+    this.comments.set(id, { id, media_id: parent.media_id, account_id: parent.account_id, text: message,
+      username: this.usernames.get(parent.account_id) ?? "", from_id: parent.account_id, timestamp: new Date().toISOString(), parent_id: commentId });
+    return { id };
+  }
+
+  private commentJson(c: FakeComment): MetaObject {
+    return { id: c.id, text: c.text, timestamp: c.timestamp, username: c.username, from: { id: c.from_id, username: c.username } };
+  }
+
+  /** The creator reads: account fields, comments with their replies, account and media insights. Null when not one of them. */
+  private creatorGet(id: string, edge: string, fields: string, params: MetaObject): MetaObject | null {
+    if (!edge && /followers_count|media_count|username/.test(fields)) {
+      const media = this.snapshot().filter(r => r.edge === "media" && r.account_id === id).length;
+      return { id, username: this.usernames.get(id) ?? "demo.creator", followers_count: 120 + media * 7, follows_count: 85, media_count: media };
+    }
+    if (edge === "comments") {
+      if (fakeMode("comments_error")) throw new MetaApiError("(#10) Application does not have permission for this action.", 10);
+      const top = [...this.comments.values()].filter(c => c.media_id === id && !c.parent_id).sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+      return { data: top.map(c => ({ ...this.commentJson(c),
+        replies: { data: [...this.comments.values()].filter(r => r.parent_id === c.id).map(r => this.commentJson(r)) } })) };
+    }
+    if (edge === "replies" && this.comments.has(id)) {
+      return { data: [...this.comments.values()].filter(r => r.parent_id === id).map(r => this.commentJson(r)) };
+    }
+    if (edge === "insights" && typeof params.metric === "string") {
+      if (fakeMode("insights_error")) throw new MetaApiError("(#10) Application does not have permission for this action.", 10);
+      const metrics = String(params.metric).split(",").map(m => m.trim()).filter(Boolean);
+      const isMedia = this.objects.get(id)?.edge === "media";
+      const seed = [...id].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 997, 7);
+      const valueOf = (i: number) => (isMedia ? 40 + ((seed + i * 13) % 160) : 200 + ((seed + i * 17) % 400));
+      return { data: metrics.map((name, i) => ({ name, period: String(params.period ?? "lifetime"),
+        values: [{ value: valueOf(i), end_time: new Date().toISOString() }], total_value: { value: valueOf(i) } })) };
     }
     return null;
   }
