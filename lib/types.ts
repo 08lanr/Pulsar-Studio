@@ -179,7 +179,11 @@ export type JobKind =
   | "draft_series_text"
   // The 60-second ad (decision 2026-09-24 "The 60-second ad"; migration 0021): one row per build of a title's
   // montage, keyed by the pieces it joins; cost 0 (ffmpeg only, no model call).
-  | "build_montage";
+  | "build_montage"
+  // Creator accounts (decision 2026-10-12; migration 0024): three caption options for a creator post, and one drafted
+  // reply to a comment, both on ADS_TEXT_PROVIDER's fast tier; target = the account (captions) or the comment (reply).
+  | "creator_captions"
+  | "creator_reply";
 export type JobStatus = "queued" | "running" | "done" | "failed" | "cancelled";
 
 /** studio.film_assets.kind: the pipeline files that come with an imported film (migration 0015). */
