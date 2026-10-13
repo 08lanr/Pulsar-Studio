@@ -82,7 +82,7 @@ const copy = <T>(v: T): T => structuredClone(v);
 const BASE32 = "abcdefghijklmnopqrstuvwxyz234567";
 /** prefix + 13 base32 characters: the shape core.ext_id() gives in Supabase mode. */
 function extId(prefix: string): string {
-  const bytes = randomBytes(9);
+  const bytes = randomBytes(13);
   let out = "";
   for (let i = 0; out.length < 13; i++) out += BASE32[bytes[i % bytes.length] & 31];
   return `${prefix}_${out}`;

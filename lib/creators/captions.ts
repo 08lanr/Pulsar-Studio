@@ -41,7 +41,7 @@ export type CaptionOptions = { call?: typeof callStructured; provider?: LlmProvi
 /** The canned answer of fixture mode: plain, lowercase, built from the first description. */
 export function cannedCaptions(media: CreatorMedia[]): string[] {
   const first = (media[0]?.description || "a quiet moment").replace(/[.\s]+$/, "").toLowerCase();
-  const short = first.split(/[,;]| with | in /)[0].trim().slice(0, 60) || "today";
+  const short = first.split(/[,;:.]| with | in /)[0].trim().slice(0, 60) || "today";
   return [
     `${short} 🤍`,
     `little things lately\n${short}`,
