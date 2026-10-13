@@ -435,7 +435,7 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
     const own = safe.content.some(c => c.kind === "video" || c.clip_id) ? await library(s, producerId) : [];
     // Each ad's title and, on TikTok, its link: the title the row names, else
     // the picked clip's title, else the launch's title.
-    const ads = new Map<LaunchDraft["content"][number], { title_id?: string; landing_url?: string }>();
+    const ads = new Map<LaunchDraft["content"][number], { title_id?: string; landing_url?: string; app_link?: string }>();
     if (safe.provider === "tiktok") {
       // The server writes the link a TikTok ad carries: the chosen title's
       // crazydramas ad link (its macros literal), never a typed URL; and the
@@ -463,7 +463,15 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
         const clipTitle = own.find(a => a.id === (c.kind === "video" ? c.value : c.clip_id))?.title_id;
         const titleId = c.kind === "video" ? clipTitle : c.title_id ?? clipTitle ?? safe.title_id ?? undefined;
         const link = titleId && !appInstall ? await landing(titleId) : null;
-        ads.set(c, { title_id: titleId, landing_url: link ?? undefined });
+        // An App install ad opens the app on its title's series (decision 2026-10-10): the series' app link, read
+        // from the same title link; a title without a usable one simply has none (the ad still installs the app).
+        let appLink: string | undefined;
+        if (titleId && appInstall) {
+          const { crazydramasAppLink, slugOfCrazydramasAdUrl } = await import("@/lib/tiktok/ad-url");
+          const slug = slugOfCrazydramasAdUrl(await landing(titleId).catch(() => null));
+          appLink = slug ? crazydramasAppLink(slug) : undefined;
+        }
+        ads.set(c, { title_id: titleId, landing_url: link ?? undefined, app_link: appLink });
       }
       // No launch title, no launch link: every ad carries its own title's link.
       if (!safe.title_id || appInstall) safe.destination_url = "";
@@ -494,9 +502,9 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
       // than refused; it never reaches the provider payload.
       const known = c.clip_id && own.some(a => a.id === c.clip_id) ? c.clip_id : undefined;
       const ad = ads.get(c);
-      const { landing_url: _untrusted, ...sent } = c as typeof c & { landing_url?: string };
+      const { landing_url: _untrusted, app_link: _untrustedApp, ...sent } = c as typeof c & { landing_url?: string; app_link?: string };
       const provenance: LaunchDraft["content"][number] = { ...sent, clip_id: known, post_id: known ? c.post_id : undefined,
-        title_id: ad?.title_id, ...(ad?.landing_url ? { landing_url: ad.landing_url } : {}) };
+        title_id: ad?.title_id, ...(ad?.landing_url ? { landing_url: ad.landing_url } : {}), ...(ad?.app_link ? { app_link: ad.app_link } : {}) };
       if (provenance.title_id === undefined) delete provenance.title_id;
       if (c.kind !== "video") return provenance;
       const asset = own.find(a => a.id === c.value);

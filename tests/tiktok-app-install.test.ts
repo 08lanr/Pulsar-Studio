@@ -21,6 +21,8 @@ import { adGroupBody, defaultAppInstallSettings, defaultWebsitePurchaseSettings,
 import { tiktokSparkDriver } from "@/lib/tiktok/spark-driver";
 import { planAppNote } from "@/components/launch/plan-summary";
 import { t } from "@/lib/i18n";
+import { crazydramasAppLink } from "@/lib/tiktok/ad-url";
+import { launchTitle, LIVE_SLUG } from "./launch-title";
 
 const HAND_SET_APP = "7290000000000000777";
 const env = { TIKTOK_FAKE_APP: process.env.TIKTOK_FAKE_APP, TIKTOK_PROMOTED_APP_ID: process.env.TIKTOK_PROMOTED_APP_ID, TIKTOK_APP_PACKAGE: process.env.TIKTOK_APP_PACKAGE };
@@ -273,4 +275,74 @@ test("refused for the permission with TIKTOK_PROMOTED_APP_ID set, preview and ap
   delete process.env.TIKTOK_PROMOTED_APP_ID;
   const refused = await getData().saveLaunchDraft(producer(), appDraft(accounts));
   await assert.rejects(getData().previewLaunchRun(producer(), refused.id), /doesn't have the app permission/);
+});
+
+// ---- the deep link to the ad's series (decision 2026-10-10) ------------------------------------------------------
+
+test("the app link is the series' crazydramas App Link, macro-free; a slug that cannot carry one throws", () => {
+  assert.equal(crazydramasAppLink(LIVE_SLUG), `https://crazydramas.com/watch/${LIVE_SLUG}?source=tiktok`);
+  assert.throws(() => crazydramasAppLink("mock-flirt"), /cannot carry an app link/);
+  assert.throws(() => crazydramasAppLink("Not A Slug"), /cannot carry an app link/);
+});
+
+test("app_deeplink: off by default, kept on the App install shape, dropped elsewhere, said in the summary", () => {
+  assert.equal(defaultAppInstallSettings().app_deeplink, undefined);
+  const on = validateLaunchSettings({ ...app(), app_deeplink: true }, 100);
+  assert.equal(on.app_deeplink, true);
+  assert.ok(summarizeLaunchSettings(on).includes("opens the app on the ad's series (deferred deep link)"));
+  const web = validateLaunchSettings({ ...defaultWebsitePurchaseSettings(), app_deeplink: true } as LaunchSettings, 100);
+  assert.equal(web.app_deeplink, undefined, "a website launch has no app to open");
+});
+
+test("with app_deeplink on, each App install ad carries its series' link as a DEFERRED_DEEPLINK; off, or with no link, none", async () => {
+  const link = crazydramasAppLink(LIVE_SLUG);
+  const withLink = (settings: LaunchSettings) => {
+    const ctx = context(settings);
+    ctx.campaign.content = [{ kind: "spark", value: "good-one", app_link: link }];
+    ctx.run.draft.content = ctx.campaign.content;
+    // Signed again with the link, as an approval of a saved draft would be.
+    ctx.run.snapshot_hash = launchHash(ctx.run.draft, ctx.run.connections!, ctx.run.campaigns);
+    return ctx;
+  };
+  await tiktokSparkDriver.launch(withLink({ ...app(), app_deeplink: true }));
+  const sent = fakeTikTokSnapshot().ads[0].body;
+  assert.deepEqual([sent.deeplink, sent.deeplink_type, sent.deeplink_format_type], [link, "DEFERRED_DEEPLINK", "UNIVERSAL_OR_APP_LINK"]);
+  assert.equal(sent.landing_page_url, undefined, "still no website link: the store opens when the app is not installed");
+
+  resetFakeTikTok();
+  await tiktokSparkDriver.launch(withLink(app()));
+  const off = fakeTikTokSnapshot().ads[0].body;
+  assert.deepEqual([off.deeplink, off.deeplink_type], [undefined, undefined], "off by default");
+
+  resetFakeTikTok();
+  await tiktokSparkDriver.launch(context({ ...app(), app_deeplink: true }));
+  assert.equal(fakeTikTokSnapshot().ads[0].body.deeplink, undefined, "an ad whose title has no live series installs the app all the same");
+});
+
+test("an account TikTok has not allowlisted refuses the deferred deep link, in TikTok's words", async () => {
+  process.env.TIKTOK_FAKE_DEEPLINK = "refused";
+  try {
+    const ctx = context({ ...app(), app_deeplink: true });
+    ctx.campaign.content = [{ kind: "spark", value: "good-one", app_link: crazydramasAppLink(LIVE_SLUG) }];
+    ctx.run.draft.content = ctx.campaign.content;
+    ctx.run.snapshot_hash = launchHash(ctx.run.draft, ctx.run.connections!, ctx.run.campaigns);
+    // Not a permanent rejection: the run stops with TikTok's words and can be retried once the account is allowlisted
+    // (or with the box unticked); nothing else of the campaign is lost.
+    await assert.rejects(tiktokSparkDriver.launch(ctx), /remain pending.*allowlist-only feature/);
+    assert.ok(ctx.campaign.state.campaign_id, "the campaign and its ad group stay, adopted on retry");
+  } finally { delete process.env.TIKTOK_FAKE_DEEPLINK; }
+});
+
+test("save writes each App install ad's series link from its title, never the client's; a title without a series has none", async () => {
+  const [account] = await tiktokAccounts(1);
+  const title = await launchTitle(LIVE_SLUG);
+  const draft: LaunchDraft = { ...appDraft([account]), content: [
+    { kind: "spark", value: "good-one", title_id: title.id, app_link: "https://evil.example/watch/x" } as LaunchDraft["content"][number],
+    { kind: "spark", value: "good-two" },
+  ], tiktok_settings: { ...defaultAppInstallSettings(), app_deeplink: true }, content_per_campaign: 2 };
+  const saved = await getData().saveLaunchDraft(producer(), draft);
+  assert.equal(saved.draft.content[0].app_link, crazydramasAppLink(LIVE_SLUG));
+  assert.equal(saved.draft.content[1].app_link, undefined);
+  assert.ok(saved.draft.content.every((c) => c.landing_url === undefined), "still no website link on an app launch");
+  assert.equal(saved.draft.tiktok_settings.app_deeplink, true);
 });

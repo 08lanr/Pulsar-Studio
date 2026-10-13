@@ -65,7 +65,11 @@ export default function LaunchSettingsEditor({ value, onChange, budgetUsd, regio
       <button type="button" className={`seg-btn${shape === "traffic" ? " on" : ""}`} aria-pressed={shape === "traffic"} onClick={() => onChange({ ...value, objective_type: "TRAFFIC", sales_destination: undefined, optimization_goal: "CLICK", instant_page_template: undefined, optimization_event: undefined, attribution: undefined, pixel_code: undefined })}>{tt("salesLaunch.traffic")}</button>
       {/* App install (2026-10-09): the crazydramas Android app on Google Play, optimized toward installs. */}
       <button type="button" className={`seg-btn${shape === "app_install" ? " on" : ""}`} aria-pressed={shape === "app_install"} data-testid="tk-shape-app" onClick={() => onChange({ ...defaultAppInstallSettings(), start_paused: value.start_paused, budget_mode: value.budget_mode, daily_budget_usd: value.daily_budget_usd, audiences: value.audiences })}>{tt("lpx.objectiveApp")}</button></div>
-      {shape === "app_install" && <p className="hint" data-testid="tk-app-hint">{tt("lpx.appHint")}</p>}
+      {shape === "app_install" && <>
+        <p className="hint" data-testid="tk-app-hint">{tt("lpx.appHint")}</p>
+        <label className="tk-check" data-testid="tk-app-deeplink"><input type="checkbox" checked={value.app_deeplink === true} onChange={(e) => set("app_deeplink", e.target.checked)} /> {tt("tk.appDeeplink")}</label>
+        <p className="hint">{tt(value.app_deeplink ? "tk.appDeeplinkOnHint" : "tk.appDeeplinkOffHint")}</p>
+      </>}
       {shape === "instant_page" && <InstantPageTemplatePicker value={value.instant_page_template} onChange={template => set("instant_page_template", template)} />}
       {shape === "website_purchases" && <>
         <div className="tk-field tk-row">

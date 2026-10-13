@@ -132,6 +132,12 @@ export const launchSettingsSchema = z.object({
    * are already posts and are not affected.
    */
   profile_posts: z.boolean().optional(),
+  /**
+   * App install ads open the app on the ad's series (decision 2026-10-10): each ad sends its title's app link as a
+   * DEFERRED_DEEPLINK. TikTok allows deferred deep links on App install ads only for allowlisted ad accounts ("contact
+   * your TikTok representative"), so it is off by default and only meaningful on the App install shape.
+   */
+  app_deeplink: z.boolean().optional(),
   // launch
   start_paused: z.boolean(),
   duplicate_copies: z.number().int().min(0).max(MAX_DUPLICATE_COPIES),
@@ -315,7 +321,7 @@ export function normalizeLaunchSettings(raw: unknown): LaunchSettings {
     if (v !== undefined) merged[key] = v;
   }
   const source = raw as Record<string, unknown>;
-  for (const key of ["objective_type", "app_platform", "instant_page_template", "sales_destination", "optimization_event", "attribution", "pixel_code", "audiences", "profile_posts"] as const) {
+  for (const key of ["objective_type", "app_platform", "instant_page_template", "sales_destination", "optimization_event", "attribution", "pixel_code", "audiences", "profile_posts", "app_deeplink"] as const) {
     if (source[key] !== undefined) merged[key] = source[key];
   }
   const parsed = launchSettingsSchema.safeParse(merged);
@@ -333,6 +339,7 @@ export class LaunchSettingsError extends Error {}
 export function validateLaunchSettings(input: LaunchSettings, budgetUsd: number): LaunchSettings {
   const s = { ...input };
   const shape = launchShape(s);
+  if (shape !== "app_install") delete s.app_deeplink;
   if (shape === "app_install") {
     // The app's installs, as TikTok hears them from the measurement partner: one goal, one store, one operating
     // system (TikTok requires operating_systems on an APP_PROMOTION ad group), no pixel, no page, no website link.
@@ -554,6 +561,7 @@ export function summarizeLaunchSettings(s: LaunchSettings, locationNames: Record
     s.pacing === "PACING_MODE_FAST" ? "accelerated" : null,
     s.duplicate_copies > 0 ? `${s.duplicate_copies} auto-duplicate cop${s.duplicate_copies === 1 ? "y" : "ies"}` : null,
     s.profile_posts ? "Studio clips also posted to the profile" : null,
+    shape === "app_install" && s.app_deeplink ? "opens the app on the ad's series (deferred deep link)" : null,
     s.start_paused ? "starts paused" : "live on approval",
   ];
   return parts.filter((p): p is string => !!p);

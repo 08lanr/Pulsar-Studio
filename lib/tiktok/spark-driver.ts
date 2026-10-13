@@ -74,6 +74,16 @@ const adLanding = (ctx: DriverContext, code: string) =>
   ctx.campaign.content.find((item) => item.value.trim() === code)?.landing_url ?? landingUrl(ctx);
 /** What names an ad and finds it again: the post it plays, or the uploaded video. */
 const adRef = (post: SparkPost) => post.item_id || `v${post.video_id ?? ""}`;
+/**
+ * An App install ad's deep link (decision 2026-10-10): its title's app link (LaunchContent.app_link, written on save)
+ * as a DEFERRED_DEEPLINK when the launch has `app_deeplink` on, else nothing (the ad installs the app and the app
+ * opens on Home). Field names and values from /ad/create/ v1.3; TikTok allows the deferred type only for allowlisted
+ * accounts (UNVERIFIED LIVE until the allowlist and the first launch with it).
+ */
+const appDeepLink = (ctx: DriverContext, code: string): Record<string, string> => {
+  const link = state(ctx).settings?.app_deeplink ? ctx.campaign.content.find((item) => item.value.trim() === code)?.app_link : undefined;
+  return link ? { deeplink: link, deeplink_type: "DEFERRED_DEEPLINK", deeplink_format_type: "UNIVERSAL_OR_APP_LINK" } : {};
+};
 const shapeOf = (s: SparkState) => (s.settings ? launchShape(s.settings) : "traffic");
 const str = (v: unknown) => v === undefined || v === null ? "" : String(v);
 const number = (v: unknown): number | null => v === undefined || v === null || v === "" || !Number.isFinite(Number(v)) ? null : Number(v);
@@ -518,7 +528,7 @@ async function createAds(ctx: DriverContext, c: Client, group: SparkGroup): Prom
         ...(shapeOf(state(ctx)) === "instant_page"
           ? { page_id: state(ctx).instant_page?.id }
           : shapeOf(state(ctx)) === "app_install"
-            ? {}
+            ? appDeepLink(ctx, post.code)
             : { landing_page_url: adLanding(ctx, post.code) }),
       };
       const linked = { identity_type: "BC_AUTH_TT", identity_id: post.identity_id, identity_authorized_bc_id: post.bc_id };
