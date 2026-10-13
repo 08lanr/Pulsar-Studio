@@ -74,7 +74,7 @@ import { AD_TEXT_MAX, clipIdOf, creativesFromClips, NO_CLIPS_MESSAGE, pickClipsF
 import { MONTAGE_RANK_BASE, montageClipProblem } from "@/lib/clips/montage";
 import { blockerMessage, isAssignedBusinessCenter, isReadyLaunchAccount, launchReadiness } from "@/lib/promote/launch-gate";
 import { launchMode } from "@/lib/tiktok";
-import { launchSettingsSchema, LaunchSettingsError, normalizeLaunchSettings, validateLaunchSettings, type LaunchSettings } from "@/lib/tiktok/settings";
+import { launchSettingsSchema, LaunchSettingsError, normalizeLaunchSettings, presetSettings, validateLaunchSettings, type LaunchSettings } from "@/lib/tiktok/settings";
 import type { AccountRequest, InstantPageTemplate, LaunchPreset, PromoLaunch } from "@/lib/types";
 import { DataError, legacyCampaignRetired, conflict, invalid, notFound } from "./errors";
 import { episodeImportPatch, filmAssetRow, normalizeSourceRef, validateAdRules } from "./film-import";
@@ -2392,7 +2392,8 @@ export const supabaseData: DataLayer = {
     const parsed = launchSettingsSchema.safeParse(input.settings);
     if (!parsed.success) throw invalid(parsed.error.issues[0]?.message ?? "invalid launch settings");
     const c = db();
-    const fields = { name: input.name.trim(), settings: parsed.data, note: input.note?.trim() || null, updated_at: now() };
+    // A preset never carries a launch's acquisition route or deferred deep link (presetSettings, 2026-10-12).
+    const fields = { name: input.name.trim(), settings: presetSettings(parsed.data), note: input.note?.trim() || null, updated_at: now() };
     const saved = input.id
       ? await one<LaunchPreset>(promote(c).from("launch_presets").update(fields).eq("id", input.id).select("*").maybeSingle(), "launch preset", input.id)
       : await one<LaunchPreset>(promote(c).from("launch_presets").insert({ ...fields, created_by: session.userId }).select("*").single(), "launch preset");

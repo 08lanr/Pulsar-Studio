@@ -11,12 +11,14 @@ import FilterBar, { type FilterOptions } from "@/components/admin/cd-stats/Filte
 import Info from "@/components/admin/cd-stats/Info";
 import { SpendRevenueChart, StackedDaysChart, type StackSeries } from "@/components/admin/cd-stats/Money";
 import { KpiCard } from "@/components/admin/cd-stats/Overview";
+import { RouteFunnels, RouteTable } from "@/components/admin/cd-stats/Routes";
 import { PlaybackSection } from "@/components/admin/cd-stats/Sections";
 import { EpisodeCurveChart, SeriesFunnelList } from "@/components/admin/cd-stats/SeriesCurve";
 import { SurveyView } from "@/components/admin/cd-stats/Tables";
 import TeamEditor from "@/components/admin/cd-stats/TeamEditor";
 import { adFormatChoices, adFormatMatches } from "@/lib/ad-formats";
-import { fakeStatsArchive, fakeStatsLaunches, FAKE_STATS_CLIPS } from "@/lib/crazydramas/fake-stats";
+import { fakeRouteLaunches, fakeStatsArchive, fakeStatsLaunches, FAKE_STATS_CLIPS } from "@/lib/crazydramas/fake-stats";
+import { campaignRoutes, hasRoutes, routeColumns, routeDaily, routesIn, routeSpanAll, routeTotals } from "@/lib/crazydramas/stats-routes";
 import { readCrazydramasStats, readLaunchClips } from "@/lib/crazydramas/stats";
 import { adCreatives, byAdType, campaignFacts, changeAbove, compareCampaigns, dailySpend, fmtRatio, returnOnSpend, spendIn, type AdCreative, type CreativeClip } from "@/lib/crazydramas/stats-ads";
 import { boughtMix, campaignBrief, paywallTest } from "@/lib/crazydramas/stats-brief";
@@ -302,6 +304,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
       {tab === "coins" && <CoinsTab />}
       {tab === "campaigns" && <CampaignsTab />}
       {tab === "ads" && (await adsTab(report.to, invented, inventedClips))}
+      {tab === "routes" && <RoutesTab />}
       {tab === "series" && <SeriesTab />}
       {tab === "playback" && <PlaybackTab />}
     </>
@@ -544,6 +547,70 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
             </h2>
           </div>
           <AdTypeTable rows={byAdType(ads)} locale={locale} />
+        </section>
+      </>
+    );
+  }
+
+  // Acquisition routes A/B/C (decision 2026-10-12): the three ways into the Android app side by side, over the period.
+  // crazydramas' route rows are the whole site (no series, phone or country), so the filter row does not split them.
+  function RoutesTab() {
+    // Fixture mode: three invented route launches (never stored) give the fake report's route rows their spend.
+    const routeFake = read.mode === "fake" ? fakeRouteLaunches() : null;
+    const routeRuns = routeFake ? [...runs, ...routeFake.runs] : runs;
+    const routeDays = withDays(adDays, routeFake?.days ?? null);
+    const routeSpends = adSpendsFromRuns(routeRuns);
+    // All: from the first day crazydramas reported routes, never spend from before them (no rows yet: each ad's whole life).
+    const allSpan = range === "all" ? routeSpanAll(report) : null;
+    const period: AdPeriod | undefined = range === "all" ? (allSpan ? { ...allSpan, timezone: report.timezone, last_day: report.to, days: routeDays } : undefined) : { ...span, timezone: report.timezone, last_day: report.to, days: routeDays };
+    const prevPeriod: AdPeriod | undefined = prev ? { ...prev, timezone: report.timezone, last_day: report.to, days: routeDays } : undefined;
+    const known = hasRoutes(report);
+    const routeOf = campaignRoutes(report.routes ?? [], routeRuns);
+    const columns = routeColumns(routesIn(report, span), routeSpends, routeOf, period);
+    const total = routeTotals(columns);
+    const before = prev ? routeTotals(routeColumns(routesIn(report, prev), routeSpends, routeOf, prevPeriod)) : null;
+    const chart = chartSpan(report, range);
+    const chartRows = routesIn(report, chart);
+    const routeSpendDays = dailySpend(routeSpends.filter((sp) => sp.campaign_id && routeOf.get(sp.campaign_id)), routeDays.ok ? routeDays : null, chart);
+    // The people the costs do not cover, per route (no campaign, or a campaign without known Studio spend).
+    const unmatched = columns.filter((c) => c.unmatched.installs + c.unmatched.trials + c.unmatched.paid + c.unmatched.landed > 0)
+      .map((c) => tt("cdr.unmatchedRoute", { route: tt(`cdr.letter.${c.route}`), installs: n0(c.unmatched.installs), trials: n0(c.unmatched.trials), paid: n0(c.unmatched.paid), landed: n0(c.unmatched.landed) }));
+    const letters = (f: (c: (typeof columns)[number]) => string) => columns.map((c) => `${tt(`cdr.letter.${c.route}`)} ${f(c)}`).join(" · ");
+    const money = (v: number | null) => (v === null ? "–" : fmtUsdCents(v));
+    const dash = (v: number) => (known ? n0(v) : "–");
+    return (
+      <>
+        {!known && <p className="note">{tt("cdr.none")}</p>}
+        {filtered && <p className="note">{tt("cdm.wholeSite")}</p>}
+        {!routeDays.ok && <p className="note note-warn">{tt("cds.ads.daysFailed", { error: routeDays.error })}</p>}
+        {adDaysPartNote && <p className="note note-warn">{adDaysPartNote}</p>}
+        <div className="cdx-kpis cdx-kpis-5">
+          <KpiCard label={tt("cdr.m.spend")} info={tt("cdr.m.spend.info")} value={money(total.spend_cents)} sub={columns.some((c) => c.spend_partial) ? tt("cdo.partial") : letters((c) => money(c.spend_cents))} spark={routeSpendDays.every((d) => d.cents === null) ? undefined : routeSpendDays.map((d) => d.cents ?? 0)} upIsGood={false} />
+          <KpiCard label={tt("cdr.m.installs")} info={tt("cdr.m.installs.info")} value={dash(total.installs)} sub={known ? letters((c) => n0(c.installs)) : null} change={known && before ? change(total.installs, before.installs) : null} vs={vs} spark={known ? routeDaily(chartRows, chart, "installs", routeOf) : undefined} />
+          <KpiCard label={tt("cdr.m.per_install")} info={tt("cdr.m.per_install.info")} value={known ? money(total.cost_per_install_cents) : "–"} sub={known ? letters((c) => money(c.cost_per_install_cents)) : null} upIsGood={false} />
+          <KpiCard label={tt("cdr.m.trials")} info={tt("cdr.m.trials.info")} value={dash(total.trials)} sub={known ? letters((c) => n0(c.trials)) : null} change={known && before ? change(total.trials, before.trials) : null} vs={vs} spark={known ? routeDaily(chartRows, chart, "trials", routeOf) : undefined} />
+          <KpiCard label={tt("cdr.m.paid")} info={tt("cdr.m.paid.info")} value={dash(total.paid)} sub={known ? letters((c) => n0(c.paid)) : null} change={known && before ? change(total.paid, before.paid) : null} vs={vs} spark={known ? routeDaily(chartRows, chart, "paid", routeOf) : undefined} />
+        </div>
+        <section className="rs-panel cdx-card">
+          <div className="cdx-card-head">
+            <h2>
+              {tt("cdr.funnel")} <Info text={tt("cdr.funnel.info")} label={tt("cdx.about", { what: tt("cdr.funnel") })} />
+            </h2>
+          </div>
+          <RouteFunnels columns={columns} known={known} locale={locale} />
+        </section>
+        <section className="rs-panel cdx-card">
+          <div className="cdx-card-head">
+            <h2>{tt("cdr.table")}</h2>
+            {columns.some((c) => c.spend_partial) && <span className="cdx-muted">{tt("cdo.partial")}</span>}
+          </div>
+          <RouteTable columns={columns} known={known} locale={locale} />
+          {known && unmatched.length > 0 && (
+            <p className="cdx-note" data-testid="cdr-unmatched">
+              {tt("cdr.unmatched", { list: unmatched.join(" · ") })} <Info text={tt("cdr.unmatchedInfo")} label={tt("cdx.about", { what: tt("cdr.unmatchedName") })} />
+            </p>
+          )}
+          {range === "all" && allSpan && <p className="cdx-note">{tt("cdr.allFrom", { day: allSpan.from })}</p>}
         </section>
       </>
     );

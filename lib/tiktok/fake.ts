@@ -386,7 +386,8 @@ function reportRows(campaignIds: string[], adgroupIds: string[], start: string, 
       const value = Math.round(purchases * 999) / 100;
       const checkouts = purchases * 3;
       return {
-        conversion: event === "INITIATE_ORDER" ? checkouts : purchases,
+        // Download (route B's landing page button, 2026-10-12): about one tap in eight clicks.
+        conversion: event === "INITIATE_ORDER" ? checkouts : event === "DOWNLOAD_START" ? Math.floor(clicks / 8) : purchases,
         complete_payment: purchases, total_complete_payment_rate: value, initiate_checkout: checkouts,
         cost_per_complete_payment: purchases ? Math.round((spend / purchases) * 100) / 100 : 0,
         complete_payment_roas: spend ? Math.round((value / spend) * 100) / 100 : 0,
@@ -412,7 +413,7 @@ function reportRows(campaignIds: string[], adgroupIds: string[], start: string, 
       const checkouts = purchases * 3;
       // `conversion` counts the optimization event, so on a pixel group it is the purchases (or the checkouts).
       const web: Record<string, number> = pixel ? {
-        conversion: pixelGroup!.body.optimization_event === "INITIATE_ORDER" ? checkouts : purchases,
+        conversion: pixelGroup!.body.optimization_event === "INITIATE_ORDER" ? checkouts : pixelGroup!.body.optimization_event === "DOWNLOAD_START" ? [...perAd.values()].reduce((n, a) => n + Math.floor(a.clicks / 8), 0) : purchases,
         complete_payment: purchases, total_complete_payment_rate: value, initiate_checkout: checkouts,
         cost_per_complete_payment: purchases ? Math.round((spend / purchases) * 100) / 100 : 0,
         complete_payment_roas: spend ? Math.round((value / spend) * 100) / 100 : 0,
@@ -690,6 +691,13 @@ export const fakeTransport: TikTokTransport = {
         const creatives = Array.isArray(body.creatives) ? (body.creatives as Array<Record<string, unknown>>) : [];
         if (!creatives.length) return refuse("creatives is empty");
         for (const c of creatives) {
+          // Deferred deep links (/ad/create/ v1.3): app promotion only, and only for allowlisted accounts
+          // (TIKTOK_FAKE_DEEPLINK=refused plays an account that is not).
+          if (c.deeplink_type === "DEFERRED_DEEPLINK") {
+            if (!/^APP_/.test(String(adgroup.body.promotion_type ?? ""))) return refuse("deeplink_type DEFERRED_DEEPLINK is only supported for app promotion");
+            if (process.env.TIKTOK_FAKE_DEEPLINK === "refused") return refuse("Deferred deeplink is an allowlist-only feature. Please contact your TikTok representative.");
+            if (!c.deeplink) return refuse("deeplink is required when deeplink_type is DEFERRED_DEEPLINK");
+          }
           if (c.identity_type === "AUTH_CODE") {
             const post = [...s.sparks.values()].find((p) => p.advertiserId === String(body.advertiser_id) && p.itemId === c.tiktok_item_id && p.identityId === c.identity_id);
             const sparkAppGroup = /^APP_/.test(String(adgroup.body.promotion_type ?? ""));

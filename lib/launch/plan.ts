@@ -282,6 +282,9 @@ export function metaDraftIssues(draft: LaunchDraft, connections: LaunchConnectio
   // real (false) TikTok session. Refuse it before anything is created.
   if (isCrazydramasAdUrl(draft.destination_url) && !isCrazydramasAdUrl(draft.destination_url, "meta"))
     list.add("crossPlatformLink", "This is the TikTok link for that drama. Choose the drama again so the ad carries the Meta link.");
+  // Acquisition routes A/B/C are TikTok's this round (decision 2026-10-12); the server drops one from a Meta draft on save.
+  const route = (draft.tiktok_settings as { acquisition_route?: string } | undefined)?.acquisition_route;
+  if (route && route !== "none") list.add("acquisitionRoute", "Acquisition routes (A Google Play, B landing page, C web player) are for TikTok launches only. Save the draft again to clear it.");
   if (count > 0) {
     const needed = draft.allocation === "shared" ? draft.content_per_campaign : count * draft.content_per_campaign;
     if (draft.content.length !== needed) list.add("contentCount", `Need exactly ${needed} content entries; ${draft.content.length} provided.`, { needed, provided: draft.content.length });

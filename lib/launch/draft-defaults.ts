@@ -2,11 +2,17 @@
 // (decision 2026-09-23, "one TikTok account for now"). Pure and client-safe:
 // the Launch screen applies it to the draft and to its untouched baseline.
 
-import { isCrazydramasAdUrl } from "@/lib/tiktok/ad-url";
+import { CRAZYDRAMAS_WATCH_BASE, crazydramasAdUrlParts } from "@/lib/tiktok/ad-url";
 import type { LaunchDraft, LaunchWorkspace } from "./types";
 
-/** A crazydramas ad link carried over to Meta loses TikTok's macros: Meta has its own URL parameters. */
-export const metaDestination = (url: string) => (isCrazydramasAdUrl(url) ? url.split("?")[0] : url);
+/**
+ * A crazydramas ad link carried over to Meta loses TikTok's macros: Meta has its own URL parameters. Any route's link
+ * becomes the series' player page: route B's landing page (/try/<slug>, decision 2026-10-12) is TikTok's alone.
+ */
+export const metaDestination = (url: string) => {
+  const parts = crazydramasAdUrlParts(url);
+  return parts ? `${CRAZYDRAMAS_WATCH_BASE}${parts.slug}` : url;
+};
 
 /**
  * What an untouched new draft starts with once the workspace is known (applied

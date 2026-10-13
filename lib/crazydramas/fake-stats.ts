@@ -6,7 +6,7 @@
 
 import type { LaunchRun } from "@/lib/launch/types";
 import { FIRST_WEEK_CENTS, VIP_PRICE_CENTS } from "./vip-prices";
-import { CdStatsPlaybackSchema, type CdStatsCohort, type CdStatsDay, type CdStatsDrop, type CdStatsPlayback, type CdStatsReport, type CdStatsSeries, type CdStatsSource } from "./stats-types";
+import { CdStatsPlaybackSchema, ROUTE_KEYS, type CdStatsCohort, type CdStatsDay, type CdStatsDrop, type CdStatsPlayback, type CdStatsReport, type CdStatsRoute, type CdStatsSeries, type CdStatsSource, type RouteKey } from "./stats-types";
 
 /**
  * The fake's ads: TikTok-shaped ids in two campaigns, the first optimizing purchases (ads 1 and 2), the second
@@ -329,7 +329,87 @@ export function fakeStatsReport(series: FakeSeriesIn[], episodes: FakeEpisodeIn[
     drops: fakeDrops(live.map((x) => x.id), now),
     ...buyers,
     ...money,
+    routes: live.length ? fakeRoutes(to) : [],
   };
+}
+
+// ---- invented acquisition routes (decision 2026-10-12, "Acquisition routes A/B/C"; fixture mode only) --------------
+
+/** The invented route campaigns and their one ad each: A Google Play, B landing page, C web player. */
+export const FAKE_ROUTE_CAMPAIGNS: Record<RouteKey, string> = { store: "1877000000000400", lander: "1877000000000500", web: "1877000000000600" };
+export const FAKE_ROUTE_ADS: Record<RouteKey, string> = { store: "1877000000000009", lander: "1877000000000010", web: "1877000000000011" };
+/** Six days of each route, summed: the same $100 each, B's landing page converting to installs best, C's web player to payments. */
+const FAKE_ROUTE_LIFE: Record<RouteKey, { spend: number; impressions: number; clicks: number } & Omit<CdStatsRoute, "day" | "route" | "campaign_id">> = {
+  store: { spend: 9800, impressions: 30400, clicks: 452, landed: 0, store_taps: 0, installs: 61, opened_episode: 22, trials: 9, paid: 4, repeat_viewers: 26, revenue_cents: 1596 },
+  lander: { spend: 10150, impressions: 31800, clicks: 521, landed: 433, store_taps: 141, installs: 72, opened_episode: 55, trials: 8, paid: 3, repeat_viewers: 23, revenue_cents: 1197 },
+  web: { spend: 9920, impressions: 30900, clicks: 503, landed: 412, store_taps: 36, installs: 14, opened_episode: 12, trials: 15, paid: 9, repeat_viewers: 61, revenue_cents: 3591 },
+};
+const FAKE_ROUTE_WEIGHTS = [1, 2, 3, 3, 4, 5];
+/** `total` over the six days by FAKE_ROUTE_WEIGHTS, adding up exactly (the last day takes the rest). */
+function spreadSix(total: number): number[] {
+  const sum = FAKE_ROUTE_WEIGHTS.reduce((a, b) => a + b, 0);
+  const out = FAKE_ROUTE_WEIGHTS.map((w) => Math.round((total * w) / sum));
+  out[out.length - 1] = total - out.slice(0, -1).reduce((a, b) => a + b, 0);
+  return out;
+}
+
+/** The fake report's `routes`: each route's campaign over the last six days, and on A some installs AppsFlyer named no campaign for. */
+export function fakeRoutes(to: string): CdStatsRoute[] {
+  const rows: CdStatsRoute[] = [];
+  const keys = ["landed", "store_taps", "installs", "opened_episode", "trials", "paid", "repeat_viewers", "revenue_cents"] as const;
+  for (const route of ROUTE_KEYS) {
+    const life = FAKE_ROUTE_LIFE[route];
+    const parts = Object.fromEntries(keys.map((k) => [k, spreadSix(life[k])])) as Record<(typeof keys)[number], number[]>;
+    FAKE_ROUTE_WEIGHTS.forEach((_, i) => {
+      const day = addDays(to, i - FAKE_ROUTE_WEIGHTS.length + 1);
+      rows.push({ day, route, campaign_id: FAKE_ROUTE_CAMPAIGNS[route], ...(Object.fromEntries(keys.map((k) => [k, parts[k][i]])) as Record<(typeof keys)[number], number>) });
+    });
+  }
+  rows.push({ day: addDays(to, -1), route: "store", campaign_id: null, landed: 0, store_taps: 0, installs: 3, opened_episode: 0, trials: 0, paid: 0, repeat_viewers: 1, revenue_cents: 0 });
+  return rows;
+}
+
+/**
+ * Launch records for the three route campaigns (fixture mode only, never stored): one ad each, its lifetime numbers, its
+ * launch's acquisition_route, and TikTok's days for the period's spend.
+ */
+export function fakeRouteLaunches(now: Date = new Date()): {
+  runs: LaunchRun[];
+  days: { ok: true; from: string; to: string; campaigns: string[]; days: Record<string, { day: string; spend_cents: number | null; impressions: number | null; clicks: number | null }[]> };
+} {
+  const launched = new Date(now.getTime() - 6 * 86_400_000 + 3_600_000).toISOString();
+  const to = pacificDay(now);
+  const days: Record<string, { day: string; spend_cents: number | null; impressions: number | null; clicks: number | null }[]> = {};
+  const settingsOf: Record<RouteKey, Record<string, unknown>> = {
+    store: { objective_type: "APP_PROMOTION", app_platform: "ANDROID", optimization_goal: "INSTALL", acquisition_route: "store" },
+    lander: { objective_type: "TRAFFIC", optimization_goal: "TRAFFIC_LANDING_PAGE_VIEW", acquisition_route: "lander" },
+    web: { objective_type: "WEB_CONVERSIONS", sales_destination: "website", optimization_goal: "CONVERT", optimization_event: "SHOPPING", acquisition_route: "web" },
+  };
+  const runs = ROUTE_KEYS.map((route, i) => {
+    const life = FAKE_ROUTE_LIFE[route];
+    const spend = spreadSix(life.spend), impressions = spreadSix(life.impressions), clicks = spreadSix(life.clicks);
+    days[FAKE_ROUTE_ADS[route]] = FAKE_ROUTE_WEIGHTS.map((_, d) => ({ day: addDays(to, d - FAKE_ROUTE_WEIGHTS.length + 1), spend_cents: spend[d], impressions: impressions[d], clicks: clicks[d] }));
+    const settings = settingsOf[route];
+    const clip = FAKE_STATS_CLIPS[i % FAKE_STATS_CLIPS.length];
+    const content = [{ kind: "video" as const, value: clip.id, clip_id: clip.id, title_id: clip.title_id, text: clip.hook_en, file_path: clip.render_path }];
+    return {
+      id: `fake-route-run-${route}`, external_id: `lr_fakeroute${route}`, producer_id: "fake-stats",
+      draft: { provider: "tiktok", name: `Invented route ${"ABC"[i]} · ${route}`, content, tiktok_settings: settings },
+      round: 1, parent_run_id: null, status: "done", revision: 1, snapshot_hash: null, approved_by: null, approved_at: launched, approval_note: null,
+      created_by: "fake-stats", created_at: launched, updated_at: launched, mode: "fake", error: null, lease_owner: null, lease_until: null,
+      campaigns: [{
+        id: `fake-route-campaign-${route}`, run_id: `fake-route-run-${route}`, index: 0, connection_id: "fake-stats", advertiser_id: "7000000000000000001",
+        name: `route-${route}`, content, budget_cents: 10000, daily_budget_cents: null, status: "done", error: null,
+        state: { campaign_id: FAKE_ROUTE_CAMPAIGNS[route], settings, groups: [{ ads: { [clip.id]: FAKE_ROUTE_ADS[route] } }] },
+        snapshot: {
+          delivery: "live", note: null, checked_at: now.toISOString(), spend_cents: life.spend, impressions: life.impressions, clicks: life.clicks, conversions: null,
+          cpc_cents: Math.round(life.spend / life.clicks), web: null,
+          ads: [{ id: FAKE_ROUTE_ADS[route], status: "live", content_value: clip.id, stats: { spend_cents: life.spend, impressions: life.impressions, clicks: life.clicks, ctr: life.clicks / life.impressions, cpc_cents: Math.round(life.spend / life.clicks), conversions: null, web: null } }],
+        },
+      }],
+    };
+  }) as unknown as LaunchRun[];
+  return { runs, days: { ok: true, from: addDays(to, -29), to, campaigns: Object.values(FAKE_ROUTE_CAMPAIGNS), days } };
 }
 
 /**

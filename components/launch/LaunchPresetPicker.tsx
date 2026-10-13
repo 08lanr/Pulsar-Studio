@@ -4,7 +4,7 @@ import { useT } from "@/components/locale";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { call } from "@/components/tiktok/api";
-import { defaultSalesLaunchSettings, defaultWebsitePurchaseSettings, normalizeLaunchSettings, type LaunchSettings } from "@/lib/tiktok/settings";
+import { defaultSalesLaunchSettings, defaultWebsitePurchaseSettings, normalizeLaunchSettings, presetSettings, type LaunchSettings } from "@/lib/tiktok/settings";
 import { builtInPresetOf } from "@/lib/tiktok/preset-match";
 import type { LaunchPreset } from "@/lib/types";
 
@@ -44,7 +44,7 @@ export default function LaunchPresetPicker({ onSelect, value }: { onSelect: (set
     };
   }, [refresh]);
   return <div className="launch-preset-row">
-    <label>{tt("tk.preset")} <select className="select" value={activePreset} onFocus={() => void refresh()} onChange={e => { if (e.target.value === "__default_website__") { setChosen(null); onSelect({ ...defaultWebsitePurchaseSettings(), start_paused: value.start_paused }); return; } if (e.target.value === "__default_sales__") { setChosen(null); onSelect({ ...defaultSalesLaunchSettings(), start_paused: value.start_paused }); return; } const p = presets.find(x => x.id === e.target.value); if (p) { const settings = normalizeLaunchSettings(p.settings); setChosen({ id: p.id, applied: { ...settings, start_paused: value.start_paused } }); onSelect(settings); } else setChosen(null); }}>
+    <label>{tt("tk.preset")} <select className="select" value={activePreset} onFocus={() => void refresh()} onChange={e => { if (e.target.value === "__default_website__") { setChosen(null); onSelect({ ...defaultWebsitePurchaseSettings(), start_paused: value.start_paused }); return; } if (e.target.value === "__default_sales__") { setChosen(null); onSelect({ ...defaultSalesLaunchSettings(), start_paused: value.start_paused }); return; } const p = presets.find(x => x.id === e.target.value); if (p) { const settings = presetSettings(normalizeLaunchSettings(p.settings)); setChosen({ id: p.id, applied: { ...settings, start_paused: value.start_paused } }); onSelect(settings); } else setChosen(null); }}>
       <option value="">{tt("tk.presetCustom")}</option>
       <option value="__default_website__">{tt("lpx.defaultPreset")}</option>
       <option value="__default_sales__">{tt("salesLaunch.defaultPreset")}</option>

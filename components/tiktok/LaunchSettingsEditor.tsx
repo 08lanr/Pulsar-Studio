@@ -8,8 +8,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useT } from "@/components/locale";
-import { AGE_OPTIONS, BID_STRATEGY_OPTIONS, BUDGET_MODE_OPTIONS, COMMON_LANGUAGES, CTA_OPTIONS, GENDER_OPTIONS, GOAL_OPTIONS, MAX_DURATION_DAYS, MAX_DUPLICATE_COPIES, MIN_ADGROUP_BUDGET_USD, OS_OPTIONS, PACING_OPTIONS, PLACEMENT_OPTIONS, WEB_EVENT_OPTIONS, defaultEventCount, goalOption } from "@/lib/tiktok/options";
-import { attributionOf, defaultAppInstallSettings, defaultSalesLaunchSettings, defaultWebsitePurchaseSettings, launchShape, optimizesPurchases, planAdGroup, type LaunchSettings } from "@/lib/tiktok/settings";
+import { AGE_OPTIONS, BID_STRATEGY_OPTIONS, BUDGET_MODE_OPTIONS, COMMON_LANGUAGES, CTA_OPTIONS, GENDER_OPTIONS, GOAL_OPTIONS, MAX_DURATION_DAYS, MAX_DUPLICATE_COPIES, MIN_ADGROUP_BUDGET_USD, OS_OPTIONS, PACING_OPTIONS, PLACEMENT_OPTIONS, SALE_EVENTS, WEB_EVENT_OPTIONS, defaultEventCount, goalOption } from "@/lib/tiktok/options";
+import { attributionOf, defaultAppInstallSettings, defaultSalesLaunchSettings, defaultWebsitePurchaseSettings, landerOptimization, launchShape, optimizesPurchases, planAdGroup, routeShapeProblem, withAcquisitionRoute, withoutDownloadEvent, type LaunchSettings } from "@/lib/tiktok/settings";
+import { ACQUISITION_ROUTES } from "@/lib/tiktok/ad-url";
 import InstantPageTemplatePicker from "@/components/launch/InstantPageTemplatePicker";
 import { call } from "./api";
 import AudiencePicker from "./AudiencePicker";
@@ -55,27 +56,52 @@ export default function LaunchSettingsEditor({ value, onChange, budgetUsd, regio
   const noCap = value.bid_strategy === "LOWEST_COST";
   const lifetime = value.budget_mode === "BUDGET_MODE_TOTAL";
   const shareTooSmall = lifetime && budgetUsd > 0 && plan.budget < MIN_ADGROUP_BUDGET_USD;
+  // A new shape keeps the launch's acquisition route when the route still fits it (decision 2026-10-12), else drops it.
+  const route = value.acquisition_route ?? "none";
+  const reshape = (next: LaunchSettings) => {
+    const kept = route !== "none" ? { ...next, acquisition_route: route } : next;
+    onChange(routeShapeProblem(kept) ? withoutDownloadEvent(next) : kept);
+  };
+  const routeProblem = routeShapeProblem(value);
 
   return <div className={`tk-editor${disabled ? " is-disabled" : ""}`}>
     <fieldset disabled={disabled} className="tk-fieldset"><legend>{tt("salesLaunch.objective")}</legend><div className="seg tk-seg">
       {/* Three shapes (lib/tiktok/settings.ts launchShape): Website purchases on
           the crazydramas pixel (the default), Sales on an Instant Page, Traffic. */}
-      <button type="button" className={`seg-btn${shape === "website_purchases" ? " on" : ""}`} aria-pressed={shape === "website_purchases"} onClick={() => onChange({ ...defaultWebsitePurchaseSettings(), start_paused: value.start_paused, budget_mode: value.budget_mode, daily_budget_usd: value.daily_budget_usd ?? defaultWebsitePurchaseSettings().daily_budget_usd, audiences: value.audiences })}>{tt("lpx.objectiveWebsite")}</button>
-      <button type="button" className={`seg-btn${shape === "instant_page" ? " on" : ""}`} aria-pressed={shape === "instant_page"} onClick={() => onChange({ ...defaultSalesLaunchSettings(), start_paused: value.start_paused, budget_mode: value.budget_mode, daily_budget_usd: value.daily_budget_usd, audiences: value.audiences })}>{tt("salesLaunch.sales")}</button>
-      <button type="button" className={`seg-btn${shape === "traffic" ? " on" : ""}`} aria-pressed={shape === "traffic"} onClick={() => onChange({ ...value, objective_type: "TRAFFIC", sales_destination: undefined, optimization_goal: "CLICK", instant_page_template: undefined, optimization_event: undefined, attribution: undefined, pixel_code: undefined })}>{tt("salesLaunch.traffic")}</button>
+      <button type="button" className={`seg-btn${shape === "website_purchases" ? " on" : ""}`} aria-pressed={shape === "website_purchases"} onClick={() => reshape({ ...defaultWebsitePurchaseSettings(), start_paused: value.start_paused, budget_mode: value.budget_mode, daily_budget_usd: value.daily_budget_usd ?? defaultWebsitePurchaseSettings().daily_budget_usd, audiences: value.audiences, ...(route === "lander" ? { optimization_event: "DOWNLOAD_START" as const, attribution: attributionOf({ optimization_event: "DOWNLOAD_START" }) } : {}) })}>{tt("lpx.objectiveWebsite")}</button>
+      <button type="button" className={`seg-btn${shape === "instant_page" ? " on" : ""}`} aria-pressed={shape === "instant_page"} onClick={() => reshape({ ...defaultSalesLaunchSettings(), start_paused: value.start_paused, budget_mode: value.budget_mode, daily_budget_usd: value.daily_budget_usd, audiences: value.audiences })}>{tt("salesLaunch.sales")}</button>
+      <button type="button" className={`seg-btn${shape === "traffic" ? " on" : ""}`} aria-pressed={shape === "traffic"} onClick={() => reshape({ ...value, objective_type: "TRAFFIC", sales_destination: undefined, optimization_goal: route === "lander" ? "TRAFFIC_LANDING_PAGE_VIEW" : "CLICK", instant_page_template: undefined, optimization_event: undefined, attribution: undefined, pixel_code: undefined })}>{tt("salesLaunch.traffic")}</button>
       {/* App install (2026-10-09): the crazydramas Android app on Google Play, optimized toward installs. */}
-      <button type="button" className={`seg-btn${shape === "app_install" ? " on" : ""}`} aria-pressed={shape === "app_install"} data-testid="tk-shape-app" onClick={() => onChange({ ...defaultAppInstallSettings(), start_paused: value.start_paused, budget_mode: value.budget_mode, daily_budget_usd: value.daily_budget_usd, audiences: value.audiences })}>{tt("lpx.objectiveApp")}</button></div>
-      {shape === "app_install" && <p className="hint" data-testid="tk-app-hint">{tt("lpx.appHint")}</p>}
+      <button type="button" className={`seg-btn${shape === "app_install" ? " on" : ""}`} aria-pressed={shape === "app_install"} data-testid="tk-shape-app" onClick={() => reshape({ ...defaultAppInstallSettings(), start_paused: value.start_paused, budget_mode: value.budget_mode, daily_budget_usd: value.daily_budget_usd, audiences: value.audiences })}>{tt("lpx.objectiveApp")}</button></div>
+      {shape === "app_install" && <>
+        <p className="hint" data-testid="tk-app-hint">{tt("lpx.appHint")}</p>
+        <label className="tk-check" data-testid="tk-app-deeplink"><input type="checkbox" checked={value.app_deeplink === true} onChange={(e) => set("app_deeplink", e.target.checked)} /> {tt("tk.appDeeplink")}</label>
+        <p className="hint">{tt(value.app_deeplink ? "tk.appDeeplinkOnHint" : "tk.appDeeplinkOffHint")}</p>
+      </>}
       {shape === "instant_page" && <InstantPageTemplatePicker value={value.instant_page_template} onChange={template => set("instant_page_template", template)} />}
       {shape === "website_purchases" && <>
         <div className="tk-field tk-row">
           <label className="tk-label" htmlFor="tk-event">{tt("lpx.event")}</label>
-          <select id="tk-event" className="select" value={value.optimization_event ?? "SHOPPING"} onChange={(e) => { const event = e.target.value as NonNullable<LaunchSettings["optimization_event"]>; onChange({ ...value, optimization_event: event, attribution: { ...attributionOf(value), event_count: defaultEventCount(event) } }); }}>{WEB_EVENT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{tt(`lpx.event.${o.value}`)}</option>)}</select>
+          <select id="tk-event" className="select" value={value.optimization_event ?? "SHOPPING"} onChange={(e) => { const event = e.target.value as NonNullable<LaunchSettings["optimization_event"]>; onChange({ ...value, optimization_event: event, attribution: { ...attributionOf(value), event_count: defaultEventCount(event) } }); }}>{WEB_EVENT_OPTIONS.filter((o) => (route === "lander" ? o.value === "DOWNLOAD_START" : (SALE_EVENTS as readonly string[]).includes(o.value))).map((o) => <option key={o.value} value={o.value}>{tt(`lpx.event.${o.value}`)}</option>)}</select>
         </div>
         <p className="hint">{tt("lpx.eventHint")}</p>
         <p className="hint"><strong>{tt("lpx.attribution")}:</strong> {tt("lpx.attributionFixed")}</p>
         <p className="hint">{tt("lpx.pixelServer")}</p>
       </>}</fieldset>
+    {/* Acquisition routes A/B/C (decision 2026-10-12): the way into the Android app this launch tests. Picking one sets
+        the shape it needs; the routes are compared side by side on the stats page's Routes tab. */}
+    <fieldset disabled={disabled} className="tk-fieldset" data-testid="tk-route">
+      <legend>{tt("acq.legend")}</legend>
+      <div className="seg tk-seg" role="radiogroup" aria-label={tt("acq.legend")}>
+        {ACQUISITION_ROUTES.map((r) => <button type="button" key={r} role="radio" aria-checked={route === r} className={`seg-btn${route === r ? " on" : ""}`} data-testid={`tk-route-${r}`} onClick={() => onChange(withAcquisitionRoute(value, r))}>{tt(`acq.route.${r}`)}</button>)}
+      </div>
+      <p className="hint">{tt(`acq.hint.${route}`)}</p>
+      {route === "lander" && shape !== "instant_page" && shape !== "app_install" && <div className="tk-field"><span className="tk-label">{tt("acq.landerGoal")}</span><div className="seg tk-seg" role="radiogroup">
+        <button type="button" role="radio" aria-checked={shape === "traffic"} className={`seg-btn${shape === "traffic" ? " on" : ""}`} onClick={() => onChange(landerOptimization(value, "page_views"))}>{tt("acq.landerGoal.page_views")}</button>
+        <button type="button" role="radio" aria-checked={shape === "website_purchases"} className={`seg-btn${shape === "website_purchases" ? " on" : ""}`} onClick={() => onChange(landerOptimization(value, "downloads"))}>{tt("acq.landerGoal.downloads")}</button>
+      </div><p className="hint">{tt(shape === "website_purchases" ? "acq.landerGoal.downloadsHint" : "acq.landerGoal.pageViewsHint")}</p></div>}
+      {routeProblem && <p className="note note-warn" role="note" data-testid="tk-route-mismatch">{tt("acq.mismatch")}</p>}
+    </fieldset>
     <fieldset disabled={disabled} className="tk-fieldset">
       <legend>{tt("tk.targeting")}</legend>
       <div className="tk-field">
