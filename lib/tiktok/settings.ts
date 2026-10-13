@@ -39,11 +39,13 @@ import {
   OS_OPTIONS,
   PACING_OPTIONS,
   VIEW_WINDOWS,
+  SALE_EVENTS,
   WEB_EVENTS,
   WEB_EVENT_OPTIONS,
   defaultEventCount,
   goalOption,
 } from "./options";
+import { ACQUISITION_ROUTES, type AcquisitionRoute } from "./ad-url";
 
 const values = (opts: { value: string }[]) => opts.map((o) => o.value) as [string, ...string[]];
 const isoDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD");
@@ -138,6 +140,13 @@ export const launchSettingsSchema = z.object({
    * your TikTok representative"), so it is off by default and only meaningful on the App install shape.
    */
   app_deeplink: z.boolean().optional(),
+  /**
+   * Which way into the Android app this launch tests (decision 2026-10-12, "Acquisition routes A/B/C"): `store` (A, the
+   * App install shape), `lander` (B, a website shape to crazydramas.com/try/<slug>, never optimized for Purchase), `web`
+   * (C, a website shape to the player with `&route=web`). Absent (or `none`, dropped on validation) is every launch
+   * before the routes, its links byte for byte as they were. TikTok only: a Meta draft never carries it.
+   */
+  acquisition_route: z.enum(ACQUISITION_ROUTES).optional(),
   // launch
   start_paused: z.boolean(),
   duplicate_copies: z.number().int().min(0).max(MAX_DUPLICATE_COPIES),
@@ -173,15 +182,69 @@ export function launchShape(s: Pick<LaunchSettings, "objective_type" | "sales_de
  * (Website purchases on the Purchase event) makes TikTok count purchases; clicks, landing page views, checkouts
  * and Instant Page taps do not, while crazydramas still counts every buyer.
  */
-export type PurchaseGoal = "purchases" | "checkouts" | "instant_page" | "clicks" | "page_views" | "installs";
+export type PurchaseGoal = "purchases" | "checkouts" | "downloads" | "instant_page" | "clicks" | "page_views" | "installs";
 export function purchaseGoal(s: Pick<LaunchSettings, "objective_type" | "sales_destination" | "optimization_goal" | "optimization_event">): PurchaseGoal {
   const shape = launchShape(s);
   if (shape === "app_install") return "installs";
-  if (shape === "website_purchases") return (s.optimization_event ?? "SHOPPING") === "SHOPPING" ? "purchases" : "checkouts";
+  if (shape === "website_purchases") {
+    const event = s.optimization_event ?? "SHOPPING";
+    return event === "SHOPPING" ? "purchases" : event === "DOWNLOAD_START" ? "downloads" : "checkouts";
+  }
   if (shape === "instant_page") return "instant_page";
   return s.optimization_goal === "TRAFFIC_LANDING_PAGE_VIEW" ? "page_views" : "clicks";
 }
 export const optimizesPurchases = (s: Parameters<typeof purchaseGoal>[0]): boolean => purchaseGoal(s) === "purchases";
+
+/** "A · Google Play", for the one summary line. */
+const ROUTE_WORDS: Record<Exclude<AcquisitionRoute, "none">, string> = { store: "A · Google Play", lander: "B · landing page", web: "C · web player" };
+
+/**
+ * Why a launch's acquisition route does not fit its shape, or null (decision 2026-10-12): A (`store`) is the App install
+ * shape; B (`lander`) and C (`web`) are the website shapes, Traffic or Website purchases, never an Instant Page (its
+ * button carries the launch's one link with a campid). B's event rule (Download, never a sale) is checked with the
+ * website shape's event in validateLaunchSettings.
+ */
+export function routeShapeProblem(s: Pick<LaunchSettings, "objective_type" | "sales_destination" | "acquisition_route">): string | null {
+  const route = s.acquisition_route ?? "none";
+  if (route === "none") return null;
+  const shape = launchShape(s);
+  if (route === "store") return shape === "app_install" ? null : "Route A (Google Play) is the App install launch; choose that shape.";
+  if (shape === "app_install") return `Route ${route === "lander" ? "B (landing page)" : "C (web player)"} sends people to crazydramas.com; an App install launch is route A.`;
+  if (shape === "instant_page") return `Route ${route === "lander" ? "B (landing page)" : "C (web player)"} needs a website launch (Traffic or Website purchases), not a Sales Instant Page.`;
+  return null;
+}
+
+/**
+ * The settings a launch moves to when its acquisition route is picked (the editor's route control; decision 2026-10-12).
+ * Same audience on every route: Android phones (the app is Android only), the launch's own budget, schedule, start
+ * switch and audiences kept.
+ *   none    the route dropped, nothing else changed
+ *   store   the App install default
+ *   lander  Traffic, optimized for landing page views (the landing page sells nothing; the purchase is in the app)
+ *   web     the Website purchases default (Purchase)
+ */
+export function withAcquisitionRoute(value: LaunchSettings, route: AcquisitionRoute): LaunchSettings {
+  const keep = { start_paused: value.start_paused, budget_mode: value.budget_mode, daily_budget_usd: value.daily_budget_usd, duration_days: value.duration_days,
+    schedule_start: value.schedule_start, schedule_end: value.schedule_end, audiences: value.audiences, campaign_name_prefix: value.campaign_name_prefix };
+  if (route === "none") { const { acquisition_route: _drop, ...rest } = value; return rest; }
+  if (route === "store") return { ...defaultAppInstallSettings(), ...keep, acquisition_route: "store" };
+  if (route === "web") return { ...defaultWebsitePurchaseSettings(), ...keep, operating_systems: ["ANDROID"], acquisition_route: "web" };
+  return landerOptimization({ ...defaultWebsitePurchaseSettings(), ...keep, operating_systems: ["ANDROID"], acquisition_route: "lander" }, "page_views");
+}
+
+/**
+ * Route B's two ways to optimize: landing page views (Traffic, TRAFFIC_LANDING_PAGE_VIEW billed oCPM; no pixel_id, which
+ * /adgroup/create/ supports only with CONVERT or VALUE), the default; or the pixel's Download event (Website purchases on
+ * DOWNLOAD_START, counted once), once the pixel has Download events.
+ */
+export function landerOptimization(value: LaunchSettings, goal: "page_views" | "downloads"): LaunchSettings {
+  if (goal === "downloads") {
+    return { ...value, objective_type: "WEB_CONVERSIONS", sales_destination: "website", optimization_goal: "CONVERT", optimization_event: "DOWNLOAD_START",
+      attribution: { click: DEFAULT_CLICK_WINDOW, view: DEFAULT_VIEW_WINDOW, event_count: defaultEventCount("DOWNLOAD_START") }, instant_page_template: undefined };
+  }
+  return { ...value, objective_type: "TRAFFIC", sales_destination: undefined, optimization_goal: "TRAFFIC_LANDING_PAGE_VIEW", optimization_event: undefined,
+    attribution: undefined, pixel_code: undefined, instant_page_template: undefined, bid_strategy: value.bid_strategy === "COST_CAP" ? "LOWEST_COST" : value.bid_strategy, bid_usd: null };
+}
 
 /** The attribution a Website purchases ad group sends: its own, or 7-day click / 1-day view with the event's count. */
 export function attributionOf(s: Pick<LaunchSettings, "attribution" | "optimization_event">): Attribution {
@@ -321,7 +384,7 @@ export function normalizeLaunchSettings(raw: unknown): LaunchSettings {
     if (v !== undefined) merged[key] = v;
   }
   const source = raw as Record<string, unknown>;
-  for (const key of ["objective_type", "app_platform", "instant_page_template", "sales_destination", "optimization_event", "attribution", "pixel_code", "audiences", "profile_posts", "app_deeplink"] as const) {
+  for (const key of ["objective_type", "app_platform", "instant_page_template", "sales_destination", "optimization_event", "attribution", "pixel_code", "audiences", "profile_posts", "app_deeplink", "acquisition_route"] as const) {
     if (source[key] !== undefined) merged[key] = source[key];
   }
   const parsed = launchSettingsSchema.safeParse(merged);
@@ -340,6 +403,9 @@ export function validateLaunchSettings(input: LaunchSettings, budgetUsd: number)
   const s = { ...input };
   const shape = launchShape(s);
   if (shape !== "app_install") delete s.app_deeplink;
+  if (!s.acquisition_route || s.acquisition_route === "none") delete s.acquisition_route;
+  const routeProblem = routeShapeProblem(s);
+  if (routeProblem) throw new LaunchSettingsError(routeProblem);
   if (shape === "app_install") {
     // The app's installs, as TikTok hears them from the measurement partner: one goal, one store, one operating
     // system (TikTok requires operating_systems on an APP_PROMOTION ad group), no pixel, no page, no website link.
@@ -354,6 +420,9 @@ export function validateLaunchSettings(input: LaunchSettings, budgetUsd: number)
     if (s.instant_page_template) throw new LaunchSettingsError("Website purchases send people to crazydramas.com, not to an Instant Page.");
     s.optimization_event = s.optimization_event ?? "SHOPPING";
     if (!(WEB_EVENTS as readonly string[]).includes(s.optimization_event)) throw new LaunchSettingsError("Choose Purchase or InitiateCheckout as the pixel event.");
+    // Download is the landing page's button (route B); a sale event never optimizes a lander (no purchase happens there).
+    if (s.acquisition_route === "lander" && s.optimization_event !== "DOWNLOAD_START") throw new LaunchSettingsError("A landing page launch (route B) has no purchase on the web: optimize for landing page views, or for the pixel's Download event.");
+    if (s.acquisition_route !== "lander" && !SALE_EVENTS.includes(s.optimization_event)) throw new LaunchSettingsError("The Download event is the landing page's \"Get the app\" button: only a landing page launch (route B) optimizes for it.");
     s.attribution = attributionOf(s);
   } else {
     // Only the website shape carries a pixel; nothing of it rides along on another shape.
@@ -562,6 +631,7 @@ export function summarizeLaunchSettings(s: LaunchSettings, locationNames: Record
     s.duplicate_copies > 0 ? `${s.duplicate_copies} auto-duplicate cop${s.duplicate_copies === 1 ? "y" : "ies"}` : null,
     s.profile_posts ? "Studio clips also posted to the profile" : null,
     shape === "app_install" && s.app_deeplink ? "opens the app on the ad's series (deferred deep link)" : null,
+    s.acquisition_route && s.acquisition_route !== "none" ? `acquisition route ${ROUTE_WORDS[s.acquisition_route]}` : null,
     s.start_paused ? "starts paused" : "live on approval",
   ];
   return parts.filter((p): p is string => !!p);

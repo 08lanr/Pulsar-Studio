@@ -445,12 +445,15 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
       const { tiktokLandingFor } = await import("@/lib/launch/tiktok-gate");
       // An App install launch's ads open the app's store listing: no website link, on the launch or on any ad.
       const appInstall = launchShape(safe.tiktok_settings) === "app_install";
+      // The acquisition route (decision 2026-10-12) shapes the link: B the landing page, C the player + route=web, A the
+      // app link + route=store; none (absent) is today's link byte for byte.
+      const route = safe.tiktok_settings.acquisition_route;
       const links = new Map<string, string | null>();
       const landing = async (titleId: string): Promise<string | null> => {
         if (!links.has(titleId)) {
           // A draft saves leniently: a title this company cannot see keeps the
           // draft as sent, and the preview refuses it as not found.
-          try { links.set(titleId, await tiktokLandingFor(s, titleId, producerId)); }
+          try { links.set(titleId, await tiktokLandingFor(s, titleId, producerId, appInstall ? null : route)); }
           catch (e) { if (!(isDataError(e) && e.code === "not_found")) throw e; links.set(titleId, null); }
         }
         return links.get(titleId) ?? null;
@@ -469,7 +472,7 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
         if (titleId && appInstall) {
           const { crazydramasAppLink, slugOfCrazydramasAdUrl } = await import("@/lib/tiktok/ad-url");
           const slug = slugOfCrazydramasAdUrl(await landing(titleId).catch(() => null));
-          appLink = slug ? crazydramasAppLink(slug) : undefined;
+          appLink = slug ? crazydramasAppLink(slug, route) : undefined;
         }
         ads.set(c, { title_id: titleId, landing_url: link ?? undefined, app_link: appLink });
       }
@@ -481,6 +484,8 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
         safe.tiktok_settings = { ...settings, pixel_code: tiktokPixelCode() };
       } else safe.tiktok_settings = settings;
     } else {
+      // Acquisition routes are TikTok's this round (decision 2026-10-12): a Meta draft never carries one.
+      if (safe.tiktok_settings.acquisition_route) { const { acquisition_route: _route, ...rest } = safe.tiktok_settings; safe.tiktok_settings = rest; }
       if (safe.content.some(c => c.title_id)) {
         // Meta: the title is display only (the monitor and the title's stats),
         // so one this company does not own is dropped rather than refused.

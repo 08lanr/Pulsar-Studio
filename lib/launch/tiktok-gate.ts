@@ -9,7 +9,8 @@
 //                does not read live gets one fresh public check first
 //   the link     the draft carries exactly crazydramasAdUrl(slug), and each ad
 //                its own title's (a launch may promote several titles; a
-//                Sales Instant Page, with one button, promotes one)
+//                Sales Instant Page, with one button, promotes one); on an
+//                acquisition route (2026-10-12) crazydramasRouteAdUrl(slug, route)
 //   audiences    custom audiences (2026-10-01) belong to one ad account, so a
 //                launch that names any runs on one account, and every id it
 //                names is on that account's list when TikTok lets Studio read
@@ -28,7 +29,7 @@ import { systemSession, type Session } from "@/lib/auth";
 import { getData } from "@/lib/data";
 import { conflict, invalid, notFound } from "@/lib/data/errors";
 import { checkCrazydramasTitle, loadCrazydramasStatus, loadCrazydramasStatuses, PLATFORM, type CrazydramasStatus } from "@/lib/crazydramas";
-import { crazydramasAdUrl, crazydramasAdUrlFor, crazydramasSlugProblem } from "@/lib/tiktok/ad-url";
+import { crazydramasAdUrl, crazydramasAdUrlFor, crazydramasRouteAdUrl, crazydramasSlugProblem, type AcquisitionRoute } from "@/lib/tiktok/ad-url";
 import { accessTokenFor, tiktokTransport } from "@/lib/tiktok";
 import { findLinkedPost, linkedAccountHandle, linkedAccountMissing, linkedNeeds, listLinkedAccounts, pickLinkedAccount, type LinkedAccount } from "@/lib/tiktok/linked-account";
 import { listCustomAudiences } from "@/lib/tiktok/audiences";
@@ -68,10 +69,10 @@ async function titleOf(s: Session, titleId: string, producerId: string): Promise
   return { title: detail.title, name: detail.title.name_en || detail.title.name_zh, status };
 }
 
-/** The ad link a draft's title gives it today, or null when the title's slug cannot carry one. Used on save. */
-export async function tiktokLandingFor(s: Session, titleId: string, producerId: string): Promise<string | null> {
+/** The ad link a draft's title gives it today on the launch's acquisition route, or null when the title's slug cannot carry one. Used on save. */
+export async function tiktokLandingFor(s: Session, titleId: string, producerId: string, route?: AcquisitionRoute | null): Promise<string | null> {
   const { status } = await titleOf(s, titleId, producerId);
-  return crazydramasSlugProblem(status.slug) === null ? crazydramasAdUrl(status.slug!) : null;
+  return crazydramasSlugProblem(status.slug) === null ? crazydramasRouteAdUrl(status.slug!, route) : null;
 }
 
 /** Every title of the company that has a crazydramas slug, with its reading, for the Launch screen's title list. */
@@ -94,7 +95,7 @@ export async function launchTitleOptions(s: Session, producerId: string): Promis
  * series (after one fresh public read when the stored reading is not live).
  * Returns the title's name and the one link its ads carry.
  */
-async function launchableTitle(s: Session, titleId: string, producerId: string): Promise<{ name: string; link: string }> {
+async function launchableTitle(s: Session, titleId: string, producerId: string, route?: AcquisitionRoute | null): Promise<{ name: string; link: string }> {
   const found = await titleOf(s, titleId, producerId);
   let status = found.status;
   const problem = crazydramasSlugProblem(status.slug);
@@ -110,7 +111,7 @@ async function launchableTitle(s: Session, titleId: string, producerId: string):
     try { status = (await checkCrazydramasTitle(systemSession(), found.title.id)).status; } catch { /* the stored reading stands */ }
   }
   if (!crazydramasLaunchable(status)) throw invalid(`${found.name} is not live on crazydramas.com (${stateWords(status)}), so its ads would land on a missing page. Publish the series, then preview again.`);
-  return { name: found.name, link: crazydramasAdUrl(status.slug!) };
+  return { name: found.name, link: crazydramasRouteAdUrl(status.slug!, route) };
 }
 
 /**
@@ -137,7 +138,7 @@ export async function tiktokLaunchGate(s: Session, draft: LaunchDraft, producerI
   // title an ad names, each checked once.
   const checked = new Map<string, { name: string; link: string }>();
   const title = async (id: string) => {
-    if (!checked.has(id)) checked.set(id, await launchableTitle(s, id, producerId));
+    if (!checked.has(id)) checked.set(id, await launchableTitle(s, id, producerId, draft.tiktok_settings.acquisition_route));
     return checked.get(id)!;
   };
   const instantPage = launchShape(draft.tiktok_settings) === "instant_page";

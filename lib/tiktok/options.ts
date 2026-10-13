@@ -93,13 +93,24 @@ export function goalOption(value: string | null | undefined): GoalOption {
  * is the web Purchase event, INITIATE_ORDER is InitiateCheckout). First entry
  * = default. crazydramas.com fires both (Purchase from browser and server,
  * deduplicated; InitiateCheckout from the server).
+ *
+ * DOWNLOAD_START is the pixel's Download event (same table: "When a button to
+ * open an external browser download page is clicked"; decision 2026-10-12
+ * "Acquisition routes A/B/C"): crazydramas fires it when the landing page's
+ * "Get the app" button is tapped. It is route B's alone (validateLaunchSettings),
+ * for a lander launch to switch to once the pixel has Download events (TikTok
+ * refused Purchase optimization until the pixel had purchases). UNVERIFIED LIVE:
+ * no ad group has been created on it yet.
  */
 export const WEB_EVENT_OPTIONS: Option[] = [
   { value: "SHOPPING", label: "Purchase" },
   { value: "INITIATE_ORDER", label: "InitiateCheckout" },
+  { value: "DOWNLOAD_START", label: "Download" },
 ];
-export const WEB_EVENTS = ["SHOPPING", "INITIATE_ORDER"] as const;
+export const WEB_EVENTS = ["SHOPPING", "INITIATE_ORDER", "DOWNLOAD_START"] as const;
 export type WebEvent = (typeof WEB_EVENTS)[number];
+/** The pixel events a website launch may optimize toward off route B: Download is the landing page's button only. */
+export const SALE_EVENTS: readonly WebEvent[] = ["SHOPPING", "INITIATE_ORDER"];
 
 /**
  * Attribution settings a WEB_CONVERSIONS + WEBSITE (promotion_website_type
@@ -118,7 +129,8 @@ export const DEFAULT_VIEW_WINDOW = "ONE_DAY";
 /**
  * Every purchase counts (a viewer can unlock more than one series); a started
  * checkout counts once per person. TikTok's Help Center maps "Every" to
- * purchase optimization and "Once" to non-purchase optimization
+ * purchase optimization and "Once" to non-purchase optimization (a Download
+ * tap counts once too)
  * (ads.tiktok.com/help/article/attribution-settings-at-the-ad-group-level).
  */
 export function defaultEventCount(event: string | null | undefined): (typeof EVENT_COUNTS)[number] {

@@ -19,7 +19,7 @@ import { accessTokenFor, tiktokTransport, type TikTokResponse, type TikTokTransp
 import { normalizeReview } from "./review";
 import { accountHealth, accountStatusLabel } from "./account-health";
 import { adGroupBody, attributionLabel, attributionOf, clipDarkPostStatus, launchSettingsSchema, launchShape, planAdGroup, validateLaunchSettings, type AdGroupPlan, type LaunchSettings } from "./settings";
-import { isCrazydramasAdUrl } from "./ad-url";
+import { crazydramasNameTag, isCrazydramasAdUrl, slugOfCrazydramasAppLink, TIKTOK_NAME_LIMIT, TIKTOK_NAME_MAX, withNameTag } from "./ad-url";
 import { resolvePixel, tiktokPixelCode } from "./pixel";
 import { resolveApp, tiktokAppPackage } from "./app";
 import { WEB_METRICS, webConversionsFromReport } from "./web-metrics";
@@ -57,6 +57,12 @@ type SparkState = {
   /** App install: the app resolved on this ad account before anything was written (lib/tiktok/app.ts); `unverified` when the id was set by hand. */
   app?: { package: string; platform: "ANDROID" | "IOS"; app_id: string; unverified?: true } | null;
   activated?: boolean; ended?: boolean; tiktok_mode?: string;
+  /**
+   * App install: `[cd:<slug>]`, the series the app opens when TikTok gives it no deep link (decision 2026-10-12), put at
+   * the end of the campaign and ad group names. Decided once, with the settings, so a resumed launch finds its objects
+   * by the names it gave them; a launch whose settings were recorded before has none and keeps its names.
+   */
+  name_tag?: string | null;
   pending_copy?: { key: string; allocations: Record<string, number>; new_budget: number; was_on: boolean } | null;
   pending_bid?: { bid_cents: number; was_on: boolean; replacements: { old_id: string; key: string; budget: number; enabled: boolean }[] } | null;
 };
@@ -327,12 +333,29 @@ async function resolveContent(ctx: DriverContext, c: Client): Promise<void> {
   }
 }
 
+/**
+ * An App install launch's name tag (decision 2026-10-12): the series of its first ad that has an app link (the app opens
+ * one series; a launch's ads normally promote one title). Null for every other shape, or without an app link.
+ */
+export function appInstallNameTag(settings: LaunchSettings, content: readonly LaunchContent[]): string | null {
+  if (launchShape(settings) !== "app_install") return null;
+  for (const item of content) {
+    const slug = slugOfCrazydramasAppLink(item.app_link);
+    if (slug) return crazydramasNameTag(slug);
+  }
+  return null;
+}
+
 function names(ctx: DriverContext) {
-  // Put the unique key FIRST so truncating a long human label cannot erase it.
+  // Put the unique key FIRST so truncating a long human label cannot erase it; an App install launch's [cd:<slug>] tag
+  // goes last and is never trimmed (withNameTag trims the human part instead).
   const prefix = `studio-${ctx.run.id}-${ctx.campaign.index}`;
+  const tag = state(ctx).name_tag ?? null;
+  // A tagged name may run past Studio's 100 (up to TikTok's 512) so that a long slug never cuts into the unique key.
+  const tagged = (unique: string, full: string) => withNameTag(full, tag, Math.min(TIKTOK_NAME_LIMIT, Math.max(TIKTOK_NAME_MAX, unique.length + 1 + (tag?.length ?? 0))));
   return {
-    campaign: ctx.campaign.campid ?? `${prefix}-${ctx.campaign.name}`.slice(0, 100),
-    group: (key: string) => `${prefix}-${key}`.slice(0, 100),
+    campaign: tag ? tagged(ctx.campaign.campid ?? prefix, ctx.campaign.campid ?? `${prefix}-${ctx.campaign.name}`) : ctx.campaign.campid ?? `${prefix}-${ctx.campaign.name}`.slice(0, 100),
+    group: (key: string) => (tag ? tagged(`${prefix}-${key}`, `${prefix}-${key}`) : `${prefix}-${key}`.slice(0, 100)),
     ad: (key: string, item: string) => `${prefix}-${key}-${item}`.slice(0, 100),
   };
 }
@@ -650,7 +673,7 @@ async function launch(ctx: DriverContext): Promise<void> {
       daily_budget_usd: daily === null ? null : Math.floor(daily / copies) / 100,
     }, ctx.campaign.budget_cents / 100);
     await ctx.checkpoint({ settings, plan: planAdGroup(settings, ctx.campaign.budget_cents / 100), budget_cents: ctx.campaign.budget_cents, daily_budget_cents: daily,
-      planned_budgets: split(daily ?? ctx.campaign.budget_cents, copies), tiktok_mode: c.tt.mode });
+      planned_budgets: split(daily ?? ctx.campaign.budget_cents, copies), tiktok_mode: c.tt.mode, name_tag: appInstallNameTag(settings, ctx.campaign.content) });
   }
   await ensurePixel(ctx, c);
   await ensureApp(ctx, c);
