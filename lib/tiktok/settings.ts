@@ -297,7 +297,7 @@ export function defaultWebsitePurchaseSettings(): LaunchSettings {
     optimization_event: "SHOPPING",
     attribution: { click: DEFAULT_CLICK_WINDOW, view: DEFAULT_VIEW_WINDOW, event_count: defaultEventCount("SHOPPING") },
     location_ids: ["6252001"],
-    age_groups: ["AGE_25_34", "AGE_35_44", "AGE_45_54", "AGE_55_100"],
+    age_groups: ["AGE_18_24", "AGE_25_34", "AGE_35_44", "AGE_45_54", "AGE_55_100"],
     operating_systems: [],
     placement: "tiktok",
     bid_strategy: "LOWEST_COST",
@@ -352,7 +352,7 @@ export function defaultAppInstallSettings(): LaunchSettings {
     objective_type: "APP_PROMOTION",
     app_platform: "ANDROID",
     location_ids: ["6252001"],
-    age_groups: ["AGE_25_34", "AGE_35_44", "AGE_45_54", "AGE_55_100"],
+    age_groups: ["AGE_18_24", "AGE_25_34", "AGE_35_44", "AGE_45_54", "AGE_55_100"],
     operating_systems: ["ANDROID"],
     placement: "tiktok",
     optimization_goal: "INSTALL",
@@ -635,7 +635,7 @@ export function summarizeLaunchSettings(s: LaunchSettings, locationNames: Record
   const parts = [
     shape === "website_purchases" ? "Website purchases · crazydramas.com" : shape === "instant_page" ? "Sales · Instant Page" : shape === "app_install" ? `App install · ${(s.app_platform ?? "ANDROID") === "IOS" ? "App Store" : "Google Play"}` : "Traffic · website",
     loc.length <= 3 ? loc.join(", ") : `${loc.length} locations`,
-    !s.age_groups.length ? "all ages" : s.age_groups.length === 5 && !s.age_groups.includes("AGE_13_17") ? "18+" : s.age_groups.length === 4 && !s.age_groups.includes("AGE_13_17") && !s.age_groups.includes("AGE_18_24") ? "25+" : `${s.age_groups.length} age band${s.age_groups.length === 1 ? "" : "s"}`,
+    !s.age_groups.length ? "all ages" : s.age_groups.length === 5 && !s.age_groups.includes("AGE_13_17") ? "18+" : `${s.age_groups.length} age band${s.age_groups.length === 1 ? "" : "s"}`,
     s.gender === "GENDER_UNLIMITED" ? "everyone" : s.gender === "GENDER_MALE" ? "men" : "women",
     // Shown always (2026-09-26): the Sep 26 launch went out iPhone-only while this line said nothing about devices.
     !s.operating_systems.length ? "all devices" : s.operating_systems[0] === "IOS" ? "iPhone only" : "Android only",

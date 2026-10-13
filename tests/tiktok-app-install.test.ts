@@ -50,7 +50,7 @@ test("the App install default: APP_PROMOTION on Google Play, installs, Android o
   assert.equal(launchShape(d), "app_install");
   assert.equal(purchaseGoal(d), "installs");
   assert.deepEqual([d.objective_type, d.app_platform, d.optimization_goal, d.operating_systems, d.call_to_action, d.profile_posts, d.budget_mode], ["APP_PROMOTION", "ANDROID", "INSTALL", ["ANDROID"], "INSTALL_NOW", true, "BUDGET_MODE_TOTAL"]);
-  assert.ok(!d.age_groups.includes("AGE_13_17") && !d.age_groups.includes("AGE_18_24"), "25+ (2026-10-11)");
+  assert.ok(!d.age_groups.includes("AGE_13_17"), "18+");
   const line = summarizeLaunchSettings(d);
   assert.ok(line.includes("App install · Google Play") && line.includes("Android only") && line.includes("optimizes for app installs (measurement partner)"), line.join(" · "));
 });

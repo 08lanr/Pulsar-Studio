@@ -9,9 +9,6 @@ import { MetaApiError, metaList, type MetaObject, type MetaTransport } from "./t
 import { META_ACTION_TYPES, META_ATTRIBUTION_SPEC } from "./events";
 import { resolveMetaPixel } from "./pixel";
 
-/** The youngest age a Meta ad set reaches (owner, 2026-10-11: 25+ on every ad group). */
-export const META_AGE_MIN = 25;
-
 type Intent = { edge: string; payload: MetaObject; phase: "sending" | "rejected" | "confirmed"; id?: string };
 type MetaState = {
   version: 1; intents: Record<string, Intent>; campaign_id?: string;
@@ -359,9 +356,7 @@ async function launch(ctx: DriverContext, transport: MetaTransport) {
         ...(set.daily_budget_cents === null ? { lifetime_budget: amount(set.budget_cents) } : { daily_budget: amount(set.daily_budget_cents) }),
         // Meta asks every new ad set whether Advantage+ audience may widen the
         // targeting beyond what was set; the approved audience is the audience.
-        // 25+ (owner, 2026-10-11: "change all our ad groups to be 25+": younger viewers pay with empty debit, prepaid
-        // and Cash App balances; credit cards almost never decline).
-        targeting: { geo_locations: { countries: settings.countries }, publisher_platforms: set.platforms, age_min: META_AGE_MIN, targeting_automation: { advantage_audience: 0 } },
+        targeting: { geo_locations: { countries: settings.countries }, publisher_platforms: set.platforms, age_min: 18, targeting_automation: { advantage_audience: 0 } },
         // A conversions ad set names the pixel and the event it optimizes
         // toward, and the window its numbers are counted over (decision
         // 2026-09-25, "Meta conversions"). The pixel is the one re-checked
