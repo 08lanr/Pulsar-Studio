@@ -54,6 +54,11 @@ async function main() {
     content.push({ kind: "tiktok_post" as const, value: String(p.item_id), label: (p.label ?? `post ${p.item_id}`).slice(0, 200), title_id: p.title_id });
     console.log(`  post ${p.item_id}  title ${p.title_id.slice(0, 8)}  "${p.label ?? ""}"`);
   }
+  // Meta: existing Instagram reels of the assigned account by media id (the ad is the post itself, with the launch's link).
+  for (const p of (spec.instagram_posts ?? []) as { media_id: string; label?: string }[]) {
+    content.push({ kind: "instagram_post" as const, value: String(p.media_id), label: (p.label ?? `instagram ${p.media_id}`).slice(0, 200) });
+    console.log(`  instagram post ${p.media_id}  "${p.label ?? ""}"`);
+  }
   for (const want of (spec.clips ?? []) as string[]) {
     const rows = library.filter(r => String(r.id).startsWith(want) || String(r.value ?? "").startsWith(want));
     if (rows.length !== 1) throw new Error(`clip ${want}: ${rows.length} library matches`);

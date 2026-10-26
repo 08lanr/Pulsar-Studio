@@ -138,6 +138,10 @@ function creativeMatches(actual: MetaObject, expected: MetaObject): boolean {
   const comparable = video && "image_url" in video
     ? { ...rest, object_story_spec: { ...spec, video_data: Object.fromEntries(Object.entries(video).filter(([key]) => key !== "image_url")) } }
     : rest;
+  // A creative made from an Instagram post (2026-10-25, creatives 1105846482369097 and 4470725923176484, live): Meta
+  // keeps the Page it was sent as `object_id` but never reads it back; the post, the Instagram identity and the call
+  // to action with its link still must match.
+  if (comparable.source_instagram_media_id !== undefined) delete comparable.object_id;
   return includes(actual, comparable);
 }
 function matchFields(edge: string, payload: MetaObject): MetaObject {

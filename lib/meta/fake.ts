@@ -207,6 +207,8 @@ export class FakeMetaTransport implements MetaTransport {
       // date and hash, and a video thumbnail is re-hosted with an image_hash beside it. The driver's
       // read-back must accept both; a fake that echoed the payload hid that until the first live launch.
       row.name = `${String(params.name ?? "")} 2026-10-09-${id.slice(-12).padStart(32, "0")}`;
+      // A creative from an Instagram post (2026-10-25, live): Meta keeps the Page sent as object_id but never reads it back.
+      if (typeof params.source_instagram_media_id === "string") delete row.object_id;
       const spec = row.object_story_spec as MetaObject | undefined;
       const video = spec?.video_data as MetaObject | undefined;
       if (video && typeof video.image_url === "string") {
