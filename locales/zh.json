@@ -5760,5 +5760,13 @@
   "cdr.allFrom": "全部：自 {day} 起，即 crazydramas 第一次上报路径数据的那天。",
   "tk.appDeeplink": "在广告对应的剧集上打开 App",
   "tk.appDeeplinkOnHint": "每条广告都会把剧集链接作为延迟深度链接发送：通过广告安装的人第一次打开 App 时会直接进入该剧集。TikTok 只对加入白名单的广告账户开放此功能；没有白名单时 TikTok 会拒绝这些广告。",
-  "tk.appDeeplinkOffHint": "广告安装 App 后，App 从首页打开。TikTok 把广告账户加入延迟深度链接白名单后再打开此项。"
+  "tk.appDeeplinkOffHint": "广告安装 App 后，App 从首页打开。TikTok 把广告账户加入延迟深度链接白名单后再打开此项。",
+  "lv2.meta.autoPost": "将已验证的片段自动发布到此账号",
+  "lv2.meta.autoPostHint": "自动发布每个公司只使用一个账号。第二个账号请保持关闭，以免同一片段重复发布。",
+  "lv2.meta.assigned": "已分配账号",
+  "lv2.meta.assignedEmpty": "尚未分配 Meta 账号。",
+  "lv2.meta.autoPostOn": "自动发布：开",
+  "lv2.meta.autoPostOff": "自动发布：关",
+  "lv2.meta.turnOff": "停用",
+  "lv2.meta.turnedOff": "已停用。Studio 不再用此账号发布或投放。"
 }

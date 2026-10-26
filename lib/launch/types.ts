@@ -87,6 +87,13 @@ export type LaunchConnection = {
   currency: string; timezone: string; page_id: string | null; instagram_id: string | null;
   business_id: string | null; assigned_by: string; verified_at: string; enabled: boolean;
   business_name?: string;
+  /** Meta only, read from the live inventory (never stored): the Page's name and its Instagram handle. */
+  page_name?: string; instagram_username?: string;
+  /**
+   * Meta only: whether the auto-poster may post to this connection. Absent on
+   * rows assigned before 2026-10-25, which stay eligible; false is never used.
+   */
+  auto_post?: boolean;
 };
 export type MetaPlatform = "facebook" | "instagram";
 /**

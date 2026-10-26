@@ -14,6 +14,7 @@ import { publishedOn } from "@/components/launch/clip-state";
 import type { ClipPost, ClipPostPlatform } from "@/lib/launch/clip-posts";
 import type { LaunchConnection } from "@/lib/launch/types";
 import { buildCaption } from "@/lib/launch/caption";
+import { connectionLabel } from "@/lib/launch/connection-label";
 
 /** What the dialog needs of a clip; a `ClipLibraryRow` satisfies it. */
 export type PostableClip = { id: string; label?: string; title_name: string; episode_label?: string | null };
@@ -84,7 +85,7 @@ export default function PostClipDialog({ base, clip, platform, posts, connection
       {connections.length > 0 && <label className="tk-field clips-post-field">{tt("clipsPosting.dialog.account")}
         <select className="select" value={connectionId} onChange={(event) => setConnectionId(event.target.value)}>
           <option value="">{tt("lv2.choose")}</option>
-          {connections.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          {connections.map((c) => <option key={c.id} value={c.id}>{connectionLabel(c)}</option>)}
         </select>
       </label>}
       <label className="tk-field clips-post-field">{tt("clipsPosting.dialog.caption")}

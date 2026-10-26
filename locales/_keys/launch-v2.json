@@ -626,5 +626,37 @@
   "lv2.meta.instagramMismatch": {
     "en": "This Page is linked to a different Instagram account. Posts made from Studio go out through the Page, so choose the linked account.",
     "zh": "此主页关联的是另一个 Instagram 账号。Studio 发布的帖子通过主页发出，请选择已关联的账号。"
+  },
+  "lv2.meta.autoPost": {
+    "en": "Auto-post proven clips to this account",
+    "zh": "将已验证的片段自动发布到此账号"
+  },
+  "lv2.meta.autoPostHint": {
+    "en": "The auto-poster uses one account per company. Leave this off for a second account so the same clips are not posted twice.",
+    "zh": "自动发布每个公司只使用一个账号。第二个账号请保持关闭，以免同一片段重复发布。"
+  },
+  "lv2.meta.assigned": {
+    "en": "Assigned accounts",
+    "zh": "已分配账号"
+  },
+  "lv2.meta.assignedEmpty": {
+    "en": "No Meta account is assigned yet.",
+    "zh": "尚未分配 Meta 账号。"
+  },
+  "lv2.meta.autoPostOn": {
+    "en": "auto-post on",
+    "zh": "自动发布：开"
+  },
+  "lv2.meta.autoPostOff": {
+    "en": "auto-post off",
+    "zh": "自动发布：关"
+  },
+  "lv2.meta.turnOff": {
+    "en": "Turn off",
+    "zh": "停用"
+  },
+  "lv2.meta.turnedOff": {
+    "en": "Turned off. Studio no longer posts or launches with this account.",
+    "zh": "已停用。Studio 不再用此账号发布或投放。"
   }
 }

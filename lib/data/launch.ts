@@ -9,7 +9,7 @@ import { dataSource } from "@/lib/data-source";
 import { createServerSupabase, createServiceSupabase } from "@/lib/supabase/server";
 import { buildLaunchPlan, draftSchema, nextCampidStart } from "@/lib/launch/plan";
 import { launchEnvironment } from "@/lib/launch/environment";
-import { defaultLaunchConnectionId, eligibleMetaAssignment, eligibleTikTokBcAccount } from "@/lib/launch/account-authority";
+import { defaultLaunchConnectionId, eligibleMetaAssignment, eligibleTikTokBcAccount, sameConnectionSlot } from "@/lib/launch/account-authority";
 import { launchShape } from "@/lib/tiktok/settings";
 import type { ClipLibraryFilter, ClipLibraryRow, ClipPost, ClipPostPlatform, ClipPostStatus, ClipPostStep } from "@/lib/launch/clip-posts";
 import type { ClipPostPatch, LaunchConnection, LaunchDataLayer, LaunchDraft, LaunchLibraryItem, LaunchRun, LaunchProvider, LaunchPlan, LaunchPlanRow } from "@/lib/launch/types";
@@ -318,7 +318,10 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
         for (const saved of items.filter(c => c.provider === "meta" && c.enabled && c.assigned_by)) {
           if (!eligibleMetaAssignment(saved, inventory)) continue;
           const account = inventory.accounts.find(a => a.id === saved.advertiser_id)!;
-          current.push({ ...saved, name: account.name, currency: account.currency, timezone: account.timezone_name, business_id: account.business?.id ?? null, business_name: account.business?.name });
+          const page = inventory.pages.find(p => p.id === saved.page_id);
+          const handle = inventory.instagram.find(i => i.id === saved.instagram_id)?.username || page?.instagram_business_account?.username;
+          current.push({ ...saved, name: account.name, currency: account.currency, timezone: account.timezone_name, business_id: account.business?.id ?? null, business_name: account.business?.name,
+            ...(page?.name ? { page_name: page.name } : {}), ...(saved.instagram_id && handle ? { instagram_username: handle } : {}) });
         }
       }
       if (provider === "meta") return current;
@@ -715,8 +718,14 @@ export function createLaunchData(base: DataLayer): LaunchDataLayer {
       if (s.kind !== "staff" || s.staffRole !== "admin") throw forbidden("Staff administrator only.");
       if (!(await base.listProducers(s)).some(p => p.id === input.producer_id)) throw notFound("Company");
       const all = await readConnections(s, input.producer_id);
-      const old = all.find(c => c.provider === input.provider && c.advertiser_id === input.advertiser_id);
-      const connection = { ...input, id: old?.id || randomUUID(), assigned_by: s.userId, verified_at: now() };
+      // A Meta connection is its ad account and its Page (migration 0025): a
+      // second Page on the same ad account is a second row, never a replacement.
+      const old = all.find(c => sameConnectionSlot(c, input));
+      // The Page's name and Instagram handle are read live, never stored.
+      const { page_name: _pageName, instagram_username: _handle, business_name: _business, ...stored } = input;
+      const connection: LaunchConnection = { ...stored, id: old?.id || randomUUID(), assigned_by: s.userId, verified_at: now() };
+      // A re-assignment that does not say otherwise keeps the auto-post choice.
+      if (connection.auto_post === undefined && old?.auto_post !== undefined) connection.auto_post = old.auto_post;
       if (dataSource() === "fixture") { const list = store().connections; const i = list.findIndex(c => c.id === connection.id); if (i < 0) list.push(connection); else list[i] = connection; persist(); }
       else { const { error } = await createServiceSupabase().schema("promote").from("launch_connections").upsert({ id: connection.id, producer_id: connection.producer_id, provider: connection.provider, advertiser_id: connection.advertiser_id, payload: connection }); if (error) throw invalid(`Assignment failed (${error.code}).`); }
       return copy(connection);

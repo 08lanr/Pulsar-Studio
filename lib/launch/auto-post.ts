@@ -34,6 +34,7 @@ import { SYSTEM_USER_ID, systemSession } from "@/lib/auth";
 import { dataSource } from "@/lib/data-source";
 import { getData } from "@/lib/data";
 import type { ClipLibraryRow, ClipPost } from "@/lib/launch/clip-posts";
+import { autoPostConnection } from "@/lib/launch/account-authority";
 
 /** The bar a clip clears, and how often the sweep runs. Every one is an env override. */
 export const AUTO_POST_RULE = {
@@ -182,7 +183,9 @@ export async function tickAutoPost(): Promise<AutoPostRun | null> {
         clip_id: pick.clip.id, label: pick.clip.label, title: pick.clip.title_name,
         impressions: pick.impressions, ctr_pct: Number(pick.ctr_pct.toFixed(1)), checkouts: pick.checkouts, results: [],
       };
-      const connection = (await metaFor(pick.clip.producer_id))[0];
+      // A company may hold several Meta connections (one per Page); only the one
+      // marked for auto-posting gets proven clips (decision 2026-10-25).
+      const connection = autoPostConnection(await metaFor(pick.clip.producer_id));
       if (!connection) {
         entry.results.push({ platform: "facebook", ok: false, error: "This company has no assigned Meta account." });
         run.posted.push(entry);

@@ -34,6 +34,7 @@ import { adFormatChoices, adFormatMatches } from "@/lib/ad-formats";
 import { tiktokAdText } from "@/lib/launch/plan";
 import type { ClipLibraryRow, ClipPost, ClipPostPlatform, MetaPagePost, MetaPagePostList, TikTokAccountPostList } from "@/lib/launch/clip-posts";
 import type { LaunchConnection, LaunchContent, LaunchLibraryItem, LaunchProvider } from "@/lib/launch/types";
+import { connectionLabel } from "@/lib/launch/connection-label";
 
 /** A workspace library item, with the clip-post fields once they are there. */
 export type PickerClip = LaunchLibraryItem & Partial<Omit<ClipLibraryRow, keyof LaunchLibraryItem>>;
@@ -330,7 +331,7 @@ export default function ContentPicker({ clipsBase, pagePostsUrl, producerId, pro
         <label className="tk-field clips-post-field">{tt("contentPicker.pageAccount")}
           <select className="select" value={pageAccount} onChange={(event) => { setPageAccount(event.target.value); setPagePosts(null); setPageError(""); }}>
             <option value="">{tt("lv2.choose")}</option>
-            {metaConnections.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {metaConnections.map((c) => <option key={c.id} value={c.id}>{connectionLabel(c)}</option>)}
           </select>
         </label>
         {!pageAccount && <p className="hint">{tt("contentPicker.chooseAccount")}</p>}
