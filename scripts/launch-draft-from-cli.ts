@@ -48,7 +48,13 @@ async function main() {
   const library = (ws.library ?? []) as Record<string, unknown>[];
   if (library.length) console.log(`library: ${library.length} clips; row keys: ${Object.keys(library[0]).join(",")}`);
   const content = [];
-  for (const want of spec.clips as string[]) {
+  // Existing posts of the linked TikTok account, reused as Spark ads (2026-10-25, Ruobin: "launch the boost ... use the
+  // ids from best performing ads"): the post keeps its views, likes and comments; the title names the ad's landing link.
+  for (const p of (spec.posts ?? []) as { item_id: string; title_id: string; label?: string }[]) {
+    content.push({ kind: "tiktok_post" as const, value: String(p.item_id), label: (p.label ?? `post ${p.item_id}`).slice(0, 200), title_id: p.title_id });
+    console.log(`  post ${p.item_id}  title ${p.title_id.slice(0, 8)}  "${p.label ?? ""}"`);
+  }
+  for (const want of (spec.clips ?? []) as string[]) {
     const rows = library.filter(r => String(r.id).startsWith(want) || String(r.value ?? "").startsWith(want));
     if (rows.length !== 1) throw new Error(`clip ${want}: ${rows.length} library matches`);
     const r = rows[0];
