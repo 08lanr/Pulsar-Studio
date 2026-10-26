@@ -823,3 +823,16 @@ test("checkouts and who came back unpaid add up across source rows and reach the
   assert.equal(sumRows(dashRows(parsed, span, NO_FILTER)).checkout_cancelled, 0);
   assert.equal(parsed.series[0].cohorts[0].checkout_cancelled, 0);
 });
+
+test("the window the rows cover and the whole flags read (2026-10-26); an older report reads as unlimited and whole", () => {
+  const r = JSON.parse(JSON.stringify(report()));
+  r.window = { days: 7, lookback_days: 7, limited: true };
+  r.days[0].mau_whole = false;
+  const parsed = CdStatsReportSchema.parse(r);
+  assert.deepEqual(parsed.window, { days: 7, lookback_days: 7, limited: true });
+  assert.equal(parsed.days[0].mau_whole, false);
+  assert.equal(parsed.days[0].wau_whole, true, "absent: whole");
+  const old = CdStatsReportSchema.parse(JSON.parse(JSON.stringify(report())));
+  assert.equal(old.window, undefined);
+  assert.ok(old.days.every((d) => d.wau_whole && d.mau_whole));
+});

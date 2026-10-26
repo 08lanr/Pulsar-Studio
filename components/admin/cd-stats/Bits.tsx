@@ -12,6 +12,21 @@ export function CoinValueNotice({ report, locale }: { report: Pick<CdStatsReport
   return <p className="note note-warn" role="status">{t(locale, `cdcoin.value.${coverage}`)}</p>;
 }
 
+const shortDay = (day: string) => new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+
+/**
+ * When crazydramas read fewer days than its 120 (`window.limited`: it reads a bounded number of events and keeps the
+ * most recent whole days that fit; since 2026-10-26 every report), every period shows those days only, and the
+ * weekly / monthly audience counts only them where its days reach before the rows read.
+ */
+export function WindowNotice({ report, locale }: { report: Pick<CdStatsReport, "window" | "from" | "to" | "days">; locale: Locale }) {
+  const w = report.window;
+  if (!w?.limited) return null;
+  const partial = report.days.some((d) => !d.wau_whole || !d.mau_whole);
+  const vars = { days: w.days, from: shortDay(report.from), to: shortDay(report.to) };
+  return <p className="note note-warn" role="status" data-testid="window-notice">{t(locale, partial ? "cdx.window.limitedAudience" : "cdx.window.limited", vars)}</p>;
+}
+
 export function RangeTabs({ range, hrefFor, locale }: { range: StatsRange; hrefFor: (r: StatsRange) => string; locale: Locale }) {
   return (
     <nav className="seg" aria-label={t(locale, "cds.range.label")}>

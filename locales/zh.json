@@ -5768,5 +5768,7 @@
   "lv2.meta.autoPostOn": "自动发布：开",
   "lv2.meta.autoPostOff": "自动发布：关",
   "lv2.meta.turnOff": "停用",
-  "lv2.meta.turnedOff": "已停用。Studio 不再用此账号发布或投放。"
+  "lv2.meta.turnedOff": "已停用。Studio 不再用此账号发布或投放。",
+  "cdx.window.limited": "本报告仅覆盖 {days} 天（{from} 至 {to}）：crazydramas 一次只读取最近的事件，只够这些天。更长的周期也只显示这些天。",
+  "cdx.window.limitedAudience": "本报告仅覆盖 {days} 天（{from} 至 {to}）：crazydramas 一次只读取最近的事件，只够这些天。更长的周期也只显示这些天，周活跃与月活跃也只统计已读取的天数。"
 }

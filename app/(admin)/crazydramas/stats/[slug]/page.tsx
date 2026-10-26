@@ -1,6 +1,6 @@
 import "@/app/crazydramas-stats.css";
 import { adminLocale, staffSession } from "@/components/admin/server";
-import { CoinValueNotice, RangeTabs, ReadFailure } from "@/components/admin/cd-stats/Bits";
+import { CoinValueNotice, RangeTabs, ReadFailure, WindowNotice } from "@/components/admin/cd-stats/Bits";
 import { EpisodeChart, Ep1Chart } from "@/components/admin/cd-stats/Charts";
 import CampaignTable from "@/components/admin/cd-stats/CampaignTable";
 import { FunnelChart } from "@/components/admin/cd-stats/Dash";
@@ -148,6 +148,7 @@ export default async function CrazydramasSeriesStatsPage({ params, searchParams 
   return (
     <>
       {head}
+      <WindowNotice report={report} locale={locale} />
       <CoinValueNotice report={report} locale={locale} />
       {tab === "overview" && <Overview />}
       {tab === "ep1" && <EpisodeOne />}

@@ -1,0 +1,4 @@
+{
+  "cdx.window.limited": {"en": "This report covers {days} days only, {from} to {to}: crazydramas reads the newest events it can in one go, and that is how far they reach. Longer periods show these days.", "zh": "本报告仅覆盖 {days} 天（{from} 至 {to}）：crazydramas 一次只读取最近的事件，只够这些天。更长的周期也只显示这些天。"},
+  "cdx.window.limitedAudience": {"en": "This report covers {days} days only, {from} to {to}: crazydramas reads the newest events it can in one go, and that is how far they reach. Longer periods show these days, and the weekly and monthly audience count only the days read.", "zh": "本报告仅覆盖 {days} 天（{from} 至 {to}）：crazydramas 一次只读取最近的事件，只够这些天。更长的周期也只显示这些天，周活跃与月活跃也只统计已读取的天数。"}
+}

@@ -302,6 +302,9 @@ export function fakeStatsReport(series: FakeSeriesIn[], episodes: FakeEpisodeIn[
       new_watchers: Math.round((d?.watchers ?? 0) * 0.9),
       wau: span(7),
       mau: span(30),
+      // The fake's window is never limited: every day's 7 / 30 days are read.
+      wau_whole: true,
+      mau_whole: true,
       robots: d?.robots ?? 0,
       unseen: d?.unseen ?? 0,
       payments: (d?.first ?? 0) + (d?.renewals ?? 0),

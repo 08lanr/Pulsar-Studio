@@ -2,7 +2,7 @@ import "@/app/crazydramas-stats.css";
 import { adminLocale, staffSession } from "@/components/admin/server";
 import { AdDetail, AdTypeTable, type AdRun } from "@/components/admin/cd-stats/AdDetail";
 import AdsTab from "@/components/admin/cd-stats/AdsTab";
-import { CoinValueNotice, RangeTabs, ReadFailure } from "@/components/admin/cd-stats/Bits";
+import { CoinValueNotice, RangeTabs, ReadFailure, WindowNotice } from "@/components/admin/cd-stats/Bits";
 import { BoughtPanel, CampaignBriefPanel, PaywallTestPanel } from "@/components/admin/cd-stats/Brief";
 import { BuyersTable, PersonPanel, type Names } from "@/components/admin/cd-stats/Buyers";
 import CampaignsView, { type CampaignsViewRow } from "@/components/admin/cd-stats/Campaigns";
@@ -295,6 +295,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
         </span>
       </div>
       {tabs}
+      <WindowNotice report={report} locale={locale} />
       <CoinValueNotice report={report} locale={locale} />
 
       {tab === "overview" && <OverviewTab />}

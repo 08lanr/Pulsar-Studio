@@ -5768,5 +5768,7 @@
   "lv2.meta.autoPostOn": "auto-post on",
   "lv2.meta.autoPostOff": "auto-post off",
   "lv2.meta.turnOff": "Turn off",
-  "lv2.meta.turnedOff": "Turned off. Studio no longer posts or launches with this account."
+  "lv2.meta.turnedOff": "Turned off. Studio no longer posts or launches with this account.",
+  "cdx.window.limited": "This report covers {days} days only, {from} to {to}: crazydramas reads the newest events it can in one go, and that is how far they reach. Longer periods show these days.",
+  "cdx.window.limitedAudience": "This report covers {days} days only, {from} to {to}: crazydramas reads the newest events it can in one go, and that is how far they reach. Longer periods show these days, and the weekly and monthly audience count only the days read."
 }

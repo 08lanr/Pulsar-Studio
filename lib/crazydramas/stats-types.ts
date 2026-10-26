@@ -24,6 +24,12 @@ export const CdStatsDaySchema = z.object({
   new_watchers: count,
   wau: count,
   mau: count,
+  /**
+   * False when the 7 / 30 days behind wau / mau reach before the rows crazydramas read (a limited `window`, below): the
+   * count then covers the days read only. Absent (true) in a report from before 2026-09-28.
+   */
+  wau_whole: z.boolean().default(true),
+  mau_whole: z.boolean().default(true),
   robots: count,
   /** Browsers whose pages were never really on screen that day (not visitors; since 2026-09-25). */
   unseen: later,
@@ -390,6 +396,13 @@ export const CdStatsReportSchema = z.object({
   timezone: z.string(),
   from: day,
   to: day,
+  /**
+   * The days the rows read cover (crazydramas since 2026-09-28, docs/STUDIO_API.md "stats_event_hours"): `limited`
+   * when they are fewer than its 120 because the report reads a bounded number of events (400,000 since
+   * 2026-10-26) and keeps the most recent whole days that fit, `days` of them reported after `lookback_days`.
+   * Every period then shows those days only (rangeDays clamps to `from`). Absent in an older report.
+   */
+  window: z.object({ days: count, lookback_days: count, limited: z.boolean() }).optional(),
   ep1_step_s: z.number().int().positive(),
   /**
    * Robot browsers over the rows read, by the first rule that names each (crazydramas' docs/STUDIO_API.md "Robot").
