@@ -5760,5 +5760,13 @@
   "cdr.allFrom": "All: from {day}, the first day crazydramas reported routes.",
   "tk.appDeeplink": "Open the app on the ad's series",
   "tk.appDeeplinkOnHint": "Each ad sends its series' link as a deferred deep link: someone who installs from the ad lands on that series when the app first opens. TikTok allows this only for allowlisted ad accounts; without the allowlist TikTok refuses the ads.",
-  "tk.appDeeplinkOffHint": "The ads install the app and it opens on Home. Turn this on once TikTok has allowlisted the ad account for deferred deep links."
+  "tk.appDeeplinkOffHint": "The ads install the app and it opens on Home. Turn this on once TikTok has allowlisted the ad account for deferred deep links.",
+  "lv2.meta.autoPost": "Auto-post proven clips to this account",
+  "lv2.meta.autoPostHint": "The auto-poster uses one account per company. Leave this off for a second account so the same clips are not posted twice.",
+  "lv2.meta.assigned": "Assigned accounts",
+  "lv2.meta.assignedEmpty": "No Meta account is assigned yet.",
+  "lv2.meta.autoPostOn": "auto-post on",
+  "lv2.meta.autoPostOff": "auto-post off",
+  "lv2.meta.turnOff": "Turn off",
+  "lv2.meta.turnedOff": "Turned off. Studio no longer posts or launches with this account."
 }

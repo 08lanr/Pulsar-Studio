@@ -16,6 +16,31 @@ export function eligibleMetaAssignment(saved: LaunchConnection, inventory: MetaI
 }
 
 /**
+ * Whether an assignment updates an existing connection rather than adding one
+ * (decision 2026-10-25, migration 0025): a TikTok connection is its ad
+ * account; a Meta connection is its ad account and its Page, so a second Page
+ * on the same ad account sits beside the first instead of replacing it.
+ */
+export function sameConnectionSlot(a: Pick<LaunchConnection, "provider" | "advertiser_id" | "page_id">, b: Pick<LaunchConnection, "provider" | "advertiser_id" | "page_id">): boolean {
+  if (a.provider !== b.provider || a.advertiser_id !== b.advertiser_id) return false;
+  return a.provider !== "meta" || (a.page_id ?? null) === (b.page_id ?? null);
+}
+
+/**
+ * The one Meta connection the auto-poster posts a company's proven clips to.
+ * A connection marked `auto_post: true` wins; one assigned before the flag
+ * existed (absent) is next, so a one-account company keeps posting as before;
+ * `auto_post: false` is never used. Ties go to the earliest assignment, then
+ * the id, so the answer never depends on storage order. Null when none qualify.
+ */
+export function autoPostConnection(connections: readonly LaunchConnection[]): LaunchConnection | null {
+  const usable = connections.filter(c => c.provider === "meta" && c.enabled && c.assigned_by && c.page_id && c.auto_post !== false);
+  const rank = (c: LaunchConnection) => (c.auto_post === true ? 0 : 1);
+  const sorted = [...usable].sort((a, b) => rank(a) - rank(b) || a.verified_at.localeCompare(b.verified_at) || a.id.localeCompare(b.id));
+  return sorted[0] ?? null;
+}
+
+/**
  * The TikTok account a new launch starts on, so a one-account setup needs no
  * click (decision 2026-09-23, "one TikTok account for now"): the operator's
  * TIKTOK_DEFAULT_ADVERTISER_ID when the company's own assignment reaches it,
