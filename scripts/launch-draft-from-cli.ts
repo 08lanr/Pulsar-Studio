@@ -78,7 +78,8 @@ async function main() {
   const draft = meta ? {
     ...defaultLaunchDraft("meta"), name: spec.name, account_ids: [accountId], campaigns_per_account: 1, content_per_campaign: content.length,
     allocation: "unique" as const, content, destination_url: String(spec.destination_url ?? ""), total_budget_cents: Math.round(spec.total_budget_usd * 100),
-    daily_budget_cents: null, start_paused: spec.start_paused ?? true, title_id: spec.title_id ?? null,
+    // "daily_budget_usd" (2026-10-27): the ad set paces per day and the total is the campaign's spend cap (lib/meta/driver.ts).
+    daily_budget_cents: spec.daily_budget_usd ? Math.round(spec.daily_budget_usd * 100) : null, start_paused: spec.start_paused ?? true, title_id: spec.title_id ?? null,
     meta_settings: { ...defaultLaunchDraft("meta").meta_settings, ...(spec.meta ?? {}), start_time: start.toISOString(), end_time: end.toISOString() },
   } : {
     provider: "tiktok" as const, name: spec.name, account_ids: [accountId], campaigns_per_account: 1, content_per_campaign: content.length,
