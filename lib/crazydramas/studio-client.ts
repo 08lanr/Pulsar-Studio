@@ -10,6 +10,7 @@
 //   POST /api/studio/uploads/:uploadId/cancel          cancelUpload
 //   POST /api/studio/series/:series/publish            publish
 //   POST /api/studio/series/:series/unpublish          unpublish
+//   PUT  /api/studio/ad-spend                          putAdSpend (its own gate, cdSpendGate)
 //
 // plus the resumable Mux PUTs behind an upload URL (putChunk, queryUpload)
 // and the poster check (checkImage).
@@ -44,8 +45,10 @@ import type { PlatformManagedBy } from "@/lib/types";
 import { fakeCrazydramasTransport } from "./fake";
 import { CdSeriesSchema, type CdSeries } from "./publish-types";
 import {
+  AD_SPEND_PATH,
   CrazydramasApiError,
   liveCrazydramasStudioTransport,
+  spendSyncRefusal,
   studioReadRefusal,
   studioWriteRefusal,
   type ChunkAnswer,
@@ -88,6 +91,17 @@ export function crazydramasStudioTransport(): CrazydramasStudioTransport {
 export function cdWriteGate(): { enabled: boolean; reason: string | null; mode: StudioMode["write"] } {
   const mode = crazydramasStudioMode();
   return { enabled: mode.write !== "off", reason: mode.write_refusal, mode: mode.write };
+}
+
+/**
+ * The ad-spend sync's gate (decision 2026-10-29): DATA_SOURCE=supabase AND
+ * CRAZYDRAMAS_SPEND_SYNC=enabled AND the token, never under node:test. Not
+ * cdWriteGate: spend touches no series, so CRAZYDRAMAS_LIVE_WRITES is not asked,
+ * and fixture mode sends nothing, not even to the fake.
+ */
+export function cdSpendGate(): { enabled: boolean; reason: string | null } {
+  const reason = spendSyncRefusal();
+  return { enabled: reason === null, reason };
 }
 
 // ---- the contract's shapes (whitelists) ---------------------------------------------------------------------
@@ -206,6 +220,21 @@ export type PutSeriesBody = {
 
 export type UploadBody = { sha256: string; bytes: number; frames?: number; replace?: boolean };
 
+/** One ad's day as `PUT /api/studio/ad-spend` takes it (the body is strict: nothing else). */
+export type AdSpendRow = { day: string; ad_id: string; campaign_id: string; spend_cents: number; impressions: number | null; clicks: number | null };
+export type AdSpendBody = { platform: "tiktok" | "meta"; currency: "USD"; rows: AdSpendRow[] };
+
+/** `matched`: ads crazydramas tied to a series from their landings; `unmatched_ads`: up to 20 that it could not. */
+export const AdSpendAnswerSchema = z.object({
+  platform: z.enum(["tiktok", "meta"]),
+  rows: z.number().int(),
+  from: z.string().nullable(),
+  to: z.string().nullable(),
+  matched: z.number().int(),
+  unmatched_ads: z.array(z.string()).default([]),
+});
+export type AdSpendAnswer = z.infer<typeof AdSpendAnswerSchema>;
+
 // ---- results ------------------------------------------------------------------------------------------------
 
 export type StudioOk<T> = { ok: true; status: number; data: T };
@@ -237,24 +266,30 @@ export type StudioClientOptions = {
   transport?: CrazydramasStudioTransport;
   /** The write gate; `cdWriteGate` by default. A test may pin it. */
   writeGate?: () => { enabled: boolean; reason: string | null };
+  /** The ad-spend gate; `cdSpendGate` by default (refused under node:test). A test may pin it. */
+  spendGate?: () => { enabled: boolean; reason: string | null };
 };
+
+type Gate = () => { enabled: boolean; reason: string | null };
 
 export class StudioClient {
   readonly transport: CrazydramasStudioTransport;
-  private readonly gate: () => { enabled: boolean; reason: string | null };
+  private readonly gate: Gate;
+  private readonly spendGate: Gate;
 
   constructor(opts: StudioClientOptions = {}) {
     this.transport = opts.transport ?? crazydramasStudioTransport();
     this.gate = opts.writeGate ?? cdWriteGate;
+    this.spendGate = opts.spendGate ?? cdSpendGate;
   }
 
   get mode(): "fake" | "live" {
     return this.transport.mode;
   }
 
-  private async call<T>(method: "GET" | "PUT" | "POST", path: string, body: unknown, schema: z.ZodType<T, z.ZodTypeDef, unknown>, guard?: SeriesGuard): Promise<StudioResult<T>> {
+  private async call<T>(method: "GET" | "PUT" | "POST", path: string, body: unknown, schema: z.ZodType<T, z.ZodTypeDef, unknown>, guard?: SeriesGuard, writeGate: Gate = this.gate): Promise<StudioResult<T>> {
     if (method !== "GET") {
-      const gate = this.gate();
+      const gate = writeGate();
       if (!gate.enabled) return refuse(409, "writes_disabled", gate.reason ?? "Writes to crazydramas are disabled.", { reason: gate.reason });
       if (guard?.managed_by === "cms") {
         return refuse(403, "series_not_studio", "This series was made in the crazydramas CMS; Studio can read it but not change it. Ask Jayden to hand it over (one SQL line) to manage it from Studio. Nothing was sent.");
@@ -308,6 +343,11 @@ export class StudioClient {
 
   unpublish(series: string, body: { episodes?: number[]; unpublish_series?: boolean }, guard?: SeriesGuard): Promise<StudioResult<UnpublishAnswer>> {
     return this.call("POST", `/api/studio/series/${seg(series)}/unpublish`, body, UnpublishAnswerSchema, guard);
+  }
+
+  /** One platform's spend per ad per day, at most 2,000 rows (lib/crazydramas/spend-sync.ts chunks). Behind cdSpendGate, not the write gate. */
+  putAdSpend(body: AdSpendBody): Promise<StudioResult<AdSpendAnswer>> {
+    return this.call("PUT", AD_SPEND_PATH, body, AdSpendAnswerSchema, undefined, this.spendGate);
   }
 
   /** One resumable chunk PUT (a write: the gate applies). "No answer" is status 0. */

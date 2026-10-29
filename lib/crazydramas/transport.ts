@@ -23,6 +23,10 @@
 //   writes  PUT / POST — only with DATA_SOURCE=supabase AND
 //           CRAZYDRAMAS_LIVE_WRITES=enabled (spec §6, the META_LIVE_WRITES
 //           pattern); the Mux chunk PUT is a write too
+//   spend   PUT /api/studio/ad-spend (decision 2026-10-29, "The ad-spend
+//           sync") has its own switch instead: DATA_SOURCE=supabase AND
+//           CRAZYDRAMAS_SPEND_SYNC=enabled; it touches no series content, and
+//           CRAZYDRAMAS_LIVE_WRITES neither opens nor closes it
 //   tests   refused before any request, whatever the environment says
 //
 // The token is read in exactly one function (`studioToken`, not exported),
@@ -175,6 +179,23 @@ export function studioWriteRefusal(): string | null {
   return null;
 }
 
+/** The ad-spend route: the one write the spend switch opens (and the only one it opens). */
+export const AD_SPEND_PATH = "/api/studio/ad-spend";
+
+/**
+ * Why the ad-spend sync may not send (decision 2026-10-29), by setting NAME,
+ * or null: DATA_SOURCE=supabase AND CRAZYDRAMAS_SPEND_SYNC=enabled AND the
+ * token. Unlike the other gates it refuses under node:test itself, so the
+ * scheduler step and the CLI stop before reading TikTok or Meta at all.
+ */
+export function spendSyncRefusal(): string | null {
+  if (underTest()) return "The ad-spend sync never sends from tests.";
+  if (dataSource() !== "supabase") return "Fixture mode never sends ad spend to crazydramas.com: the sync needs DATA_SOURCE=supabase and CRAZYDRAMAS_SPEND_SYNC=enabled.";
+  if (!studioTokenConfigured()) return "CRAZYDRAMAS_STUDIO_TOKEN is not set.";
+  if (process.env.CRAZYDRAMAS_SPEND_SYNC !== "enabled") return "CRAZYDRAMAS_SPEND_SYNC is not set to enabled.";
+  return null;
+}
+
 // ---- public reads -------------------------------------------------------------------------------------
 
 /** Only this function sends public reads to crazydramas. */
@@ -228,7 +249,9 @@ async function studioCall(method: "GET" | "PUT" | "POST", path: string, body?: u
   serverOnly();
   if (underTest()) throw new CrazydramasApiError("Live Studio API calls are refused in tests; use the fake transport.");
   if (!STUDIO_PATH.test(path) || path.includes("..")) throw new CrazydramasApiError("Not a Studio API path.");
-  const refusal = method === "GET" || (method === "POST" && READ_ONLY_POSTS.has(path)) ? studioReadRefusal() : studioWriteRefusal();
+  const refusal = method === "GET" || (method === "POST" && READ_ONLY_POSTS.has(path)) ? studioReadRefusal()
+    : method === "PUT" && path === AD_SPEND_PATH ? spendSyncRefusal()
+    : studioWriteRefusal();
   if (refusal) throw new CrazydramasApiError(refusal);
   const token = studioToken();
   if (!token) throw new CrazydramasApiError("CRAZYDRAMAS_STUDIO_TOKEN is not set.");

@@ -21,6 +21,9 @@
 //   8. post proven clips to the Page and Instagram (lib/launch/auto-post.ts)
 //   9. run the creator accounts (lib/creators/sweeps.ts): due posts,
 //      comments and replies, daily insights; same live gates as 8
+//  10. send TikTok's and Meta's spend per ad per day to crazydramas
+//      (lib/crazydramas/spend-sync.ts): the last 7 days every 6 hours, behind
+//      DATA_SOURCE=supabase + CRAZYDRAMAS_SPEND_SYNC=enabled
 //
 // State lives on globalThis (Next bundles lib/ per route). `tick()` is also
 // what the staff "Sync now" button runs, so the desk never waits five minutes.
@@ -132,6 +135,12 @@ export async function tick(opts: { metrics?: boolean } = {}): Promise<TickSummar
     //    replies and daily insights; the same gates as 8 plus CREATORS_DISABLED=1.
     try { await (await import("@/lib/creators/sweeps")).tickCreators(); }
     catch (e) { summary.errors.push(`creators: ${(e as Error).message}`); }
+    // 10. the ad-spend sync (decision 2026-10-29): read-only TikTok and Meta reports, the
+    //     last 7 days every 6 hours, sent to crazydramas behind its own gate
+    //     (DATA_SOURCE=supabase + CRAZYDRAMAS_SPEND_SYNC=enabled) and SCHEDULER_DISABLED=1;
+    //     self-throttled, never throws, logs its own line.
+    try { await (await import("@/lib/crazydramas/spend-sync")).tickSpendSync(); }
+    catch (e) { summary.errors.push(`spend sync: ${(e as Error).message}`); }
   } finally {
     s.ticking = false;
     s.lastTickAt = Date.now();
