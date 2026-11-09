@@ -19,7 +19,7 @@ const backToTab = (req: NextRequest, status: string, detail?: string) => {
 };
 
 export async function GET(req: NextRequest) {
-  const g = await requireStaff();
+  const g = await requireStaff({ role: "admin" });
   if (g.response) return g.response;
   const missing = admobMissingEnv();
   if (missing.length) return backToTab(req, "error", `Set ${missing.join(" and ")} in Studio's env first.`);

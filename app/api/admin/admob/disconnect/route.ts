@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   return handle(req, async () => {
-    const g = await requireStaff();
+    const g = await requireStaff({ role: "admin" });
     if (g.response) return g.response;
     const token = await readAdmobRefreshToken();
     await clearAdmobRefreshToken(g.session.displayName || null);

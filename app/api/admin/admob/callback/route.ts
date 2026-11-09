@@ -23,7 +23,7 @@ function backToTab(req: NextRequest, status: string, detail?: string) {
 }
 
 export async function GET(req: NextRequest) {
-  const g = await requireStaff();
+  const g = await requireStaff({ role: "admin" });
   if (g.response) return g.response;
   const q = req.nextUrl.searchParams;
   const returned = q.get("state");
