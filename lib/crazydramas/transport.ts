@@ -235,8 +235,9 @@ const STUDIO_PATH = /^\/api\/studio\/[A-Za-z0-9/_.%-]+$/;
  * POSTs that only read: the stats report takes the team's emails in its body
  * (lib/crazydramas/stats.ts), so it is a POST, but it changes nothing on
  * crazydramas and needs only the read gate, never CRAZYDRAMAS_LIVE_WRITES.
+ * The ad-unlocks report (lib/crazydramas/ad-unlocks.ts, 2026-11-09) is the same.
  */
-const READ_ONLY_POSTS = new Set(["/api/studio/stats"]);
+const READ_ONLY_POSTS = new Set(["/api/studio/stats", "/api/studio/ad-unlocks"]);
 /**
  * The stats report reads 120 days of events and takes 20-30 s to build (measured 2026-10-04: 21 s and 28 s, 15 MB);
  * crazydramas allows it 60 s (its route's maxDuration). The other calls keep TIMEOUT_MS.

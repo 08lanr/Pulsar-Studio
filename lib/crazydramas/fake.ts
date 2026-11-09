@@ -56,6 +56,7 @@ import { z } from "zod";
 import type { PlatformDrama, PlatformEpisode, PlatformManagedBy } from "@/lib/types";
 import { CrazydramasApiError, type ChunkAnswer, type ChunkRange, type CrazydramasStudioTransport, type CrazydramasTransport, type ImageCheck, type StudioHttpAnswer } from "./transport";
 import { type CatalogEntry, isMockSlug, type SeriesRead } from "./types";
+import { fakeAdUnlocksReport } from "./fake-ad-unlocks";
 import { fakeStatsReport } from "./fake-stats";
 
 /** (frames + MUX_FRAME_OFFSET) / fps to three decimals, the way Mux reports a length. */
@@ -604,6 +605,11 @@ export class FakeCrazydramasTransport implements CrazydramasTransport, Crazydram
     if (path === "/api/studio/stats" && (method === "GET" || method === "POST")) {
       const team = (raw as { team_emails?: unknown }).team_emails;
       return { status: 200, body: fakeStatsReport(this.dramas, this.episodes, new Date(), Array.isArray(team) ? team.length : 0) };
+    }
+    // The ad-unlocks report (2026-11-09): invented, deterministic numbers over the fake's own series.
+    if (path === "/api/studio/ad-unlocks" && (method === "GET" || method === "POST")) {
+      const team = (raw as { team_emails?: unknown }).team_emails;
+      return { status: 200, body: fakeAdUnlocksReport(this.dramas, new Date(), Array.isArray(team) ? team.length : 0) };
     }
     return fail(404, "not_found", "No such route");
   }

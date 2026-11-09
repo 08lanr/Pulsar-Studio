@@ -881,7 +881,9 @@ export function notCounted(report: CdStatsReport, r: { from: string; to: string 
 // Series · Playback. The Funnel, Ads and Audience tabs are retired; an old address lands on their successor.
 // Since 2026-09-28 ("Ad video stats") Ads is a tab again: TikTok's numbers per ad creative, how far people watched.
 // Since 2026-10-12 ("Acquisition routes A/B/C") Routes: the three ways into the Android app side by side.
-export const DASH_TABS = ["overview", "money", "paywall", "vip", "coins", "campaigns", "ads", "routes", "series", "playback"] as const;
+// Since 2026-11-09 ("Ad unlocks in Studio") Ad unlocks: rewarded ads, crazydramas' counts next to AdMob's. Not "ads",
+// which is TikTok's and Meta's campaigns.
+export const DASH_TABS = ["overview", "money", "paywall", "vip", "coins", "adunlocks", "campaigns", "ads", "routes", "series", "playback"] as const;
 export type DashTab = (typeof DASH_TABS)[number];
 /** Tabs that were renamed or folded into another (Buyers became Money on 2026-09-28: the payments list lives there). */
 const RETIRED_TABS: Record<string, DashTab> = { funnel: "overview", audience: "overview", buyers: "money" };

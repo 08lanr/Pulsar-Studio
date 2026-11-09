@@ -2,6 +2,7 @@ import "@/app/crazydramas-stats.css";
 import { adminLocale, staffSession } from "@/components/admin/server";
 import { AdDetail, AdTypeTable, type AdRun } from "@/components/admin/cd-stats/AdDetail";
 import AdsTab from "@/components/admin/cd-stats/AdsTab";
+import AdUnlocksTab from "@/components/admin/cd-stats/AdUnlocks";
 import { CoinValueNotice, RangeTabs, ReadFailure } from "@/components/admin/cd-stats/Bits";
 import { BoughtPanel, CampaignBriefPanel, PaywallTestPanel } from "@/components/admin/cd-stats/Brief";
 import { BuyersTable, PersonPanel, type Names } from "@/components/admin/cd-stats/Buyers";
@@ -107,7 +108,7 @@ export const dynamic = "force-dynamic";
 
 const n0 = (v: number) => v.toLocaleString("en-US");
 
-type Search = { range?: string; fresh?: string; series?: string; device?: string; source?: string; country?: string; tab?: string; eps?: string; ad?: string; person?: string; curve?: string; ad_title?: string; ad_type?: string };
+type Search = { range?: string; fresh?: string; series?: string; device?: string; source?: string; country?: string; tab?: string; eps?: string; ad?: string; person?: string; curve?: string; ad_title?: string; ad_type?: string; admob?: string; detail?: string };
 
 /** TikTok's days of spend, with the fixture's invented launches' days laid over them. */
 function withDays(read: AdDaysRead, extra: AdDaysRead | null): AdDaysRead {
@@ -181,14 +182,18 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
       />
     );
   };
+  // The Ad unlocks tab reads crazydramas' ad-unlocks report and AdMob on its own: it still shows when the stats do not answer.
+  const adUnlocksTab = (vs: string | null) => (
+    <AdUnlocksTab locale={locale} range={range} fresh={fresh} vs={vs} notice={{ status: searchParams.admob ?? null, detail: searchParams.detail ?? null }} />
+  );
   if (!read.ok) {
     return (
       <>
         {head}
-        {tab === "ads" ? (
+        {tab === "ads" || tab === "adunlocks" ? (
           <>
             {tabs}
-            {await adsTab(pacificToday(), null, [])}
+            {tab === "ads" ? await adsTab(pacificToday(), null, []) : adUnlocksTab(range === "all" ? null : tt(`cdx.vs.${range}`))}
           </>
         ) : (
           <ReadFailure read={read} locale={locale} />
@@ -284,7 +289,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
     <>
       {head}
       <div className="cdx-bar">
-        {tab !== "ads" && <FilterBar
+        {tab !== "ads" && tab !== "adunlocks" && <FilterBar
           range={range}
           keep={Object.fromEntries(Object.entries({ tab: tab === "overview" ? "" : tab, eps: eps === "1" ? "" : eps, ...here }).filter((e): e is [string, string] => !!e[1]))}
           value={{ series: seriesSlug, device: filter.device, source: filter.source, country: filter.country ?? null }}
@@ -302,6 +307,7 @@ export default async function CrazydramasStatsPage({ searchParams }: { searchPar
       {tab === "paywall" && <PaywallTab />}
       {tab === "vip" && <VipTab />}
       {tab === "coins" && <CoinsTab />}
+      {tab === "adunlocks" && adUnlocksTab(range === "all" ? null : tt(`cdx.vs.${range}`))}
       {tab === "campaigns" && <CampaignsTab />}
       {tab === "ads" && (await adsTab(report.to, invented, inventedClips))}
       {tab === "routes" && <RoutesTab />}

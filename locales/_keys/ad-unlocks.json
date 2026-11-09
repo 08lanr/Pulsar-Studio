@@ -1,0 +1,410 @@
+{
+  "cdx.tab.adunlocks": {
+    "en": "Ad unlocks",
+    "zh": "看广告解锁"
+  },
+  "cdau.cd.notDeployed": {
+    "en": "crazydramas' own ad counts come with the next crazydramas release.",
+    "zh": "crazydramas 自己的广告数据会随下一次 crazydramas 发布上线。"
+  },
+  "cdau.cd.failed": {
+    "en": "crazydramas' ad counts could not be read: {error}",
+    "zh": "无法读取 crazydramas 的广告数据：{error}"
+  },
+  "cdau.admob.notConnectedShort": {
+    "en": "AdMob not connected",
+    "zh": "AdMob 未连接"
+  },
+  "cdau.admob.failedShort": {
+    "en": "AdMob not read",
+    "zh": "AdMob 读取失败"
+  },
+  "cdau.p.ios": {
+    "en": "iPhone",
+    "zh": "iPhone"
+  },
+  "cdau.p.android": {
+    "en": "Android",
+    "zh": "Android"
+  },
+  "cdau.p.web": {
+    "en": "Web",
+    "zh": "网页"
+  },
+  "cdau.refused.cap": {
+    "en": "daily cap",
+    "zh": "达到每日上限"
+  },
+  "cdau.refused.too_fast": {
+    "en": "too fast",
+    "zh": "太快"
+  },
+  "cdau.refused.expired": {
+    "en": "expired",
+    "zh": "已过期"
+  },
+  "cdau.refused.duplicate": {
+    "en": "duplicate",
+    "zh": "重复"
+  },
+  "cdau.refused.already_open": {
+    "en": "already unlocked",
+    "zh": "已解锁"
+  },
+  "cdau.refused.unknown": {
+    "en": "other",
+    "zh": "其他"
+  },
+  "cdau.admob.connected": {
+    "en": "AdMob is connected. Its numbers show below.",
+    "zh": "AdMob 已连接，数据显示在下方。"
+  },
+  "cdau.admob.disconnected": {
+    "en": "AdMob is disconnected. Connect it again to see Google's numbers.",
+    "zh": "AdMob 已断开。重新连接后可查看 Google 的数据。"
+  },
+  "cdau.admob.connectError": {
+    "en": "AdMob was not connected: {error}",
+    "zh": "AdMob 未能连接：{error}"
+  },
+  "cdau.fresh.cd": {
+    "en": "Our counts",
+    "zh": "我们的数据"
+  },
+  "cdau.fresh.counted": {
+    "en": "counted {time}",
+    "zh": "{time} 统计"
+  },
+  "cdau.fresh.missing": {
+    "en": "not available",
+    "zh": "暂无"
+  },
+  "cdau.fresh.admob": {
+    "en": "AdMob",
+    "zh": "AdMob"
+  },
+  "cdau.fresh.read": {
+    "en": "read {time}",
+    "zh": "{time} 读取"
+  },
+  "cdau.fresh.name": {
+    "en": "where the numbers come from",
+    "zh": "数据来源"
+  },
+  "cdau.fresh.info": {
+    "en": "Our counts are crazydramas' own record of every rewarded ad (one row per ad), kept by Studio for 5 minutes. AdMob is Google's report of the same ads in the apps, kept for 15 minutes; Google's earnings are estimates and can still change for a day or two. Refresh reads both again. The team's own accounts are left out of our counts, not out of AdMob's.",
+    "zh": "我们的数据是 crazydramas 对每一次激励广告的记录（每个广告一行），Studio 缓存 5 分钟。AdMob 是 Google 对 App 内同一批广告的报告，缓存 15 分钟；Google 的收入是估算值，一两天内仍可能变化。点刷新会重新读取两边。团队自己的账号不计入我们的数据，但 AdMob 的数据里仍包含。"
+  },
+  "cdau.switch.on": {
+    "en": "Ads are on: {units} AdMob ad units, up to {cap} episodes a day per viewer, web: {web}.",
+    "zh": "广告已开启：{units} 个 AdMob 广告单元，每位观众每天最多 {cap} 集，网页：{web}。"
+  },
+  "cdau.switch.off": {
+    "en": "Ads are switched off on crazydramas.",
+    "zh": "crazydramas 上的广告已关闭。"
+  },
+  "cdau.web.gam": {
+    "en": "Google Ad Manager",
+    "zh": "Google Ad Manager"
+  },
+  "cdau.web.house": {
+    "en": "house ads",
+    "zh": "自家广告"
+  },
+  "cdau.web.off": {
+    "en": "off",
+    "zh": "关闭"
+  },
+  "cdau.k.granted": {
+    "en": "Ads watched",
+    "zh": "看完的广告"
+  },
+  "cdau.k.granted.info": {
+    "en": "Episodes unlocked by watching an ad to the end, in the period. Each one is an ad AdMob (or the web's ad) showed in full.",
+    "zh": "所选时间段内，看完广告后解锁的集数。每一次都是 AdMob（或网页广告）完整播放的一条广告。"
+  },
+  "cdau.k.granted.sub": {
+    "en": "of {n} started",
+    "zh": "共开始 {n} 次"
+  },
+  "cdau.k.viewers": {
+    "en": "Viewers who used ads",
+    "zh": "看广告的观众"
+  },
+  "cdau.k.viewers.info": {
+    "en": "Viewers who unlocked at least one episode with an ad. For one day, the people that day; for longer, the average a day, because a viewer who came back on three days would otherwise count three times. All also shows the different people over the last 90 days.",
+    "zh": "至少用广告解锁过一集的观众。单日显示当天人数；更长的时间段显示每天平均人数，否则一位连续来三天的观众会被算三次。“全部”还会显示最近 90 天内的不同人数。"
+  },
+  "cdau.k.viewers.avg": {
+    "en": "{n} a day",
+    "zh": "每天 {n}"
+  },
+  "cdau.k.viewers.people": {
+    "en": "{n} different people in 90 days",
+    "zh": "90 天内 {n} 位不同观众"
+  },
+  "cdau.k.perViewer": {
+    "en": "Episodes per ad viewer",
+    "zh": "每位看广告观众的集数"
+  },
+  "cdau.k.perViewer.info": {
+    "en": "On a day a viewer used ads, how many episodes they unlocked with ads, on average.",
+    "zh": "观众在用广告解锁的那一天，平均用广告解锁了多少集。"
+  },
+  "cdau.k.cap": {
+    "en": "Hit the daily cap",
+    "zh": "达到每日上限"
+  },
+  "cdau.k.cap.info": {
+    "en": "Of the viewers who unlocked with an ad on a day, the share who reached the limit of {cap} ad unlocks in 24 hours. A high share means people want more episodes than ads allow.",
+    "zh": "当天用广告解锁的观众中，24 小时内达到 {cap} 次广告解锁上限的比例。比例高说明观众想看的集数比广告允许的多。"
+  },
+  "cdau.k.cap.sub": {
+    "en": "{n} viewer-days",
+    "zh": "{n} 人次（按天）"
+  },
+  "cdau.k.earnings": {
+    "en": "AdMob earnings",
+    "zh": "AdMob 收入"
+  },
+  "cdau.k.earnings.info": {
+    "en": "What Google estimates AdMob earned from the apps' ads in the period, in US dollars, before any payout. Estimates can change for a day or two. The web's ads are not AdMob and are not in this number.",
+    "zh": "Google 估算的所选时间段内 App 广告在 AdMob 的收入（美元，未结算）。估算值一两天内可能变化。网页广告不属于 AdMob，不计入此数。"
+  },
+  "cdau.k.ecpm": {
+    "en": "eCPM",
+    "zh": "eCPM"
+  },
+  "cdau.k.ecpm.info": {
+    "en": "AdMob earnings per 1,000 ads shown: the earnings divided by Google's impressions, times 1,000.",
+    "zh": "每展示 1,000 次广告的 AdMob 收入：收入除以 Google 统计的展示次数，再乘以 1,000。"
+  },
+  "cdau.k.ecpm.sub": {
+    "en": "{n} impressions",
+    "zh": "{n} 次展示"
+  },
+  "cdau.chart": {
+    "en": "Ads watched per day",
+    "zh": "每天看完的广告"
+  },
+  "cdau.chart.earnings": {
+    "en": "AdMob earnings per day",
+    "zh": "每天 AdMob 收入"
+  },
+  "cdau.notGranted": {
+    "en": "Not unlocked: {refused} refused, {unfinished} unfinished",
+    "zh": "未解锁：{refused} 次被拒，{unfinished} 次未看完"
+  },
+  "cdau.verified": {
+    "en": "{ssv} of {granted} confirmed by AdMob's server",
+    "zh": "{granted} 次中有 {ssv} 次经 AdMob 服务器确认"
+  },
+  "cdau.notGranted.name": {
+    "en": "ads that unlocked nothing",
+    "zh": "没有解锁的广告"
+  },
+  "cdau.notGranted.info": {
+    "en": "Refused: crazydramas said no (the viewer reached the daily cap, the ad ended too fast to be real, the unlock expired, it was sent twice, or the episode was already open). Unfinished: an ad started and never finished within 10 minutes (closed early, no ad to show, or the app was left). Confirmed by AdMob's server: Google told crazydramas directly that the ad was watched; the rest were confirmed by the app alone.",
+    "zh": "被拒：crazydramas 拒绝了（观众已达每日上限、广告结束得太快不像真实观看、解锁已过期、重复发送，或该集已经解锁）。未看完：广告开始后 10 分钟内没有看完（提前关闭、没有可展示的广告，或离开了 App）。经 AdMob 服务器确认：Google 直接通知 crazydramas 广告已看完；其余只由 App 确认。"
+  },
+  "cdau.vs.title": {
+    "en": "AdMob and our counts, by day",
+    "zh": "AdMob 与我们的数据（按天）"
+  },
+  "cdau.vs.info": {
+    "en": "Each day and phone: AdMob's impressions next to the ads our apps started and did not have refused (watched to the end, plus unfinished). They should be close; a big gap means ads were shown that we never recorded, or the other way round. Requests and match rate: how often the app asked Google for an ad and how often Google had one.",
+    "zh": "每天每种手机：AdMob 的展示次数，对比我们 App 开始且未被拒绝的广告（看完的加上未看完的）。两者应当接近；差距大说明有展示我们没有记录，或者相反。请求和匹配率：App 向 Google 要广告的次数，以及 Google 有广告可给的比例。"
+  },
+  "cdau.vs.none": {
+    "en": "No ads in this period yet.",
+    "zh": "这段时间还没有广告。"
+  },
+  "cdau.col.day": {
+    "en": "Day",
+    "zh": "日期"
+  },
+  "cdau.col.platform": {
+    "en": "Phone",
+    "zh": "手机"
+  },
+  "cdau.col.impressions": {
+    "en": "AdMob impressions",
+    "zh": "AdMob 展示"
+  },
+  "cdau.col.started": {
+    "en": "Our ads started",
+    "zh": "我们开始的广告"
+  },
+  "cdau.col.gap": {
+    "en": "Difference",
+    "zh": "差额"
+  },
+  "cdau.col.requests": {
+    "en": "Requests",
+    "zh": "请求"
+  },
+  "cdau.col.match": {
+    "en": "Match rate",
+    "zh": "匹配率"
+  },
+  "cdau.col.earnings": {
+    "en": "Earnings",
+    "zh": "收入"
+  },
+  "cdau.col.ecpm": {
+    "en": "eCPM",
+    "zh": "eCPM"
+  },
+  "cdau.col.series": {
+    "en": "Series",
+    "zh": "剧集"
+  },
+  "cdau.col.granted": {
+    "en": "Ads watched",
+    "zh": "看完的广告"
+  },
+  "cdau.col.opened": {
+    "en": "Started",
+    "zh": "开始"
+  },
+  "cdau.col.viewers": {
+    "en": "Viewers",
+    "zh": "观众"
+  },
+  "cdau.col.topEpisode": {
+    "en": "Most unlocked",
+    "zh": "解锁最多"
+  },
+  "cdau.col.reason": {
+    "en": "Why",
+    "zh": "原因"
+  },
+  "cdau.col.count": {
+    "en": "Times",
+    "zh": "次数"
+  },
+  "cdau.window": {
+    "en": "{from} to {to}",
+    "zh": "{from} 至 {to}"
+  },
+  "cdau.episode": {
+    "en": "Episode {n}",
+    "zh": "第 {n} 集"
+  },
+  "cdau.after.title": {
+    "en": "Did ad watchers pay later?",
+    "zh": "看广告的观众后来付费了吗？"
+  },
+  "cdau.after.info": {
+    "en": "Over crazydramas' last 90 days: every viewer who unlocked at least one episode with an ad, and whether they paid for anything (coins, VIP or a series) after their first ad. Money is cash taken before fees, refunds out, the team left out, as on the Money tab.",
+    "zh": "统计 crazydramas 最近 90 天：每一位至少用广告解锁过一集的观众，在第一次看广告之后是否付费（金币、VIP 或单剧）。金额为扣手续费前的实收，已减退款，不含团队账号，与“收入”标签页一致。"
+  },
+  "cdau.after.line": {
+    "en": "Of {n} viewers who unlocked with an ad, {m} paid afterwards ({share}), {cash}.",
+    "zh": "{n} 位用广告解锁的观众中，{m} 位之后付了费（{share}），共 {cash}。"
+  },
+  "cdau.after.before": {
+    "en": "{n} had paid before their first ad and not since.",
+    "zh": "另有 {n} 位在第一次看广告前付过费，之后没有再付。"
+  },
+  "cdau.series.title": {
+    "en": "By series",
+    "zh": "按剧集"
+  },
+  "cdau.series.none": {
+    "en": "No series has an ad unlock yet.",
+    "zh": "还没有剧集被广告解锁过。"
+  },
+  "cdau.fail.title": {
+    "en": "Why ads did not play",
+    "zh": "广告没有播放的原因"
+  },
+  "cdau.fail.info": {
+    "en": "What the apps reported when an ad could not unlock an episode, in the period, from crazydramas' own events.",
+    "zh": "所选时间段内，广告未能解锁剧集时 App 上报的原因，来自 crazydramas 自己的事件记录。"
+  },
+  "cdau.fail.none": {
+    "en": "No failed ads reported in this period.",
+    "zh": "这段时间没有上报失败的广告。"
+  },
+  "cdau.fail.no_fill": {
+    "en": "No ad to show",
+    "zh": "没有可展示的广告"
+  },
+  "cdau.fail.closed": {
+    "en": "Closed before the end",
+    "zh": "没看完就关闭"
+  },
+  "cdau.fail.unsupported": {
+    "en": "Phone or app too old",
+    "zh": "手机或 App 版本太旧"
+  },
+  "cdau.fail.timeout": {
+    "en": "Took too long to load",
+    "zh": "加载超时"
+  },
+  "cdau.fail.error": {
+    "en": "Error",
+    "zh": "出错"
+  },
+  "cdau.fail.refused:cap": {
+    "en": "Refused: daily cap",
+    "zh": "被拒：达到每日上限"
+  },
+  "cdau.fail.refused:too_fast": {
+    "en": "Refused: too fast",
+    "zh": "被拒：太快"
+  },
+  "cdau.fail.refused:expired": {
+    "en": "Refused: expired",
+    "zh": "被拒：已过期"
+  },
+  "cdau.fail.refused:duplicate": {
+    "en": "Refused: duplicate",
+    "zh": "被拒：重复"
+  },
+  "cdau.fail.refused:already_open": {
+    "en": "Refused: already unlocked",
+    "zh": "被拒：已解锁"
+  },
+  "cdau.admob.title": {
+    "en": "AdMob",
+    "zh": "AdMob"
+  },
+  "cdau.admob.connect": {
+    "en": "Connect AdMob",
+    "zh": "连接 AdMob"
+  },
+  "cdau.admob.notConnected": {
+    "en": "Connect AdMob to see Google's numbers next to ours: earnings, eCPM, impressions and match rate. You sign in with the Google account that has AdMob; Studio only reads.",
+    "zh": "连接 AdMob 后，可以在我们的数据旁看到 Google 的数据：收入、eCPM、展示和匹配率。用有 AdMob 权限的 Google 账号登录；Studio 只读取数据。"
+  },
+  "cdau.admob.notConfigured": {
+    "en": "AdMob can't be connected yet: Studio needs the Google OAuth client. Set these in Studio's env (.env.local), then restart Studio:",
+    "zh": "暂时无法连接 AdMob：Studio 需要 Google OAuth 客户端。请在 Studio 的环境变量（.env.local）中设置以下项，然后重启 Studio："
+  },
+  "cdau.admob.redirect": {
+    "en": "The OAuth client must allow this redirect URI: {uri}",
+    "zh": "OAuth 客户端必须允许这个重定向 URI：{uri}"
+  },
+  "cdau.admob.failed": {
+    "en": "AdMob could not be read: {error}",
+    "zh": "无法读取 AdMob：{error}"
+  },
+  "cdau.admob.connectedBy": {
+    "en": "AdMob connected by {who} on {day}",
+    "zh": "AdMob 由 {who} 于 {day} 连接"
+  },
+  "cdau.admob.connectedShort": {
+    "en": "AdMob connected",
+    "zh": "AdMob 已连接"
+  },
+  "cdau.admob.someone": {
+    "en": "a staff member",
+    "zh": "一位员工"
+  },
+  "cdau.admob.disconnect": {
+    "en": "Disconnect",
+    "zh": "断开"
+  }
+}
